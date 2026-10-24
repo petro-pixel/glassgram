@@ -33,7 +33,7 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title("Glassgram")
-            .with_app_id("glassgram")
+            .with_app_id("io.github.petro_pixel.Glassgram")
             .with_inner_size([1120.0, 740.0])
             .with_min_inner_size([760.0, 520.0])
             .with_icon(icon),

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.petro_pixel.Glassgram</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Glassgram</name>
+  <summary>Telegram client with a liquid glass interface</summary>
+  <summary xml:lang="uk">Клієнт Telegram з інтерфейсом «рідкого скла»</summary>
+  <developer id="io.github.petro_pixel">
+    <name>petro-pixel</name>
+  </developer>
+  <description>
+    <p>An unofficial desktop Telegram client written in Rust. The layout follows Telegram Desktop;
+      panels, menus and the composer are drawn as translucent glass.</p>
+    <p xml:lang="uk">Неофіційний десктопний клієнт Telegram на Rust. Структура — як у Telegram Desktop,
+      панелі, меню й поле вводу — напівпрозоре скло.</p>
+    <p>Glassgram is not affiliated with Telegram FZ-LLC.</p>
+  </description>
+  <launchable type="desktop-id">io.github.petro_pixel.Glassgram.desktop</launchable>
+  <url type="homepage">https://github.com/petro-pixel/glassgram</url>
+  <url type="bugtracker">https://github.com/petro-pixel/glassgram/issues</url>
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-chat">intense</content_attribute>
+    <content_attribute id="social-info">mild</content_attribute>
+  </content_rating>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <releases>
+    <release version="0.3.0" date="2026-10-24">
+      <description>
+        <p>Windows installer and Flatpak, PipeWire microphone, Lucide icons, localisation files.</p>
+      </description>
+    </release>
+    <release version="0.2.0" date="2026-10-24"/>
+  </releases>
+</component>

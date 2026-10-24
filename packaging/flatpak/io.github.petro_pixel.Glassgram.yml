@@ -1,0 +1,78 @@
+# Flatpak bundle built by .github/workflows/release.yml. The Telegram API keys come from repository
+# secrets through an untracked keys.env (see build.rs), so this manifest is not for Flathub as is:
+# Flathub builds from a public manifest without network or secrets.
+app-id: io.github.petro_pixel.Glassgram
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: glassgram
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # The GPU for wgpu and the webcam (/dev/video*) for video messages.
+  - --device=all
+  - --socket=pulseaudio
+  # The microphone through pw-record (camera::Mic).
+  - --filesystem=xdg-run/pipewire-0
+  - --filesystem=xdg-download
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+modules:
+  # H.264 for video messages.
+  - name: x264
+    config-opts:
+      - --enable-shared
+      - --enable-pic
+      - --disable-cli
+    sources:
+      - type: git
+        url: https://code.videolan.org/videolan/x264.git
+        commit: b35605ace3ddf7c1a5d67a2eb553f034aef41d55
+
+  # ffmpeg and ffplay: the app runs them for playback, video frames and recording.
+  - name: ffmpeg
+    config-opts:
+      - --enable-gpl
+      - --enable-shared
+      - --disable-static
+      - --enable-libx264
+      - --enable-libopus
+      - --enable-libvpx
+      - --enable-ffplay
+      - --disable-doc
+      - --disable-debug
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - /share/ffmpeg/examples
+    sources:
+      - type: archive
+        url: https://ffmpeg.org/releases/ffmpeg-7.1.1.tar.xz
+        sha256: 733984395e0dbbe5c046abda2dc49a5544e7e0e1e2366bba849222ae9e3a03b1
+
+  - name: glassgram
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      # Crates are fetched while building (not allowed on Flathub, fine for our own bundle).
+      build-args:
+        - --share=network
+      env:
+        CARGO_HOME: /run/build/glassgram/cargo
+    build-commands:
+      - sh -c 'set -a; if [ -f keys.env ]; then . ./keys.env; fi; set +a; cargo build --release --locked'
+      - rm -f keys.env
+      - install -Dm755 target/release/glassgram /app/bin/glassgram
+      - install -Dm644 packaging/linux/${FLATPAK_ID}.desktop /app/share/applications/${FLATPAK_ID}.desktop
+      - install -Dm644 packaging/linux/${FLATPAK_ID}.metainfo.xml /app/share/metainfo/${FLATPAK_ID}.metainfo.xml
+      - for n in 128 256 512; do install -Dm644 packaging/icons/glassgram-$n.png /app/share/icons/hicolor/${n}x${n}/apps/${FLATPAK_ID}.png; done
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - target
+          - .git

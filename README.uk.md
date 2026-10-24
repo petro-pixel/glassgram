@@ -19,15 +19,23 @@
 - **Скло**: справжнє розмиття через wgpu-шейдер (`src/blur.rs`, `src/glass.wgsl`); без wgpu — векторний фолбек
 - **UI**: egui / eframe (wgpu), власний рендер скла — `src/glass.rs`
 
-## Запуск
+## Встановлення
+
+Готові збірки — на сторінці [Releases](https://github.com/petro-pixel/glassgram/releases); у них уже є
+ключі Telegram API та ffmpeg, тож лишається тільки ввійти за номером телефону:
+- **Windows**: `Glassgram-<версія>-setup.exe`;
+- **Linux**: `Glassgram.flatpak` — `flatpak install --user Glassgram.flatpak`, потім `flatpak run io.github.petro_pixel.Glassgram`.
+
+## Запуск із коду
 
 ```sh
 cargo run --release -- --demo   # демо з вигаданими чатами, без мережі
 cargo run --release             # справжній акаунт
 ```
 
-Для справжнього акаунта потрібні `api_id` та `api_hash` з <https://my.telegram.org> → *API development tools*.
-Їх можна ввести у вікні входу або передати через змінні `TG_API_ID` / `TG_API_HASH`.
+Збірці з коду потрібні `api_id` та `api_hash` з <https://my.telegram.org> → *API development tools*.
+Їх можна ввести у вікні входу або передати через змінні `TG_API_ID` / `TG_API_HASH`. Щоб вбудувати їх
+у програму, як у релізах, задайте під час збірки `GLASSGRAM_API_ID` / `GLASSGRAM_API_HASH` (`build.rs`).
 
 Сесія та облікові дані зберігаються в теці даних: `~/.local/share/glassgram/` на Linux,
 `%APPDATA%\glassgram\` на Windows, `~/Library/Application Support/glassgram/` на macOS.
@@ -87,6 +95,8 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/i18n.rs`, `locales/` | Мова інтерфейсу: `l!`/`lf!` для української й англійської, JSON-файли локалізації для решти |
 | `src/format.rs` | Сутності Telegram ↔ розмітка, текст із форматуванням для egui, шрифти |
 | `src/demo.rs` | Демо-дані |
+| `build.rs` | Ключі Telegram API із середовища збірки (замасковані), іконка exe на Windows |
+| `packaging/`, `.github/workflows/release.yml` | Інсталятор Windows (Inno Setup), маніфест Flatpak, `.desktop`, metainfo, іконки; релізні збірки |
 
 ## Керування
 

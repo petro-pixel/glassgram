@@ -1,9 +1,10 @@
 [package]
 name = "glassgram"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Telegram client with a liquid glass UI"
+build = "build.rs"
 
 [dependencies]
 arboard = "3.7"
@@ -45,3 +46,7 @@ tray-icon = { version = "0.21", default-features = false }
 [target.'cfg(target_os = "windows")'.dependencies]
 raw-window-handle = "0.6"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+
+[build-dependencies]
+# The exe icon on Windows (MSVC resource compiler); pure Rust, does nothing elsewhere.
+winresource = "0.1"

@@ -864,16 +864,32 @@ pub struct Handle {
 
 pub use crate::platform::data_dir;
 
-/// Returns (api_id, api_hash) from environment variables or the saved config.
+/// Returns (api_id, api_hash): environment variables, then the user's own saved keys,
+/// then the keys built into a release (see `build.rs`).
 pub fn saved_credentials() -> Option<(i32, String)> {
     if let (Ok(id), Ok(hash)) = (std::env::var("TG_API_ID"), std::env::var("TG_API_HASH")) {
         return Some((id.trim().parse().ok()?, hash.trim().to_owned()));
     }
-    let text = std::fs::read_to_string(data_dir().join("credentials")).ok()?;
-    let mut lines = text.lines();
-    let id = lines.next()?.trim().parse().ok()?;
-    let hash = lines.next()?.trim().to_owned();
-    Some((id, hash))
+    let saved = || {
+        let text = std::fs::read_to_string(data_dir().join("credentials")).ok()?;
+        let mut lines = text.lines();
+        let id = lines.next()?.trim().parse().ok()?;
+        let hash = lines.next()?.trim().to_owned();
+        Some((id, hash))
+    };
+    saved().or_else(builtin_credentials)
+}
+
+mod builtin {
+    include!(concat!(env!("OUT_DIR"), "/api_keys.rs"));
+}
+
+/// Keys from the release build, unmasked only here and only in memory.
+fn builtin_credentials() -> Option<(i32, String)> {
+    let (id, hash, mask) = builtin::API?;
+    let m = u32::from_le_bytes(mask.get(..4)?.try_into().ok()?);
+    let hash: String = hash.iter().zip(&mask[4..]).map(|(b, k)| char::from(b ^ k)).collect();
+    Some(((id ^ m) as i32, hash))
 }
 
 fn save_credentials(api_id: i32, api_hash: &str) {
@@ -3660,4 +3676,17 @@ async fn download(client: &Client, r: PeerRef, id: i32) -> Result<PathBuf, Strin
     client.download_media(&media, &path).await.map_err(|e| lf!("Завантаження: {e}", "Download: {e}"))?;
     crate::platform::open(&path);
     Ok(path)
+}
+
+#[cfg(test)]
+mod builtin_tests {
+    /// Only meaningful in a build with keys: `GLASSGRAM_API_ID=… GLASSGRAM_API_HASH=… cargo test builtin`.
+    #[test]
+    fn builtin_keys_round_trip() {
+        if let (Some(id), Some(hash)) = (option_env!("GLASSGRAM_API_ID"), option_env!("GLASSGRAM_API_HASH")) {
+            assert_eq!(super::builtin_credentials(), Some((id.trim().parse().unwrap(), hash.trim().to_owned())));
+        } else {
+            assert_eq!(super::builtin_credentials(), None);
+        }
+    }
 }

@@ -1,3 +1,10 @@
 /target
 # Вихідний архів шрифтів — потрібні файли вже в assets/fonts
 /Ubuntu.zip
+# Telegram API keys for a local release build (see build.rs); never commit
+/keys.env
+# Installer output and downloaded ffmpeg
+/dist
+# flatpak-builder
+/.flatpak-builder
+/build-dir

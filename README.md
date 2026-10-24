@@ -19,15 +19,23 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Glass**: real blur via a wgpu shader (`src/blur.rs`, `src/glass.wgsl`); without wgpu — a vector fallback
 - **UI**: egui / eframe (wgpu), our own glass renderer — `src/glass.rs`
 
-## Running
+## Installing
+
+Ready builds are on the [Releases](https://github.com/petro-pixel/glassgram/releases) page; they already
+contain the Telegram API keys and ffmpeg, so you only sign in with your phone number:
+- **Windows**: `Glassgram-<version>-setup.exe`;
+- **Linux**: `Glassgram.flatpak` — `flatpak install --user Glassgram.flatpak`, then `flatpak run io.github.petro_pixel.Glassgram`.
+
+## Running from source
 
 ```sh
 cargo run --release -- --demo   # demo with made-up chats, no network
 cargo run --release             # real account
 ```
 
-A real account needs an `api_id` and `api_hash` from <https://my.telegram.org> → *API development tools*.
-Enter them in the sign-in window or pass them via the `TG_API_ID` / `TG_API_HASH` variables.
+A build from source needs an `api_id` and `api_hash` from <https://my.telegram.org> → *API development tools*.
+Enter them in the sign-in window or pass them via the `TG_API_ID` / `TG_API_HASH` variables. To build them
+into the binary as the releases do, set `GLASSGRAM_API_ID` / `GLASSGRAM_API_HASH` while building (`build.rs`).
 
 The session and credentials are stored in the data folder: `~/.local/share/glassgram/` on Linux,
 `%APPDATA%\glassgram\` on Windows, `~/Library/Application Support/glassgram/` on macOS.
@@ -87,6 +95,8 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/i18n.rs`, `locales/` | UI language: `l!`/`lf!` for Ukrainian and English, JSON localisation files for the rest |
 | `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |
 | `src/demo.rs` | Demo data |
+| `build.rs` | Telegram API keys from the build environment (masked), the Windows exe icon |
+| `packaging/`, `.github/workflows/release.yml` | Windows installer (Inno Setup), Flatpak manifest, `.desktop`, metainfo, icons; release builds |
 
 ## Controls
 

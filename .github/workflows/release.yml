@@ -1,0 +1,88 @@
+# Release builds: Windows installer and Flatpak bundle with the Telegram API keys built in.
+# The keys come from the repository secrets TG_API_ID / TG_API_HASH (Settings → Secrets → Actions)
+# and only reach the build as GLASSGRAM_API_ID / GLASSGRAM_API_HASH (see build.rs).
+# Only a pushed tag or a manual run starts this, never a pull request, so forks can't read the secrets;
+# nothing that holds the keys is cached.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        env:
+          GLASSGRAM_API_ID: ${{ secrets.TG_API_ID }}
+          GLASSGRAM_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: cargo build --release --locked
+
+      # GPL build with libx264, libopus, libvpx and ffplay; it goes next to glassgram.exe.
+      - name: ffmpeg
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-zip
+          New-Item -ItemType Directory -Force dist/ffmpeg | Out-Null
+          $root = Get-ChildItem ffmpeg-zip | Select-Object -First 1
+          Copy-Item "$($root.FullName)/bin/ffmpeg.exe", "$($root.FullName)/bin/ffplay.exe", "$($root.FullName)/LICENSE.txt" dist/ffmpeg/
+
+      - name: Installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $env:GLASSGRAM_VERSION = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\windows\glassgram.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/*.exe
+
+  flatpak:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+
+      # The manifest's dir source picks this file up; the build deletes it after compiling.
+      - name: Keys
+        env:
+          GLASSGRAM_API_ID: ${{ secrets.TG_API_ID }}
+          GLASSGRAM_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: printf 'GLASSGRAM_API_ID=%s\nGLASSGRAM_API_HASH=%s\n' "$GLASSGRAM_API_ID" "$GLASSGRAM_API_HASH" > keys.env
+
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          bundle: Glassgram.flatpak
+          manifest-path: packaging/flatpak/io.github.petro_pixel.Glassgram.yml
+          # The build directories would contain keys.env and the binary.
+          cache: false
+
+  release:
+    needs: [windows, flatpak]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          fail_on_unmatched_files: true

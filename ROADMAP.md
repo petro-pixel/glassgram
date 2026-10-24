@@ -209,14 +209,16 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 
 **Windows**
 - ⬜ Build and CI for `x86_64-pc-windows-msvc`, checking the wgpu blur on DX12/Vulkan
-- ⬜ Installer (MSI via `cargo-wix` or Inno Setup), `.ico` icon, code signing if possible
+- ✅ Installer (Inno Setup, English and Ukrainian) with ffmpeg, exe icon, built in GitHub Actions with the API keys from secrets
+- ⬜ Code signing (SmartScreen warns about unsigned installers)
 
 **Flathub**
-- ⬜ ID `io.github.<owner>.Glassgram`, a manifest with `rust-stable` and offline dependencies (`flatpak-cargo-generator`)
-- ⬜ ffmpeg from `org.freedesktop.Platform.ffmpeg-full`
+- ✅ Our own `.flatpak` bundle from GitHub Actions: `io.github.petro_pixel.Glassgram`, ffmpeg + x264 built in, `.desktop`, metainfo, icons
+- ⬜ Flathub: offline crates (`flatpak-cargo-generator`) and a decision about the API keys (a Flathub manifest is public)
+- ✅ ffmpeg (with x264, opus, vpx, ffplay) as a module of the manifest
 - ⬜ Permissions: network, Wayland/X11, `dri`, PulseAudio, camera, D-Bus for the tray, `xdg-download`
 - ⬜ Portals: notifications, opening files, file chooser, camera
-- ⬜ `.desktop`, `hicolor` icons, AppStream metainfo with screenshots, a name that doesn't suggest it is official
+- 🟡 `.desktop`, `hicolor` icons, AppStream metainfo (validated); screenshots still missing
 - ⬜ Submitting a PR to `flathub/flathub`
 
 **macOS** — ⬜ **P3**: `.app`/`.dmg` bundle (with ffmpeg inside or via Homebrew), signing and notarisation

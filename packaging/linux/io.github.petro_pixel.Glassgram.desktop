@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Glassgram
+GenericName=Telegram Client
+GenericName[uk]=Клієнт Telegram
+GenericName[de]=Telegram-Client
+Comment=Telegram client with a liquid glass interface
+Comment[uk]=Клієнт Telegram з інтерфейсом «рідкого скла»
+Comment[de]=Telegram-Client mit „Liquid Glass“-Oberfläche
+Exec=glassgram
+Icon=io.github.petro_pixel.Glassgram
+Terminal=false
+Categories=Network;InstantMessaging;Chat;
+Keywords=telegram;messenger;chat;
+StartupWMClass=io.github.petro_pixel.Glassgram
