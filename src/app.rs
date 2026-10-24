@@ -571,7 +571,7 @@ impl App {
             y += 44.0;
         }
         let r = Rect::from_min_size(pos2(rect.left() + 8.0, y), vec2(rect.width() - 16.0, 40.0));
-        if glass::button(ui, r, "account-add", l!("➕  Додати акаунт", "➕  Add account"), false, true).clicked() {
+        if glass::button(ui, r, "account-add", l!("Додати акаунт", "Add account"), false, true).clicked() {
             add = true;
         }
         if self.demo && (pick.is_some() || add) {
@@ -1259,12 +1259,12 @@ impl App {
                     chosen = Some(t.id);
                 }
                 resp.context_menu(|ui| {
-                    if ui.button(l!("✏  Перейменувати", "✏  Rename")).clicked() {
+                    if glass::menu_button(ui, Icon::Pencil, l!("Перейменувати", "Rename")).clicked() {
                         edit = Some(Cmd::EditTopic { peer, id: t.id, title: None, closed: None });
                     }
                     if t.id != GENERAL_TOPIC {
-                        let label = if t.closed { l!("🔓  Відкрити тему", "🔓  Reopen topic") } else { l!("🔒  Закрити тему", "🔒  Close topic") };
-                        if ui.button(label).clicked() {
+                        let (icon, label) = if t.closed { (Icon::LockOpen, l!("Відкрити тему", "Reopen topic")) } else { (Icon::Lock, l!("Закрити тему", "Close topic")) };
+                        if glass::menu_button(ui, icon, label).clicked() {
                             edit = Some(Cmd::EditTopic { peer, id: t.id, title: None, closed: Some(!t.closed) });
                         }
                     }
@@ -1280,7 +1280,7 @@ impl App {
         let n = self.topics.get(&peer).map_or(0, Vec::len);
         p.text(pos2(text_x, header.center().y + 11.0), Align2::LEFT_CENTER, lf!("форум · тем: {n}", "forum · topics: {n}"), FontId::proportional(12.5), ink_dim());
         let add = Rect::from_center_size(pos2(header.right() - 32.0, header.center().y), vec2(38.0, 38.0));
-        if glass::button(ui, add, "topic-new", "+", false, true).on_hover_text(l!("Нова тема", "New topic")).clicked() {
+        if glass::icon_button(ui, add, "topic-new", Icon::Plus, false, true).on_hover_text(l!("Нова тема", "New topic")).clicked() {
             self.topic_edit = Some((peer, None, String::new(), TOPIC_COLORS[0]));
         }
         if let Some(t) = chosen {
@@ -2118,7 +2118,7 @@ impl App {
             ui.add_space(6.0);
             section_title(ui, l!("Окремі чати (клік: додати → виключити → прибрати)", "Specific chats (click: include → exclude → remove)"));
             let field = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
-            glass::text_field(ui, field, &mut ed.query, l!("Пошук чату…", "Search chats…"), false);
+            glass::search_field(ui, field, &mut ed.query, l!("Пошук чату…", "Search chats…"));
             ui.add_space(4.0);
             // First those already in the rules, then the rest.
             let state = |f: &Folder, id: &PeerId| if f.include.contains(id) { 1 } else if f.exclude.contains(id) { 2 } else { 0 };
@@ -2669,7 +2669,7 @@ impl App {
         let search = Rect::from_min_size(inner.left_top() + vec2(0.0, 56.0), vec2(inner.width() - 48.0, 40.0));
         self.new_chat_button(ui, Rect::from_min_size(pos2(search.right() + 8.0, search.top()), vec2(40.0, 40.0)));
         let now = ui.input(|i| i.time);
-        let search_resp = glass::text_field(ui, search, &mut self.search.query, l!("🔍  Пошук", "🔍  Search"), false);
+        let search_resp = glass::search_field(ui, search, &mut self.search.query, l!("Пошук", "Search"));
         if std::mem::take(&mut self.focus_search) {
             search_resp.request_focus();
         }
@@ -2984,7 +2984,7 @@ impl App {
         }
         if let Some(s) = &mut self.chat_search {
             let field = Rect::from_min_max(pos2(text_x - 4.0, header.top() + 11.0), pos2(search_btn.left() - 10.0, header.bottom() - 11.0));
-            let resp = glass::text_field(ui, field, &mut s.query, l!("Пошук у чаті", "Search in chat"), false);
+            let resp = glass::search_field(ui, field, &mut s.query, l!("Пошук у чаті", "Search in chat"));
             if !resp.has_focus() && s.query.is_empty() && s.edited_at == 0.0 {
                 resp.request_focus();
                 s.edited_at = now;
@@ -3024,8 +3024,8 @@ impl App {
             let bar = Rect::from_min_max(pos2(rect.left(), rect.bottom() - COMPOSER_H), rect.max);
             let (label, accent) = match (chat.joined, chat.muted) {
                 (false, _) => (l!("Приєднатися", "Join"), true),
-                (true, true) => (l!("🔔  Увімкнути сповіщення", "🔔  Unmute"), false),
-                (true, false) => (l!("🔕  Вимкнути сповіщення", "🔕  Mute"), false),
+                (true, true) => (l!("Увімкнути сповіщення", "Unmute"), false),
+                (true, false) => (l!("Вимкнути сповіщення", "Mute"), false),
             };
             if glass::button(ui, bar, ("bottom-bar", peer), label, accent, true).clicked() {
                 if chat.joined {
@@ -3082,7 +3082,7 @@ impl App {
             self.pick_files(peer, false);
         }
         attach.context_menu(|ui| {
-            if ui.button(l!("📄  Надіслати без стиснення", "📄  Send without compression")).clicked() {
+            if glass::menu_button(ui, Icon::File, l!("Надіслати без стиснення", "Send without compression")).clicked() {
                 self.pick_files(peer, true);
             }
         });
@@ -3182,7 +3182,7 @@ impl App {
             send = send.on_hover_text(l!("Записати голосове (права кнопка — відеоповідомлення)", "Record voice (right click — video message)"));
             let mut round = false;
             send.context_menu(|ui| {
-                if ui.button(l!("🎥  Записати відеоповідомлення", "🎥  Record video message")).clicked() {
+                if glass::menu_button(ui, Icon::Video, l!("Записати відеоповідомлення", "Record video message")).clicked() {
                     round = true;
                 }
             });
@@ -3201,10 +3201,10 @@ impl App {
             let mut choice = None;
             send.context_menu(|ui| {
                 ui.set_min_width(200.0);
-                if ui.button(l!("🔕  Надіслати без звуку", "🔕  Send without sound")).clicked() {
+                if glass::menu_button(ui, Icon::BellOff, l!("Надіслати без звуку", "Send without sound")).clicked() {
                     choice = Some(false);
                 }
-                if ui.button(l!("🕒  Запланувати…", "🕒  Schedule…")).clicked() {
+                if glass::menu_button(ui, Icon::Clock, l!("Запланувати…", "Schedule…")).clicked() {
                     choice = Some(true);
                 }
             });
@@ -4065,27 +4065,30 @@ fn chat_row(
 fn chat_menu(ui: &mut Ui, chat: &ChatInfo) -> Option<ChatAction> {
     ui.set_min_width(210.0);
     let mut action = None;
-    let mut item = |ui: &mut Ui, label: &str, a: ChatAction| {
-        if ui.button(label).clicked() {
+    let mut item = |ui: &mut Ui, icon: Icon, label: &str, a: ChatAction| {
+        if glass::menu_button(ui, icon, label).clicked() {
             action = Some(a);
         }
     };
     if !chat.archived {
-        item(ui, if chat.pinned { l!("📌  Відкріпити", "📌  Unpin") } else { l!("📌  Закріпити", "📌  Pin") }, ChatAction::Pin(!chat.pinned));
+        let (icon, label) = if chat.pinned { (Icon::PinOff, l!("Відкріпити", "Unpin")) } else { (Icon::Pin, l!("Закріпити", "Pin")) };
+        item(ui, icon, label, ChatAction::Pin(!chat.pinned));
     }
     if chat.kind != ChatKind::Saved {
-        item(ui, if chat.muted { l!("🔔  Увімкнути сповіщення", "🔔  Unmute") } else { l!("🔕  Вимкнути сповіщення", "🔕  Mute") }, ChatAction::Mute(!chat.muted));
+        let (icon, label) = if chat.muted { (Icon::Bell, l!("Увімкнути сповіщення", "Unmute")) } else { (Icon::BellOff, l!("Вимкнути сповіщення", "Mute")) };
+        item(ui, icon, label, ChatAction::Mute(!chat.muted));
     }
     if chat.is_unread() {
-        item(ui, l!("✔  Позначити прочитаним", "✔  Mark as read"), ChatAction::Read);
+        item(ui, Icon::CheckCheck, l!("Позначити прочитаним", "Mark as read"), ChatAction::Read);
     } else {
-        item(ui, l!("●  Позначити непрочитаним", "●  Mark as unread"), ChatAction::Unread);
+        item(ui, Icon::MarkUnread, l!("Позначити непрочитаним", "Mark as unread"), ChatAction::Unread);
     }
     if chat.kind != ChatKind::Saved {
-        item(ui, if chat.archived { l!("🗄  Повернути з архіву", "🗄  Unarchive") } else { l!("🗄  Архівувати", "🗄  Archive") }, ChatAction::Archive(!chat.archived));
+        let (icon, label) = if chat.archived { (Icon::Unarchive, l!("Повернути з архіву", "Unarchive")) } else { (Icon::Archive, l!("Архівувати", "Archive")) };
+        item(ui, icon, label, ChatAction::Archive(!chat.archived));
     }
     ui.separator();
-    item(ui, l!("📤  Експортувати історію…", "📤  Export chat history…"), ChatAction::Export);
+    item(ui, Icon::Export, l!("Експортувати історію…", "Export chat history…"), ChatAction::Export);
     action
 }
 
@@ -4163,37 +4166,37 @@ fn message_menu(ui: &mut Ui, m: &Msg, chat: Option<&ChatInfo>, action: &mut Opti
         }
     });
     ui.separator();
-    if ui.button(l!("↩  Відповісти", "↩  Reply")).clicked() {
+    if glass::menu_button(ui, Icon::Reply, l!("Відповісти", "Reply")).clicked() {
         *action = Some(Action::Reply(m.id));
     }
-    if !protected && !m.text.is_empty() && ui.button(l!("📋  Копіювати текст", "📋  Copy text")).clicked() {
+    if !protected && !m.text.is_empty() && glass::menu_button(ui, Icon::Copy, l!("Копіювати текст", "Copy text")).clicked() {
         *action = Some(Action::Copy(m.text.clone()));
     }
     if let Some(c) = chat {
         chatview::pin_menu(ui, m, c, action);
     }
-    if !protected && (m.photo || m.file.is_some() || m.media.is_some()) && ui.button(l!("⬇  Завантажити", "⬇  Download")).clicked() {
+    if !protected && (m.photo || m.file.is_some() || m.media.is_some()) && glass::menu_button(ui, Icon::Download, l!("Завантажити", "Download")).clicked() {
         *action = Some(Action::Download(m.id));
     }
-    if m.out && !m.photo && m.sticker.is_none() && m.file.is_none() && m.media.is_none() && ui.button(l!("✏  Редагувати", "✏  Edit")).clicked() {
+    if m.out && !m.photo && m.sticker.is_none() && m.file.is_none() && m.media.is_none() && glass::menu_button(ui, Icon::Pencil, l!("Редагувати", "Edit")).clicked() {
         *action = Some(Action::Edit(m.id));
     }
     if !protected
         && m.media.as_ref().is_some_and(|i| matches!(i.kind, MediaKind::Video | MediaKind::Gif | MediaKind::Round))
-        && ui.button(l!("▶  Відкрити в програвачі", "▶  Open in player")).clicked()
+        && glass::menu_button(ui, Icon::PlayCircle, l!("Відкрити в програвачі", "Open in player")).clicked()
     {
         *action = Some(Action::OpenExternal(m.id));
     }
-    if !protected && ui.button(l!("➦  Переслати", "➦  Forward")).clicked() {
+    if !protected && glass::menu_button(ui, Icon::Forward, l!("Переслати", "Forward")).clicked() {
         *action = Some(Action::Forward(m.id));
     }
-    if ui.button(l!("☑  Вибрати", "☑  Select")).clicked() {
+    if glass::menu_button(ui, Icon::Select, l!("Вибрати", "Select")).clicked() {
         *action = Some(Action::Pick(m.id));
     }
-    if m.out && chat.is_some_and(|c| c.kind == ChatKind::Group) && ui.button(l!("👁  Хто переглянув", "👁  Seen by")).clicked() {
+    if m.out && chat.is_some_and(|c| c.kind == ChatKind::Group) && glass::menu_button(ui, Icon::Eye, l!("Хто переглянув", "Seen by")).clicked() {
         *action = Some(Action::ReadBy(m.id));
     }
-    if m.out && ui.button(l!("🗑  Видалити", "🗑  Delete")).clicked() {
+    if m.out && glass::menu_button(ui, Icon::Trash, l!("Видалити", "Delete")).clicked() {
         *action = Some(Action::Delete(m.id));
     }
 }
@@ -4675,16 +4678,16 @@ fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHandle>], loo
             }
         });
         ui.separator();
-        if ui.button(l!("↩  Відповісти", "↩  Reply")).clicked() {
+        if glass::menu_button(ui, Icon::Reply, l!("Відповісти", "Reply")).clicked() {
             action = Some(Action::Reply(main.id));
         }
-        if !look.chat.is_some_and(|c| c.noforwards) && !album_protected && ui.button(l!("➦  Переслати альбом", "➦  Forward album")).clicked() {
+        if !look.chat.is_some_and(|c| c.noforwards) && !album_protected && glass::menu_button(ui, Icon::Forward, l!("Переслати альбом", "Forward album")).clicked() {
             action = Some(Action::ForwardMany(ids.clone()));
         }
-        if ui.button(l!("☑  Вибрати", "☑  Select")).clicked() {
+        if glass::menu_button(ui, Icon::Select, l!("Вибрати", "Select")).clicked() {
             action = Some(Action::PickMany(ids.clone()));
         }
-        if first.out && ui.button(l!("🗑  Видалити альбом", "🗑  Delete album")).clicked() {
+        if first.out && glass::menu_button(ui, Icon::Trash, l!("Видалити альбом", "Delete album")).clicked() {
             action = Some(Action::DeleteMany(ids.clone()));
         }
     });
@@ -4720,16 +4723,16 @@ fn pending_menu(ui: &mut Ui, m: &Msg, failed: bool, action: &mut Option<Action>)
     ui.set_min_width(190.0);
     if failed {
         ui.label(egui::RichText::new(l!("Не надіслано", "Not sent")).color(glass::DANGER).size(12.5));
-        if ui.button(l!("🔁  Повторити", "🔁  Retry")).clicked() {
+        if glass::menu_button(ui, Icon::Reload, l!("Повторити", "Retry")).clicked() {
             *action = Some(Action::Retry(m.id));
         }
     } else {
         ui.label(egui::RichText::new(l!("Надсилається…", "Sending…")).color(ink_dim()).size(12.5));
     }
-    if ui.button(l!("📋  Копіювати", "📋  Copy")).clicked() {
+    if glass::menu_button(ui, Icon::Copy, l!("Копіювати", "Copy")).clicked() {
         *action = Some(Action::Copy(m.text.clone()));
     }
-    if ui.button(l!("🗑  Видалити", "🗑  Delete")).clicked() {
+    if glass::menu_button(ui, Icon::Trash, l!("Видалити", "Delete")).clicked() {
         *action = Some(Action::Discard(m.id));
     }
 }

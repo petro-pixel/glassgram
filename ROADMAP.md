@@ -176,7 +176,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 
 ## 15. Interface and "liquid glass"
 - ✅ Glass panels, buttons, fields, bubbles, avatars, live background, GPU blur, light and dark themes
-- ✅ Vector icons, anti-aliasing for the screen density, built-in font
+- ✅ Vector icons (Lucide), icons in context menus as in Telegram Desktop, anti-aliasing for the screen density, built-in font
 - ✅ Hotkeys as in Telegram Desktop: Ctrl+F (search in chat, or chat list), Ctrl+K (chat list search), Ctrl+1…8 folder by position and Ctrl+9 the last one, Alt+↑/↓, Ctrl+Tab / Ctrl+Shift+Tab and Ctrl+PgUp/PgDn (previous/next chat), Esc (close the topmost panel → clear search → close the chat), Ctrl+E or ↑ in an empty composer (edit the last own message)
 - ⬜ **P1** Glass context menus, tooltips and popups instead of the stock egui ones
 - ⬜ **P1** Blurring chat content under the header and composer (capturing the frame into a wgpu texture)

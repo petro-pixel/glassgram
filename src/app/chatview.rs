@@ -49,20 +49,20 @@ pub(super) fn pin_menu(ui: &mut Ui, m: &Msg, chat: &ChatInfo, action: &mut Optio
         return;
     }
     if m.pinned {
-        if ui.button(l!("📌  Відкріпити", "📌  Unpin")).clicked() {
+        if glass::menu_button(ui, Icon::PinOff, l!("Відкріпити", "Unpin")).clicked() {
             *action = Some(Action::Unpin(m.id));
         }
         return;
     }
-    let label = l!("📌  Закріпити", "📌  Pin");
+    let label = l!("Закріпити", "Pin");
     match chat.kind {
         ChatKind::Saved => {
-            if ui.button(label).clicked() {
+            if glass::menu_button(ui, Icon::Pin, label).clicked() {
                 *action = Some(Action::Pin(m.id, true, false));
             }
         }
         ChatKind::User | ChatKind::Bot => {
-            ui.menu_button(label, |ui| {
+            ui.menu_button((glass::icon_atom(Icon::Pin), label), |ui| {
                 if ui.button(lf!("Для мене і {}", "For me and {}", chat.title)).clicked() {
                     *action = Some(Action::Pin(m.id, false, false));
                 }
@@ -72,11 +72,11 @@ pub(super) fn pin_menu(ui: &mut Ui, m: &Msg, chat: &ChatInfo, action: &mut Optio
             });
         }
         ChatKind::Group | ChatKind::Channel => {
-            ui.menu_button(label, |ui| {
-                if ui.button(l!("🔔  Сповістити всіх", "🔔  Notify everyone")).clicked() {
+            ui.menu_button((glass::icon_atom(Icon::Pin), label), |ui| {
+                if glass::menu_button(ui, Icon::Bell, l!("Сповістити всіх", "Notify everyone")).clicked() {
                     *action = Some(Action::Pin(m.id, false, false));
                 }
-                if ui.button(l!("🔕  Без сповіщення", "🔕  Without notification")).clicked() {
+                if glass::menu_button(ui, Icon::BellOff, l!("Без сповіщення", "Without notification")).clicked() {
                     *action = Some(Action::Pin(m.id, true, false));
                 }
             });
@@ -479,7 +479,7 @@ impl App {
             }
             let mut read = false;
             resp.context_menu(|ui| {
-                if ui.button(l!("✓  Позначити всі прочитаними", "✓  Mark all as read")).clicked() {
+                if glass::menu_button(ui, Icon::CheckCheck, l!("Позначити всі прочитаними", "Mark all as read")).clicked() {
                     read = true;
                 }
             });

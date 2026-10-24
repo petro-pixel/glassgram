@@ -1709,6 +1709,7 @@ dependencies = [
  "image",
  "jiff",
  "ksni",
+ "kurbo",
  "libsql",
  "open",
  "qrcode",

@@ -1,11 +1,14 @@
-//! Vector icons: paths on a 24×24 grid that scale to any size
-//! and are anti-aliased by egui's tessellator (unlike emoji from the raster atlas).
+//! Vector icons on a 24×24 grid, anti-aliased by egui's tessellator (unlike emoji from the raster atlas).
+//! Outline icons are Lucide (https://lucide.dev, ISC licence, see `assets/icons/LUCIDE-LICENSE.txt`):
+//! the same grid, stroke and round caps as our design code. Filled media controls are our own.
 
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
-use eframe::egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Vec2, vec2};
+use eframe::egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
+use kurbo::PathEl;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Icon {
     Send,
     Check,
@@ -49,7 +52,7 @@ pub enum Icon {
     /// List (all pinned).
     List,
     Link,
-    /// Bot command menu: a slash in a circle.
+    /// Bot command menu: a slash in a square.
     Commands,
     Info,
     Phone,
@@ -62,308 +65,228 @@ pub enum Icon {
     Chats,
     Users,
     Archive,
+    PinOff,
+    BellOff,
+    CheckCheck,
+    /// Mark as unread: a bubble with a dot.
+    MarkUnread,
+    Unarchive,
+    /// Export chat history.
+    Export,
+    Video,
+    LockOpen,
+    Plus,
+    FolderPlus,
+    /// Selection mode.
+    Select,
+    /// Open in the external player.
+    PlayCircle,
 }
 
-/// Maps the 24×24 grid into a square inside `rect` (with optional rotation).
-struct Grid {
-    origin: Pos2,
-    scale: f32,
-    rot: f32,
-    /// Mirror horizontally.
-    flip: bool,
+/// Lucide SVG path data (`circle`, `rect` and `line` elements are converted to paths);
+/// `None` for our own filled icons.
+fn lucide(icon: Icon) -> Option<&'static [&'static str]> {
+    Some(match icon {
+        // check
+        Icon::Check => &["M20 6 9 17l-5-5"],
+        // x
+        Icon::Close => &["M18 6 6 18", "m6 6 12 12"],
+        // search
+        Icon::Search => &["M3 11A8 8 0 1 0 19 11A8 8 0 1 0 3 11Z", "m21 21-4.3-4.3"],
+        // refresh-cw
+        Icon::Reload => &["M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8", "M21 3v5h-5", "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16", "M8 16H3v5"],
+        // power
+        Icon::Power => &["M12 2v10", "M18.4 6.6a9 9 0 1 1-12.77.04"],
+        // paperclip
+        Icon::Attach => &["m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"],
+        // smile
+        Icon::Smile => &["M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", "M8 14s1.5 2 4 2 4-2 4-2", "M9 9L9.01 9", "M15 9L15.01 9"],
+        // reply
+        Icon::Reply => &["M9 17L4 12L9 7", "M20 18v-2a4 4 0 0 0-4-4H4"],
+        // forward
+        Icon::Forward => &["M15 17L20 12L15 7", "M4 18v-2a4 4 0 0 1 4-4h12"],
+        // pencil
+        Icon::Pencil => &["M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z", "m15 5 4 4"],
+        // pin
+        Icon::Pin => &["M12 17v5", "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"],
+        // volume-x
+        Icon::Muted => &["M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z", "M22 9L16 15", "M16 9L22 15"],
+        // megaphone
+        Icon::Channel => &["m3 11 18-5v12L3 14v-3z", "M11.6 16.8a3 3 0 1 1-5.8-1.6"],
+        // bot
+        Icon::Bot => &["M12 8V4H8", "M6 8H18A2 2 0 0 1 20 10V18A2 2 0 0 1 18 20H6A2 2 0 0 1 4 18V10A2 2 0 0 1 6 8Z", "M2 14h2", "M20 14h2", "M15 13v2", "M9 13v2"],
+        // file
+        Icon::File => &["M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z", "M14 2v4a2 2 0 0 0 2 2h4"],
+        // camera
+        Icon::Camera => &["M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z", "M9 13A3 3 0 1 0 15 13A3 3 0 1 0 9 13Z"],
+        // bookmark
+        Icon::Bookmark => &["m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"],
+        // trash-2
+        Icon::Trash => &["M3 6h18", "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2", "M10 11L10 17", "M14 11L14 17"],
+        // copy
+        Icon::Copy => &["M10 8H20A2 2 0 0 1 22 10V20A2 2 0 0 1 20 22H10A2 2 0 0 1 8 20V10A2 2 0 0 1 10 8Z", "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"],
+        // download
+        Icon::Download => &["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10L12 15L17 10", "M12 15L12 3"],
+        // clock
+        Icon::Clock => &["M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", "M12 6L12 12L16 14"],
+        // map-pin
+        Icon::Location => &["M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0", "M9 10A3 3 0 1 0 15 10A3 3 0 1 0 9 10Z"],
+        // chevron-left
+        Icon::ChevronLeft => &["m15 18-6-6 6-6"],
+        // chevron-right
+        Icon::ChevronRight => &["m9 18 6-6-6-6"],
+        // chevron-down
+        Icon::ChevronDown => &["m6 9 6 6 6-6"],
+        // bell
+        Icon::Bell => &["M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9", "M10.3 21a1.94 1.94 0 0 0 3.4 0"],
+        // mic
+        Icon::Mic => &["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19L12 22"],
+        // settings
+        Icon::Gear => &["M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z", "M9 12A3 3 0 1 0 15 12A3 3 0 1 0 9 12Z"],
+        // lock
+        Icon::Lock => &["M5 11H19A2 2 0 0 1 21 13V20A2 2 0 0 1 19 22H5A2 2 0 0 1 3 20V13A2 2 0 0 1 5 11Z", "M7 11V7a5 5 0 0 1 10 0v4"],
+        // at-sign
+        Icon::At => &["M8 12A4 4 0 1 0 16 12A4 4 0 1 0 8 12Z", "M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"],
+        // heart
+        Icon::Heart => &["M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"],
+        // eye
+        Icon::Eye => &["M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0", "M9 12A3 3 0 1 0 15 12A3 3 0 1 0 9 12Z"],
+        // list
+        Icon::List => &["M3 12h.01", "M3 18h.01", "M3 6h.01", "M8 12h13", "M8 18h13", "M8 6h13"],
+        // link
+        Icon::Link => &["M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71", "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"],
+        // square-slash
+        Icon::Commands => &["M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z", "M9 15L15 9"],
+        // info
+        Icon::Info => &["M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", "M12 16v-4", "M12 8h.01"],
+        // phone
+        Icon::Phone => &["M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"],
+        // user
+        Icon::User => &["M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", "M8 7A4 4 0 1 0 16 7A4 4 0 1 0 8 7Z"],
+        // message-circle
+        Icon::Chat => &["M7.9 20A9 9 0 1 0 4 16.1L2 22Z"],
+        // folder
+        Icon::Folder => &["M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"],
+        // globe
+        Icon::Globe => &["M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20", "M2 12h20"],
+        // laptop
+        Icon::Laptop => &["M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"],
+        // messages-square
+        Icon::Chats => &["M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z", "M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"],
+        // users
+        Icon::Users => &["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M5 7A4 4 0 1 0 13 7A4 4 0 1 0 5 7Z", "M22 21v-2a4 4 0 0 0-3-3.87", "M16 3.13a4 4 0 0 1 0 7.75"],
+        // archive
+        Icon::Archive => &["M3 3H21A1 1 0 0 1 22 4V7A1 1 0 0 1 21 8H3A1 1 0 0 1 2 7V4A1 1 0 0 1 3 3Z", "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8", "M10 12h4"],
+        // pin-off
+        Icon::PinOff => &["M12 17v5", "M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89", "m2 2 20 20", "M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11"],
+        // bell-off
+        Icon::BellOff => &["M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5", "M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7", "M10.3 21a1.94 1.94 0 0 0 3.4 0", "m2 2 20 20"],
+        // check-check
+        Icon::CheckCheck => &["M18 6 7 17l-5-5", "m22 10-7.5 7.5L13 16"],
+        // message-square-dot
+        Icon::MarkUnread => &["M11.7 3H5a2 2 0 0 0-2 2v16l4-4h12a2 2 0 0 0 2-2v-2.7", "M15 6A3 3 0 1 0 21 6A3 3 0 1 0 15 6Z"],
+        // archive-restore
+        Icon::Unarchive => &["M3 3H21A1 1 0 0 1 22 4V7A1 1 0 0 1 21 8H3A1 1 0 0 1 2 7V4A1 1 0 0 1 3 3Z", "M4 8v11a2 2 0 0 0 2 2h2", "M20 8v11a2 2 0 0 1-2 2h-2", "m9 15 3-3 3 3", "M12 12v9"],
+        // upload
+        Icon::Export => &["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M17 8L12 3L7 8", "M12 3L12 15"],
+        // video
+        Icon::Video => &["m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5", "M4 6H14A2 2 0 0 1 16 8V16A2 2 0 0 1 14 18H4A2 2 0 0 1 2 16V8A2 2 0 0 1 4 6Z"],
+        // lock-open
+        Icon::LockOpen => &["M5 11H19A2 2 0 0 1 21 13V20A2 2 0 0 1 19 22H5A2 2 0 0 1 3 20V13A2 2 0 0 1 5 11Z", "M7 11V7a5 5 0 0 1 9.9-1"],
+        // plus
+        Icon::Plus => &["M5 12h14", "M12 5v14"],
+        // folder-plus
+        Icon::FolderPlus => &["M12 10v6", "M9 13h6", "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"],
+        // square-check-big
+        Icon::Select => &["M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.5", "m9 11 3 3L22 4"],
+        // circle-play
+        Icon::PlayCircle => &["M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", "M10 8L16 12L10 16L10 8Z"],
+        Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
+    })
 }
 
-impl Grid {
-    fn p(&self, x: f32, y: f32) -> Pos2 {
-        let (s, c) = self.rot.sin_cos();
-        let (dx, dy) = (if self.flip { 12.0 - x } else { x - 12.0 }, y - 12.0);
-        self.origin + vec2(12.0 + dx * c - dy * s, 12.0 + dx * s + dy * c) * self.scale
-    }
+/// A flattened subpath in grid coordinates.
+struct Sub {
+    pts: Vec<Pos2>,
+    closed: bool,
+}
 
-    fn pts(&self, xy: &[(f32, f32)]) -> Vec<Pos2> {
-        xy.iter().map(|&(x, y)| self.p(x, y)).collect()
-    }
+/// Curves are flattened once per icon: icons are drawn every frame.
+fn shapes(icon: Icon) -> &'static [Sub] {
+    static CACHE: OnceLock<Mutex<HashMap<Icon, &'static [Sub]>>> = OnceLock::new();
+    let mut cache = CACHE.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
+    cache.entry(icon).or_insert_with(|| {
+        let subs: Vec<Sub> = lucide(icon).unwrap_or_default().iter().flat_map(|d| flatten(d)).collect();
+        // A few dozen icons for the whole run: leaking keeps the cache free of lifetimes.
+        Vec::leak(subs)
+    })
+}
 
-    /// Arc points around centre (cx, cy), angles in radians (y down: 0 is right, π/2 is down).
-    fn arc(&self, cx: f32, cy: f32, r: f32, from: f32, to: f32) -> Vec<Pos2> {
-        let n = (((to - from).abs() * r * self.scale / 2.0).ceil() as usize).clamp(6, 96);
-        (0..=n)
-            .map(|i| {
-                let a = from + (to - from) * i as f32 / n as f32;
-                self.p(cx + r * a.cos(), cy + r * a.sin())
-            })
-            .collect()
-    }
+fn flatten(d: &str) -> Vec<Sub> {
+    let Ok(path) = kurbo::BezPath::from_svg(d) else { return Vec::new() };
+    let mut subs: Vec<Sub> = Vec::new();
+    let p = |pt: kurbo::Point| pos2(pt.x as f32, pt.y as f32);
+    kurbo::flatten(path, 0.02, |el| match el {
+        PathEl::MoveTo(pt) => subs.push(Sub { pts: vec![p(pt)], closed: false }),
+        PathEl::LineTo(pt) => {
+            if let Some(s) = subs.last_mut() {
+                s.pts.push(p(pt));
+            }
+        }
+        PathEl::ClosePath => {
+            if let Some(s) = subs.last_mut() {
+                s.closed = true;
+                // The closing point repeats the first one; a closed line joins them itself.
+                if s.pts.len() > 2 && s.pts.first().zip(s.pts.last()).is_some_and(|(a, b)| a.distance(*b) < 0.01) {
+                    s.pts.pop();
+                }
+            }
+        }
+        _ => {}
+    });
+    subs
 }
 
 pub fn draw(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
     let side = rect.width().min(rect.height());
     let scale = side / 24.0;
     let origin = rect.center() - Vec2::splat(side / 2.0);
-    let g = Grid { origin, scale, rot: 0.0, flip: false };
-    let w = (1.9 * scale).max(1.1);
-    let stroke = Stroke::new(w, color);
-    let line = |pts: Vec<Pos2>| {
-        p.add(Shape::line(pts, stroke));
+    let at = |x: f32, y: f32| origin + vec2(x, y) * scale;
+    let fill = |xy: &[(f32, f32)]| {
+        p.add(Shape::convex_polygon(xy.iter().map(|&(x, y)| at(x, y)).collect(), color, Stroke::NONE));
     };
-    let closed = |pts: Vec<Pos2>| {
-        p.add(Shape::closed_line(pts, stroke));
-    };
-    let fill = |pts: Vec<Pos2>| {
-        p.add(Shape::convex_polygon(pts, color, Stroke::NONE));
-    };
-    let dot = |x: f32, y: f32, r: f32| p.circle_filled(g.p(x, y), r * scale, color);
-    let circle = |x: f32, y: f32, r: f32| p.circle_stroke(g.p(x, y), r * scale, stroke);
-
     match icon {
         Icon::Send => {
             // Paper plane made of two convex halves.
-            fill(g.pts(&[(3.0, 3.5), (21.0, 12.0), (14.5, 12.0), (3.0, 10.2)]));
-            fill(g.pts(&[(3.0, 13.8), (14.5, 12.0), (21.0, 12.0), (3.0, 20.5)]));
+            fill(&[(3.0, 3.5), (21.0, 12.0), (14.5, 12.0), (3.0, 10.2)]);
+            fill(&[(3.0, 13.8), (14.5, 12.0), (21.0, 12.0), (3.0, 20.5)]);
         }
-        Icon::Check => line(g.pts(&[(5.0, 12.5), (10.0, 17.5), (19.5, 7.0)])),
-        Icon::Close => {
-            line(g.pts(&[(6.0, 6.0), (18.0, 18.0)]));
-            line(g.pts(&[(18.0, 6.0), (6.0, 18.0)]));
-        }
-        Icon::Search => {
-            circle(10.5, 10.5, 6.3);
-            line(g.pts(&[(15.3, 15.3), (20.0, 20.0)]));
-        }
-        Icon::Reload => {
-            let (from, to) = (-FRAC_PI_2 + 0.5, -FRAC_PI_2 + 2.0 * PI - 0.3);
-            line(g.arc(12.0, 12.0, 7.5, from, to));
-            let tip = (12.0 + 7.5 * to.cos(), 12.0 + 7.5 * to.sin());
-            fill(g.pts(&[(tip.0 - 3.6, tip.1 - 2.2), (tip.0 + 2.6, tip.1 - 0.4), (tip.0 - 1.0, tip.1 + 4.0)]));
-        }
-        Icon::Power => {
-            line(g.arc(12.0, 13.0, 7.5, -FRAC_PI_2 + 0.75, -FRAC_PI_2 + 2.0 * PI - 0.75));
-            line(g.pts(&[(12.0, 3.5), (12.0, 11.5)]));
-        }
-        Icon::Attach => {
-            // Paperclip: two arcs and straight segments, rotated by 45°.
-            let g = Grid { rot: PI / 4.0, ..g };
-            let mut pts = g.pts(&[(15.5, 6.5), (15.5, 16.0)]);
-            pts.extend(g.arc(12.0, 16.0, 3.5, 0.0, PI));
-            pts.extend(g.pts(&[(8.5, 5.5)]));
-            pts.extend(g.arc(10.75, 5.5, 2.25, PI, 2.0 * PI));
-            pts.extend(g.pts(&[(13.0, 15.0)]));
-            line(pts);
-        }
-        Icon::Smile => {
-            circle(12.0, 12.0, 8.8);
-            dot(9.0, 10.0, 1.2);
-            dot(15.0, 10.0, 1.2);
-            line(g.arc(12.0, 12.0, 4.6, 0.45, PI - 0.45));
-        }
-        Icon::Reply | Icon::Forward => {
-            let g = Grid { flip: icon == Icon::Forward, ..g };
-            line(g.pts(&[(10.0, 6.0), (4.0, 12.0), (10.0, 18.0)]));
-            let mut pts = g.pts(&[(4.0, 12.0), (13.0, 12.0)]);
-            pts.extend(g.arc(13.0, 19.0, 7.0, -FRAC_PI_2, 0.0));
-            line(pts);
-        }
-        Icon::Pencil => {
-            closed(g.pts(&[(4.0, 20.0), (5.0, 15.5), (15.5, 5.0), (19.0, 8.5), (8.5, 19.0)]));
-            line(g.pts(&[(13.5, 7.0), (17.0, 10.5)]));
-        }
-        Icon::Pin => {
-            let g = Grid { rot: PI / 6.0, ..g };
-            line(g.pts(&[(7.5, 3.0), (16.5, 3.0)]));
-            closed(g.pts(&[(9.5, 3.0), (9.5, 9.0), (6.5, 13.5), (17.5, 13.5), (14.5, 9.0), (14.5, 3.0)]));
-            line(g.pts(&[(12.0, 13.5), (12.0, 21.0)]));
-        }
-        Icon::Muted => {
-            closed(g.pts(&[(3.5, 9.0), (7.5, 9.0), (12.5, 5.0), (12.5, 19.0), (7.5, 15.0), (3.5, 15.0)]));
-            line(g.pts(&[(16.0, 9.5), (21.0, 14.5)]));
-            line(g.pts(&[(21.0, 9.5), (16.0, 14.5)]));
-        }
-        Icon::Play => fill(g.pts(&[(7.0, 4.5), (19.5, 12.0), (7.0, 19.5)])),
+        Icon::Play => fill(&[(7.0, 4.5), (19.5, 12.0), (7.0, 19.5)]),
         Icon::Pause => {
-            p.rect_filled(Rect::from_two_pos(g.p(6.5, 5.0), g.p(10.0, 19.0)), 1.0 * scale, color);
-            p.rect_filled(Rect::from_two_pos(g.p(14.0, 5.0), g.p(17.5, 19.0)), 1.0 * scale, color);
-        }
-        Icon::Lock => {
-            // Lock shackle and body with a keyhole.
-            let mut pts = g.pts(&[(8.0, 11.0)]);
-            pts.extend(g.arc(12.0, 8.0, 4.0, PI, 2.0 * PI));
-            pts.extend(g.pts(&[(16.0, 11.0)]));
-            line(pts);
-            closed(g.pts(&[(5.5, 11.0), (18.5, 11.0), (18.5, 20.5), (5.5, 20.5)]));
-            dot(12.0, 15.2, 1.4);
-        }
-        Icon::Link => {
-            // Two overlapping chain links at 45°.
-            let g = Grid { rot: -PI / 4.0, ..g };
-            for (a, b) in [(6.8, 11.0), (13.0, 17.2)] {
-                let mut pts = g.arc(a, 12.0, 3.4, FRAC_PI_2, 3.0 * FRAC_PI_2);
-                pts.extend(g.arc(b, 12.0, 3.4, -FRAC_PI_2, FRAC_PI_2));
-                closed(pts);
-            }
-        }
-        Icon::Commands => {
-            circle(12.0, 12.0, 8.5);
-            line(g.pts(&[(14.2, 7.6), (9.8, 16.4)]));
-        }
-        Icon::Gear => {
-            // Gear: eight teeth around a circle and a hole.
-            let mut pts = Vec::new();
-            for k in 0..8 {
-                let a = k as f32 * PI / 4.0;
-                for (da, r) in [(-0.24, 7.0), (-0.15, 9.3), (0.15, 9.3), (0.24, 7.0)] {
-                    pts.push(g.p(12.0 + r * (a + da).cos(), 12.0 + r * (a + da).sin()));
-                }
-            }
-            closed(pts);
-            circle(12.0, 12.0, 3.0);
+            p.rect_filled(Rect::from_two_pos(at(6.5, 5.0), at(10.0, 19.0)), scale, color);
+            p.rect_filled(Rect::from_two_pos(at(14.0, 5.0), at(17.5, 19.0)), scale, color);
         }
         Icon::Stop => {
-            p.rect_filled(Rect::from_two_pos(g.p(6.0, 6.0), g.p(18.0, 18.0)), 2.5 * scale, color);
+            p.rect_filled(Rect::from_two_pos(at(6.0, 6.0), at(18.0, 18.0)), 2.5 * scale, color);
         }
-        Icon::Mic => {
-            // Microphone capsule, arc holder and stand.
-            let mut pts = g.arc(12.0, 7.0, 3.2, PI, 2.0 * PI);
-            pts.extend(g.arc(12.0, 12.0, 3.2, 0.0, PI));
-            closed(pts);
-            line(g.arc(12.0, 11.5, 6.3, 0.15, PI - 0.15));
-            line(g.pts(&[(12.0, 17.8), (12.0, 21.0)]));
-            line(g.pts(&[(8.5, 21.0), (15.5, 21.0)]));
-        }
-        Icon::Bell => {
-            let mut pts = g.pts(&[(4.5, 17.0), (6.5, 14.5), (6.5, 10.5)]);
-            pts.extend(g.arc(12.0, 10.5, 5.5, PI, 2.0 * PI));
-            pts.extend(g.pts(&[(17.5, 14.5), (19.5, 17.0)]));
-            closed(pts);
-            line(g.arc(12.0, 18.5, 2.3, 0.2, PI - 0.2));
-        }
-        Icon::Channel => {
-            closed(g.pts(&[(3.5, 9.5), (8.0, 9.5), (18.0, 4.5), (18.0, 19.5), (8.0, 14.5), (3.5, 14.5)]));
-            line(g.pts(&[(8.0, 14.5), (9.5, 19.5)]));
-        }
-        Icon::Bot => {
-            p.rect_stroke(Rect::from_min_max(g.p(4.5, 8.0), g.p(19.5, 19.5)), 3.5 * scale, stroke, eframe::egui::StrokeKind::Middle);
-            dot(9.3, 13.5, 1.4);
-            dot(14.7, 13.5, 1.4);
-            line(g.pts(&[(12.0, 8.0), (12.0, 5.0)]));
-            dot(12.0, 4.0, 1.4);
-        }
-        Icon::File => {
-            closed(g.pts(&[(6.0, 3.0), (14.0, 3.0), (19.0, 8.0), (19.0, 21.0), (6.0, 21.0)]));
-            line(g.pts(&[(14.0, 3.0), (14.0, 8.0), (19.0, 8.0)]));
-        }
-        Icon::Camera => {
-            let mut pts = g.pts(&[(3.0, 7.5), (8.0, 7.5), (9.5, 5.0), (14.5, 5.0), (16.0, 7.5), (21.0, 7.5), (21.0, 19.0), (3.0, 19.0)]);
-            pts.dedup();
-            closed(pts);
-            circle(12.0, 13.0, 3.6);
-        }
-        Icon::Bookmark => closed(g.pts(&[(6.0, 3.0), (18.0, 3.0), (18.0, 21.0), (12.0, 16.0), (6.0, 21.0)])),
-        Icon::Trash => {
-            line(g.pts(&[(4.0, 6.5), (20.0, 6.5)]));
-            line(g.pts(&[(9.5, 6.5), (9.5, 3.5), (14.5, 3.5), (14.5, 6.5)]));
-            closed(g.pts(&[(6.0, 6.5), (7.0, 20.5), (17.0, 20.5), (18.0, 6.5)]));
-        }
-        Icon::Download => {
-            line(g.pts(&[(12.0, 3.5), (12.0, 15.0)]));
-            line(g.pts(&[(7.0, 10.5), (12.0, 15.5), (17.0, 10.5)]));
-            line(g.pts(&[(4.5, 20.0), (19.5, 20.0)]));
-        }
-        Icon::Clock => {
-            circle(12.0, 12.0, 8.8);
-            line(g.pts(&[(12.0, 7.0), (12.0, 12.0), (15.5, 14.0)]));
-        }
-        Icon::Location => {
-            // Map pin: arc on top and a pointed bottom.
-            let mut pts = g.arc(12.0, 9.5, 6.5, PI - 0.5, 2.0 * PI + 0.5);
-            pts.push(g.p(12.0, 21.0));
-            closed(pts);
-            circle(12.0, 9.5, 2.3);
-        }
-        Icon::ChevronLeft | Icon::ChevronRight => {
-            let g = Grid { flip: icon == Icon::ChevronRight, ..g };
-            line(g.pts(&[(15.0, 5.0), (8.0, 12.0), (15.0, 19.0)]));
-        }
-        Icon::Copy => {
-            closed(g.pts(&[(8.5, 8.5), (20.0, 8.5), (20.0, 20.0), (8.5, 20.0)]));
-            line(g.pts(&[(15.5, 8.5), (15.5, 4.0), (4.0, 4.0), (4.0, 15.5), (8.5, 15.5)]));
-        }
-        Icon::ChevronDown => line(g.pts(&[(5.0, 9.0), (12.0, 16.0), (19.0, 9.0)])),
-        Icon::At => {
-            // Inner ring and a tail that curls into the outer arc counter-clockwise.
-            circle(12.0, 12.0, 3.6);
-            let mut pts = g.pts(&[(15.6, 8.4), (15.6, 13.5)]);
-            pts.extend(g.arc(18.0, 13.5, 2.4, PI, 0.0));
-            pts.extend(g.arc(12.0, 12.0, 8.6, 0.18, 0.18 - 2.0 * PI + 1.3));
-            line(pts);
-        }
-        Icon::Heart => {
-            // Two arcs on top and a pointed bottom.
-            let mut pts = g.arc(8.0, 9.0, 4.2, PI * 0.75, PI * 2.0);
-            pts.extend(g.arc(16.0, 9.0, 4.2, PI, PI * 2.25));
-            pts.push(g.p(12.0, 20.0));
-            closed(pts);
-        }
-        Icon::Eye => {
-            // Almond outline and a pupil.
-            let mut pts = g.arc(12.0, 17.45, 10.95, -PI * 0.834, -PI * 0.166);
-            pts.extend(g.arc(12.0, 6.55, 10.95, PI * 0.166, PI * 0.834));
-            closed(pts);
-            dot(12.0, 12.0, 2.8);
-        }
-        Icon::List => {
-            for y in [6.5, 12.0, 17.5] {
-                dot(4.8, y, 1.3);
-                line(g.pts(&[(9.0, y), (20.0, y)]));
+        _ => {
+            let w = (1.9 * scale).max(1.1);
+            let stroke = Stroke::new(w, color);
+            for s in shapes(icon) {
+                let pts: Vec<Pos2> = s.pts.iter().map(|q| at(q.x, q.y)).collect();
+                if s.closed {
+                    p.add(Shape::closed_line(pts, stroke));
+                    continue;
+                }
+                // egui has no round caps: a circle at each open end (and a lone dot for "h.01" segments).
+                if let (Some(a), Some(b)) = (pts.first().copied(), pts.last().copied()) {
+                    p.circle_filled(a, w / 2.0, color);
+                    p.circle_filled(b, w / 2.0, color);
+                }
+                if pts.len() > 1 {
+                    p.add(Shape::line(pts, stroke));
+                }
             }
-        }
-        Icon::Info => {
-            circle(12.0, 12.0, 8.8);
-            dot(12.0, 7.8, 1.2);
-            line(g.pts(&[(12.0, 11.0), (12.0, 16.5)]));
-        }
-        Icon::Phone => {
-            closed(g.pts(&[(7.0, 3.0), (17.0, 3.0), (17.0, 21.0), (7.0, 21.0)]));
-            dot(12.0, 18.0, 1.1);
-        }
-        Icon::User => {
-            // Head and shoulders.
-            circle(12.0, 8.0, 4.0);
-            line(g.arc(12.0, 21.0, 7.5, PI + 0.15, 2.0 * PI - 0.15));
-        }
-        Icon::Chat => {
-            // Speech bubble with a tail at the bottom left.
-            let mut pts = g.arc(12.0, 11.0, 8.5, PI * 0.72, PI * 2.62);
-            pts.extend(g.pts(&[(4.0, 20.5)]));
-            closed(pts);
-        }
-        Icon::Folder => closed(g.pts(&[(3.0, 6.0), (9.5, 6.0), (11.5, 8.5), (21.0, 8.5), (21.0, 19.0), (3.0, 19.0)])),
-        Icon::Globe => {
-            circle(12.0, 12.0, 8.8);
-            line(g.pts(&[(3.2, 12.0), (20.8, 12.0)]));
-            let cx = g.p(12.0, 12.0).x;
-            line(g.arc(12.0, 12.0, 8.8, -FRAC_PI_2, FRAC_PI_2).into_iter().map(|q| squeeze_x(q, cx, 0.45)).collect());
-            line(g.arc(12.0, 12.0, 8.8, FRAC_PI_2, PI + FRAC_PI_2).into_iter().map(|q| squeeze_x(q, cx, 0.45)).collect());
-        }
-        Icon::Laptop => {
-            closed(g.pts(&[(5.0, 5.5), (19.0, 5.5), (19.0, 15.5), (5.0, 15.5)]));
-            line(g.pts(&[(2.5, 19.0), (21.5, 19.0)]));
-        }
-        Icon::Chats => {
-            // A circle with a tail at the bottom left.
-            let mut pts = g.arc(12.0, 11.0, 8.0, PI * 0.78, PI * 2.62);
-            pts.push(g.p(4.0, 20.0));
-            closed(pts);
-        }
-        Icon::Users => {
-            circle(9.0, 8.5, 3.3);
-            line(g.arc(9.0, 20.5, 6.5, PI + 0.15, 2.0 * PI - 0.15));
-            line(g.arc(16.5, 9.0, 2.7, -FRAC_PI_2 - 0.9, FRAC_PI_2 + 0.4));
-            line(g.arc(16.5, 20.0, 5.5, PI * 1.45, 2.0 * PI - 0.15));
-        }
-        Icon::Archive => {
-            closed(g.pts(&[(3.5, 4.5), (20.5, 4.5), (20.5, 9.0), (3.5, 9.0)]));
-            line(g.pts(&[(5.0, 9.0), (5.0, 19.5), (19.0, 19.5), (19.0, 9.0)]));
-            line(g.pts(&[(10.0, 13.0), (14.0, 13.0)]));
         }
     }
 }
@@ -382,7 +305,29 @@ pub fn ticks(p: &Painter, right: Pos2, read: bool, color: Color32) {
     }
 }
 
-/// Squeezes a point towards the vertical line `cx` (meridians of the globe).
-fn squeeze_x(p: Pos2, cx: f32, k: f32) -> Pos2 {
-    Pos2::new(cx + (p.x - cx) * k, p.y)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lucide_paths_parse() {
+        let all = [
+            Icon::Check, Icon::Close, Icon::Search, Icon::Reload, Icon::Power, Icon::Attach, Icon::Smile, Icon::Reply, Icon::Pencil,
+            Icon::Pin, Icon::Muted, Icon::Channel, Icon::Bot, Icon::File, Icon::Camera, Icon::Bookmark, Icon::Forward, Icon::Trash,
+            Icon::Copy, Icon::Download, Icon::Clock, Icon::Location, Icon::ChevronLeft, Icon::ChevronRight, Icon::Bell, Icon::Mic,
+            Icon::Gear, Icon::Lock, Icon::ChevronDown, Icon::At, Icon::Heart, Icon::Eye, Icon::List, Icon::Link, Icon::Commands,
+            Icon::Info, Icon::Phone, Icon::User, Icon::Chat, Icon::Folder, Icon::Globe, Icon::Laptop, Icon::Chats, Icon::Users,
+            Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle,
+        ];
+        for icon in all {
+            let paths = lucide(icon).unwrap_or_else(|| panic!("{icon:?} has no paths"));
+            for d in paths {
+                assert!(kurbo::BezPath::from_svg(d).is_ok(), "{icon:?}: {d}");
+            }
+            let subs = shapes(icon);
+            assert!(subs.len() >= paths.len(), "{icon:?}: every path gives at least one subpath");
+            // Everything stays on the 24×24 grid.
+            assert!(subs.iter().flat_map(|s| &s.pts).all(|p| (-0.5..=24.5).contains(&p.x) && (-0.5..=24.5).contains(&p.y)), "{icon:?}");
+        }
+    }
 }

@@ -176,14 +176,14 @@ impl App {
 
     fn folder_menu(ui: &mut Ui, id: Option<i32>, menu: &mut Option<FolderMenu>) {
         if let Some(fid) = id.filter(|x| *x != ARCHIVE) {
-            if ui.button(l!("✏  Редагувати папку", "✏  Edit folder")).clicked() {
+            if glass::menu_button(ui, Icon::Pencil, l!("Редагувати папку", "Edit folder")).clicked() {
                 *menu = Some(FolderMenu::Edit(fid));
             }
-            if ui.button(l!("🗑  Видалити папку", "🗑  Delete folder")).clicked() {
+            if glass::menu_button(ui, Icon::Trash, l!("Видалити папку", "Delete folder")).clicked() {
                 *menu = Some(FolderMenu::Delete(fid));
             }
         }
-        if ui.button(l!("➕  Нова папка", "➕  New folder")).clicked() {
+        if glass::menu_button(ui, Icon::FolderPlus, l!("Нова папка", "New folder")).clicked() {
             *menu = Some(FolderMenu::New);
         }
     }
@@ -261,7 +261,7 @@ impl App {
                         grabs.push((grip, *id, r.left()));
                     }
                     let (r, _) = ui.allocate_exact_size(vec2(TABS_H, TABS_H), Sense::hover());
-                    if glass::button(ui, r, "folder-new", "+", false, true).on_hover_text(l!("Нова папка", "New folder")).clicked() {
+                    if glass::icon_button(ui, r, "folder-new", Icon::Plus, false, true).on_hover_text(l!("Нова папка", "New folder")).clicked() {
                         menu = Some(FolderMenu::New);
                     }
                     // The lifted tab is drawn last, on top of its neighbours.
@@ -361,7 +361,7 @@ impl App {
         if let Some(order) = drop {
             self.drop_folders(order);
         }
-        if glass::button(ui, add, "folder-new-col", "+", false, true).on_hover_text(l!("Нова папка", "New folder")).clicked() {
+        if glass::icon_button(ui, add, "folder-new-col", Icon::Plus, false, true).on_hover_text(l!("Нова папка", "New folder")).clicked() {
             menu = Some(FolderMenu::New);
         }
         if let Some(id) = chosen {
@@ -659,7 +659,7 @@ impl App {
         let mut toggle = None;
         if picking {
             let field = Rect::from_min_size(pos2(inner.left(), top), vec2(inner.width(), 38.0));
-            let r = glass::text_field(ui, field, &mut nc.query, l!("Пошук за іменем чи @username", "Search by name or @username"), false);
+            let r = glass::search_field(ui, field, &mut nc.query, l!("Пошук за іменем чи @username", "Search by name or @username"));
             if r.changed() {
                 nc.edited_at = now;
             }

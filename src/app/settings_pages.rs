@@ -440,7 +440,7 @@ impl App {
             }
             ui.add_space(6.0);
             let r = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
-            new = glass::button(ui, r, "folder-create", l!("➕  Створити папку", "➕  Create new folder"), false, true).clicked();
+            new = glass::button(ui, r, "folder-create", l!("Створити папку", "Create new folder"), false, true).clicked();
         });
         if new {
             self.new_folder();

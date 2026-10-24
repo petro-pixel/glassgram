@@ -83,7 +83,8 @@ New code must work on Linux, Windows and macOS:
    schemes when Telegram already has an answer.
 2. **Materials and motion — following Apple's principles** (Human Interface Guidelines, Liquid Glass 2025).
    We take the principles, not the assets: SF Symbols and Apple fonts are licensed only for Apple
-   platforms, so we draw our own icons in `icons.rs`.
+   platforms, so the outline icons in `icons.rs` come from [Lucide](https://lucide.dev) (ISC): the same
+   24×24 grid, stroke and round caps. A new icon: convert its SVG elements to path data and add a `lucide()` arm.
 
 ### Where glass goes and where it doesn't
 
@@ -113,7 +114,7 @@ Glass is **a control layer floating above the content**. Not the content.
   15 (message text), 17 (window titles), 24 (section title).
 - **Click targets** — at least 32 pt, icon buttons — 36–50 pt.
 - **Motion** — 150–350 ms, spring curves; smooth, but with no delay in reacting to a click.
-- **Icons** — vector on a 24×24 grid, stroke ≈1.9 pt, round caps (`icons.rs`).
+- **Icons** — Lucide paths on a 24×24 grid, stroke ≈1.9 pt, round caps (`icons.rs`); menu rows with an icon via `glass::menu_button`.
 
 ### Checking the look
 

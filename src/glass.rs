@@ -354,6 +354,16 @@ pub fn button(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt::Debu
     button_with(ui, rect, id, Label::Text(label), accent, enabled)
 }
 
+/// An icon that sits in a button or submenu row next to its label.
+pub fn icon_atom(icon: Icon) -> egui::Atom<'static> {
+    egui::Atom::paint(Vec2::splat(16.0), move |ui, args| icons::draw(ui.painter(), args.rect, icon, ink_dim()))
+}
+
+/// Menu row with an icon on the left, as in Telegram Desktop menus.
+pub fn menu_button(ui: &mut Ui, icon: Icon, label: &str) -> Response {
+    ui.add(egui::Button::new((icon_atom(icon), label)))
+}
+
 /// Glass button with a vector icon.
 pub fn icon_button(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt::Debug, icon: Icon, accent: bool, enabled: bool) -> Response {
     button_with(ui, rect, id, Label::Icon(icon), accent, enabled)
@@ -402,6 +412,15 @@ pub fn button_with(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt:
 
 /// Input field in a glass capsule.
 pub fn text_field(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, password: bool) -> Response {
+    field(ui, rect, text, hint, password, None)
+}
+
+/// Search field: a magnifier on the left, as in Telegram Desktop.
+pub fn search_field(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str) -> Response {
+    field(ui, rect, text, hint, false, Some(Icon::Search))
+}
+
+fn field(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, password: bool, icon: Option<Icon>) -> Response {
     let focused_id = ui.scope_id().with(("field", hint));
     let focus = ui.ctx().animate_bool(focused_id, ui.memory(|m| m.has_focus(ui.scope_id().with(("edit", hint)))));
     glass(ui.painter(), rect, Glass::tinted(rect.height() / 2.0, Color32::WHITE, field_alpha(focus)));
@@ -409,7 +428,13 @@ pub fn text_field(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, passwo
         let cr = CornerRadius::same((rect.height() / 2.0) as u8);
         ui.painter().rect_stroke(rect, cr, Stroke::new(1.5, rgba(ACCENT, (focus * 200.0) as u8)), StrokeKind::Outside);
     }
-    let inner = rect.shrink2(vec2(rect.height() * 0.4, 0.0));
+    let mut inner = rect.shrink2(vec2(rect.height() * 0.4, 0.0));
+    if let Some(icon) = icon {
+        let side = (rect.height() * 0.45).min(18.0);
+        let r = Rect::from_center_size(pos2(inner.left() + side / 2.0, rect.center().y), Vec2::splat(side));
+        icons::draw(ui.painter(), r, icon, ink_dim());
+        inner.min.x += side + 8.0;
+    }
     let edit = TextEdit::singleline(text)
         .id(ui.scope_id().with(("edit", hint)))
         .hint_text(hint)

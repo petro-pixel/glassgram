@@ -420,7 +420,7 @@ impl App {
         let w = ui.available_width();
         let (r, _) = ui.allocate_exact_size(vec2(w, 40.0), Sense::hover());
         let field = Rect::from_min_max(pos2(r.left() + 6.0, r.top() + 2.0), pos2(r.right() - 6.0, r.bottom() - 2.0));
-        if glass::text_field(ui, field, &mut info.query, l!("Пошук учасників", "Search members"), false).changed() {
+        if glass::search_field(ui, field, &mut info.query, l!("Пошук учасників", "Search members")).changed() {
             info.edited_at = now;
         }
         ui.horizontal(|ui| {

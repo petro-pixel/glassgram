@@ -56,7 +56,7 @@ The session and credentials are stored in `~/.local/share/glassgram/`.
 | `src/settings.rs` | Settings and saving them |
 | `src/lock.rs` | Local passcode (salt + SHA-256) |
 | `src/tray.rs`, `src/logo.rs` | Tray icon and the app logo |
-| `src/icons.rs` | Vector icons (paths on a 24×24 grid) |
+| `src/icons.rs` | Vector icons: Lucide SVG paths on a 24×24 grid, flattened with `kurbo` |
 | `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |
 | `src/demo.rs` | Demo data |
 
@@ -96,4 +96,5 @@ Rules for agents and the design code are in [AGENTS.md](AGENTS.md).
 
 GPL-3.0-or-later, like Telegram Desktop. See [LICENSE](LICENSE).
 The Ubuntu font is under the Ubuntu Font Licence, see [assets/fonts/UFL.txt](assets/fonts/UFL.txt).
+Icons are from [Lucide](https://lucide.dev) under the ISC licence, see [assets/icons/LUCIDE-LICENSE.txt](assets/icons/LUCIDE-LICENSE.txt).
 Glassgram is an unofficial client and is not affiliated with Telegram FZ-LLC.

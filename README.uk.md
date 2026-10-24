@@ -56,7 +56,7 @@ cargo run --release             # справжній акаунт
 | `src/settings.rs` | Налаштування та їх збереження |
 | `src/lock.rs` | Локальний пароль (сіль + SHA-256) |
 | `src/tray.rs`, `src/logo.rs` | Іконка в треї та логотип програми |
-| `src/icons.rs` | Векторні іконки (шляхи на сітці 24×24) |
+| `src/icons.rs` | Векторні іконки: SVG-шляхи Lucide на сітці 24×24, згладжені через `kurbo` |
 | `src/format.rs` | Сутності Telegram ↔ розмітка, текст із форматуванням для egui, шрифти |
 | `src/demo.rs` | Демо-дані |
 
@@ -96,4 +96,5 @@ cargo run --release             # справжній акаунт
 
 GPL-3.0-or-later, як і в Telegram Desktop. Див. [LICENSE](LICENSE).
 Шрифт Ubuntu — під Ubuntu Font Licence, див. [assets/fonts/UFL.txt](assets/fonts/UFL.txt).
+Іконки — з [Lucide](https://lucide.dev) під ліцензією ISC, див. [assets/icons/LUCIDE-LICENSE.txt](assets/icons/LUCIDE-LICENSE.txt).
 Glassgram — неофіційний клієнт і не пов'язаний з Telegram FZ-LLC.
