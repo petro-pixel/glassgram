@@ -3590,17 +3590,29 @@ fn short_time(ts: jiff::Timestamp) -> String {
     }
 }
 
-const MONTHS_UK: [&str; 12] = [
-    "січня", "лютого", "березня", "квітня", "травня", "червня",
-    "липня", "серпня", "вересня", "жовтня", "листопада", "грудня",
-];
-const MONTHS_EN: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/// Month in a date ("5 березня" / "5 Mar").
+fn month(m: i8) -> &'static str {
+    match m {
+        1 => l!("січня", "Jan"),
+        2 => l!("лютого", "Feb"),
+        3 => l!("березня", "Mar"),
+        4 => l!("квітня", "Apr"),
+        5 => l!("травня", "May"),
+        6 => l!("червня", "Jun"),
+        7 => l!("липня", "Jul"),
+        8 => l!("серпня", "Aug"),
+        9 => l!("вересня", "Sep"),
+        10 => l!("жовтня", "Oct"),
+        11 => l!("листопада", "Nov"),
+        12 => l!("грудня", "Dec"),
+        _ => l!("грудня", "Dec"),
+    }
+}
 
 fn day(ts: jiff::Timestamp) -> String {
     let z = local(ts);
     let now = jiff::Zoned::now();
-    let months = if crate::i18n::en() { &MONTHS_EN } else { &MONTHS_UK };
-    let base = format!("{} {}", z.day(), months[(z.month() - 1) as usize]);
+    let base = format!("{} {}", z.day(), month(z.month()));
     if z.date() == now.date() {
         l!("Сьогодні", "Today").to_owned()
     } else if z.year() == now.year() {

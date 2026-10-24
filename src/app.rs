@@ -474,7 +474,7 @@ impl App {
         glass::set_gpu(crate::blur::install(cc));
         let (tray_tx, tray_rx) = mpsc::channel();
         let settings = Settings::load();
-        crate::i18n::set(settings.lang);
+        crate::i18n::set(&settings.lang);
         cc.egui_ctx.set_zoom_factor(settings.scale);
         let tray = tray::spawn(tray_tx, cc.egui_ctx.clone(), settings.notifications);
         let mut app = Self::fresh(cc.egui_ctx.clone(), settings, tray, tray_rx);
@@ -2212,7 +2212,7 @@ impl App {
                 self.settings.save();
             }
             if self.settings.lang != before.lang {
-                crate::i18n::set(self.settings.lang);
+                crate::i18n::set(&self.settings.lang);
                 // The tray rebuilds its menu and tooltip only after an update.
                 if let Some(t) = &self.tray {
                     t.update(|_| {});
@@ -3676,8 +3676,8 @@ impl App {
         egui::ScrollArea::vertical().id_salt("emoji-grid").auto_shrink(false).show(&mut child, |ui| {
             let cols = ((rect.width() / 40.0).floor() as usize).max(1);
             let cell = rect.width() / cols as f32 - 1.0;
-            for (uk, en, chars) in emoji::CATEGORIES {
-                let title = if crate::i18n::en() { en } else { uk };
+            for (title, chars) in emoji::CATEGORIES {
+                let title = title();
                 ui.label(egui::RichText::new(title).size(12.5).color(ink_dim()));
                 for row in emoji::list(chars).chunks(cols) {
                     ui.horizontal(|ui| {
@@ -4422,7 +4422,7 @@ fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<Action> {
         }
         let votes = match poll.total {
             0 => l!("Ще немає голосів", "No votes yet").to_owned(),
-            n => lf!("Голосів: {n}{}", "Votes: {n}{}", if poll.closed { l!(" · завершено", " · closed") } else { "" }),
+            n => format!("{}{}", lf!("Голосів: {n}", "Votes: {n}"), if poll.closed { l!(" · завершено", " · closed") } else { "" }),
         };
         p.text(pos2(rect.left(), y), Align2::LEFT_TOP, votes, FontId::proportional(12.0), rgba(ink(), 160));
     } else if let Some(g) = &m.geo {

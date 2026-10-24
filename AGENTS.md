@@ -66,6 +66,12 @@ lf!("Голосів: {n}", "Votes: {n}")             // like format!, the compil
 
 A string without a translation is a bug. Content from the server (chat names, texts) is not translated.
 
+Other languages are localisation files `locales/<code>.json` keyed by the English string
+(`{"@name": "Deutsch", "Cancel": "Abbrechen"}`); missing entries fall back to English. After adding or
+changing UI strings run `UPDATE_LOCALES=1 cargo test locales` to refresh `locales/template.json`, and
+keep the placeholders of a translation the same as in English. In `lf!` put text between placeholders:
+`{n}{}` can't be translated. A new built-in language goes into `BUILTIN` in `i18n.rs`.
+
 ### Cross-platform
 
 New code must work on Linux, Windows and macOS:

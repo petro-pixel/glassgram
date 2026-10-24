@@ -185,11 +185,7 @@ impl App {
     fn settings_main(&mut self, ui: &mut Ui) {
         let mut open = None;
         let name = self.profile_name();
-        let lang = match self.settings.lang {
-            crate::i18n::Lang::System => l!("Як у системі", "System"),
-            crate::i18n::Lang::Uk => "Українська",
-            crate::i18n::Lang::En => "English",
-        };
+        let lang = self.settings.lang.name();
         let devices = if self.sessions.is_empty() { String::new() } else { self.sessions.len().to_string() };
         let avatar = self.profile.id.and_then(|id| self.textures.get(&ImgKey::Avatar(id)));
         let s = &mut self.settings;
@@ -219,7 +215,7 @@ impl App {
             ui.add_space(8.0);
             for tab in SECTIONS {
                 let value = match tab {
-                    SettingsTab::Language => lang,
+                    SettingsTab::Language => lang.as_str(),
                     SettingsTab::Devices => devices.as_str(),
                     _ => "",
                 };
@@ -491,13 +487,15 @@ impl App {
     fn language_page(&mut self, ui: &mut Ui) {
         let s = &mut self.settings;
         egui::ScrollArea::vertical().id_salt("settings-lang").auto_shrink(false).show(ui, |ui| {
-            let langs = [(crate::i18n::Lang::System, l!("Як у системі", "System")), (crate::i18n::Lang::Uk, "Українська"), (crate::i18n::Lang::En, "English")];
-            for (k, (lang, label)) in langs.into_iter().enumerate() {
+            // Ukrainian and English are built in; the rest come from localisation files.
+            for (k, lang) in crate::i18n::available().into_iter().enumerate() {
                 let r = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::hover()).0;
-                if glass::button(ui, r, ("lang", k), label, s.lang == lang, true).clicked() {
+                if glass::button(ui, r, ("lang", k), &lang.name(), s.lang == lang, true).clicked() {
                     s.lang = lang;
                 }
             }
+            ui.add_space(8.0);
+            hint(ui, l!("Інші мови — файли перекладу в теці locales поруч із налаштуваннями.", "Other languages are translation files in the locales folder next to the settings."));
         });
     }
 }

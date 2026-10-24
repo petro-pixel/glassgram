@@ -50,11 +50,7 @@ impl Settings {
             let flag = v == "1" || v == "true";
             match k {
                 "lang" => {
-                    s.lang = match v {
-                        "uk" => crate::i18n::Lang::Uk,
-                        "en" => crate::i18n::Lang::En,
-                        _ => crate::i18n::Lang::System,
-                    }
+                    s.lang = crate::i18n::Lang::from_code(v);
                 }
                 "theme" => {
                     s.theme = match v {
@@ -83,11 +79,7 @@ impl Settings {
         let b = |v: bool| if v { "1" } else { "0" };
         let text = format!(
             "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\n",
-            match self.lang {
-                crate::i18n::Lang::System => "system",
-                crate::i18n::Lang::Uk => "uk",
-                crate::i18n::Lang::En => "en",
-            },
+            self.lang.code(),
             match self.theme {
                 Theme::System => "system",
                 Theme::Dark => "dark",

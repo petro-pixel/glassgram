@@ -168,6 +168,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Language, theme, scale, notifications, autoplay, camera, SOCKS5 proxy, privacy, devices
 - ✅ Sections as in Telegram Desktop: a main page with the profile card and My Account · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language, interface scale at the bottom; each section is a page with a back button (Esc goes back)
 - ⬜ **P1** Chat settings: text size, Enter or Ctrl+Enter, sticker suggestions, looping animations
+- ✅ Localisation files: `locales/<code>.json` keyed by the English string, built-in or dropped into the data folder, picked in Settings → Language, English fallback, generated template; German built in
 - ⬜ **P1** Interface in every language Telegram Desktop offers: language list from the server (`langpack.getLanguages`, incl. beta/community packs from translations.telegram.org), strings from `langpack.getLangPack` / `getDifference`, cached on disk, live switching without restart. Map our `l!`/`lf!` strings to official tdesktop keys so translations come from Telegram; built-in uk/en stay as the offline fallback; plural forms per language (CLDR rules)
 - ⬜ **P1** MTProto proxy (obfuscated transport), several proxies with quick switching
 - ⬜ **P1** Storage usage and cache limits, auto-download by network type

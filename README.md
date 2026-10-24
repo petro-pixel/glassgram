@@ -11,7 +11,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Formatting**: Telegram entities are shown, markup is converted when sending
 - **Messages**: forwarding, multi-select, silent and scheduled sending, bot buttons, pasting from the clipboard, file progress
 - **Notifications**: system ones (via `notify-send`), a counter in the window title, a tray icon
-- **Languages**: Ukrainian and English (`src/i18n.rs`)
+- **Languages**: Ukrainian and English built into the code, German and any other language from localisation files (`locales/*.json`, see below)
 - **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
 - **Settings** (⚙): language, theme (dark, light, system), interface scale, notifications, autoplay, SOCKS5 proxy, privacy, active sessions, local passcode; stored in `~/.local/share/glassgram/settings`
 - **Settings layout** as in Telegram Desktop: My Account (name, bio, username with availability check, profile photo) · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language
@@ -30,6 +30,20 @@ A real account needs an `api_id` and `api_hash` from <https://my.telegram.org> �
 Enter them in the sign-in window or pass them via the `TG_API_ID` / `TG_API_HASH` variables.
 
 The session and credentials are stored in `~/.local/share/glassgram/`.
+
+## Translations
+
+Ukrainian and English live in the code. Every other language is a JSON file keyed by the English string:
+
+```json
+{ "@name": "Deutsch", "Cancel": "Abbrechen", "Votes: {n}": "Stimmen: {n}" }
+```
+
+1. Copy [locales/template.json](locales/template.json) (all strings, empty values) to `<code>.json`, e.g. `pl.json`.
+2. Set `@name` and translate the values; keep `{placeholders}` as they are. Empty values fall back to English.
+3. Put the file into the `locales` folder next to the session and settings (`~/.local/share/glassgram/locales/`)
+   and pick the language in Settings → Language. No rebuild needed.
+4. To ship it with the app, add it to `locales/` and to `BUILTIN` in `src/i18n.rs`.
 
 ## Structure
 
@@ -57,6 +71,7 @@ The session and credentials are stored in `~/.local/share/glassgram/`.
 | `src/lock.rs` | Local passcode (salt + SHA-256) |
 | `src/tray.rs`, `src/logo.rs` | Tray icon and the app logo |
 | `src/icons.rs` | Vector icons: Lucide SVG paths on a 24×24 grid, flattened with `kurbo` |
+| `src/i18n.rs`, `locales/` | UI language: `l!`/`lf!` for Ukrainian and English, JSON localisation files for the rest |
 | `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |
 | `src/demo.rs` | Demo data |
 
