@@ -197,13 +197,17 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 
 ## 17. Platforms and distribution
 
+**Shared code (`platform.rs`)** — compiles for Windows and macOS (type-checked), not yet run there
+- ✅ Notifications: `notify-rust` (D-Bus via zbus on Linux, toasts on Windows, Notification Center on macOS)
+- ✅ Opening files and links via the `open` crate everywhere (downloads, bot buttons, files)
+- ✅ Data and Downloads folders via `dirs` (`%APPDATA%\glassgram`, `~/Library/Application Support/glassgram`)
+- ✅ Tray: `ksni` on Linux, `tray-icon` on Windows and macOS behind one `TrayHandle`
+- ✅ Microphone: PulseAudio on Linux, DirectShow on Windows, AVFoundation on macOS (voice and video messages)
+- ✅ ffmpeg/ffplay next to the executable, in `PATH` or Homebrew; no console windows on Windows, no console for the app itself
+- ⬜ **P1** Run on real Windows and macOS: tray, notifications, recording, wgpu blur (DX12/Metal)
+- ⬜ Minimise to the tray on close (Windows)
+
 **Windows**
-- ⬜ Notifications: `notify-send` → Windows toast notifications (`notify-rust` or `winrt-notification`)
-- ⬜ Opening files and links: `xdg-open` → the `open` crate (new code already does this; file downloads and bot buttons are left)
-- ⬜ Data and Downloads folders via the `dirs` crate (export already does this)
-- ⬜ Tray: `ksni` → `tray-icon`; on Windows the window can be minimised to the tray
-- ⬜ Audio: `-f pulse` → `-f dshow` for voice messages (round videos already support DirectShow)
-- ⬜ ffmpeg/ffplay next to the `.exe` or found in `PATH`
 - ⬜ Build and CI for `x86_64-pc-windows-msvc`, checking the wgpu blur on DX12/Vulkan
 - ⬜ Installer (MSI via `cargo-wix` or Inno Setup), `.ico` icon, code signing if possible
 
@@ -215,7 +219,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ⬜ `.desktop`, `hicolor` icons, AppStream metainfo with screenshots, a name that doesn't suggest it is official
 - ⬜ Submitting a PR to `flathub/flathub`
 
-**macOS** — ⬜ **P3**: build, `.app`/`.dmg`, signing and notarisation
+**macOS** — ⬜ **P3**: `.app`/`.dmg` bundle (with ffmpeg inside or via Homebrew), signing and notarisation
 
 ## Not planned
 - SMS jobs (`smsjobs`), managing ad accounts — not needed in a personal client

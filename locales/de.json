@@ -527,5 +527,6 @@
   "Unread messages: {n}": "Ungelesene Nachrichten: {n}",
   "Open Glassgram": "Glassgram öffnen",
   "Close (Esc)": "Schließen (Esc)",
-  "{n} of {total}": "{n} von {total}"
+  "{n} of {total}": "{n} von {total}",
+  "Quit Glassgram": "Glassgram beenden"
 }

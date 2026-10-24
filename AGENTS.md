@@ -74,11 +74,22 @@ keep the placeholders of a translation the same as in English. In `lf!` put text
 
 ### Cross-platform
 
-New code must work on Linux, Windows and macOS:
-- open files and links with `open::that_detached`, not `xdg-open`;
-- take folders from `dirs` (`download_dir`, `data_dir`), not from XDG variables;
+New code must work on Linux, Windows and macOS. Everything that differs between them lives in
+`platform.rs`; the rest of the code calls it instead of OS tools:
+- open files and links with `platform::open`, not `xdg-open`;
+- folders from `platform::data_dir` / `platform::download_dir` (the `dirs` crate), not XDG variables or `HOME`;
+- `ffmpeg` / `ffplay` only via `platform::tool` (finds them next to the exe and in Homebrew, hides
+  the console window on Windows), never `Command::new("ffmpeg")`; the microphone input via `camera::mic_args`;
+- notifications via `platform::notify`; the tray only through `tray::TrayHandle`;
 - the system language from `sys_locale`; file permissions via `backend::make_private`;
-- if the OS can't be avoided — `#[cfg(target_os = …)]` for **every** platform, not just Linux.
+- if the OS can't be avoided — `#[cfg(target_os = …)]` for **every** platform, not just Linux;
+- dependencies that need system libraries on one OS go under `[target.'cfg(…)'.dependencies]`.
+
+There is no Windows or macOS machine here, so check that the code at least compiles for them
+(`rustup target add x86_64-pc-windows-gnu aarch64-apple-darwin`). C dependencies (SQLite) need a C
+compiler for the target; for a type check a stub that creates empty object files is enough:
+`CC_x86_64_pc_windows_gnu=<stub> AR_x86_64_pc_windows_gnu=ar cargo check --target x86_64-pc-windows-gnu`
+(the stub answers `-?` with an error and prints `gcc` to stderr for `-E`).
 
 ## Design code
 

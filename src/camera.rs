@@ -1,5 +1,4 @@
-//! Video message (“round video”) recording: `ffmpeg` takes the camera (v4l2) and microphone
-//! (PulseAudio/PipeWire), crops the frame to a square and writes MP4 (H.264 + AAC), while also
+//! Video message (“round video”) recording: `ffmpeg` takes the camera and the microphone, crops the frame to a square and writes MP4 (H.264 + AAC), while also
 //! streaming a small mirrored RGBA preview to stdout for the round window in the UI.
 //!
 //! The camera is chosen in settings; `GLASSGRAM_CAMERA` overrides it (`test` gives a test pattern).
@@ -8,7 +7,7 @@
 
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use crate::i18n::{l, lf};
@@ -59,7 +58,7 @@ fn ffmpeg_devices(video: bool) -> Vec<(String, String)> {
     let args = ["-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"];
     #[cfg(not(target_os = "windows"))]
     let args = ["-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""];
-    let Ok(out) = Command::new("ffmpeg").args(args).stderr(Stdio::piped()).stdout(Stdio::null()).output() else { return Vec::new() };
+    let Ok(out) = crate::platform::tool("ffmpeg").args(args).stderr(Stdio::piped()).stdout(Stdio::null()).output() else { return Vec::new() };
     parse_devices(&String::from_utf8_lossy(&out.stderr), video)
 }
 
@@ -110,16 +109,20 @@ fn input_args(camera: &str) -> Vec<String> {
         #[cfg(target_os = "macos")]
         a.extend(s(&["-f", "avfoundation", "-framerate", "30", "-video_size", "640x480", "-i", &format!("{camera}:none")]));
     }
-    #[cfg(target_os = "linux")]
-    a.extend(s(&["-f", "pulse", "-i", "default"]));
-    #[cfg(target_os = "windows")]
-    {
-        let mic = ffmpeg_devices(false).into_iter().next().map(|d| d.0).unwrap_or_else(|| "audio=default".into());
-        a.extend(s(&["-f", "dshow", "-i", &mic]));
-    }
-    #[cfg(target_os = "macos")]
-    a.extend(s(&["-f", "avfoundation", "-i", "none:0"]));
+    a.extend(mic_args());
     a
+}
+
+/// ffmpeg input for the default microphone: PulseAudio/PipeWire on Linux, the first DirectShow
+/// microphone on Windows, the first AVFoundation one on macOS. Voice messages use it too.
+pub fn mic_args() -> Vec<String> {
+    #[cfg(target_os = "windows")]
+    let input = ["-f".into(), "dshow".into(), "-i".into(), ffmpeg_devices(false).into_iter().next().map(|d| d.0).unwrap_or_else(|| "audio=default".into())];
+    #[cfg(target_os = "macos")]
+    let input = ["-f", "avfoundation", "-i", "none:0"].map(String::from);
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let input = ["-f", "pulse", "-i", "default"].map(String::from);
+    input.to_vec()
 }
 
 pub struct RoundRecorder {
@@ -144,7 +147,7 @@ impl RoundRecorder {
             Err(_) if !camera.is_empty() => camera.to_owned(),
             Err(_) => list().into_iter().next().map(|c| c.id).ok_or(l!("Камеру не знайдено", "No camera found"))?,
         };
-        let mut cmd = Command::new("ffmpeg");
+        let mut cmd = crate::platform::tool("ffmpeg");
         cmd.args(["-loglevel", "error"]);
         cmd.args(input_args(&camera));
         let side = SIDE;

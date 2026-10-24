@@ -862,13 +862,7 @@ pub struct Handle {
     pub done: mpsc::Receiver<()>,
 }
 
-pub fn data_dir() -> PathBuf {
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    base.join("glassgram")
-}
+pub use crate::platform::data_dir;
 
 /// Returns (api_id, api_hash) from environment variables or the saved config.
 pub fn saved_credentials() -> Option<(i32, String)> {
@@ -1386,7 +1380,7 @@ impl Worker {
                     match client.invoke(&req).await {
                         Ok(tl::enums::messages::BotCallbackAnswer::Answer(a)) => {
                             if let Some(url) = a.url {
-                                let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+                                crate::platform::open(url);
                             }
                             if let Some(text) = a.message.filter(|t| !t.is_empty()) {
                                 out.send(Ev::BotAnswer { text, alert: a.alert });
@@ -3636,16 +3630,6 @@ pub fn human_size(bytes: usize) -> String {
     }
 }
 
-fn downloads_dir() -> PathBuf {
-    std::process::Command::new("xdg-user-dir")
-        .arg("DOWNLOAD")
-        .output()
-        .ok()
-        .map(|o| PathBuf::from(String::from_utf8_lossy(&o.stdout).trim()))
-        .filter(|p| p.is_dir())
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Downloads")))
-        .unwrap_or_else(|| PathBuf::from("."))
-}
 
 /// Downloads a file or photo from a message into Downloads and opens it.
 async fn download(client: &Client, r: PeerRef, id: i32) -> Result<PathBuf, String> {
@@ -3663,7 +3647,7 @@ async fn download(client: &Client, r: PeerRef, id: i32) -> Result<PathBuf, Strin
         _ => None,
     }
     .unwrap_or_else(|| format!("telegram_{}_{id}.jpg", r.id.bot_api_dialog_id_unchecked()));
-    let dir = downloads_dir();
+    let dir = crate::platform::download_dir();
     let _ = std::fs::create_dir_all(&dir);
     let mut path = dir.join(&name);
     let mut n = 1;
@@ -3674,6 +3658,6 @@ async fn download(client: &Client, r: PeerRef, id: i32) -> Result<PathBuf, Strin
         n += 1;
     }
     client.download_media(&media, &path).await.map_err(|e| lf!("Завантаження: {e}", "Download: {e}"))?;
-    let _ = std::process::Command::new("xdg-open").arg(&path).spawn();
+    crate::platform::open(&path);
     Ok(path)
 }

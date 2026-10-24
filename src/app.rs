@@ -386,7 +386,7 @@ pub struct App {
     round_tex: Option<TextureHandle>,
     round_seen: u64,
     can_record: bool,
-    tray: Option<ksni::blocking::Handle<tray::Tray>>,
+    tray: Option<tray::TrayHandle>,
     tray_rx: mpsc::Receiver<TrayEv>,
     folder_edit: Option<FolderEdit>,
     accounts: Accounts,
@@ -595,7 +595,7 @@ impl App {
     }
 
     /// App state without an account: launch and account switching start like this.
-    fn fresh(ctx: egui::Context, settings: Settings, tray: Option<ksni::blocking::Handle<tray::Tray>>, tray_rx: mpsc::Receiver<TrayEv>) -> Self {
+    fn fresh(ctx: egui::Context, settings: Settings, tray: Option<tray::TrayHandle>, tray_rx: mpsc::Receiver<TrayEv>) -> Self {
         let (picked_tx, picked_rx) = mpsc::channel();
         let (photo_tx, photo_rx) = mpsc::channel();
         Self {
@@ -2213,9 +2213,8 @@ impl App {
             }
             if self.settings.lang != before.lang {
                 crate::i18n::set(&self.settings.lang);
-                // The tray rebuilds its menu and tooltip only after an update.
                 if let Some(t) = &self.tray {
-                    t.update(|_| {});
+                    t.refresh();
                 }
                 self.title_unread = usize::MAX;
             }
@@ -2225,8 +2224,7 @@ impl App {
             if self.settings.notifications != before.notifications
                 && let Some(t) = &self.tray
             {
-                let on = self.settings.notifications;
-                t.update(|t| t.notifications = on);
+                t.set_notifications(self.settings.notifications);
             }
         }
         // Esc goes back to the main page first; the folder window on top handles its own Esc.
@@ -2660,9 +2658,8 @@ impl App {
         if glass::icon_button(ui, btn(2.0), "notify", bell, false, true).on_hover_text(hint).clicked() {
             self.settings.notifications = !self.settings.notifications;
             self.settings.save();
-            let on = self.settings.notifications;
             if let Some(t) = &self.tray {
-                t.update(|t| t.notifications = on);
+                t.set_notifications(self.settings.notifications);
             }
         }
 
@@ -3798,7 +3795,7 @@ impl App {
             let title = if unread > 0 { format!("Glassgram ({unread})") } else { "Glassgram".to_owned() };
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Title(title));
             if let Some(t) = &self.tray {
-                t.update(|t| t.unread = unread);
+                t.set_unread(unread);
             }
         }
     }
@@ -3810,9 +3807,12 @@ impl App {
                     self.ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                     self.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                 }
-                TrayEv::Notifications(on) => {
-                    self.settings.notifications = on;
+                TrayEv::ToggleNotifications => {
+                    self.settings.notifications = !self.settings.notifications;
                     self.settings.save();
+                    if let Some(t) = &self.tray {
+                        t.set_notifications(self.settings.notifications);
+                    }
                 }
                 TrayEv::Quit => self.ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             }
@@ -4585,7 +4585,7 @@ fn seek_area(ui: &mut Ui, id: i32, r: Rect, play: PlayView) -> Option<Action> {
 
 /// Open a file in the default application.
 fn open_external(path: &std::path::Path) {
-    let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+    crate::platform::open(path);
 }
 
 /// Album layout: how many photos in each row.
@@ -5129,12 +5129,8 @@ fn upload_pill(ui: &Ui, u: &Upload, bottom_left: egui::Pos2) -> f32 {
     pill.top()
 }
 
-/// System notification via `notify-send` (libnotify), without blocking the UI.
 fn notify(title: &str, body: &str) {
-    let body: String = body.chars().take(180).collect();
-    let _ = std::process::Command::new("notify-send")
-        .args(["-a", "Glassgram", "-i", "mail-message-new", "--", title, &body])
-        .spawn();
+    crate::platform::notify(title, body);
 }
 
 /// Saves a clipboard image as PNG in the cache to send as a photo.

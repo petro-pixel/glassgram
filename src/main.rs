@@ -1,5 +1,7 @@
 // Glassgram: a Telegram client with a "liquid glass" interface.
 // SPDX-License-Identifier: GPL-3.0-or-later
+// No console window next to the app on Windows.
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
 mod accounts;
 mod app;
@@ -16,6 +18,7 @@ mod glass;
 mod icons;
 mod lock;
 mod logo;
+mod platform;
 mod player;
 mod recorder;
 mod settings;

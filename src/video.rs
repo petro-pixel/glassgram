@@ -4,7 +4,7 @@
 
 use std::io::Read;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError, sync_channel};
 use std::sync::{Arc, Mutex};
 
@@ -107,7 +107,7 @@ fn decode(spec: Spec, tx: SyncSender<Vec<u8>>, slot: Arc<Mutex<Option<Child>>>) 
     let filter = format!("setpts=PTS/{},fps={FPS},{scale}", spec.speed);
     let mut from = spec.from;
     loop {
-        let mut cmd = Command::new("ffmpeg");
+        let mut cmd = crate::platform::tool("ffmpeg");
         cmd.args(["-loglevel", "quiet", "-nostdin"]);
         // The built-in VP9 decoder drops the alpha channel, so use libvpx for webm.
         if spec.path.extension().is_some_and(|e| e == "webm") {

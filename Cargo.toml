@@ -21,7 +21,6 @@ kurbo = "0.13"
 roxmltree = "0.21"
 # The same SQLite that grammers uses for the session: no new system libraries needed.
 libsql = { version = "0.10", default-features = false, features = ["core"] }
-ksni = { version = "0.3.7", default-features = false, features = ["async-io", "blocking"] }
 open = "5"
 qrcode = { version = "0.14", default-features = false }
 rfd = "0.17"
@@ -30,3 +29,14 @@ serde_json = "1"
 sha2 = "0.10"
 sys-locale = "0.3"
 tokio = { version = "1.54.0", features = ["full"] }
+
+# Desktop notifications: D-Bus via zbus on Linux (pure Rust), WinRT toasts on Windows, Notification Center on macOS.
+notify-rust = { version = "4.11", default-features = false, features = ["z"] }
+
+# Tray: StatusNotifierItem over D-Bus on Linux, without GTK or other system libraries.
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = { version = "0.3.7", default-features = false, features = ["async-io", "blocking"] }
+
+# Tray on Windows and macOS (on Linux it would need GTK, so ksni is used there).
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+tray-icon = { version = "0.21", default-features = false }

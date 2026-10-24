@@ -10,7 +10,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Search**: global (the field above the chat list) and in-chat (🔍 in the header)
 - **Formatting**: Telegram entities are shown, markup is converted when sending
 - **Messages**: forwarding, multi-select, silent and scheduled sending, bot buttons, pasting from the clipboard, file progress
-- **Notifications**: system ones (via `notify-send`), a counter in the window title, a tray icon
+- **Notifications**: system ones on Linux, Windows and macOS, a counter in the window title, a tray icon
 - **Languages**: Ukrainian and English built into the code, German and any other language from localisation files (`locales/*.json`, see below)
 - **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
 - **Settings** (⚙): language, theme (dark, light, system), interface scale, notifications, autoplay, SOCKS5 proxy, privacy, active sessions, local passcode; stored in `~/.local/share/glassgram/settings`
@@ -29,7 +29,15 @@ cargo run --release             # real account
 A real account needs an `api_id` and `api_hash` from <https://my.telegram.org> → *API development tools*.
 Enter them in the sign-in window or pass them via the `TG_API_ID` / `TG_API_HASH` variables.
 
-The session and credentials are stored in `~/.local/share/glassgram/`.
+The session and credentials are stored in the data folder: `~/.local/share/glassgram/` on Linux,
+`%APPDATA%\glassgram\` on Windows, `~/Library/Application Support/glassgram/` on macOS.
+
+Voice, audio, video and recording need ffmpeg (`ffmpeg` and `ffplay`):
+- **Linux**: from the distribution (`sudo apt install ffmpeg`, `sudo dnf install ffmpeg`…);
+- **Windows**: put `ffmpeg.exe` and `ffplay.exe` next to `glassgram.exe` or anywhere in `PATH`;
+- **macOS**: `brew install ffmpeg`.
+
+Windows and macOS builds compile but haven't been tried on real machines yet.
 
 ## Translations
 
@@ -67,9 +75,10 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/camera.rs` | Video message recording: camera + microphone → MP4, round preview |
 | `src/recorder.rs` | Voice recording via `ffmpeg` (PulseAudio/PipeWire), level and waveform |
 | `src/export.rs` | Chat history export to HTML and JSON |
+| `src/platform.rs` | Everything that differs between Linux, Windows and macOS: folders, opening files, ffmpeg/ffplay, notifications |
 | `src/settings.rs` | Settings and saving them |
 | `src/lock.rs` | Local passcode (salt + SHA-256) |
-| `src/tray.rs`, `src/logo.rs` | Tray icon and the app logo |
+| `src/tray.rs`, `src/logo.rs` | Tray icon (`ksni` on Linux, `tray-icon` on Windows and macOS) and the app logo |
 | `src/icons.rs`, `assets/icons/` | Vector icons: Lucide SVG files (24×24), parsed with `roxmltree` and flattened with `kurbo` |
 | `src/i18n.rs`, `locales/` | UI language: `l!`/`lf!` for Ukrainian and English, JSON localisation files for the rest |
 | `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |

@@ -4,7 +4,7 @@
 //! restart it from the right place.
 
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::time::Instant;
 
 use grammers_client::session::types::PeerId;
@@ -122,7 +122,7 @@ impl Player {
     }
 
     fn spawn(&mut self) {
-        let mut cmd = Command::new("ffplay");
+        let mut cmd = crate::platform::tool("ffplay");
         cmd.args(["-nodisp", "-autoexit", "-vn", "-loglevel", "quiet"]);
         if self.offset > 0.05 {
             cmd.arg("-ss").arg(format!("{:.2}", self.offset));
@@ -161,7 +161,7 @@ impl Drop for Player {
 
 /// Whether `ffplay` is in the system.
 pub fn available() -> bool {
-    Command::new("ffplay").arg("-version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
+    crate::platform::has_tool("ffplay")
 }
 
 /// “1:05” from seconds.

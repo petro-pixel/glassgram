@@ -866,7 +866,7 @@ fn clip(id: i32) -> Option<std::path::PathBuf> {
     if path.exists() {
         return Some(path);
     }
-    let mut cmd = std::process::Command::new("ffmpeg");
+    let mut cmd = crate::platform::tool("ffmpeg");
     cmd.args(["-loglevel", "quiet", "-y", "-f", "lavfi", "-i", video]);
     if audio {
         cmd.args(["-f", "lavfi", "-i", "sine=frequency=440:beep_factor=4"]);

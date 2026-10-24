@@ -4,7 +4,7 @@
 
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use crate::i18n::{l, lf};
@@ -43,8 +43,10 @@ impl Recorder {
     pub fn start() -> Result<Self, String> {
         let dir = std::env::temp_dir();
         let path = dir.join(format!("glassgram-voice-{}-{}.ogg", std::process::id(), jiff::Timestamp::now().as_millisecond()));
-        let mut child = Command::new("ffmpeg")
-            .args(["-loglevel", "error", "-f", "pulse", "-i", "default", "-ac", "1", "-ar", "48000"])
+        let mut child = crate::platform::tool("ffmpeg")
+            .args(["-loglevel", "error"])
+            .args(crate::camera::mic_args())
+            .args(["-ac", "1", "-ar", "48000"])
             .args(["-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-y"])
             .arg(&path)
             .args(["-ac", "1", "-ar", "8000", "-f", "s16le", "pipe:1"])
@@ -133,7 +135,7 @@ fn waveform(levels: &[f32]) -> Vec<u8> {
 
 /// Whether `ffmpeg` is available for recording.
 pub fn available() -> bool {
-    Command::new("ffmpeg").arg("-version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
+    crate::platform::has_tool("ffmpeg")
 }
 
 #[cfg(test)]
