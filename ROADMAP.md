@@ -227,8 +227,9 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 **What is done.** Sign-in, chats, folders, forums, comments, every media type, voice and round
 video recording, settings, two languages, two themes, multiple accounts — and now the P0 stage:
 profile, new chat, chat info, link previews, pinned messages, read ticks, cache and send queue,
-virtualisation, shared media, hotkeys, per-chat notifications. Checked in demo mode; the
-first stage was also checked on a real account.
+virtualisation, shared media, hotkeys, per-chat notifications. Checked in demo mode and on a
+real account; not yet checked on a real account: group-only parts (member list, @mention popup,
+"Seen by"), creating groups and channels, leave / clear / delete.
 
 **How we count.** A "day" is 6–8 hours of active work by a person with an agent: setting the task,
 checking with screenshots and on a real account, fixing. Judging by what is done so far, that is
