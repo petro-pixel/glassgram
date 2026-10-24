@@ -216,7 +216,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Our own `.flatpak` bundle from GitHub Actions: `io.github.petro_pixel.Glassgram`, ffmpeg + x264 built in, `.desktop`, metainfo, icons
 - ⬜ Flathub: offline crates (`flatpak-cargo-generator`) and a decision about the API keys (a Flathub manifest is public)
 - ✅ ffmpeg (with x264, opus, vpx, ffplay) as a module of the manifest
-- ⬜ Permissions: network, Wayland/X11, `dri`, PulseAudio, camera, D-Bus for the tray, `xdg-download`
+- ✅ Permissions: network, Wayland/X11, GPU and camera (`--device=all`), PulseAudio + PipeWire, D-Bus for the tray and notifications, `xdg-download`
 - ⬜ Portals: notifications, opening files, file chooser, camera
 - 🟡 `.desktop`, `hicolor` icons, AppStream metainfo (validated); screenshots still missing
 - ⬜ Submitting a PR to `flathub/flathub`

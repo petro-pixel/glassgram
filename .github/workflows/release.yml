@@ -18,7 +18,7 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -29,10 +29,16 @@ jobs:
         run: cargo build --release --locked
 
       # GPL build with libx264, libopus, libvpx and ffplay; it goes next to glassgram.exe.
+      # BtbN renames the archives with every ffmpeg release, so take the newest stable one from the list.
       - name: ffmpeg
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          Invoke-WebRequest https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip -OutFile ffmpeg.zip
+          $asset = gh release view latest -R BtbN/FFmpeg-Builds --json assets --jq '[.assets[].name | select(test("^ffmpeg-n[0-9.]+-latest-win64-gpl-[0-9.]+\\.zip$"))] | sort_by(capture("-n(?<v>[0-9.]+)-").v | split(".") | map(tonumber)) | last'
+          if (-not $asset) { throw "No ffmpeg win64 gpl archive in BtbN/FFmpeg-Builds latest" }
+          Write-Host "ffmpeg: $asset"
+          gh release download latest -R BtbN/FFmpeg-Builds --pattern $asset --output ffmpeg.zip
           Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-zip
           New-Item -ItemType Directory -Force dist/ffmpeg | Out-Null
           $root = Get-ChildItem ffmpeg-zip | Select-Object -First 1
@@ -56,7 +62,7 @@ jobs:
       image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
       options: --privileged
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # The manifest's dir source picks this file up; the build deletes it after compiling.
       - name: Keys
