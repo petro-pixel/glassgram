@@ -102,7 +102,7 @@ Time estimate — [at the end of the file](#time-estimate).
 
 ## 6. Groups and channels
 - ✅ **P0** Chat info column (click the header): description/bio, @username, phone, invite link (`exportChatInvite`), member and admin list with search, click opens a private chat (`getFullUser` / `getFullChat` / `getFullChannel`, `channels.getParticipants`)
-- ✅ **P0** Leave a group or channel, clear history, delete chat with confirmation and "also for the other side" (`leaveChannel`, `deleteChatUser`, `deleteHistory`, `channels.deleteHistory`)
+- ✅ **P0** Leave a group or channel, clear history, delete chat with confirmation and "also for the other side" (`leaveChannel`, `deleteChatUser`, `deleteHistory`, `channels.deleteHistory`); the owner gets "Delete group" / "Delete channel" instead of "Leave", for everyone (`channels.deleteChannel`, `messages.deleteChat`)
 - ⬜ **P1** Editing: title, photo, description; default member permissions; slow mode
 - ⬜ **P1** Administration: admin rights, bans and restrictions, join requests, invite link management
 - ⬜ **P1** Reactions allowed in the chat; hiding the member list; anti-spam
@@ -228,8 +228,8 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 video recording, settings, two languages, two themes, multiple accounts — and now the P0 stage:
 profile, new chat, chat info, link previews, pinned messages, read ticks, cache and send queue,
 virtualisation, shared media, hotkeys, per-chat notifications. Checked in demo mode and on a
-real account; not yet checked on a real account: group-only parts (member list, @mention popup,
-"Seen by"), creating groups and channels, leave / clear / delete.
+real account, including a public group (members, @mention popup, join / leave) and test groups
+and channels (create, invite link, pin, "Seen by", clear, delete).
 
 **How we count.** A "day" is 6–8 hours of active work by a person with an agent: setting the task,
 checking with screenshots and on a real account, fixing. Judging by what is done so far, that is

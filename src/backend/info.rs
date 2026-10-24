@@ -103,6 +103,8 @@ pub struct ChatDetails {
     pub admins: Option<i32>,
     /// May invite: can create a link when there is none yet.
     pub admin: bool,
+    /// We own the group or channel: "Delete" removes it for everyone instead of leaving.
+    pub creator: bool,
     /// Member list is visible (in channels, only to admins).
     pub can_view_members: bool,
     /// Groups in common with the user.
@@ -290,7 +292,16 @@ impl Worker {
             }
             Cmd::DeleteChat { peer, revoke } => {
                 let r = self.peer_ref(peer)?;
+                // `revoke` in a group or channel: the owner deletes it for everyone (otherwise it would stay orphaned).
                 match peer.kind() {
+                    PeerKind::Channel if revoke => {
+                        let req = tl::functions::channels::DeleteChannel { channel: r.into() };
+                        client.invoke(&req).await.map_err(|e| lf!("Не вдалося видалити: {e}", "Could not delete: {e}"))?;
+                    }
+                    PeerKind::Chat if revoke => {
+                        let req = tl::functions::messages::DeleteChat { chat_id: r.id.bare_id_unchecked() };
+                        client.invoke(&req).await.map_err(|e| lf!("Не вдалося видалити: {e}", "Could not delete: {e}"))?;
+                    }
                     PeerKind::Channel => leave(&client, r).await?,
                     PeerKind::Chat => {
                         // Leave first, then drop the dialog from the list.
@@ -360,6 +371,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<ChatDetails, String> {
                 }
             }
             if let Some(tl::enums::Chat::Chat(c)) = f.chats.into_iter().find(|c| c.id() == r.id.bare_id_unchecked()) {
+                d.creator = c.creator;
                 d.admin = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.invite_users);
             }
             d.can_view_members = true;
@@ -377,6 +389,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<ChatDetails, String> {
                 d.can_view_members = c.can_view_participants;
             }
             if let Some(tl::enums::Chat::Channel(c)) = f.chats.into_iter().find(|c| c.id() == r.id.bare_id_unchecked()) {
+                d.creator = c.creator;
                 d.admin = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.invite_users);
                 d.username = first_username(c.username, c.usernames);
             }

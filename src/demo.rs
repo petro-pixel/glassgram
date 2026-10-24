@@ -944,6 +944,18 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
         }
         _ => {}
     }
+    // Chats made with "New group" / "New channel" are ours: the owner gets "Delete" instead of "Leave".
+    if id >= 2000 && matches!(kind, Some(ChatKind::Group | ChatKind::Channel)) {
+        d.creator = true;
+        d.admin = true;
+        // Only us so far, and nothing filled in yet.
+        d.about.clear();
+        d.username.clear();
+        d.members = Some(1);
+        d.online = None;
+        d.admins = Some(1);
+        d.can_view_members = true;
+    }
     // Channel 4 starts muted, as in the chat list.
     if id == 4 {
         d.notify.mute_until = crate::backend::MUTE_FOREVER;

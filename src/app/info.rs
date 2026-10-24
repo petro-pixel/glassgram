@@ -246,7 +246,8 @@ impl App {
                 Tab::Shared(kind) => self.info_shared(ui, &info, kind, &mut todo),
             }
             ui.add_space(10.0);
-            info_actions(ui, &chat, &mut todo);
+            let creator = info.details.as_ref().is_some_and(|d| d.creator);
+            info_actions(ui, &chat, creator, &mut todo);
             ui.add_space(8.0);
         });
 
@@ -568,10 +569,13 @@ impl App {
         let Some(chat) = self.chats.iter().find(|c| c.id == peer) else { return };
         let t = chat.title.clone();
         let kind = chat.kind;
+        let creator = info.details.as_ref().is_some_and(|d| d.creator);
         let (title, body, action) = match what {
             Confirm::Leave if kind == ChatKind::Channel => (l!("Вийти з каналу", "Leave channel"), lf!("Ви справді хочете вийти з «{t}»?", "Are you sure you want to leave “{t}”?"), l!("Вийти", "Leave")),
             Confirm::Leave => (l!("Вийти з групи", "Leave group"), lf!("Ви справді хочете вийти з «{t}»?", "Are you sure you want to leave “{t}”?"), l!("Вийти", "Leave")),
             Confirm::Clear => (l!("Очистити історію", "Clear history"), lf!("Видалити всі повідомлення в «{t}»? Цю дію не можна скасувати.", "Delete all messages in “{t}”? This cannot be undone."), l!("Очистити", "Clear")),
+            Confirm::Delete if creator && kind == ChatKind::Channel => (l!("Видалити канал", "Delete channel"), lf!("Ви справді хочете видалити «{t}»? Усіх підписників буде видалено, а всі повідомлення — втрачено.", "Are you sure you want to delete “{t}”? All subscribers will be removed and all messages will be lost."), l!("Видалити", "Delete")),
+            Confirm::Delete if creator && kind == ChatKind::Group => (l!("Видалити групу", "Delete group"), lf!("Ви справді хочете видалити «{t}»? Усіх учасників буде видалено, а всі повідомлення — втрачено.", "Are you sure you want to delete “{t}”? All members will be removed and all messages will be lost."), l!("Видалити", "Delete")),
             Confirm::Delete if kind == ChatKind::Group => (l!("Видалити й вийти", "Delete and leave"), lf!("Вийти з «{t}» і видалити чат зі списку?", "Leave “{t}” and delete the chat from the list?"), l!("Видалити", "Delete")),
             Confirm::Delete => (l!("Видалити чат", "Delete chat"), lf!("Видалити чат з «{t}»? Цю дію не можна скасувати.", "Delete the chat with “{t}”? This cannot be undone."), l!("Видалити", "Delete")),
         };
@@ -592,7 +596,8 @@ impl App {
             let label = if what == Confirm::Clear { lf!("Також очистити для {t}", "Also clear for {t}") } else { lf!("Також видалити для {t}", "Also delete for {t}") };
             child.checkbox(&mut info.revoke, label);
         }
-        let revoke = info.revoke && can_revoke;
+        // The owner's delete always goes for everyone.
+        let revoke = (info.revoke && can_revoke) || (creator && what == Confirm::Delete && matches!(kind, ChatKind::Group | ChatKind::Channel));
         let half = (inner.width() - 8.0) / 2.0;
         let y = inner.bottom() - 34.0;
         let cancel = glass::button(ui, Rect::from_min_size(pos2(inner.left(), y), vec2(half, 34.0)), "info-confirm-cancel", l!("Скасувати", "Cancel"), false, true).clicked();
@@ -638,7 +643,8 @@ fn info_tabs(ui: &mut Ui, chat: &ChatInfo, info: &InfoPanel, todo: &mut Vec<Do>)
 }
 
 /// Leave / clear / delete in the danger colour, as at the bottom of the Telegram Desktop profile.
-fn info_actions(ui: &mut Ui, chat: &ChatInfo, todo: &mut Vec<Do>) {
+/// The owner gets "Delete" instead of "Leave", so the group or channel isn't left without one.
+fn info_actions(ui: &mut Ui, chat: &ChatInfo, creator: bool, todo: &mut Vec<Do>) {
     if !chat.joined {
         return;
     }
@@ -655,8 +661,13 @@ fn info_actions(ui: &mut Ui, chat: &ChatInfo, todo: &mut Vec<Do>) {
         ChatKind::Saved => act(ui, l!("Очистити історію", "Clear history"), Confirm::Clear),
         ChatKind::Group => {
             act(ui, l!("Очистити історію", "Clear history"), Confirm::Clear);
-            act(ui, l!("Вийти з групи", "Leave group"), Confirm::Leave);
+            if creator {
+                act(ui, l!("Видалити групу", "Delete group"), Confirm::Delete);
+            } else {
+                act(ui, l!("Вийти з групи", "Leave group"), Confirm::Leave);
+            }
         }
+        ChatKind::Channel if creator => act(ui, l!("Видалити канал", "Delete channel"), Confirm::Delete),
         ChatKind::Channel => act(ui, l!("Вийти з каналу", "Leave channel"), Confirm::Leave),
     }
 }
