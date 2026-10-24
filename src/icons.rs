@@ -1,12 +1,14 @@
 //! Vector icons on a 24×24 grid, anti-aliased by egui's tessellator (unlike emoji from the raster atlas).
-//! Outline icons are Lucide (https://lucide.dev, ISC licence, see `assets/icons/LUCIDE-LICENSE.txt`):
-//! the same grid, stroke and round caps as our design code. Filled media controls are our own.
+//! Outline icons are Lucide SVG files in `assets/icons/` (https://lucide.dev, ISC licence, see
+//! `LUCIDE-LICENSE.txt` there): the same grid, stroke and round caps as our design code.
+//! A new icon: drop its SVG into `assets/icons/` and add a variant with an `svg()` arm.
+//! Filled media controls are our own.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
 use eframe::egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
-use kurbo::PathEl;
+use kurbo::{PathEl, Shape as _};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Icon {
@@ -83,124 +85,66 @@ pub enum Icon {
     PlayCircle,
 }
 
-/// Lucide SVG path data (`circle`, `rect` and `line` elements are converted to paths);
-/// `None` for our own filled icons.
-fn lucide(icon: Icon) -> Option<&'static [&'static str]> {
+/// The Lucide SVG file of an icon; `None` for our own filled icons.
+fn svg(icon: Icon) -> Option<&'static str> {
     Some(match icon {
-        // check
-        Icon::Check => &["M20 6 9 17l-5-5"],
-        // x
-        Icon::Close => &["M18 6 6 18", "m6 6 12 12"],
-        // search
-        Icon::Search => &["M3 11A8 8 0 1 0 19 11A8 8 0 1 0 3 11Z", "m21 21-4.3-4.3"],
-        // refresh-cw
-        Icon::Reload => &["M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8", "M21 3v5h-5", "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16", "M8 16H3v5"],
-        // power
-        Icon::Power => &["M12 2v10", "M18.4 6.6a9 9 0 1 1-12.77.04"],
-        // paperclip
-        Icon::Attach => &["m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"],
-        // smile
-        Icon::Smile => &["M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", "M8 14s1.5 2 4 2 4-2 4-2", "M9 9L9.01 9", "M15 9L15.01 9"],
-        // reply
-        Icon::Reply => &["M9 17L4 12L9 7", "M20 18v-2a4 4 0 0 0-4-4H4"],
-        // forward
-        Icon::Forward => &["M15 17L20 12L15 7", "M4 18v-2a4 4 0 0 1 4-4h12"],
-        // pencil
-        Icon::Pencil => &["M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z", "m15 5 4 4"],
-        // pin
-        Icon::Pin => &["M12 17v5", "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"],
-        // volume-x
-        Icon::Muted => &["M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z", "M22 9L16 15", "M16 9L22 15"],
-        // megaphone
-        Icon::Channel => &["m3 11 18-5v12L3 14v-3z", "M11.6 16.8a3 3 0 1 1-5.8-1.6"],
-        // bot
-        Icon::Bot => &["M12 8V4H8", "M6 8H18A2 2 0 0 1 20 10V18A2 2 0 0 1 18 20H6A2 2 0 0 1 4 18V10A2 2 0 0 1 6 8Z", "M2 14h2", "M20 14h2", "M15 13v2", "M9 13v2"],
-        // file
-        Icon::File => &["M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z", "M14 2v4a2 2 0 0 0 2 2h4"],
-        // camera
-        Icon::Camera => &["M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z", "M9 13A3 3 0 1 0 15 13A3 3 0 1 0 9 13Z"],
-        // bookmark
-        Icon::Bookmark => &["m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"],
-        // trash-2
-        Icon::Trash => &["M3 6h18", "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2", "M10 11L10 17", "M14 11L14 17"],
-        // copy
-        Icon::Copy => &["M10 8H20A2 2 0 0 1 22 10V20A2 2 0 0 1 20 22H10A2 2 0 0 1 8 20V10A2 2 0 0 1 10 8Z", "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"],
-        // download
-        Icon::Download => &["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10L12 15L17 10", "M12 15L12 3"],
-        // clock
-        Icon::Clock => &["M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", "M12 6L12 12L16 14"],
-        // map-pin
-        Icon::Location => &["M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0", "M9 10A3 3 0 1 0 15 10A3 3 0 1 0 9 10Z"],
-        // chevron-left
-        Icon::ChevronLeft => &["m15 18-6-6 6-6"],
-        // chevron-right
-        Icon::ChevronRight => &["m9 18 6-6-6-6"],
-        // chevron-down
-        Icon::ChevronDown => &["m6 9 6 6 6-6"],
-        // bell
-        Icon::Bell => &["M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9", "M10.3 21a1.94 1.94 0 0 0 3.4 0"],
-        // mic
-        Icon::Mic => &["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19L12 22"],
-        // settings
-        Icon::Gear => &["M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z", "M9 12A3 3 0 1 0 15 12A3 3 0 1 0 9 12Z"],
-        // lock
-        Icon::Lock => &["M5 11H19A2 2 0 0 1 21 13V20A2 2 0 0 1 19 22H5A2 2 0 0 1 3 20V13A2 2 0 0 1 5 11Z", "M7 11V7a5 5 0 0 1 10 0v4"],
-        // at-sign
-        Icon::At => &["M8 12A4 4 0 1 0 16 12A4 4 0 1 0 8 12Z", "M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"],
-        // heart
-        Icon::Heart => &["M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"],
-        // eye
-        Icon::Eye => &["M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0", "M9 12A3 3 0 1 0 15 12A3 3 0 1 0 9 12Z"],
-        // list
-        Icon::List => &["M3 12h.01", "M3 18h.01", "M3 6h.01", "M8 12h13", "M8 18h13", "M8 6h13"],
-        // link
-        Icon::Link => &["M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71", "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"],
-        // square-slash
-        Icon::Commands => &["M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z", "M9 15L15 9"],
-        // info
-        Icon::Info => &["M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", "M12 16v-4", "M12 8h.01"],
-        // phone
-        Icon::Phone => &["M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"],
-        // user
-        Icon::User => &["M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", "M8 7A4 4 0 1 0 16 7A4 4 0 1 0 8 7Z"],
-        // message-circle
-        Icon::Chat => &["M7.9 20A9 9 0 1 0 4 16.1L2 22Z"],
-        // folder
-        Icon::Folder => &["M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"],
-        // globe
-        Icon::Globe => &["M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20", "M2 12h20"],
-        // laptop
-        Icon::Laptop => &["M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"],
-        // messages-square
-        Icon::Chats => &["M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z", "M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"],
-        // users
-        Icon::Users => &["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M5 7A4 4 0 1 0 13 7A4 4 0 1 0 5 7Z", "M22 21v-2a4 4 0 0 0-3-3.87", "M16 3.13a4 4 0 0 1 0 7.75"],
-        // archive
-        Icon::Archive => &["M3 3H21A1 1 0 0 1 22 4V7A1 1 0 0 1 21 8H3A1 1 0 0 1 2 7V4A1 1 0 0 1 3 3Z", "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8", "M10 12h4"],
-        // pin-off
-        Icon::PinOff => &["M12 17v5", "M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89", "m2 2 20 20", "M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11"],
-        // bell-off
-        Icon::BellOff => &["M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5", "M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7", "M10.3 21a1.94 1.94 0 0 0 3.4 0", "m2 2 20 20"],
-        // check-check
-        Icon::CheckCheck => &["M18 6 7 17l-5-5", "m22 10-7.5 7.5L13 16"],
-        // message-square-dot
-        Icon::MarkUnread => &["M11.7 3H5a2 2 0 0 0-2 2v16l4-4h12a2 2 0 0 0 2-2v-2.7", "M15 6A3 3 0 1 0 21 6A3 3 0 1 0 15 6Z"],
-        // archive-restore
-        Icon::Unarchive => &["M3 3H21A1 1 0 0 1 22 4V7A1 1 0 0 1 21 8H3A1 1 0 0 1 2 7V4A1 1 0 0 1 3 3Z", "M4 8v11a2 2 0 0 0 2 2h2", "M20 8v11a2 2 0 0 1-2 2h-2", "m9 15 3-3 3 3", "M12 12v9"],
-        // upload
-        Icon::Export => &["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M17 8L12 3L7 8", "M12 3L12 15"],
-        // video
-        Icon::Video => &["m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5", "M4 6H14A2 2 0 0 1 16 8V16A2 2 0 0 1 14 18H4A2 2 0 0 1 2 16V8A2 2 0 0 1 4 6Z"],
-        // lock-open
-        Icon::LockOpen => &["M5 11H19A2 2 0 0 1 21 13V20A2 2 0 0 1 19 22H5A2 2 0 0 1 3 20V13A2 2 0 0 1 5 11Z", "M7 11V7a5 5 0 0 1 9.9-1"],
-        // plus
-        Icon::Plus => &["M5 12h14", "M12 5v14"],
-        // folder-plus
-        Icon::FolderPlus => &["M12 10v6", "M9 13h6", "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"],
-        // square-check-big
-        Icon::Select => &["M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.5", "m9 11 3 3L22 4"],
-        // circle-play
-        Icon::PlayCircle => &["M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", "M10 8L16 12L10 16L10 8Z"],
+        Icon::Check => include_str!("../assets/icons/check.svg"),
+        Icon::Close => include_str!("../assets/icons/x.svg"),
+        Icon::Search => include_str!("../assets/icons/search.svg"),
+        Icon::Reload => include_str!("../assets/icons/refresh-cw.svg"),
+        Icon::Power => include_str!("../assets/icons/power.svg"),
+        Icon::Attach => include_str!("../assets/icons/paperclip.svg"),
+        Icon::Smile => include_str!("../assets/icons/smile.svg"),
+        Icon::Reply => include_str!("../assets/icons/reply.svg"),
+        Icon::Forward => include_str!("../assets/icons/forward.svg"),
+        Icon::Pencil => include_str!("../assets/icons/pencil.svg"),
+        Icon::Pin => include_str!("../assets/icons/pin.svg"),
+        Icon::Muted => include_str!("../assets/icons/volume-x.svg"),
+        Icon::Channel => include_str!("../assets/icons/megaphone.svg"),
+        Icon::Bot => include_str!("../assets/icons/bot.svg"),
+        Icon::File => include_str!("../assets/icons/file.svg"),
+        Icon::Camera => include_str!("../assets/icons/camera.svg"),
+        Icon::Bookmark => include_str!("../assets/icons/bookmark.svg"),
+        Icon::Trash => include_str!("../assets/icons/trash-2.svg"),
+        Icon::Copy => include_str!("../assets/icons/copy.svg"),
+        Icon::Download => include_str!("../assets/icons/download.svg"),
+        Icon::Clock => include_str!("../assets/icons/clock.svg"),
+        Icon::Location => include_str!("../assets/icons/map-pin.svg"),
+        Icon::ChevronLeft => include_str!("../assets/icons/chevron-left.svg"),
+        Icon::ChevronRight => include_str!("../assets/icons/chevron-right.svg"),
+        Icon::ChevronDown => include_str!("../assets/icons/chevron-down.svg"),
+        Icon::Bell => include_str!("../assets/icons/bell.svg"),
+        Icon::Mic => include_str!("../assets/icons/mic.svg"),
+        Icon::Gear => include_str!("../assets/icons/settings.svg"),
+        Icon::Lock => include_str!("../assets/icons/lock.svg"),
+        Icon::At => include_str!("../assets/icons/at-sign.svg"),
+        Icon::Heart => include_str!("../assets/icons/heart.svg"),
+        Icon::Eye => include_str!("../assets/icons/eye.svg"),
+        Icon::List => include_str!("../assets/icons/list.svg"),
+        Icon::Link => include_str!("../assets/icons/link.svg"),
+        Icon::Commands => include_str!("../assets/icons/square-slash.svg"),
+        Icon::Info => include_str!("../assets/icons/info.svg"),
+        Icon::Phone => include_str!("../assets/icons/phone.svg"),
+        Icon::User => include_str!("../assets/icons/user.svg"),
+        Icon::Chat => include_str!("../assets/icons/message-circle.svg"),
+        Icon::Folder => include_str!("../assets/icons/folder.svg"),
+        Icon::Globe => include_str!("../assets/icons/globe.svg"),
+        Icon::Laptop => include_str!("../assets/icons/laptop.svg"),
+        Icon::Chats => include_str!("../assets/icons/messages-square.svg"),
+        Icon::Users => include_str!("../assets/icons/users.svg"),
+        Icon::Archive => include_str!("../assets/icons/archive.svg"),
+        Icon::PinOff => include_str!("../assets/icons/pin-off.svg"),
+        Icon::BellOff => include_str!("../assets/icons/bell-off.svg"),
+        Icon::CheckCheck => include_str!("../assets/icons/check-check.svg"),
+        Icon::MarkUnread => include_str!("../assets/icons/message-square-dot.svg"),
+        Icon::Unarchive => include_str!("../assets/icons/archive-restore.svg"),
+        Icon::Export => include_str!("../assets/icons/upload.svg"),
+        Icon::Video => include_str!("../assets/icons/video.svg"),
+        Icon::LockOpen => include_str!("../assets/icons/lock-open.svg"),
+        Icon::Plus => include_str!("../assets/icons/plus.svg"),
+        Icon::FolderPlus => include_str!("../assets/icons/folder-plus.svg"),
+        Icon::Select => include_str!("../assets/icons/square-check-big.svg"),
+        Icon::PlayCircle => include_str!("../assets/icons/circle-play.svg"),
         Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
     })
 }
@@ -216,17 +160,49 @@ fn shapes(icon: Icon) -> &'static [Sub] {
     static CACHE: OnceLock<Mutex<HashMap<Icon, &'static [Sub]>>> = OnceLock::new();
     let mut cache = CACHE.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
     cache.entry(icon).or_insert_with(|| {
-        let subs: Vec<Sub> = lucide(icon).unwrap_or_default().iter().flat_map(|d| flatten(d)).collect();
+        let subs = svg(icon).map(parse_svg).unwrap_or_default();
         // A few dozen icons for the whole run: leaking keeps the cache free of lifetimes.
         Vec::leak(subs)
     })
 }
 
-fn flatten(d: &str) -> Vec<Sub> {
-    let Ok(path) = kurbo::BezPath::from_svg(d) else { return Vec::new() };
+/// The shapes of a Lucide SVG: `path`, `circle`, `ellipse`, `rect`, `line`, `polyline`, `polygon`.
+fn parse_svg(text: &str) -> Vec<Sub> {
+    let Ok(doc) = roxmltree::Document::parse(text) else { return Vec::new() };
+    let mut subs = Vec::new();
+    for n in doc.root_element().children().filter(|n| n.is_element()) {
+        let num = |k: &str| n.attribute(k).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+        let path = match n.tag_name().name() {
+            "path" => n.attribute("d").and_then(|d| kurbo::BezPath::from_svg(d).ok()),
+            "circle" => Some(kurbo::Circle::new((num("cx"), num("cy")), num("r")).to_path(0.01)),
+            "ellipse" => Some(kurbo::Ellipse::new((num("cx"), num("cy")), (num("rx"), num("ry")), 0.0).to_path(0.01)),
+            "rect" => {
+                let r = kurbo::Rect::new(num("x"), num("y"), num("x") + num("width"), num("y") + num("height"));
+                Some(r.to_rounded_rect(num("rx").max(num("ry"))).to_path(0.01))
+            }
+            "line" => Some(kurbo::Line::new((num("x1"), num("y1")), (num("x2"), num("y2"))).to_path(0.01)),
+            tag @ ("polyline" | "polygon") => {
+                let v: Vec<f64> = n.attribute("points").unwrap_or_default().split([' ', ',']).filter_map(|x| x.parse().ok()).collect();
+                let mut p = kurbo::BezPath::new();
+                for (i, xy) in v.chunks_exact(2).enumerate() {
+                    if i == 0 { p.move_to((xy[0], xy[1])) } else { p.line_to((xy[0], xy[1])) }
+                }
+                if tag == "polygon" {
+                    p.close_path();
+                }
+                Some(p)
+            }
+            _ => None,
+        };
+        subs.extend(path.map(|p| flatten(&p)).unwrap_or_default());
+    }
+    subs
+}
+
+fn flatten(path: &kurbo::BezPath) -> Vec<Sub> {
     let mut subs: Vec<Sub> = Vec::new();
     let p = |pt: kurbo::Point| pos2(pt.x as f32, pt.y as f32);
-    kurbo::flatten(path, 0.02, |el| match el {
+    kurbo::flatten(path.iter(), 0.02, |el| match el {
         PathEl::MoveTo(pt) => subs.push(Sub { pts: vec![p(pt)], closed: false }),
         PathEl::LineTo(pt) => {
             if let Some(s) = subs.last_mut() {
@@ -310,7 +286,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lucide_paths_parse() {
+    fn lucide_svgs_parse() {
         let all = [
             Icon::Check, Icon::Close, Icon::Search, Icon::Reload, Icon::Power, Icon::Attach, Icon::Smile, Icon::Reply, Icon::Pencil,
             Icon::Pin, Icon::Muted, Icon::Channel, Icon::Bot, Icon::File, Icon::Camera, Icon::Bookmark, Icon::Forward, Icon::Trash,
@@ -320,12 +296,10 @@ mod tests {
             Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle,
         ];
         for icon in all {
-            let paths = lucide(icon).unwrap_or_else(|| panic!("{icon:?} has no paths"));
-            for d in paths {
-                assert!(kurbo::BezPath::from_svg(d).is_ok(), "{icon:?}: {d}");
-            }
+            let text = svg(icon).unwrap_or_else(|| panic!("{icon:?} has no SVG"));
+            let elements = roxmltree::Document::parse(text).unwrap().root_element().children().filter(|n| n.is_element()).count();
             let subs = shapes(icon);
-            assert!(subs.len() >= paths.len(), "{icon:?}: every path gives at least one subpath");
+            assert!(subs.len() >= elements, "{icon:?}: every SVG element gives at least one subpath");
             // Everything stays on the 24×24 grid.
             assert!(subs.iter().flat_map(|s| &s.pts).all(|p| (-0.5..=24.5).contains(&p.x) && (-0.5..=24.5).contains(&p.y)), "{icon:?}");
         }

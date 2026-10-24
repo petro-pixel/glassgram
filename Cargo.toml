@@ -17,6 +17,8 @@ image = { version = "0.25.10", default-features = false, features = ["jpeg", "pn
 jiff = "0.2"
 # SVG path parsing for the Lucide icons; already pulled in by the renderer, pure Rust.
 kurbo = "0.13"
+# Reads the Lucide SVG files in assets/icons; already in the build, pure Rust.
+roxmltree = "0.21"
 # The same SQLite that grammers uses for the session: no new system libraries needed.
 libsql = { version = "0.10", default-features = false, features = ["core"] }
 ksni = { version = "0.3.7", default-features = false, features = ["async-io", "blocking"] }

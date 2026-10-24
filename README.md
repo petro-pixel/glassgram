@@ -70,7 +70,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/settings.rs` | Settings and saving them |
 | `src/lock.rs` | Local passcode (salt + SHA-256) |
 | `src/tray.rs`, `src/logo.rs` | Tray icon and the app logo |
-| `src/icons.rs` | Vector icons: Lucide SVG paths on a 24×24 grid, flattened with `kurbo` |
+| `src/icons.rs`, `assets/icons/` | Vector icons: Lucide SVG files (24×24), parsed with `roxmltree` and flattened with `kurbo` |
 | `src/i18n.rs`, `locales/` | UI language: `l!`/`lf!` for Ukrainian and English, JSON localisation files for the rest |
 | `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |
 | `src/demo.rs` | Demo data |
