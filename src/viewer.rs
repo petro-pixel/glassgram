@@ -1,5 +1,5 @@
-//! Вбудований переглядач фото: повноекранне затемнення, масштаб коліщатком і подвійним
-//! кліком, перетягування, перехід між фото чату стрілками.
+//! Built-in photo viewer: fullscreen dimming, zoom with the wheel and double
+//! click, dragging, arrow keys to move between the chat's photos.
 
 use eframe::egui::{self, Align2, Color32, FontId, Key, Rect, Sense, TextureHandle, Ui, Vec2, pos2, vec2};
 use grammers_client::session::types::PeerId;
@@ -29,12 +29,12 @@ impl Viewer {
         Self { peer, id, zoom: 1.0, pan: Vec2::ZERO }
     }
 
-    /// Перейти до іншого фото, скинувши масштаб.
+    /// Go to another photo, resetting zoom.
     pub fn show_id(&mut self, id: i32) {
         *self = Self::new(self.peer, id);
     }
 
-    /// `index` — (номер фото, усього) для підпису; `loading` — чи ще вантажиться оригінал.
+    /// `index` is (photo number, total) for the caption; `loading` is whether the original is still loading.
     pub fn ui(&mut self, ui: &mut Ui, tex: Option<&TextureHandle>, caption: &str, index: (usize, usize), loading: bool) -> Option<ViewerAction> {
         let screen = ui.max_rect();
         let p = ui.painter().clone();
@@ -42,7 +42,7 @@ impl Viewer {
         let bg = ui.interact(screen, ui.scope_id().with("viewer-bg"), Sense::click_and_drag());
         let mut action = None;
 
-        // Кнопки зверху праворуч і стрілки по боках.
+        // Buttons at the top right and arrows on the sides.
         let btn = |i: f32| Rect::from_min_size(pos2(screen.right() - 58.0 - i * 52.0, screen.top() + 16.0), vec2(42.0, 42.0));
         if glass::icon_button(ui, btn(0.0), "viewer-close", Icon::Close, false, true).on_hover_text(l!("Закрити (Esc)", "Close (Esc)")).clicked() {
             action = Some(ViewerAction::Close);
@@ -67,7 +67,7 @@ impl Viewer {
             Some(t) => {
                 let size = t.size_vec2();
                 let fit = (area.width() / size.x).min(area.height() / size.y);
-                // Масштаб коліщатком відносно курсора.
+                // Wheel zoom relative to the cursor.
                 let scroll = ui.input(|i| i.smooth_scroll_delta.y);
                 if scroll != 0.0 && bg.hovered() {
                     let old = self.zoom;
@@ -88,7 +88,7 @@ impl Viewer {
                     self.pan = Vec2::ZERO;
                 }
                 let shown = size * fit * self.zoom;
-                // Не даємо відтягнути фото за межі екрана.
+                // Don't let the photo be dragged off screen.
                 let slack = ((shown - area.size()) / 2.0).max(Vec2::ZERO);
                 self.pan = self.pan.clamp(-slack, slack);
                 let rect = Rect::from_center_size(area.center() + self.pan, shown);
@@ -106,7 +106,7 @@ impl Viewer {
             ui.put(Rect::from_min_size(pos2(screen.left() + 24.0, screen.top() + 26.0), vec2(22.0, 22.0)), egui::Spinner::new().size(22.0).color(TEXT));
         }
 
-        // Підпис і номер унизу.
+        // Caption and counter at the bottom.
         let label = if total > 1 { lf!("{n} з {total}", "{n} of {total}") } else { String::new() };
         let text = [label.as_str(), caption].iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("  ·  ");
         if !text.is_empty() {

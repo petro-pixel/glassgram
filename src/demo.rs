@@ -1,4 +1,4 @@
-//! Демо-режим (`--demo`): вигадані чати без мережі, щоб подивитися на інтерфейс.
+//! Demo mode (`--demo`): made-up chats without network, to look at the interface.
 
 use std::collections::HashMap;
 
@@ -7,13 +7,13 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
         (1, "Олена Коваль", ChatKind::User, 2, true),
-        (2, "Команда Rust 🦀", ChatKind::Group, 14, false),
+        (2, "Команда Rust 🦀", ChatKind::Group, 14, true),
         (3, "Збережене", ChatKind::Saved, 0, true),
         (4, "Новини технологій", ChatKind::Channel, 128, false),
         (5, "Андрій", ChatKind::User, 0, false),
@@ -73,6 +73,11 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
                 media_unread: false,
                 topic: None,
                 comments: (id == 4 && !*out).then_some(3),
+                // Pinned: each of these chats has something for the bar above history.
+                pinned: matches!((id, i), (1, 3) | (2, 4) | (4, 0)),
+                views: (id == 4).then_some(12_400),
+                noforwards: false,
+                webpage: None,
                 time: format!("{}:{:02}", 9 + i, (id * 7 + i as i64 * 13) % 60),
                 ts: 0,
                 day: "Сьогодні".into(),
@@ -112,6 +117,14 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
             forum: false,
             joined: true,
             can_post: kind != ChatKind::Channel,
+            // Olena hasn't read our last messages yet: a single check mark is visible.
+            read_out: if id == 1 { 4 } else { i32::MAX },
+            // "Команда Rust" has two mentions and a reaction for us — shows the "@" and "❤" buttons.
+            unread_mentions: if id == 2 { 2 } else { 0 },
+            unread_reactions: if id == 2 { 1 } else { 0 },
+            // "Дизайн-студія" has protected content: no forwarding or copying.
+            noforwards: id == 7,
+            can_pin: !matches!(kind, ChatKind::Channel) && id != 7,
         });
         let mut msgs = msgs;
         extras(id, peer, &mut msgs);
@@ -120,12 +133,25 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let (forum, msgs) = forum_chat();
     history.insert(forum.id, msgs);
     infos.insert(3, forum);
+    let bot = helper_bot();
+    history.insert(bot.id, Vec::new());
+    infos.push(bot);
     ("Демо-користувач".into(), infos, history)
 }
 
 pub fn folders() -> Vec<Folder> {
     vec![
-        Folder { id: 1, title: "Особисті".into(), emoticon: "👤".into(), contacts: true, non_contacts: true, ..Default::default() },
+        // Pinned chats inside a folder can be dragged too.
+        Folder {
+            id: 1,
+            title: "Особисті".into(),
+            emoticon: "👤".into(),
+            contacts: true,
+            non_contacts: true,
+            include: vec![PeerId::user_unchecked(8), PeerId::user_unchecked(5)],
+            pinned: vec![PeerId::user_unchecked(8), PeerId::user_unchecked(5)],
+            ..Default::default()
+        },
         Folder { id: 2, title: "Групи".into(), emoticon: "👥".into(), groups: true, ..Default::default() },
         Folder { id: 3, title: "Канали й боти".into(), emoticon: "📢".into(), broadcasts: true, bots: true, ..Default::default() },
         Folder { id: 4, title: "Непрочитані".into(), emoticon: "✅".into(), contacts: true, non_contacts: true, groups: true, broadcasts: true, bots: true, exclude_read: true, ..Default::default() },
@@ -148,6 +174,10 @@ fn outgoing(peer: PeerId, markup: String, reply_to: Option<i32>) -> Msg {
         media_unread: false,
         topic: None,
         comments: None,
+        pinned: false,
+        views: None,
+        noforwards: false,
+        webpage: None,
         id: 10_000 + rand_ish(),
         peer,
         out: true,
@@ -193,8 +223,48 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::InlineResults { peer, bot, query, query_id: 1, results });
         }
         Cmd::SendInline { peer, result, .. } => app.push_event(Ev::NewMsg(outgoing(peer, format!("Inline-результат №{result}"), None))),
+        Cmd::Send { peer, text, .. } if peer == PeerId::user_unchecked(HELPER_BOT) && text.starts_with('/') => {
+            app.push_event(Ev::NewMsg(outgoing(peer, text.clone(), None)));
+            let answer = match text.as_str() {
+                "/start" => "Привіт! Я демо-бот Glassgram. Спробуйте /help або кнопку меню біля поля вводу.",
+                "/help" => "Команди: /start, /help, /about — або оберіть у меню «/».",
+                _ => "Glassgram — клієнт Telegram на Rust з «рідким склом».",
+            };
+            app.push_event(Ev::NewMsg(Msg { out: false, sender: "GlassHelperBot".into(), id: 20_000 + rand_ish(), ..outgoing(peer, answer.into(), None) }));
+        }
+        Cmd::WebPreview(text) => {
+            let site = text.split("://").last().unwrap_or_default().split('/').next().unwrap_or_default().to_owned();
+            let page = WebPageInfo {
+                id: text.len() as i64,
+                url: text.clone(),
+                title: format!("{site} — демо-сторінка"),
+                description: "У демо-режимі прев'ю складається без мережі.".into(),
+                site,
+                photo: false,
+            };
+            app.push_event(Ev::WebPreview { text, page: Some(page) });
+        }
+        Cmd::LoadMentions { peer, query } => {
+            let q = query.to_lowercase();
+            let members = [(31, "Тарас Бойко", "taras_b", false), (32, "Ірина Ткаченко", "iryna", false), (33, "Софія", "", false), (34, "Максим Лисенко", "max_l", false), (35, "RustDocsBot", "rustdocsbot", true)]
+                .into_iter()
+                .map(|(id, name, username, bot)| Mentionable { id: PeerId::user_unchecked(id), name: name.into(), username: username.into(), bot })
+                .filter(|m| m.name.to_lowercase().contains(&q) || m.username.starts_with(&q))
+                .collect();
+            app.push_event(Ev::Mentions { peer, query, members });
+        }
+        Cmd::LoadBotCommands(peer) => {
+            let list: &[(&str, &str, &str)] = match peer {
+                p if p == PeerId::user_unchecked(6) => &[("weatherbot", "weather", "Погода зараз"), ("weatherbot", "forecast", "Прогноз на тиждень"), ("weatherbot", "settings", "Місто й одиниці")],
+                p if p == PeerId::user_unchecked(HELPER_BOT) => &[("glasshelperbot", "start", "Почати"), ("glasshelperbot", "help", "Довідка"), ("glasshelperbot", "about", "Про Glassgram")],
+                p if p == PeerId::user_unchecked(2) => &[("rustdocsbot", "docs", "Знайти в документації"), ("rustdocsbot", "crate", "Інформація про крейт")],
+                _ => &[],
+            };
+            let commands = list.iter().map(|(bot, command, description)| BotCmd { bot: (*bot).into(), command: (*command).into(), description: (*description).into() }).collect();
+            app.push_event(Ev::BotCommands { peer, commands });
+        }
         Cmd::Send { peer, text, reply_to, .. } => {
-            // У форумі відповідь кладе повідомлення в тему того, на що відповідаємо (або в саму тему).
+            // In a forum, a reply goes into the topic of the message being replied to (or the topic itself).
             let topic = reply_to.filter(|_| peer == PeerId::channel_unchecked(FORUM)).map(|r| {
                 app.demo_history().find(|(p, _, _)| *p == peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == r).map(Msg::topic_id)).unwrap_or(r)
             });
@@ -248,7 +318,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let m = Msg { media: Some(info), ..outgoing(peer, String::new(), reply_to) };
             let mid = m.id;
             app.push_event(Ev::NewMsg(m));
-            // Файл лишається на диску — його й програватимемо.
+            // The file stays on disk: that's what we will play.
             app.push_event(Ev::MediaReady { peer, id: mid, path });
             app.push_event(Ev::UploadDone(id));
         }
@@ -265,7 +335,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::Folders(list));
         }
         Cmd::OpenComments { peer, id, .. } => {
-            // Обговорення каналу «Новини технологій» — окрема вигадана група.
+            // Discussion for the "Новини технологій" channel: a separate made-up group.
             let disc = PeerId::channel_unchecked(40);
             let c = |cid: i32, sender: &str, text: &str, reply: Option<i32>| Msg {
                 id: cid,
@@ -352,17 +422,232 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 .collect();
             app.push_event(Ev::SearchResults { peer, query, hits });
         }
+        Cmd::LoadPinned(peer) => {
+            let msgs = app.demo_history().find(|(p, _, _)| *p == peer).map(|(_, _, msgs)| msgs.iter().filter(|m| m.pinned).cloned().collect()).unwrap_or_default();
+            app.push_event(Ev::Pinned { peer, msgs });
+        }
+        Cmd::PinMessage { peer, id, unpin, .. } => app.push_event(Ev::PinnedChanged { peer, ids: vec![id], pinned: !unpin }),
+        Cmd::UnpinAll(peer) => app.push_event(Ev::Pinned { peer, msgs: Vec::new() }),
+        Cmd::LoadUnreadMarks { peer, reactions } => {
+            let left = app.demo_chat(peer).map_or(0, |c| if reactions { c.unread_reactions } else { c.unread_mentions });
+            let ids = match (peer == PeerId::user_unchecked(2), reactions) {
+                (true, false) => vec![2, 4],
+                (true, true) => vec![DEMO_REACTED],
+                _ => Vec::new(),
+            };
+            let ids = if left > 0 { ids } else { Vec::new() };
+            app.push_event(Ev::UnreadMarks { peer, reactions, ids });
+        }
+        Cmd::LoadReadBy { peer, id } => {
+            let readers = [("Тарас", "Сьогодні 11:02"), ("Ірина", "Сьогодні 11:15"), ("Остап", "Сьогодні 12:40")];
+            app.push_event(Ev::ReadBy { peer, id, readers: readers.iter().map(|(n, t)| (n.to_string(), t.to_string())).collect() });
+        }
+        Cmd::LoadChatInfo(peer) => {
+            let kind = app.demo_history().find(|(p, _, _)| *p == peer).map(|(_, (_, k), _)| k);
+            let mut details = demo_details(peer, kind);
+            details.counts = SharedKind::ALL.into_iter().map(|k| (k, demo_shared(app, peer, k).len() as i32)).collect();
+            app.push_event(Ev::ChatDetails { peer, details });
+        }
+        Cmd::LoadMembers { peer, query, admins } => {
+            let q = query.to_lowercase();
+            let list = demo_members().into_iter().filter(|m| (!admins || m.role != MemberRole::Member) && m.chat.title.to_lowercase().contains(&q)).collect();
+            app.push_event(Ev::Members { peer, query, admins, list });
+        }
+        Cmd::ExportInvite(peer) => app.push_event(Ev::Invite { peer, link: "https://t.me/+GlassgramDemo".into() }),
+        Cmd::LoadShared { peer, kind, before } => {
+            let msgs = if before.is_some() { Vec::new() } else { demo_shared(app, peer, kind) };
+            app.push_event(Ev::Shared { peer, kind, msgs, older: before.is_some() });
+        }
+        Cmd::SetNotify { peer, mute_until, silent } => app.push_event(Ev::Notify { peer, state: NotifyState { mute_until, silent } }),
+        Cmd::LeaveChat(peer) | Cmd::DeleteChat { peer, .. } => app.push_event(Ev::ChatRemoved(peer)),
+        Cmd::ClearHistory { peer, .. } => app.push_event(Ev::HistoryCleared(peer)),
+        Cmd::LoadProfile => {
+            let p = app.demo_profile();
+            app.push_event(Ev::Profile(if p.id.is_some() { p } else { demo_profile() }));
+        }
+        Cmd::SaveProfile { first, last, bio } => {
+            app.push_event(Ev::Profile(Profile { first, last, bio, ..app.demo_profile() }));
+            app.push_event(Ev::Notice("Профіль збережено (демо)".into()));
+        }
+        // A few names are "taken" so every answer can be seen.
+        Cmd::CheckUsername(name) => {
+            let taken = ["durov", "telegram", "glassgram", "admin"].iter().any(|t| name.eq_ignore_ascii_case(t));
+            app.push_event(Ev::UsernameCheck { name, state: if taken { UsernameState::Taken } else { UsernameState::Free } });
+        }
+        Cmd::SetUsername(username) => {
+            app.push_event(Ev::Profile(Profile { username, ..app.demo_profile() }));
+            app.push_event(Ev::Notice("Ім'я користувача збережено (демо)".into()));
+        }
+        Cmd::SetProfilePhoto(path) => match image::open(&path) {
+            Ok(img) => {
+                let side = img.width().min(img.height());
+                let img = img.crop_imm((img.width() - side) / 2, (img.height() - side) / 2, side, side).thumbnail(256, 256).to_rgba8();
+                let image = ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw());
+                app.push_event(Ev::Image { key: ImgKey::Avatar(PeerId::user_unchecked(ME)), image });
+                app.push_event(Ev::Notice("Фото профілю оновлено (демо)".into()));
+            }
+            Err(e) => app.push_event(Ev::Error(e.to_string())),
+        },
+        // `#offline` in the text pretends there is no network: the clock, retries, then the red mark.
+        Cmd::SendQueued(q) if q.text.contains("#offline") => {
+            app.push_event(Ev::QueueFailed { key: q.key, error: "Не надіслано: немає мережі (демо)".into(), retry: true });
+        }
+        Cmd::SendQueued(q) => {
+            let topic = q.reply_to.filter(|_| q.peer == PeerId::channel_unchecked(FORUM)).map(|r| {
+                app.demo_history().find(|(p, _, _)| *p == q.peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == r).map(Msg::topic_id)).unwrap_or(r)
+            });
+            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), ..outgoing(q.peer, q.text, q.reply_to) }));
+            app.push_event(Ev::QueueSent { key: q.key, peer: q.peer });
+        }
+        // The UI already shows the new order; there is no server to tell.
+        Cmd::ReorderPinned { .. } => {}
+        Cmd::ReorderFolders(order) => {
+            let mut list = app.demo_folders();
+            list.sort_by_key(|f| order.iter().position(|id| *id == f.id));
+            app.push_event(Ev::Folders(list));
+        }
+        Cmd::LoadContacts => app.push_event(Ev::Contacts(demo_contacts())),
+        Cmd::SearchContacts(query) => {
+            let q = query.to_lowercase();
+            let chats = GLOBAL_PEOPLE
+                .iter()
+                .filter(|(_, name, user)| name.to_lowercase().contains(&q) || user.contains(&q))
+                .map(|(id, name, user)| person(*id, name, &format!("@{user}"), Presence::Recently))
+                .collect();
+            app.push_event(Ev::ContactResults { query, chats });
+        }
+        Cmd::CreateGroup { title, users } => {
+            let n = users.len() + 1;
+            created(app, &title, ChatKind::Group, format!("Групу «{title}» створено · учасників: {n}"));
+        }
+        Cmd::CreateChannel { title, about } => {
+            let text = if about.is_empty() { format!("Канал «{title}» створено") } else { format!("Канал «{title}» створено\n{about}") };
+            created(app, &title, ChatKind::Channel, text);
+        }
+        // Contacts without a demo history open as an empty chat.
+        Cmd::OpenChat(peer) if !app.demo_history().any(|(p, ..)| p == peer) => {
+            app.push_event(Ev::History { peer, msgs: Vec::new(), older: false });
+        }
         Cmd::Typing(peer) if peer == PeerId::user_unchecked(1) => {
-            // Олена «відповідає» на набір тексту.
+            // Olena "replies" when text is typed.
             app.push_event(Ev::Typing { peer, who: "Олена".into(), active: true });
         }
         _ => {}
     }
 }
 
-const FORUM: i64 = 10;
+/// People found only by global search in the demo: (id, name, username).
+const GLOBAL_PEOPLE: [(i64, &str, &str); 3] = [(30, "Олександр Мельник", "melnyk"), (31, "Олена Петренко", "olena_p"), (32, "Rust Weekly", "rustweekly")];
 
-/// Теми демо-форуму: (id, назва, колір, непрочитані, закріплена, закрита).
+fn person(id: i64, name: &str, status: &str, presence: Presence) -> ChatInfo {
+    ChatInfo {
+        id: PeerId::user_unchecked(id),
+        title: name.into(),
+        kind: ChatKind::User,
+        last_text: status.into(),
+        last_time: String::new(),
+        last_ts: 0,
+        unread: 0,
+        pinned: false,
+        contact: true,
+        muted: false,
+        archived: false,
+        unread_mark: false,
+        draft: String::new(),
+        presence,
+        forum: false,
+        joined: true,
+        can_post: true,
+        read_out: 0,
+        unread_mentions: 0,
+        unread_reactions: 0,
+        noforwards: false,
+        can_pin: false,
+    }
+}
+
+/// Demo contacts: people from the chat list plus a few without any chat yet.
+fn demo_contacts() -> Vec<ChatInfo> {
+    let now = jiff::Timestamp::now().as_second();
+    let mut list = vec![
+        person(1, "Олена Коваль", "@olena", Presence::Online(i64::MAX)),
+        person(5, "Андрій", "@andriy", Presence::Offline(now - 3600)),
+        person(8, "Марія Шевченко", "", Presence::Recently),
+        person(20, "Ігор Бондар", "@bondar", Presence::LastWeek),
+        person(21, "Наталія Лисенко", "", Presence::Offline(now - 86_400 * 3)),
+        person(22, "Тетяна", "@tanya", Presence::Online(i64::MAX)),
+    ];
+    list.sort_by_key(|c| c.title.to_lowercase());
+    list
+}
+
+/// A freshly "created" group or channel with a service-like first message.
+fn created(app: &mut App, title: &str, kind: ChatKind, text: String) {
+    let peer = PeerId::user_unchecked(2000 + rand_ish() as i64);
+    let msg = outgoing(peer, text, None);
+    let mut info = person(0, title, &msg.text, Presence::None);
+    info.id = peer;
+    info.kind = kind;
+    info.contact = false;
+    info.last_time = msg.time.clone();
+    info.last_ts = msg.ts;
+    app.push_event(Ev::History { peer, msgs: vec![msg], older: false });
+    app.push_event(Ev::ChatCreated(info));
+}
+
+const FORUM: i64 = 10;
+/// Our message in "Команда Rust" with an unread reaction.
+const DEMO_REACTED: i32 = 3;
+/// Bot chat with no messages yet: shows the "Start" bar.
+const HELPER_BOT: i64 = 11;
+
+fn helper_bot() -> ChatInfo {
+    ChatInfo {
+        id: PeerId::user_unchecked(HELPER_BOT),
+        title: "GlassHelperBot".into(),
+        kind: ChatKind::Bot,
+        last_text: String::new(),
+        last_time: String::new(),
+        last_ts: 0,
+        unread: 0,
+        pinned: false,
+        contact: false,
+        muted: false,
+        archived: false,
+        unread_mark: false,
+        draft: String::new(),
+        presence: Presence::None,
+        forum: false,
+        joined: true,
+        can_post: true,
+        read_out: i32::MAX,
+        unread_mentions: 0,
+        unread_reactions: 0,
+        noforwards: false,
+        can_pin: false,
+    }
+}
+/// The demo user's own id (for the avatar in settings).
+const ME: i64 = 1000;
+
+fn demo_profile() -> Profile {
+    Profile {
+        id: Some(PeerId::user_unchecked(ME)),
+        first: "Демо".into(),
+        last: "Користувач".into(),
+        bio: "Пишу клієнт Telegram на Rust 🦀".into(),
+        username: "glassgram_demo".into(),
+        phone: "+380 00 000 00 00".into(),
+    }
+}
+
+/// Send queue "from the previous run": one message that failed, to show the red mark and its menu.
+pub fn outbox() -> Vec<Queued> {
+    let ts = jiff::Timestamp::now().as_second() - 120;
+    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Скинув звіт — глянь, коли будеш онлайн".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false }]
+}
+
+/// Demo forum topics: (id, title, color, unread, pinned, closed).
 const TOPICS: [(i32, &str, u32, i32, bool, bool); 4] = [
     (1, "Загальне", 0, 0, false, false),
     (100, "Допомога новачкам", 0x6FB9F0, 3, true, false),
@@ -370,7 +655,7 @@ const TOPICS: [(i32, &str, u32, i32, bool, bool); 4] = [
     (300, "Архів обговорень", 0xCB86DB, 0, false, true),
 ];
 
-/// Група-форум «Rust Україна» з кількома темами.
+/// Forum group "Rust Україна" with several topics.
 fn forum_chat() -> (ChatInfo, Vec<Msg>) {
     let peer = PeerId::channel_unchecked(FORUM);
     let script: [(i32, i32, &str, &str); 7] = [
@@ -417,6 +702,11 @@ fn forum_chat() -> (ChatInfo, Vec<Msg>) {
         forum: true,
         joined: true,
         can_post: true,
+        read_out: i32::MAX,
+        unread_mentions: 0,
+        unread_reactions: 0,
+        noforwards: false,
+        can_pin: true,
     };
     (chat, msgs)
 }
@@ -436,13 +726,28 @@ fn demo_topics() -> Vec<Topic> {
         .collect()
 }
 
-/// Додаткові демо-повідомлення: опитування, місце, контакт, альбом, реакції.
+/// Extra demo messages: poll, place, contact, album, reactions.
 fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
     let base = |n: i32, sender: &str| Msg { sender: sender.into(), out: sender.is_empty(), time: format!("12:{n:02}"), ..Msg::placeholder(peer) };
     match id {
         2 => {
+            // A link with a preview card (its picture comes from `images()`).
+            if let Some(m) = msgs.iter_mut().find(|m| m.id == 5) {
+                m.webpage = Some(WebPageInfo {
+                    id: 1,
+                    url: "https://codeberg.org/Lonami/grammers".into(),
+                    site: "Codeberg.org".into(),
+                    title: "Lonami/grammers".into(),
+                    description: "(tele)gramme.rs — набір крейтів Rust для роботи з Telegram MTProto API".into(),
+                    photo: true,
+                });
+            }
             if let Some(m) = msgs.first_mut() {
                 m.reactions = vec![Reaction { emoji: "👍".into(), count: 3, mine: false }, Reaction { emoji: "🔥".into(), count: 1, mine: true }];
+            }
+            // Unread reaction to our message.
+            if let Some(m) = msgs.iter_mut().find(|m| m.id == DEMO_REACTED) {
+                m.reactions = vec![Reaction { emoji: "❤".into(), count: 1, mine: false }];
             }
             let opt = |t: &str, v: i32, o: u8| PollOption { text: t.into(), option: vec![o], voters: v, chosen: false, correct: false };
             msgs.push(Msg {
@@ -455,6 +760,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
                     quiz: false,
                     multiple: false,
                 }),
+                pinned: true,
                 ..base(10, "Тарас")
             });
             msgs.push(Msg {
@@ -489,6 +795,21 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
             msgs.push(Msg { id: 84, media: Some(MediaInfo { size: (480, 270), ..media(MediaKind::Gif, 3.0, "", "") }), ..base(25, "") });
             msgs.push(Msg { id: 85, media: Some(MediaInfo { size: (240, 240), ..media(MediaKind::Round, 5.0, "", "") }), media_unread: true, ..base(26, "Олена") });
         }
+        9 => {
+            // A long history: shows virtualization (only bubbles near the screen are drawn).
+            const LONG: i32 = 3000;
+            let lines = ["Хто сьогодні чергує?", "Я, після обіду", "Збірка впала на CI, дивлюсь", "Полагодив, була застаріла залежність", "👍", "Нагадую про ретро в п'ятницю"];
+            let now = jiff::Zoned::now();
+            let old = (1..=LONG).map(|n| {
+                let day = now.checked_sub(jiff::Span::new().days(i64::from((LONG - n) / 40 + 1))).map_or_else(|_| String::new(), |d| d.strftime("%d.%m.%Y").to_string());
+                let sender = ["Олег", "Наталя", ""][(n % 3) as usize];
+                let text = lines[(n as usize * 7) % lines.len()];
+                Msg { id: n, text: text.into(), spans: format::from_entities(text, &[], 0), day, reply_to: (n % 17 == 0).then_some(n - 2), ..base(n % 60, sender) }
+            });
+            let tail = std::mem::take(msgs);
+            msgs.extend(old);
+            msgs.extend(tail.into_iter().map(|m| Msg { id: m.id + LONG, ..m }));
+        }
         _ => {}
     }
 }
@@ -501,7 +822,7 @@ fn weather_buttons() -> Vec<Vec<Button>> {
     ]
 }
 
-/// Демо-звук для голосових і аудіо: акорд, що пульсує, у WAV (16 біт, моно).
+/// Demo sound for voice and audio: a pulsing chord as WAV (16-bit, mono).
 fn tone(id: i32) -> Option<std::path::PathBuf> {
     let secs = match id {
         80 => 4.0,
@@ -533,7 +854,7 @@ fn tone(id: i32) -> Option<std::path::PathBuf> {
     Some(path)
 }
 
-/// Демо-відео з тестових джерел ffmpeg: відео зі звуком, GIF без звуку, кружечок.
+/// Demo videos from ffmpeg test sources: video with sound, silent GIF, round video.
 fn clip(id: i32) -> Option<std::path::PathBuf> {
     let (video, audio, secs) = match id {
         83 => ("testsrc2=size=640x360:rate=30", true, 6),
@@ -558,7 +879,7 @@ fn rand_ish() -> i32 {
     jiff::Timestamp::now().subsec_nanosecond() % 1_000_000
 }
 
-/// Згенеровані «фото»: градієнтний захід сонця та аватарка.
+/// Generated "photos": a gradient sunset and an avatar.
 pub fn images() -> Vec<(ImgKey, ColorImage)> {
     let sunset = |w: usize, h: usize| {
         let mut img = ColorImage::filled([w, h], Color32::BLACK);
@@ -583,5 +904,109 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
         (ImgKey::Photo(id, 71), sunset(300, 300)),
         (ImgKey::Photo(id, 72), sunset(320, 420)),
         (ImgKey::Avatar(PeerId::user_unchecked(5)), sunset(96, 96)),
+        (ImgKey::Photo(PeerId::user_unchecked(2), 5), sunset(480, 250)),
     ]
+}
+
+/// Demo profile: bio, username and member counts by chat kind.
+fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
+    let id = peer.bare_id_unchecked();
+    let mut d = ChatDetails { can_view_members: true, ..Default::default() };
+    match kind {
+        Some(ChatKind::User) | Some(ChatKind::Bot) => {
+            d.about = match id {
+                1 => "Дизайнерка інтерфейсів. Люблю скло, світло й котів 🐱".into(),
+                6 => "Погода для будь-якого міста: /weather Київ".into(),
+                _ => String::new(),
+            };
+            d.username = match id {
+                1 => "olena_koval".into(),
+                6 => "weather_demo_bot".into(),
+                _ => String::new(),
+            };
+            if id == 1 {
+                d.phone = "+380 50 000 00 01".into();
+            }
+            d.common = 2;
+        }
+        Some(ChatKind::Group) => {
+            d.about = "Обговорюємо Rust, egui і grammers. Без спаму 🦀".into();
+            d.members = Some(demo_members().len() as i32);
+            d.online = Some(2);
+            d.admins = Some(2);
+            d.admin = id == 2;
+        }
+        Some(ChatKind::Channel) => {
+            d.about = "Головні новини технологій щодня.".into();
+            d.username = "tech_news_demo".into();
+            d.members = Some(12840);
+            d.can_view_members = false;
+        }
+        _ => {}
+    }
+    // Channel 4 starts muted, as in the chat list.
+    if id == 4 {
+        d.notify.mute_until = crate::backend::MUTE_FOREVER;
+    }
+    d
+}
+
+/// Demo members: several real demo chats plus a few new people.
+fn demo_members() -> Vec<Member> {
+    let people = [
+        (1, "Олена Коваль", MemberRole::Owner, Presence::Online(i64::MAX)),
+        (5, "Андрій", MemberRole::Admin, Presence::Offline(jiff::Timestamp::now().as_second() - 3600)),
+        (8, "Марія Шевченко", MemberRole::Member, Presence::Recently),
+        (101, "Тарас Бондар", MemberRole::Member, Presence::LastWeek),
+        (102, "Ірина Мороз", MemberRole::Member, Presence::Online(i64::MAX)),
+        (103, "Софія Лисенко", MemberRole::Member, Presence::Recently),
+    ];
+    people
+        .into_iter()
+        .map(|(id, name, role, presence)| Member {
+            chat: ChatInfo {
+                id: PeerId::user_unchecked(id),
+                title: name.into(),
+                kind: ChatKind::User,
+                last_text: String::new(),
+                last_time: String::new(),
+                last_ts: 0,
+                unread: 0,
+                pinned: false,
+                contact: true,
+                muted: false,
+                archived: false,
+                unread_mark: false,
+                draft: String::new(),
+                presence,
+                forum: false,
+                joined: true,
+                can_post: true,
+                read_out: 0,
+                unread_mentions: 0,
+                unread_reactions: 0,
+                noforwards: false,
+                can_pin: false,
+            },
+            role,
+            rank: if id == 5 { "модератор".into() } else { String::new() },
+        })
+        .collect()
+}
+
+/// Shared media from the demo history, newest first, filtered like `InputMessagesFilter*`.
+fn demo_shared(app: &App, peer: PeerId, kind: SharedKind) -> Vec<Msg> {
+    let Some((_, _, msgs)) = app.demo_history().find(|(p, _, _)| *p == peer) else { return Vec::new() };
+    let media = |m: &Msg| m.media.as_ref().map(|i| i.kind);
+    msgs.iter()
+        .rev()
+        .filter(|m| match kind {
+            SharedKind::Media => m.photo || media(m) == Some(MediaKind::Video),
+            SharedKind::Files => m.file.is_some() || media(m) == Some(MediaKind::Audio),
+            SharedKind::Links => m.spans.iter().any(|s| s.target.as_deref().is_some_and(|t| t.starts_with("http"))),
+            SharedKind::Voice => matches!(media(m), Some(MediaKind::Voice | MediaKind::Round)),
+            SharedKind::Gifs => media(m) == Some(MediaKind::Gif),
+        })
+        .cloned()
+        .collect()
 }

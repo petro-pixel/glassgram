@@ -1,6 +1,6 @@
-//! Telegram-бекенд: окремий потік з tokio-рантаймом, спілкується з UI через канали.
+//! Telegram backend: a separate thread with a tokio runtime, talks to the UI through channels.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
@@ -20,30 +20,43 @@ use grammers_client::session::updates::UpdatesLike;
 use grammers_client::update::Update;
 use grammers_client::{Client, SenderPool, SignInError, tl};
 use tokio::sync::{Notify, Semaphore, mpsc as tmpsc};
+use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
+use crate::cache::{self, Cache};
+
+mod account;
+mod outbox;
 use crate::format::{self, Span};
 use crate::i18n::{l, lf};
 
+mod chatview;
+mod suggest;
+pub use suggest::{BotCmd, Mentionable, WebPageInfo};
+mod info;
+pub use info::{ChatDetails, MUTE_FOREVER, Member, MemberRole, NotifyState, SHARED_PAGE, SharedKind};
+
 const DIALOG_LIMIT: usize = 300;
 pub const PAGE: usize = 50;
-/// Найбільші розміри показу в точках; у пікселі переводимо з урахуванням щільності екрана,
-/// щоб текстура не зменшувалась GPU (egui-wgpu не має mipmap — інакше з'являються «драбинки»).
+/// Maximum display sizes in points; converted to pixels with the screen density in mind,
+/// so the GPU never downscales the texture (egui-wgpu has no mipmaps, otherwise you get jaggies).
 const AVATAR_PT: f32 = 48.0;
 const PHOTO_PT: f32 = 420.0;
 const STICKER_PT: f32 = 160.0;
 const FULL_PT: f32 = 1600.0;
-/// Фото, більші за цей розмір (px по довшій стороні), стискаємо перед надсиланням, як Telegram Desktop.
+/// Photos larger than this (px on the long side) are compressed before sending, like Telegram Desktop.
 const SEND_PHOTO_PX: u32 = 2560;
 const SEARCH_LIMIT: usize = 60;
-/// Скільки повідомлень максимум підвантажуємо, щоб дістатися до знайденого.
+/// Maximum number of messages to load while reaching the found one.
 const JUMP_LIMIT: usize = 1000;
 
 #[derive(Debug)]
 pub enum Cmd {
     Connect { api_id: i32, api_hash: String },
-    /// Завершити потік бекенда (перемикання акаунта).
+    /// Stop the backend thread (account switch, logout).
     Shutdown,
+    /// Snapshot of the chat list from the UI (with new previews and counters) for the local cache.
+    CacheDialogs(Vec<ChatInfo>),
     RequestCode(String),
     SubmitCode(String),
     SubmitPassword(String),
@@ -55,12 +68,12 @@ pub enum Cmd {
     Send { peer: PeerId, text: String, reply_to: Option<i32>, opts: SendOpts },
     Edit { peer: PeerId, id: i32, text: String },
     Delete { peer: PeerId, ids: Vec<i32> },
-    /// `id` — номер завантаження в UI, для прогресу.
-    /// Кілька файлів: зображення йдуть альбомами по 10, решта — окремими повідомленнями.
-    /// `as_file` — без стиснення, як документи.
+    /// `id` is the upload number in the UI, for progress.
+    /// Several files: images go as albums of 10, the rest as separate messages.
+    /// `as_file`: no compression, sent as documents.
     SendFiles { id: u64, peer: PeerId, paths: Vec<PathBuf>, caption: String, reply_to: Option<i32>, opts: SendOpts, as_file: bool },
     LoadFullPhoto { peer: PeerId, id: i32 },
-    /// Поставити реакцію (`None` — зняти свою).
+    /// Set a reaction (`None` removes ours).
     React { peer: PeerId, id: i32, emoji: Option<String> },
     Vote { peer: PeerId, id: i32, options: Vec<Vec<u8>> },
     LoadScheduled(PeerId),
@@ -68,52 +81,52 @@ pub enum Cmd {
     DeleteScheduled { peer: PeerId, ids: Vec<i32> },
     Reschedule { peer: PeerId, id: i32, at: i64 },
     InlineQuery { peer: PeerId, bot: String, query: String },
-    /// Завантажити медіафайл (відео, GIF, аудіо) у кеш для програвання.
+    /// Download a media file (video, GIF, audio) into the cache for playback.
     LoadMedia { peer: PeerId, id: i32 },
-    /// Записане голосове (OGG/Opus); `waveform` — рівні 0..31.
+    /// Recorded voice message (OGG/Opus); `waveform` holds levels 0..31.
     SendVoice { id: u64, peer: PeerId, path: PathBuf, duration: f64, waveform: Vec<u8>, reply_to: Option<i32> },
-    /// Записане відеоповідомлення (MP4 384×384).
+    /// Recorded video message (MP4 384×384).
     SendRound { id: u64, peer: PeerId, path: PathBuf, duration: f64, reply_to: Option<i32> },
-    /// Голосове чи кружечок прослухано.
+    /// Voice or round video message was listened to.
     MarkListened { peer: PeerId, id: i32 },
     SendInline { peer: PeerId, query_id: i64, result: String, reply_to: Option<i32> },
-    /// Створити або змінити папку (id нової — вільний, від 2).
+    /// Create or edit a folder (a new one gets a free id, starting from 2).
     SaveFolder(Folder),
     DeleteFolder(i32),
-    /// Теми форуму (група з увімкненими темами).
+    /// Forum topics (a group with topics enabled).
     LoadTopics(PeerId),
-    /// Історія теми: перша сторінка (`before: None`) або раніші повідомлення.
+    /// Topic history: the first page (`before: None`) or older messages.
     OpenTopic { peer: PeerId, topic: i32, before: Option<i32> },
     CreateTopic { peer: PeerId, title: String, color: u32 },
-    /// Перейменувати (`title`) та/або закрити чи відкрити (`closed`) тему.
+    /// Rename (`title`) and/or close or reopen (`closed`) a topic.
     EditTopic { peer: PeerId, id: i32, title: Option<String>, closed: Option<bool> },
-    /// Позначити тему прочитаною до `max_id`.
+    /// Mark a topic as read up to `max_id`.
     ReadTopic { peer: PeerId, topic: i32, max_id: i32 },
-    /// Коментарі до допису каналу (з прив'язаної групи обговорення).
-    /// `before` — раніші коментарі (id найстарішого завантаженого).
+    /// Comments on a channel post (from the linked discussion group).
+    /// `before`: older comments (id of the oldest loaded one).
     OpenComments { peer: PeerId, id: i32, before: Option<i32> },
-    /// Вивантажити всю історію чату в «Завантаження» (HTML + JSON, за бажанням — з медіа).
+    /// Export the whole chat history to Downloads (HTML + JSON, optionally with media).
     ExportChat { peer: PeerId, title: String, media: bool },
-    /// Знайти публічний чат за @username і відкрити без вступу.
+    /// Find a public chat by @username and open it without joining.
     ResolveUsername(String),
-    /// Пошук публічних груп, каналів і ботів за назвою.
+    /// Search public groups, channels and bots by name.
     SearchPublic(String),
-    /// Вступити в публічну групу чи канал.
+    /// Join a public group or channel.
     Join(PeerId),
     LoadSessions,
-    /// Завершити сеанс на іншому пристрої (`hash` з `Session`).
+    /// Terminate the session on another device (`hash` from `Session`).
     TerminateSession(i64),
     TerminateOtherSessions,
     LoadPrivacy,
     SetPrivacy(PrivacyKey, Audience),
     Forward { from: PeerId, ids: Vec<i32>, to: PeerId },
-    /// Натиснута інлайн-кнопка з callback-даними.
+    /// An inline button with callback data was pressed.
     PressButton { peer: PeerId, id: i32, data: Vec<u8> },
     SendSticker { peer: PeerId, doc: i64, reply_to: Option<i32> },
     LoadStickers,
     LoadStickerThumbs(Vec<i64>),
     Download { peer: PeerId, id: i32 },
-    /// Відкрити чат і підвантажити історію до повідомлення `id` включно.
+    /// Open a chat and load history up to and including message `id`.
     OpenAt { peer: PeerId, id: i32 },
     SetPinned { peer: PeerId, pinned: bool },
     SetMuted { peer: PeerId, muted: bool },
@@ -122,21 +135,85 @@ pub enum Cmd {
     MarkUnread(PeerId),
     SaveDraft { peer: PeerId, text: String },
     Typing(PeerId),
-    /// `peer: None` — глобальний пошук по всіх чатах.
+    /// `peer: None` means a global search across all chats.
     Search { peer: Option<PeerId>, query: String },
     Logout,
-    // Внутрішні: результати QR-задачі.
+    // Internal: results of the QR task.
     QrPassword(PasswordToken),
     QrSuccess(Box<tl::types::auth::Authorization>),
+    /// Pinned messages of a chat (`messages.search` with the pinned filter).
+    LoadPinned(PeerId),
+    /// Pin or unpin a message. `one_side` — only for me (private chats).
+    PinMessage { peer: PeerId, id: i32, unpin: bool, silent: bool, one_side: bool },
+    /// Unpin all messages of a chat.
+    UnpinAll(PeerId),
+    /// Unread mentions (`reactions: false`) or reactions to our messages.
+    LoadUnreadMarks { peer: PeerId, reactions: bool },
+    /// Mark all mentions or reactions as read.
+    ReadMarks { peer: PeerId, reactions: bool },
+    /// Which group members have read our message.
+    LoadReadBy { peer: PeerId, id: i32 },
+    /// Preview for the link being typed (`messages.getWebPagePreview`).
+    WebPreview(String),
+    /// Chat members for the @mention popup.
+    LoadMentions { peer: PeerId, query: String },
+    /// Chat bot commands for the `/` menu.
+    LoadBotCommands(PeerId),
+    /// Info panel: description, links, members, notifications (`getFullUser` / `getFullChat` / `getFullChannel`).
+    LoadChatInfo(PeerId),
+    /// Group or channel members; empty `query` means everyone, `admins` means admins only.
+    LoadMembers { peer: PeerId, query: String, admins: bool },
+    /// Create an invite link (for admins that have none yet).
+    ExportInvite(PeerId),
+    /// One tab of a chat's shared media; `before` loads older items.
+    LoadShared { peer: PeerId, kind: SharedKind, before: Option<i32> },
+    /// Chat notifications: `mute_until` is unix time (0 = on, `i32::MAX` = forever).
+    SetNotify { peer: PeerId, mute_until: i32, silent: bool },
+    /// Leave a group or channel.
+    LeaveChat(PeerId),
+    /// Clear history; `revoke` also clears it for the other side (private chats only).
+    ClearHistory { peer: PeerId, revoke: bool },
+    /// Delete the chat from the list (groups and channels are left as well).
+    DeleteChat { peer: PeerId, revoke: bool },
+    /// Own profile for "My account": name, bio, username, phone, avatar.
+    LoadProfile,
+    /// First name, last name and bio (`account.updateProfile`).
+    SaveProfile { first: String, last: String, bio: String },
+    /// Whether a username is free (`account.checkUsername`); answered with `Ev::UsernameCheck`.
+    CheckUsername(String),
+    /// New username (`account.updateUsername`); empty removes it.
+    SetUsername(String),
+    /// New profile photo from a file (`photos.uploadProfilePhoto`).
+    SetProfilePhoto(PathBuf),
+    /// Send a queued message; until it succeeds it stays in the cache and survives a restart.
+    SendQueued(Queued),
+    /// Only store the state of a queued message (e.g. "failed") without sending.
+    StoreQueued(Queued),
+    /// Remove a message from the queue (deleted by the user).
+    DropQueued(i64),
+    /// New order of pinned chats in the main list or the archive (`messages.reorderPinnedDialogs`).
+    ReorderPinned { archived: bool, order: Vec<PeerId> },
+    /// New folder order (`messages.updateDialogFiltersOrder`).
+    ReorderFolders(Vec<i32>),
+    /// Contact list for "New chat".
+    LoadContacts,
+    /// People search by name or @username: own and global results.
+    SearchContacts(String),
+    /// New group with the chosen members (`messages.createChat`).
+    CreateGroup { title: String, users: Vec<PeerId> },
+    /// New channel (`channels.createChannel`).
+    CreateChannel { title: String, about: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ImgKey {
     Avatar(PeerId),
     Photo(PeerId, i32),
-    /// Фото в повному розмірі для переглядача.
+    /// Full-size photo for the viewer.
     Full(PeerId, i32),
     Sticker(i64),
+    /// Link preview picture above the composer (by page id).
+    WebPage(i64),
 }
 
 pub enum Ev {
@@ -149,7 +226,7 @@ pub enum Ev {
     History { peer: PeerId, msgs: Vec<Msg>, older: bool },
     NewMsg(Msg),
     Edited(Msg),
-    /// `peer: None` — видалення без прив'язки до каналу (особисті чати й малі групи).
+    /// `peer: None`: deletion not tied to a channel (private chats and small groups).
     Deleted { ids: Vec<i32>, peer: Option<PeerId> },
     Image { key: ImgKey, image: ColorImage },
     Folders(Vec<Folder>),
@@ -158,28 +235,30 @@ pub enum Ev {
     UploadDone(u64),
     Reactions { peer: PeerId, id: i32, reactions: Vec<Reaction> },
     MediaReady { peer: PeerId, id: i32, path: PathBuf },
-    /// Голосові чи кружечки прослухано (`peer: None` — особисті чати й малі групи).
+    /// Voice or round video messages were listened to (`peer: None`: private chats and small groups).
     Listened { peer: Option<PeerId>, ids: Vec<i32> },
     Scheduled { peer: PeerId, msgs: Vec<Msg> },
     InlineResults { peer: PeerId, bot: String, query: String, query_id: i64, results: Vec<InlineResult> },
-    /// Відповідь бота на натискання кнопки: текст і чи показувати як попередження.
+    /// Bot's answer to a button press: the text and whether to show it as an alert.
     BotAnswer { text: String, alert: bool },
-    /// Хтось друкує (`active: false` — перестав).
+    /// Someone is typing (`active: false` means they stopped).
     Typing { peer: PeerId, who: String, active: bool },
     Presence { peer: PeerId, presence: Presence },
     Draft { peer: PeerId, text: String },
-    /// Прочитано на іншому пристрої: скільки лишилось непрочитаних.
+    /// Read on another device: how many unread remain.
     ReadInbox { peer: PeerId, unread: i32 },
+    /// The peer read our messages up to `max_id`.
+    ReadOutbox { peer: PeerId, max_id: i32 },
     SearchResults { peer: Option<PeerId>, query: String, hits: Vec<SearchHit> },
     Topics { peer: PeerId, topics: Vec<Topic> },
-    /// Сторінка історії теми: зливається з історією чату (`older` — раніші).
+    /// A page of topic history: merged into the chat history (`older` means earlier messages).
     TopicHistory { peer: PeerId, topic: i32, msgs: Vec<Msg>, older: bool },
-    /// Коментарі до допису `post`: група обговорення, її повідомлення-корінь і самі коментарі.
+    /// Comments on post `post`: the discussion group, its root message and the comments themselves.
     Comments { peer: PeerId, post: i32, discussion: PeerId, root: i32, msgs: Vec<Msg>, older: bool },
-    /// Експорт: скільки повідомлень уже вивантажено.
+    /// Export: how many messages have been exported so far.
     ExportProgress { peer: PeerId, done: usize },
     Exported { peer: PeerId, dir: PathBuf, count: usize },
-    /// Публічний чат, знайдений за username (може бути не в списку діалогів).
+    /// A public chat found by username (may not be in the dialog list).
     ChatFound(ChatInfo),
     PublicResults { query: String, chats: Vec<ChatInfo> },
     Joined(PeerId),
@@ -188,9 +267,101 @@ pub enum Ev {
     Notice(String),
     Error(String),
     LoggedOut,
+    /// All pinned messages of a chat, oldest first.
+    Pinned { peer: PeerId, msgs: Vec<Msg> },
+    /// Messages were pinned or unpinned (our action or a server update).
+    PinnedChanged { peer: PeerId, ids: Vec<i32>, pinned: bool },
+    /// Ids of unread mentions or reactions, oldest first.
+    UnreadMarks { peer: PeerId, reactions: bool, ids: Vec<i32> },
+    /// Who has read the message: (name, when).
+    ReadBy { peer: PeerId, id: i32, readers: Vec<(String, String)> },
+    /// New view count of a channel post.
+    Views { peer: PeerId, id: i32, views: i32 },
+    /// `page: None`: the text has no link with a preview.
+    WebPreview { text: String, page: Option<WebPageInfo> },
+    Mentions { peer: PeerId, query: String, members: Vec<Mentionable> },
+    BotCommands { peer: PeerId, commands: Vec<BotCmd> },
+    ChatDetails { peer: PeerId, details: ChatDetails },
+    Members { peer: PeerId, query: String, admins: bool, list: Vec<Member> },
+    Invite { peer: PeerId, link: String },
+    Shared { peer: PeerId, kind: SharedKind, msgs: Vec<Msg>, older: bool },
+    Notify { peer: PeerId, state: NotifyState },
+    /// The chat is gone from the list: we left or deleted it.
+    ChatRemoved(PeerId),
+    HistoryCleared(PeerId),
+    Profile(Profile),
+    /// Answer to `Cmd::CheckUsername` for `name`.
+    UsernameCheck { name: String, state: UsernameState },
+    /// Queue from the previous run (from the cache).
+    Outbox(Vec<Queued>),
+    /// Queued message sent: the real one has already arrived as `NewMsg`.
+    QueueSent { key: i64, peer: PeerId },
+    /// Not sent; `retry` means a network error worth another attempt.
+    QueueFailed { key: i64, error: String, retry: bool },
+    Contacts(Vec<ChatInfo>),
+    ContactResults { query: String, chats: Vec<ChatInfo> },
+    /// A freshly created group or channel: add it to the list and open it.
+    ChatCreated(ChatInfo),
+}
+
+/// Own profile (the "My account" section).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Profile {
+    /// For the avatar (`ImgKey::Avatar`); `None` — not loaded yet.
+    pub id: Option<PeerId>,
+    pub first: String,
+    pub last: String,
+    pub bio: String,
+    pub username: String,
+    pub phone: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UsernameState {
+    Free,
+    Taken,
+    Invalid,
+}
+
+/// A message in the send queue. `key` is the queue's own key: there is no server id yet.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Queued {
+    pub key: i64,
+    #[serde(with = "crate::cache::peer_id")]
+    pub peer: PeerId,
+    /// Text with markup, as typed in the composer.
+    pub text: String,
+    pub reply_to: Option<i32>,
+    pub silent: bool,
+    /// When it was queued (Unix time) — for the bubble timestamp.
+    pub ts: i64,
+    /// Final failure: after a restart we don't retry on our own, we wait for "Retry".
+    pub failed: bool,
+    /// Link preview turned off with ✕ in the composer.
+    #[serde(default)]
+    pub no_webpage: bool,
+}
+
+impl Queued {
+    /// Bubble for a message the server doesn't have yet (`id` is local and negative).
+    pub fn to_msg(&self, id: i32) -> Msg {
+        let (text, ents) = format::parse(&self.text);
+        let at = jiff::Timestamp::from_second(self.ts).unwrap_or_else(|_| jiff::Timestamp::now());
+        Msg {
+            id,
+            out: true,
+            spans: format::from_entities(&text, &ents, 0),
+            text,
+            time: clock(at),
+            ts: self.ts,
+            day: day(at),
+            reply_to: self.reply_to,
+            ..Msg::placeholder(self.peer)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChatKind {
     User,
     Bot,
@@ -199,8 +370,9 @@ pub enum ChatKind {
     Saved,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatInfo {
+    #[serde(with = "crate::cache::peer_id")]
     pub id: PeerId,
     pub title: String,
     pub kind: ChatKind,
@@ -212,25 +384,39 @@ pub struct ChatInfo {
     pub contact: bool,
     pub muted: bool,
     pub archived: bool,
-    /// Позначено «непрочитаним» вручну.
+    /// Manually marked as unread.
     pub unread_mark: bool,
-    /// Чернетка в розмітці поля вводу.
+    /// Draft in the input field markup.
     pub draft: String,
     pub presence: Presence,
-    /// Група-форум: повідомлення розкладено по темах.
+    /// Forum group: messages are split into topics.
     pub forum: bool,
-    /// Ми учасник (для знайдених публічних чатів — ні, поки не вступили).
+    /// We are a member (not for found public chats until we join).
     pub joined: bool,
-    /// Можна писати: у каналі — лише власник чи адмін з правом публікувати.
+    /// Can write: in a channel, only the owner or an admin allowed to post.
     pub can_post: bool,
+    /// The peer has read our messages up to this id (✓✓).
+    #[serde(default)]
+    pub read_out: i32,
+    /// Unread mentions and reactions to our messages — the "@" and "❤" buttons above the composer.
+    #[serde(default)]
+    pub unread_mentions: i32,
+    #[serde(default)]
+    pub unread_reactions: i32,
+    /// Protected content: no forwarding, copying or saving.
+    #[serde(default)]
+    pub noforwards: bool,
+    /// We may pin messages here.
+    #[serde(default)]
+    pub can_pin: bool,
 }
 
-/// Тема форуму. Id загальної теми — 1.
+/// Forum topic. The General topic has id 1.
 #[derive(Debug, Clone)]
 pub struct Topic {
     pub id: i32,
     pub title: String,
-    /// Колір значка (RGB з Telegram).
+    /// Icon color (RGB from Telegram).
     pub color: u32,
     pub unread: i32,
     pub pinned: bool,
@@ -240,26 +426,26 @@ pub struct Topic {
     pub last_ts: i64,
 }
 
-/// Загальна тема форуму.
+/// The General forum topic.
 pub const GENERAL_TOPIC: i32 = 1;
 
-/// Кольори значків тем, які приймає Telegram.
+/// Topic icon colors that Telegram accepts.
 pub const TOPIC_COLORS: [u32; 6] = [0x6FB9F0, 0xFFD67E, 0xCB86DB, 0x8EEE98, 0xFF93B2, 0xFB6F5F];
 
-/// Активний сеанс акаунта (пристрій, на якому виконано вхід).
+/// An active account session (a device that is logged in).
 #[derive(Debug, Clone)]
 pub struct Session {
     pub hash: i64,
     /// «Glassgram 0.1 · Linux», «Telegram Android 11.2 · Pixel 7».
     pub app: String,
     pub device: String,
-    /// Країна й IP.
+    /// Country and IP.
     pub place: String,
     pub active: String,
     pub current: bool,
 }
 
-/// Налаштування приватності, які показуємо (як у розділі «Конфіденційність» Telegram Desktop).
+/// Privacy settings we show (as in the Privacy section of Telegram Desktop).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PrivacyKey {
     LastSeen,
@@ -300,7 +486,7 @@ impl PrivacyKey {
     }
 }
 
-/// Хто бачить: основне правило без винятків.
+/// Who can see: the base rule without exceptions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Audience {
     Everybody,
@@ -311,7 +497,7 @@ pub enum Audience {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PrivacyState {
     pub audience: Audience,
-    /// Є винятки для окремих людей чи груп (при зміні пресету вони зникнуть).
+    /// There are exceptions for specific people or groups (changing the preset drops them).
     pub exceptions: bool,
 }
 
@@ -345,52 +531,54 @@ fn privacy_rules(a: Audience) -> Vec<tl::enums::InputPrivacyRule> {
     }
 }
 
-/// Параметри надсилання: без звуку та/або за розкладом (Unix-час).
+/// Send options: silent and/or scheduled (Unix time).
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct SendOpts {
     pub silent: bool,
     pub schedule: Option<i64>,
+    /// No link preview (turned off with ✕ above the composer).
+    pub no_webpage: bool,
 }
 
 impl SendOpts {
     fn apply(self, m: InputMessage) -> InputMessage {
         let at = self.schedule.map(|ts| std::time::UNIX_EPOCH + Duration::from_secs(ts.max(0) as u64));
-        m.silent(self.silent).schedule_date(at)
+        m.silent(self.silent).schedule_date(at).link_preview(!self.no_webpage)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MediaKind {
-    /// Анімація без звуку (GIF у Telegram — це MP4).
+    /// Silent animation (a GIF in Telegram is an MP4).
     Gif,
     Video,
-    /// Кругле відеоповідомлення.
+    /// Round video message.
     Round,
     Audio,
     Voice,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MediaInfo {
     pub kind: MediaKind,
-    /// Тривалість у секундах.
+    /// Duration in seconds.
     pub duration: f64,
     pub size: (i32, i32),
-    /// Назва треку або ім'я файлу.
+    /// Track title or file name.
     pub title: String,
     pub performer: String,
-    /// Хвильова форма голосового (значення 0..31).
+    /// Voice message waveform (values 0..31).
     pub waveform: Vec<u8>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Reaction {
     pub emoji: String,
     pub count: i32,
     pub mine: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PollOption {
     pub text: String,
     pub option: Vec<u8>,
@@ -399,7 +587,7 @@ pub struct PollOption {
     pub correct: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PollInfo {
     pub question: String,
     pub answers: Vec<PollOption>,
@@ -415,17 +603,17 @@ impl PollInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GeoInfo {
     pub lat: f64,
     pub lon: f64,
-    /// Назва й адреса місця (для venue) або порожньо.
+    /// Place name and address (for a venue) or empty.
     pub title: String,
     pub address: String,
     pub live: bool,
 }
 
-/// Результат inline-запиту до бота.
+/// Result of an inline query to a bot.
 #[derive(Debug, Clone)]
 pub struct InlineResult {
     pub id: String,
@@ -434,31 +622,31 @@ pub struct InlineResult {
     pub kind: String,
 }
 
-/// Кнопка під повідомленням бота.
-#[derive(Debug, Clone, PartialEq)]
+/// A button under a bot message.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ButtonAction {
     Callback(Vec<u8>),
     Url(String),
-    /// Кнопка звичайної клавіатури: надсилає свій текст.
+    /// A regular keyboard button: sends its own text.
     Text,
     Copy(String),
-    /// Тип, який ще не підтримується (оплата, ігри, web app…).
+    /// A type that is not supported yet (payment, games, web app…).
     Other,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Button {
     pub text: String,
     pub action: ButtonAction,
 }
 
-/// Статус «в мережі» користувача.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// A user's online status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Presence {
-    /// Не користувач або статус прихований.
+    /// Not a user, or the status is hidden.
     #[default]
     None,
-    /// В мережі до цієї мітки часу.
+    /// Online until this timestamp.
     Online(i64),
     Offline(i64),
     Recently,
@@ -483,7 +671,7 @@ impl Presence {
         matches!(self, Self::Online(t) if *t > jiff::Timestamp::now().as_second())
     }
 
-    /// Підпис у шапці чату, як у Telegram Desktop.
+    /// Subtitle in the chat header, as in Telegram Desktop.
     pub fn text(&self) -> Option<String> {
         Some(match *self {
             Self::None => return None,
@@ -506,7 +694,7 @@ impl Presence {
     }
 }
 
-/// Результат пошуку: повідомлення разом із назвою чату, де воно знайдене.
+/// Search result: a message together with the name of the chat it was found in.
 #[derive(Debug, Clone)]
 pub struct SearchHit {
     pub chat: String,
@@ -520,7 +708,7 @@ impl ChatInfo {
     }
 }
 
-/// Папка (dialog filter) з Telegram.
+/// A folder (dialog filter) from Telegram.
 #[derive(Debug, Clone, Default)]
 pub struct Folder {
     pub id: i32,
@@ -536,14 +724,14 @@ pub struct Folder {
     pub exclude_muted: bool,
     pub exclude_read: bool,
     pub exclude_archived: bool,
-    /// Закріплені в папці (підмножина `include`).
+    /// Pinned in the folder (a subset of `include`).
     pub pinned: Vec<PeerId>,
-    /// Спільна папка (chatlist) — її правила тут не редагуються.
+    /// Shared folder (chatlist): its rules are not edited here.
     pub shared: bool,
 }
 
 impl Folder {
-    /// Ті самі правила, що й у Telegram Desktop (Data::ChatFilter::contains).
+    /// The same rules as in Telegram Desktop (Data::ChatFilter::contains).
     pub fn contains(&self, c: &ChatInfo) -> bool {
         if self.exclude.contains(&c.id) {
             return false;
@@ -567,13 +755,14 @@ impl Folder {
 pub struct StickerSetInfo {
     pub id: i64,
     pub title: String,
-    /// (id документа, емодзі)
+    /// (document id, emoji)
     pub stickers: Vec<(i64, String)>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Msg {
     pub id: i32,
+    #[serde(with = "crate::cache::peer_id")]
     pub peer: PeerId,
     pub out: bool,
     pub sender: String,
@@ -584,36 +773,47 @@ pub struct Msg {
     pub edited: bool,
     pub reply_to: Option<i32>,
     pub photo: bool,
-    /// (ім'я файлу, розмір)
+    /// (file name, size)
     pub file: Option<(String, String)>,
-    /// (id документа, емодзі)
+    /// (document id, emoji)
     pub sticker: Option<(i64, String)>,
-    /// Форматування `text`.
+    /// Formatting of `text`.
     pub spans: Vec<Span>,
-    /// Від кого переслано.
+    /// Who it was forwarded from.
     pub forwarded: Option<String>,
-    /// Рядки кнопок під повідомленням.
+    /// Rows of buttons under the message.
     pub buttons: Vec<Vec<Button>>,
-    /// Альбом, до якого належить повідомлення.
+    /// The album this message belongs to.
     pub group: Option<i64>,
     pub reactions: Vec<Reaction>,
     pub poll: Option<PollInfo>,
     pub geo: Option<GeoInfo>,
-    /// (ім'я, телефон)
+    /// (name, phone)
     pub contact: Option<(String, String)>,
     pub media: Option<MediaInfo>,
-    /// Відео-стікер (webm), який можна анімувати.
+    /// Video sticker (webm) that can be animated.
     pub video_sticker: bool,
-    /// Голосове чи кружечок ще не прослухано.
+    /// Voice or round video message not listened to yet.
     pub media_unread: bool,
-    /// Тема форуму (`None` — не форум або загальна тема).
+    /// Forum topic (`None`: not a forum, or the General topic).
     pub topic: Option<i32>,
-    /// Кількість коментарів до допису каналу (`None` — коментарі вимкнено).
+    /// Number of comments on a channel post (`None`: comments are disabled).
     pub comments: Option<i32>,
+    #[serde(default)]
+    pub pinned: bool,
+    /// Views of a channel post.
+    #[serde(default)]
+    pub views: Option<i32>,
+    /// Protected message: no forwarding, copying or saving.
+    #[serde(default)]
+    pub noforwards: bool,
+    /// Link preview under the text.
+    #[serde(default)]
+    pub webpage: Option<WebPageInfo>,
 }
 
 impl Msg {
-    /// Порожнє повідомлення — для рядків списку, де потрібен лише чат.
+    /// Empty message, for list rows that only need the chat.
     pub fn placeholder(peer: PeerId) -> Self {
         Self {
             id: 0,
@@ -642,10 +842,14 @@ impl Msg {
             media_unread: false,
             topic: None,
             comments: None,
+            pinned: false,
+            views: None,
+            noforwards: false,
+            webpage: None,
         }
     }
 
-    /// Тема, у якій лежить повідомлення: без заголовка теми — загальна.
+    /// The topic the message belongs to: no topic header means General.
     pub fn topic_id(&self) -> i32 {
         self.topic.unwrap_or(GENERAL_TOPIC)
     }
@@ -654,6 +858,8 @@ impl Msg {
 pub struct Handle {
     pub tx: tmpsc::UnboundedSender<Cmd>,
     pub rx: mpsc::Receiver<Ev>,
+    /// Closed when the backend thread has finished (cache written).
+    pub done: mpsc::Receiver<()>,
 }
 
 pub fn data_dir() -> PathBuf {
@@ -664,7 +870,7 @@ pub fn data_dir() -> PathBuf {
     base.join("glassgram")
 }
 
-/// Повертає (api_id, api_hash) зі змінних оточення або збереженого конфіга.
+/// Returns (api_id, api_hash) from environment variables or the saved config.
 pub fn saved_credentials() -> Option<(i32, String)> {
     if let (Ok(id), Ok(hash)) = (std::env::var("TG_API_ID"), std::env::var("TG_API_HASH")) {
         return Some((id.trim().parse().ok()?, hash.trim().to_owned()));
@@ -685,8 +891,8 @@ fn save_credentials(api_id: i32, api_hash: &str) {
     make_private(&path);
 }
 
-/// Лише для власника: ключ сесії дає повний доступ до акаунта.
-/// На Unix — права 0600 (тека 0700); на Windows профіль користувача й так закритий.
+/// Owner only: the session key gives full access to the account.
+/// On Unix, mode 0600 (directory 0700); on Windows the user profile is already private.
 pub fn make_private(path: &std::path::Path) {
     #[cfg(unix)]
     {
@@ -698,11 +904,12 @@ pub fn make_private(path: &std::path::Path) {
     let _ = path;
 }
 
-/// Запускає бекенд для сесії у файлі `session`.
+/// Starts the backend for the session in file `session`.
 pub fn spawn(ctx: eframe::egui::Context, session: PathBuf) -> Handle {
     let (cmd_tx, cmd_rx) = tmpsc::unbounded_channel();
     let (ev_tx, ev_rx) = mpsc::channel();
     let back = cmd_tx.clone();
+    let (done_tx, done) = mpsc::channel::<()>();
     std::thread::Builder::new()
         .name("telegram".into())
         .spawn(move || {
@@ -711,31 +918,42 @@ pub fn spawn(ctx: eframe::egui::Context, session: PathBuf) -> Handle {
                 .build()
                 .expect("tokio runtime");
             rt.block_on(Worker::new(ctx, ev_tx, back, session).run(cmd_rx));
-            // Фонові задачі (оновлення, завантаження) зупиняються разом із рантаймом.
+            // Background tasks (updates, downloads) stop together with the runtime.
             rt.shutdown_background();
+            drop(done_tx);
         })
         .expect("spawn backend thread");
-    Handle { tx: cmd_tx, rx: ev_rx }
+    Handle { tx: cmd_tx, rx: ev_rx, done }
 }
 
 #[derive(Clone)]
 struct Emitter {
     ctx: eframe::egui::Context,
     tx: mpsc::Sender<Ev>,
+    /// Everything sent from the network to the UI also goes into the local cache.
+    cache: Option<Cache>,
 }
 
 impl Emitter {
     fn send(&self, ev: Ev) {
+        if let Some(c) = &self.cache {
+            c.observe(&ev);
+        }
+        self.replay(ev);
+    }
+
+    /// An event from the cache itself: we don't write it back to the cache.
+    fn replay(&self, ev: Ev) {
         let _ = self.tx.send(ev);
         self.ctx.request_repaint();
     }
 }
 
 type Refs = Arc<Mutex<HashMap<PeerId, PeerRef>>>;
-/// Назви чатів і користувачів: для «… друкує» та «Переслано від …».
+/// Chat and user names: for "… is typing" and "Forwarded from …".
 type Names = Arc<Mutex<HashMap<PeerId, String>>>;
 
-/// Фонове завантаження аватарок і фото з дисковим кешем.
+/// Background loading of avatars and photos with a disk cache.
 #[derive(Clone)]
 struct Loader {
     client: Client,
@@ -812,9 +1030,12 @@ impl Loader {
                 _ => None,
             }).max_by_key(|t| t.0)
         {
-            // Мініатюра відео чи GIF — показуємо як фото, поки не завантажено сам файл.
+            // Video or GIF thumbnail: shown as a photo until the file itself is downloaded.
             let file = format!("v{}_{}.jpg", peer.bot_api_dialog_id_unchecked(), m.id());
             return self.fetch(ImgKey::Photo(peer, m.id()), file, PHOTO_PT, DocLoc { doc, thumb: thumb.1 });
+        }
+        if matches!(m.media(), Some(Media::WebPage(_))) {
+            return self.web_page_photo(peer, m);
         }
         let Some(Media::Photo(photo)) = m.media() else { return };
         let file = format!("p{}_{}.jpg", peer.bot_api_dialog_id_unchecked(), m.id());
@@ -826,7 +1047,7 @@ impl Loader {
     }
 }
 
-/// Розташування документа (стікера) для завантаження: сам файл або його мініатюра.
+/// Location of a document (sticker) to download: the file itself or its thumbnail.
 struct DocLoc {
     doc: tl::types::Document,
     thumb: String,
@@ -848,7 +1069,7 @@ impl Downloadable for DocLoc {
 }
 
 impl Loader {
-    /// Статичні webp-стікери вантажимо цілком, анімовані (tgs/webm) — мініатюрою.
+    /// Static webp stickers are downloaded whole, animated ones (tgs/webm) as a thumbnail.
     fn sticker(&self, doc: &tl::types::Document) {
         let thumb = if doc.mime_type == "image/webp" {
             String::new()
@@ -888,7 +1109,7 @@ fn best_thumb(photo: &Photo) -> Option<grammers_client::media::PhotoSize> {
 fn decode(bytes: &[u8], max_px: u32) -> Option<ColorImage> {
     let img = image::load_from_memory(bytes).ok()?;
     let img = if img.width() > max_px || img.height() > max_px {
-        // Lanczos дає чисте зменшення без муару на тонких деталях.
+        // Lanczos gives clean downscaling without moiré on fine details.
         img.resize(max_px, max_px, image::imageops::FilterType::Lanczos3)
     } else {
         img
@@ -898,7 +1119,7 @@ fn decode(bytes: &[u8], max_px: u32) -> Option<ColorImage> {
 }
 
 struct Worker {
-    /// Файл сесії поточного акаунта.
+    /// Session file of the current account.
     session_path: PathBuf,
     out: Emitter,
     back: tmpsc::UnboundedSender<Cmd>,
@@ -915,7 +1136,7 @@ struct Worker {
     refs: Refs,
     names: Names,
     docs: HashMap<i64, tl::types::Document>,
-    /// Боти для inline-режиму за username.
+    /// Bots for inline mode, by username.
     bots: HashMap<String, PeerRef>,
 }
 
@@ -923,7 +1144,7 @@ impl Worker {
     fn new(ctx: eframe::egui::Context, tx: mpsc::Sender<Ev>, back: tmpsc::UnboundedSender<Cmd>, session_path: PathBuf) -> Self {
         Self {
             session_path,
-            out: Emitter { ctx, tx },
+            out: Emitter { ctx, tx, cache: None },
             back,
             client: None,
             session: None,
@@ -943,14 +1164,56 @@ impl Worker {
     }
 
     async fn run(mut self, mut rx: tmpsc::UnboundedReceiver<Cmd>) {
-        while let Some(cmd) = rx.recv().await {
+        // The cache starts here, not in `new`: it needs the tokio runtime.
+        self.out.cache = Some(Cache::spawn(cache::path(&self.session_path)));
+        let mut queue = VecDeque::new();
+        loop {
+            let cmd = match queue.pop_front() {
+                Some(c) => c,
+                None => match rx.recv().await {
+                    Some(c) => c,
+                    None => break,
+                },
+            };
             if matches!(cmd, Cmd::Shutdown) {
-                self.stop_qr();
                 break;
             }
-            if let Err(e) = self.handle(cmd).await {
+            let result = if matches!(cmd, Cmd::Connect { .. }) {
+                // Without network, connecting can take a long time: meanwhile chats open from the cache,
+                // and the remaining commands wait their turn.
+                let out = self.out.clone();
+                let connect = self.handle(cmd);
+                tokio::pin!(connect);
+                loop {
+                    tokio::select! {
+                        r = &mut connect => break r,
+                        Some(c) = rx.recv() => {
+                            // Logout does not wait for the network: the connection is simply cancelled.
+                            if matches!(c, Cmd::Shutdown) {
+                                queue.push_front(c);
+                                break Ok(());
+                            }
+                            if let (Cmd::OpenChat(peer), Some(cache)) = (&c, &out.cache) {
+                                let msgs = cache.history(*peer, None, PAGE).await;
+                                if !msgs.is_empty() {
+                                    out.replay(Ev::History { peer: *peer, msgs, older: false });
+                                }
+                            }
+                            queue.push_back(c);
+                        }
+                    }
+                }
+            } else {
+                self.handle(cmd).await
+            };
+            if let Err(e) = result {
                 self.out.send(Ev::Error(e));
             }
+        }
+        self.stop_qr();
+        // Otherwise the runtime would stop in the middle of a write.
+        if let Some(c) = &self.out.cache {
+            c.flush().await;
         }
     }
 
@@ -976,7 +1239,7 @@ impl Worker {
     async fn handle(&mut self, cmd: Cmd) -> Result<(), String> {
         match cmd {
             Cmd::Connect { api_id, api_hash } => self.connect(api_id, api_hash).await,
-            // Обробляється в `run` до цього місця.
+            // Handled in `run` before reaching this point.
             Cmd::Shutdown => Ok(()),
             Cmd::RequestCode(phone) => {
                 self.stop_qr();
@@ -1048,6 +1311,13 @@ impl Worker {
             }
             Cmd::ReloadDialogs => self.load_dialogs().await,
             Cmd::OpenChat(peer) => {
+                // Cache first: the chat opens instantly and offline; the server replaces the page later.
+                if let Some(c) = &self.out.cache {
+                    let msgs = c.history(peer, None, PAGE).await;
+                    if !msgs.is_empty() {
+                        self.out.replay(Ev::History { peer, msgs, older: false });
+                    }
+                }
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
                 let msgs = self.fetch_history(&client, r, None).await?;
@@ -1056,10 +1326,29 @@ impl Worker {
                 Ok(())
             }
             Cmd::LoadOlder { peer, before } => {
-                let client = self.client()?;
-                let r = self.peer_ref(peer)?;
-                let msgs = self.fetch_history(&client, r, Some(before)).await?;
-                self.out.send(Ev::History { peer, msgs, older: true });
+                let fetched = match (self.client(), self.peer_ref(peer)) {
+                    (Ok(client), Ok(r)) => self.fetch_history(&client, r, Some(before)).await,
+                    (Err(e), _) | (_, Err(e)) => Err(e),
+                };
+                match fetched {
+                    Ok(msgs) => self.out.send(Ev::History { peer, msgs, older: true }),
+                    // Offline, we scroll through what is in the cache.
+                    Err(e) => {
+                        let cached = match &self.out.cache {
+                            Some(c) => c.history(peer, Some(before), PAGE).await,
+                            None => Vec::new(),
+                        };
+                        if cached.is_empty() {
+                            self.out.send(Ev::History { peer, msgs: Vec::new(), older: true });
+                            return Err(e);
+                        }
+                        self.out.replay(Ev::History { peer, msgs: cached, older: true });
+                    }
+                }
+                Ok(())
+            }
+            Cmd::CacheDialogs(chats) => {
+                self.cache_dialogs(chats);
                 Ok(())
             }
             Cmd::Send { peer, text, reply_to, opts } => {
@@ -1069,8 +1358,8 @@ impl Worker {
                     .send_message(r, opts.apply(rich(&text).reply_to(reply_to)))
                     .await
                     .map_err(|e| lf!("Не надіслано: {e}", "Not sent: {e}"))?;
-                // В особистих чатах сервер відповідає коротким UpdateShortSentMessage, де лише частина
-                // сутностей (без `коду` тощо). Свої сутності ми знаємо точно — беремо їх.
+                // In private chats the server replies with a short UpdateShortSentMessage that has only some
+                // of the entities (no `code`, etc.). We know our own entities exactly, so we use them.
                 let (plain, ents) = format::parse(&text);
                 self.sent().emit_with(peer, &m, reply_to, opts, Some((&plain, &ents)));
                 Ok(())
@@ -1091,7 +1380,7 @@ impl Worker {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
                 let out = self.out.clone();
-                // Бот може відповідати кілька секунд — не блокуємо інші команди.
+                // A bot may take several seconds to answer: don't block other commands.
                 tokio::spawn(async move {
                     let req = tl::functions::messages::GetBotCallbackAnswer { game: false, peer: r.into(), msg_id: id, data: Some(data), password: None };
                     match client.invoke(&req).await {
@@ -1112,7 +1401,8 @@ impl Worker {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
                 client
-                    .edit_message(r, id, rich(&text))
+                    // Otherwise grammers drops the link preview on every edit.
+                    .edit_message(r, id, rich(&text).link_preview(true))
                     .await
                     .map_err(|e| lf!("Не вдалося змінити: {e}", "Could not edit: {e}"))
             }
@@ -1135,7 +1425,7 @@ impl Worker {
                     }
                 };
                 let sent = self.sent();
-                // Завантаження йде у фоні, щоб довгі файли не блокували інші команди.
+                // Upload runs in the background so long files don't block other commands.
                 tokio::spawn(async move {
                     let res = send_files(&client, r, id, paths, caption, reply_to, opts, as_file, &sent).await;
                     sent.out.send(Ev::UploadDone(id));
@@ -1216,7 +1506,7 @@ impl Worker {
                 let r = self.peer_ref(peer)?;
                 let req = tl::functions::messages::GetForumTopics { peer: r.into(), q: None, offset_date: 0, offset_id: 0, offset_topic: 0, limit: 100 };
                 let tl::enums::messages::ForumTopics::Topics(res) = client.invoke(&req).await.map_err(|e| lf!("Теми: {e}", "Topics: {e}"))?;
-                // Останні повідомлення тем приходять разом зі списком — беремо з них прев'ю.
+                // Last messages of topics come with the list: take previews from them.
                 let last: HashMap<i32, &tl::types::Message> = res
                     .messages
                     .iter()
@@ -1274,7 +1564,7 @@ impl Worker {
                     tl::enums::messages::Messages::NotModified(_) => Vec::new(),
                 };
                 let ids: Vec<i32> = list.iter().map(|m| m.id()).collect();
-                // Сирі повідомлення без мапи учасників не конвертуються — дотягуємо їх звичайним запитом.
+                // Raw messages can't be converted without the members map: fetch them with a regular request.
                 let mut msgs: Vec<Msg> = if ids.is_empty() {
                     Vec::new()
                 } else {
@@ -1346,7 +1636,7 @@ impl Worker {
                         _ => None,
                     })
                     .ok_or(l!("Коментарі: немає групи обговорення", "Comments: no discussion group"))?;
-                // Посилання на групу обговорення потрібне, щоб читати й писати коментарі.
+                // The discussion group reference is needed to read and write comments.
                 for chat in d.chats {
                     let p = Peer::from_raw(&client, chat);
                     if p.id() == discussion
@@ -1387,7 +1677,7 @@ impl Worker {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
                 let out = self.out.clone();
-                // Велика історія вантажиться довго — у фоні, щоб не блокувати інші команди.
+                // A large history takes long to load: do it in the background so other commands aren't blocked.
                 tokio::spawn(async move {
                     let dir = crate::export::target_dir(&title);
                     let progress = |done| out.send(Ev::ExportProgress { peer, done });
@@ -1419,7 +1709,7 @@ impl Worker {
                 let client = self.client()?;
                 let req = tl::functions::contacts::Search { broadcasts: false, bots: false, q: query.clone(), limit: 20 };
                 let tl::enums::contacts::Found::Found(res) = client.invoke(&req).await.map_err(|e| lf!("Пошук: {e}", "Search: {e}"))?;
-                // Лише глобальні результати; свої чати й так є в списку.
+                // Global results only; our own chats are already in the list.
                 let wanted: Vec<PeerId> = res.results.iter().map(PeerId::from).collect();
                 let mut chats = Vec::new();
                 for raw in res.chats {
@@ -1622,7 +1912,7 @@ impl Worker {
                     .invoke(&tl::functions::messages::SendVote { peer: r.into(), msg_id: id, options })
                     .await
                     .map_err(|e| lf!("Голосування: {e}", "Vote: {e}"))?;
-                // Оновлені результати беремо з самого повідомлення.
+                // Updated results are taken from the message itself.
                 if let Ok(msgs) = client.get_messages_by_id(r, &[id]).await
                     && let Some(Some(m)) = msgs.into_iter().next()
                 {
@@ -1691,7 +1981,7 @@ impl Worker {
                             let results = res.results.into_iter().map(inline_result).collect();
                             out.send(Ev::InlineResults { peer, bot, query, query_id: res.query_id, results });
                         }
-                        // Бот міг не встигнути — це не помилка для користувача, просто порожньо.
+                        // The bot may not have answered in time: not an error for the user, just empty.
                         Err(e) => {
                             log_error(&format!("inline @{bot}: {e}"));
                             out.send(Ev::InlineResults { peer, bot, query, query_id: 0, results: Vec::new() });
@@ -1844,6 +2134,20 @@ impl Worker {
                 Ok(())
             }
             Cmd::Search { peer, query } => self.search(peer, query).await,
+            cmd @ (Cmd::LoadPinned(_) | Cmd::PinMessage { .. } | Cmd::UnpinAll(_) | Cmd::LoadUnreadMarks { .. } | Cmd::ReadMarks { .. } | Cmd::LoadReadBy { .. }) => {
+                self.chat_view_cmd(cmd).await
+            }
+            Cmd::WebPreview(text) => self.web_preview(text),
+            Cmd::LoadMentions { peer, query } => self.load_members(peer, query),
+            Cmd::LoadBotCommands(peer) => self.load_bot_commands(peer),
+            Cmd::LoadChatInfo(_)
+            | Cmd::LoadMembers { .. }
+            | Cmd::ExportInvite(_)
+            | Cmd::LoadShared { .. }
+            | Cmd::SetNotify { .. }
+            | Cmd::LeaveChat(_)
+            | Cmd::ClearHistory { .. }
+            | Cmd::DeleteChat { .. } => self.chat_info_cmd(cmd).await,
             Cmd::Logout => {
                 self.stop_qr();
                 let client = self.client()?;
@@ -1852,9 +2156,48 @@ impl Worker {
                 self.session = None;
                 self.loader = None;
                 let _ = std::fs::remove_file(&self.session_path);
+                if let Some(c) = &self.out.cache {
+                    c.clear();
+                }
                 self.out.send(Ev::LoggedOut);
                 Ok(())
             }
+            Cmd::LoadProfile => self.load_profile().await,
+            Cmd::SaveProfile { first, last, bio } => self.save_profile(first, last, bio).await,
+            Cmd::CheckUsername(name) => self.check_username(name),
+            Cmd::SetUsername(name) => self.set_username(name).await,
+            Cmd::SetProfilePhoto(path) => self.set_profile_photo(path),
+            Cmd::SendQueued(q) => self.send_queued(q).await,
+            Cmd::StoreQueued(q) => {
+                if let Some(c) = &self.out.cache {
+                    c.queue_put(&q);
+                }
+                Ok(())
+            }
+            Cmd::DropQueued(key) => {
+                if let Some(c) = &self.out.cache {
+                    c.queue_drop(key);
+                }
+                Ok(())
+            }
+            Cmd::ReorderPinned { archived, order } => {
+                let order = order.into_iter().map(|p| self.peer_ref(p).map(dialog_peer)).collect::<Result<Vec<_>, _>>()?;
+                // No `force`: chats the UI does not know about stay pinned.
+                let req = tl::functions::messages::ReorderPinnedDialogs { force: false, folder_id: archived as i32, order };
+                self.chat_action(&req, l!("Не вдалося змінити порядок", "Could not reorder")).await
+            }
+            Cmd::ReorderFolders(order) => {
+                let client = self.client()?;
+                if let Err(e) = client.invoke(&tl::functions::messages::UpdateDialogFiltersOrder { order }).await {
+                    let _ = self.load_folders().await;
+                    return Err(lf!("Не вдалося змінити порядок папок: {e}", "Could not reorder folders: {e}"));
+                }
+                Ok(())
+            }
+            Cmd::LoadContacts => self.load_contacts().await,
+            Cmd::SearchContacts(query) => self.search_contacts(query).await,
+            Cmd::CreateGroup { title, users } => self.create_group(title, users).await,
+            Cmd::CreateChannel { title, about } => self.create_channel(title, about).await,
         }
     }
 
@@ -1870,6 +2213,19 @@ impl Worker {
         make_private(&self.session_path);
         if let Some(dir) = self.session_path.parent() {
             make_private(dir);
+        }
+        // Chats from the previous run, right away, while connecting (or with no connection at all).
+        if let Some(c) = &self.out.cache {
+            let start = c.start().await;
+            if !start.chats.is_empty() {
+                self.refs.lock().unwrap().extend(start.refs.iter().map(|r| (r.id, *r)));
+                self.out.replay(Ev::LoggedIn(start.me));
+                self.out.replay(Ev::Dialogs(start.chats));
+            }
+            let queued = c.outbox().await;
+            if !queued.is_empty() {
+                self.out.replay(Ev::Outbox(queued));
+            }
         }
         let proxy = crate::settings::Settings::load().proxy;
         let params = grammers_client::sender::ConnectionParams {
@@ -1912,12 +2268,16 @@ impl Worker {
         if authorized {
             self.after_login().await
         } else {
+            // The session was revoked: the cache belonged to it.
+            if let Some(c) = &self.out.cache {
+                c.clear();
+            }
             self.out.send(Ev::NeedPhone);
             Ok(())
         }
     }
 
-    /// Те саме, що робить grammers після звичайного входу: кешує себе та стан оновлень.
+    /// The same thing grammers does after a regular login: caches itself and the update state.
     async fn complete_login(&self, auth: tl::types::auth::Authorization) -> Result<(), String> {
         let client = self.client()?;
         let session = self.session.clone().ok_or(l!("Немає сесії", "No session"))?;
@@ -1954,11 +2314,14 @@ impl Worker {
         let client = self.client()?;
         self.authorized.notify_one();
         let name = client.get_me().await.map(|u| u.full_name()).unwrap_or_default();
+        if let Some(c) = &self.out.cache {
+            c.me(name.clone());
+        }
         self.out.send(Ev::LoggedIn(name));
         self.load_dialogs().await
     }
 
-    /// Повідомлення, надіслані запитом, відповідь на який не йде в потік оновлень.
+    /// Messages sent by a request whose response does not go into the update stream.
     async fn emit_latest(&self, peer: PeerId, n: usize) {
         let (Ok(client), Ok(r)) = (self.client(), self.peer_ref(peer)) else { return };
         let mut iter = client.iter_messages(r).limit(n.max(1));
@@ -2135,13 +2498,17 @@ impl Worker {
             };
             let peer = d.peer();
             self.refs.lock().unwrap().insert(peer.id(), d.peer_ref());
-            let (unread, pinned, muted, archived, unread_mark, draft) = match &d.raw {
+            let (unread, pinned, muted, archived, unread_mark, draft, read_out) = match &d.raw {
                 tl::enums::Dialog::Dialog(x) => {
                     let tl::enums::PeerNotifySettings::Settings(n) = &x.notify_settings;
                     let muted = n.mute_until.is_some_and(|t| t as i64 > jiff::Timestamp::now().as_second());
-                    (x.unread_count, x.pinned, muted, x.folder_id == Some(1), x.unread_mark, draft_text(&x.draft))
+                    (x.unread_count, x.pinned, muted, x.folder_id == Some(1), x.unread_mark, draft_text(&x.draft), x.read_outbox_max_id)
                 }
-                _ => (0, false, false, false, false, String::new()),
+                _ => (0, false, false, false, false, String::new(), 0),
+            };
+            let (unread_mentions, unread_reactions) = match &d.raw {
+                tl::enums::Dialog::Dialog(x) => (x.unread_mentions_count, x.unread_reactions_count),
+                _ => (0, 0),
             };
             self.names.lock().unwrap().insert(peer.id(), peer_title(peer));
             let (last_text, last_time, last_ts) = match &d.last_message {
@@ -2179,9 +2546,15 @@ impl Worker {
                 forum: matches!(peer, Peer::Group(g) if matches!(&g.raw, tl::enums::Chat::Channel(c) if c.forum)),
                 joined: true,
                 can_post: can_post(peer),
+                read_out,
+                unread_mentions,
+                unread_reactions,
+                noforwards: noforwards(peer),
+                can_pin: can_pin(peer),
             });
             peers.push(peer.clone());
         }
+        self.cache_dialogs(chats.clone());
         self.out.send(Ev::Dialogs(chats));
         if let Err(e) = self.load_folders().await {
             log_error(&e);
@@ -2192,6 +2565,21 @@ impl Worker {
             }
         }
         Ok(())
+    }
+
+    /// The chat list goes to the cache with access hashes: with them a chat opens even before connecting.
+    fn cache_dialogs(&self, chats: Vec<ChatInfo>) {
+        let Some(c) = &self.out.cache else { return };
+        let refs = self.refs.lock().unwrap();
+        c.dialogs(
+            chats
+                .into_iter()
+                .map(|chat| {
+                    let auth = refs.get(&chat.id).map(|r| r.auth.hash());
+                    (chat, auth)
+                })
+                .collect(),
+        );
     }
 
     async fn fetch_history(&self, client: &Client, r: PeerRef, before: Option<i32>) -> Result<Vec<Msg>, String> {
@@ -2207,7 +2595,7 @@ impl Worker {
         Ok(out)
     }
 
-    /// Конвертує повідомлення з історії: заодно ставить у чергу фото, аватарку й ім'я автора.
+    /// Converts a history message, also queuing the photo, avatar and author name.
     fn convert_loaded(&self, peer: PeerId, m: &Message) -> Msg {
         if let Some(loader) = &self.loader {
             loader.message_photo(peer, m);
@@ -2221,7 +2609,7 @@ impl Worker {
         msg
     }
 
-    /// Дія над чатом зі списку; при помилці перезавантажуємо діалоги, щоб скасувати оптимістичну зміну в UI.
+    /// An action on a chat from the list; on error reload dialogs to undo the optimistic change in the UI.
     async fn chat_action<R: tl::RemoteCall>(&mut self, req: &R, what: &str) -> Result<(), String> {
         let client = self.client()?;
         if let Err(e) = client.invoke(req).await {
@@ -2261,7 +2649,7 @@ impl Worker {
     }
 }
 
-/// Показ щойно надісланого повідомлення в UI (з фонових задач теж).
+/// Show a just-sent message in the UI (from background tasks too).
 #[derive(Clone)]
 struct Sent {
     out: Emitter,
@@ -2269,14 +2657,123 @@ struct Sent {
     names: Names,
 }
 
+/// New chat: contacts, people search, creating groups and channels.
+impl Worker {
+    /// Remembers access to a found user or chat and fetches its avatar.
+    async fn remember(&self, peer: &Peer) -> bool {
+        let Ok(Some(r)) = peer.to_ref().await else { return false };
+        self.refs.lock().unwrap().insert(peer.id(), r);
+        self.names.lock().unwrap().insert(peer.id(), peer_title(peer));
+        if let Some(loader) = &self.loader {
+            loader.avatar(peer);
+        }
+        true
+    }
+
+    async fn load_contacts(&self) -> Result<(), String> {
+        let client = self.client()?;
+        let res = client
+            .invoke(&tl::functions::contacts::GetContacts { hash: 0 })
+            .await
+            .map_err(|e| lf!("Контакти: {e}", "Contacts: {e}"))?;
+        let tl::enums::contacts::Contacts::Contacts(res) = res else { return Ok(()) };
+        let mut list = Vec::new();
+        for raw in res.users {
+            let peer = Peer::User(User::from_raw(&client, raw));
+            if self.remember(&peer).await {
+                list.push(person(&peer));
+            }
+        }
+        list.sort_by_key(|c| c.title.to_lowercase());
+        self.out.send(Ev::Contacts(list));
+        Ok(())
+    }
+
+    async fn search_contacts(&self, query: String) -> Result<(), String> {
+        let client = self.client()?;
+        let req = tl::functions::contacts::Search { broadcasts: false, bots: false, q: query.clone(), limit: 30 };
+        let tl::enums::contacts::Found::Found(res) = client.invoke(&req).await.map_err(|e| lf!("Пошук: {e}", "Search: {e}"))?;
+        // Own results (contacts, dialogs) first, then global ones, as the server orders them.
+        let wanted: Vec<PeerId> = res.my_results.iter().chain(&res.results).map(PeerId::from).collect();
+        let mut chats = Vec::new();
+        for raw in res.users {
+            let peer = Peer::User(User::from_raw(&client, raw));
+            if wanted.contains(&peer.id()) && self.remember(&peer).await {
+                chats.push(person(&peer));
+            }
+        }
+        chats.sort_by_key(|c| wanted.iter().position(|p| *p == c.id));
+        self.out.send(Ev::ContactResults { query, chats });
+        Ok(())
+    }
+
+    async fn create_group(&mut self, title: String, users: Vec<PeerId>) -> Result<(), String> {
+        let client = self.client()?;
+        let users = users.into_iter().map(|p| self.peer_ref(p).map(tl::enums::InputUser::from)).collect::<Result<Vec<_>, _>>()?;
+        let req = tl::functions::messages::CreateChat { users, title, ttl_period: None };
+        let tl::enums::messages::InvitedUsers::Users(res) =
+            client.invoke(&req).await.map_err(|e| lf!("Групу не створено: {e}", "Group not created: {e}"))?;
+        if !res.missing_invitees.is_empty() {
+            let n = res.missing_invitees.len();
+            self.out.send(Ev::Notice(lf!("Не вдалося додати учасників: {n} — їхня приватність це забороняє", "Could not add {n} members — their privacy settings forbid it")));
+        }
+        self.created(&client, res.updates).await
+    }
+
+    async fn create_channel(&mut self, title: String, about: String) -> Result<(), String> {
+        let client = self.client()?;
+        let req = tl::functions::channels::CreateChannel {
+            broadcast: true,
+            megagroup: false,
+            for_import: false,
+            forum: false,
+            title,
+            about,
+            geo_point: None,
+            address: None,
+            ttl_period: None,
+        };
+        let updates = client.invoke(&req).await.map_err(|e| lf!("Канал не створено: {e}", "Channel not created: {e}"))?;
+        self.created(&client, updates).await
+    }
+
+    /// The new chat comes in the reply updates: take it from there and open it.
+    async fn created(&mut self, client: &Client, updates: tl::enums::Updates) -> Result<(), String> {
+        let chats = match updates {
+            tl::enums::Updates::Updates(u) => u.chats,
+            tl::enums::Updates::Combined(u) => u.chats,
+            _ => Vec::new(),
+        };
+        let peer = chats.into_iter().next().map(|raw| Peer::from_raw(client, raw));
+        let Some(peer) = peer else { return self.load_dialogs().await };
+        if !self.remember(&peer).await {
+            return self.load_dialogs().await;
+        }
+        let mut info = found_chat(&peer, String::new());
+        info.joined = true;
+        info.can_post = true;
+        info.last_ts = jiff::Timestamp::now().as_second();
+        let _ = self.load_dialogs().await;
+        self.out.send(Ev::ChatCreated(info));
+        Ok(())
+    }
+}
+
+/// A person for the contact list, with @username under the name when there is one.
+fn person(peer: &Peer) -> ChatInfo {
+    let mut c = found_chat(peer, peer.username().map(|u| format!("@{u}")).unwrap_or_default());
+    c.joined = true;
+    c
+}
+
 impl Sent {
     fn emit(&self, peer: PeerId, m: &Message, reply_to: Option<i32>, opts: SendOpts) {
         self.emit_with(peer, m, reply_to, opts, None);
     }
 
-    /// `own` — текст і сутності, з якими ми надсилали: замінюють неповні з відповіді сервера.
+    /// `own`: the text and entities we sent with; they replace the incomplete ones from the server response.
     fn emit_with(&self, peer: PeerId, m: &Message, reply_to: Option<i32>, opts: SendOpts, own: Option<(&str, &[tl::enums::MessageEntity])>) {
-        // Заплановані повідомлення живуть в окремій історії — лише повідомляємо про них.
+        // Scheduled messages live in a separate history: we only notify about them.
         if let Some(ts) = opts.schedule {
             let when = jiff::Timestamp::from_second(ts).map(|t| format!("{} {}", day(t), clock(t))).unwrap_or_default();
             return self.out.send(Ev::Notice(lf!("Заплановано на {when}", "Scheduled for {when}")));
@@ -2297,7 +2794,7 @@ impl Sent {
     }
 }
 
-/// Читач файлу, що повідомляє UI про прогрес (не частіше ніж кожні 2%).
+/// A file reader that reports progress to the UI (no more often than every 2%).
 struct Progress<R> {
     inner: R,
     id: u64,
@@ -2329,7 +2826,7 @@ fn is_image(path: &std::path::Path) -> bool {
     matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "webp")
 }
 
-/// Стискає велике фото до `SEND_PHOTO_PX` у JPEG (якість 87). `None` — надсилати як є.
+/// Compresses a large photo to `SEND_PHOTO_PX` as JPEG (quality 87). `None`: send as is.
 fn compress_photo(path: &std::path::Path) -> Option<PathBuf> {
     let len = std::fs::metadata(path).ok()?.len();
     let (w, h) = image::image_dimensions(path).ok()?;
@@ -2351,7 +2848,7 @@ fn compress_photo(path: &std::path::Path) -> Option<PathBuf> {
     Some(out)
 }
 
-/// Завантаження одного файлу з прогресом, зсунутим на `base` у межах `total` усієї групи.
+/// Uploads one file with progress offset by `base` within the `total` of the whole group.
 async fn upload(client: &Client, path: &std::path::Path, id: u64, base: u64, total: u64, out: &Emitter) -> Result<(Uploaded, u64), String> {
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let err = |e: &dyn std::fmt::Display| format!("{name}: {e}");
@@ -2362,8 +2859,8 @@ async fn upload(client: &Client, path: &std::path::Path, id: u64, base: u64, tot
     Ok((up, len))
 }
 
-/// Надсилання групи файлів: фото — по одному або альбомами до 10 (зі стисненням),
-/// решта — документами. Підпис і відповідь чіпляються до першого повідомлення.
+/// Sends a group of files: photos one by one or as albums of up to 10 (compressed),
+/// the rest as documents. The caption and reply attach to the first message.
 #[allow(clippy::too_many_arguments)]
 async fn send_files(
     client: &Client,
@@ -2439,7 +2936,7 @@ fn inline_result(r: tl::enums::BotInlineResult) -> InlineResult {
     }
 }
 
-/// Сире повідомлення (заплановані приходять без мапи учасників) → `Msg`.
+/// Raw message (scheduled ones arrive without the members map) → `Msg`.
 fn convert_raw(peer: PeerId, m: &tl::types::Message) -> Msg {
     let ts = jiff::Timestamp::from_second(m.date as i64).unwrap_or_default();
     let text = if m.message.is_empty() && m.media.is_some() { l!("📎 Вкладення", "📎 Attachment").to_owned() } else { m.message.clone() };
@@ -2447,7 +2944,7 @@ fn convert_raw(peer: PeerId, m: &tl::types::Message) -> Msg {
     Msg { id: m.id, out: true, text, time: clock(ts), ts: m.date as i64, day: day(ts), spans, ..Msg::placeholder(peer) }
 }
 
-/// Текст із поля вводу з розміткою → повідомлення з сутностями.
+/// Input field text with markup → a message with entities.
 fn rich(markup: &str) -> InputMessage {
     let (text, entities) = format::parse(markup);
     InputMessage::new().text(text).fmt_entities(entities)
@@ -2493,7 +2990,7 @@ async fn update_loop(
     names: Names,
     loader: Loader,
 ) {
-    // До авторизації слухаємо лише updateLoginToken (сигнал, що QR відскановано).
+    // Before authorization we only listen for updateLoginToken (the signal that the QR was scanned).
     loop {
         tokio::select! {
             _ = authorized.notified() => break,
@@ -2540,7 +3037,7 @@ async fn update_loop(
     }
 }
 
-/// Сирі оновлення, для яких у grammers немає обгорток: «друкує», статуси, прочитання, чернетки.
+/// Raw updates that grammers has no wrappers for: typing, statuses, reads, drafts.
 fn raw_event(u: &tl::enums::Update, names: &Names) -> Option<Ev> {
     use tl::enums::{SendMessageAction as A, Update as U};
     let typing = |peer: PeerId, from: PeerId, action: &A| {
@@ -2557,15 +3054,20 @@ fn raw_event(u: &tl::enums::Update, names: &Names) -> Option<Ev> {
         U::UserStatus(s) => Ev::Presence { peer: PeerId::user(s.user_id)?, presence: Presence::from_status(&s.status) },
         U::ReadHistoryInbox(r) => Ev::ReadInbox { peer: PeerId::from(&r.peer), unread: r.still_unread_count },
         U::ReadChannelInbox(r) => Ev::ReadInbox { peer: PeerId::channel(r.channel_id)?, unread: r.still_unread_count },
+        U::ReadHistoryOutbox(r) => Ev::ReadOutbox { peer: PeerId::from(&r.peer), max_id: r.max_id },
+        U::ReadChannelOutbox(r) => Ev::ReadOutbox { peer: PeerId::channel(r.channel_id)?, max_id: r.max_id },
         U::ReadMessagesContents(r) => Ev::Listened { peer: None, ids: r.messages.clone() },
         U::ChannelReadMessagesContents(r) => Ev::Listened { peer: Some(PeerId::channel(r.channel_id)?), ids: r.messages.clone() },
         U::MessageReactions(r) => Ev::Reactions { peer: PeerId::from(&r.peer), id: r.msg_id, reactions: reactions(&r.reactions) },
+        U::PinnedMessages(p) => Ev::PinnedChanged { peer: PeerId::from(&p.peer), ids: p.messages.clone(), pinned: p.pinned },
+        U::PinnedChannelMessages(p) => Ev::PinnedChanged { peer: PeerId::channel(p.channel_id)?, ids: p.messages.clone(), pinned: p.pinned },
+        U::ChannelMessageViews(v) => Ev::Views { peer: PeerId::channel(v.channel_id)?, id: v.id, views: v.views },
         U::DraftMessage(d) if d.top_msg_id.is_none() => Ev::Draft { peer: PeerId::from(&d.peer), text: draft_text(&Some(d.draft.clone())) },
         _ => return None,
     })
 }
 
-/// Вхід через QR: показуємо токен, чекаємо сканування, обробляємо міграцію DC та 2FA.
+/// QR login: show the token, wait for the scan, handle DC migration and 2FA.
 async fn qr_loop(
     client: Client,
     session: Arc<SqliteSession>,
@@ -2675,7 +3177,7 @@ fn preview_text(m: &Message) -> String {
     }
 }
 
-/// Кнопки під повідомленням (інлайн-клавіатура або звичайна клавіатура бота).
+/// Buttons under a message (inline keyboard or a regular bot keyboard).
 fn buttons(m: &Message) -> Vec<Vec<Button>> {
     use tl::enums::{InlineButtonType as T, KeyboardButton as K, KeyboardInlineButton as I, ReplyMarkup as R};
     match m.reply_markup() {
@@ -2731,7 +3233,7 @@ fn forwarded(m: &Message, names: &Names) -> Option<String> {
 
 fn convert(m: &Message, names: &Names) -> Msg {
     let photo = matches!(m.media(), Some(Media::Photo(_)));
-    // Опитування, місця й контакти малюються картками — мітка в тексті не потрібна.
+    // Polls, places and contacts are drawn as cards: no label needed in the text.
     let card = matches!(m.media(), Some(Media::Poll(_) | Media::Geo(_) | Media::GeoLive(_) | Media::Venue(_) | Media::Contact(_)));
     let text = match (media_label(m), m.text().is_empty()) {
         _ if photo || card => m.text().to_owned(),
@@ -2799,10 +3301,14 @@ fn convert(m: &Message, names: &Names) -> Msg {
             },
             _ => None,
         },
+        pinned: m.pinned(),
+        views: m.view_count(),
+        noforwards: matches!(&m.raw, tl::enums::Message::Message(x) if x.noforwards),
+        webpage: suggest::message_web_page(m),
     }
 }
 
-/// Тема форуму з заголовка відповіді; повідомлення, що створило тему, належить їй самій.
+/// Forum topic from the reply header; the message that created a topic belongs to that topic.
 fn message_topic(m: &Message) -> Option<i32> {
     match &m.raw {
         tl::enums::Message::Message(x) => match &x.reply_to {
@@ -2814,7 +3320,7 @@ fn message_topic(m: &Message) -> Option<i32> {
     }
 }
 
-/// Чат, знайдений поза списком діалогів (за username чи в пошуку): ще не учасник.
+/// A chat found outside the dialog list (by username or in search): not a member yet.
 fn found_chat(peer: &Peer, last_text: String) -> ChatInfo {
     ChatInfo {
         id: peer.id(),
@@ -2835,9 +3341,43 @@ fn found_chat(peer: &Peer, last_text: String) -> ChatInfo {
             _ => Presence::None,
         },
         forum: matches!(peer, Peer::Group(g) if matches!(&g.raw, tl::enums::Chat::Channel(c) if c.forum)),
-        // Користувачам і ботам вступати не треба.
+        // Users and bots don't need joining.
         joined: matches!(peer, Peer::User(_)),
         can_post: can_post(peer),
+        read_out: 0,
+        unread_mentions: 0,
+        unread_reactions: 0,
+        noforwards: noforwards(peer),
+        can_pin: can_pin(peer),
+    }
+}
+
+/// Protected content of a group or channel.
+fn noforwards(peer: &Peer) -> bool {
+    match peer {
+        Peer::Channel(c) => c.raw.noforwards,
+        Peer::Group(g) => match &g.raw {
+            tl::enums::Chat::Chat(c) => c.noforwards,
+            tl::enums::Chat::Channel(c) => c.noforwards,
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// Anyone can pin in private chats; in groups — admins with the right, or everyone unless banned.
+fn can_pin(peer: &Peer) -> bool {
+    let admin = |r: &Option<tl::enums::ChatAdminRights>| matches!(r, Some(tl::enums::ChatAdminRights::Rights(r)) if r.pin_messages);
+    let everyone = |r: &Option<tl::enums::ChatBannedRights>| matches!(r, Some(tl::enums::ChatBannedRights::Rights(r)) if !r.pin_messages);
+    match peer {
+        Peer::User(_) => true,
+        Peer::Channel(c) => c.raw.creator || admin(&c.raw.admin_rights),
+        Peer::Group(g) => match &g.raw {
+            tl::enums::Chat::Chat(c) => c.creator || admin(&c.admin_rights) || everyone(&c.default_banned_rights),
+            tl::enums::Chat::Channel(c) => c.creator || admin(&c.admin_rights) || everyone(&c.default_banned_rights),
+            _ => false,
+        },
+        _ => false,
     }
 }
 
@@ -2848,7 +3388,7 @@ fn can_post(peer: &Peer) -> bool {
     }
 }
 
-/// Тип медіа документа за його атрибутами.
+/// Media type of a document from its attributes.
 fn media_info(m: &Message) -> Option<MediaInfo> {
     let Some(Media::Document(d)) = m.media() else { return None };
     let doc = raw_document(m)?;
@@ -2870,7 +3410,7 @@ fn media_info(m: &Message) -> Option<MediaInfo> {
                 info.size = (v.w, v.h);
                 kind = Some(if animated { MediaKind::Gif } else if v.round_message { MediaKind::Round } else { MediaKind::Video });
             }
-            // Сервер додає аудіоатрибут і відео зі звуком (зокрема кружечкам) — відео важливіше.
+            // The server adds an audio attribute to videos with sound (round ones included): video wins.
             tl::enums::DocumentAttribute::Audio(a) if !has_video => {
                 info.duration = a.duration as f64;
                 info.title = a.title.clone().filter(|t| !t.is_empty()).unwrap_or(info.title);
@@ -2888,7 +3428,7 @@ fn media_info(m: &Message) -> Option<MediaInfo> {
     Some(info)
 }
 
-/// Хвильова форма Telegram: 5-бітні значення, впаковані підряд.
+/// Telegram waveform: 5-bit values packed back to back.
 fn unpack_waveform(bytes: &[u8]) -> Vec<u8> {
     let n = bytes.len() * 8 / 5;
     (0..n)
@@ -2902,7 +3442,7 @@ fn unpack_waveform(bytes: &[u8]) -> Vec<u8> {
         .collect()
 }
 
-/// Зворотне до `unpack_waveform`: рівні 0..31 у 5-бітний потік.
+/// The inverse of `unpack_waveform`: levels 0..31 into a 5-bit stream.
 fn pack_waveform(levels: &[u8]) -> Vec<u8> {
     let mut out = vec![0u8; (levels.len() * 5).div_ceil(8)];
     for (i, &v) in levels.iter().enumerate() {
@@ -2916,7 +3456,7 @@ fn pack_waveform(levels: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Завантажує медіа повідомлення в кеш (один раз) і повертає шлях.
+/// Downloads a message's media into the cache (once) and returns the path.
 async fn cache_media(client: &Client, r: PeerRef, id: i32) -> Result<PathBuf, String> {
     let dir = data_dir().join("media");
     let _ = tokio::fs::create_dir_all(&dir).await;
@@ -2954,7 +3494,7 @@ async fn cache_media(client: &Client, r: PeerRef, id: i32) -> Result<PathBuf, St
 mod tests {
     #[test]
     fn waveform_unpacks_5bit_values() {
-        // 31, 0, 31, 0 у 5-бітному пакуванні.
+        // 31, 0, 31, 0 in 5-bit packing.
         let packed = [0b0001_1111, 0b0111_1100, 0b0000_0000];
         assert_eq!(&super::unpack_waveform(&packed)[..4], &[31, 0, 31, 0]);
     }
@@ -3095,7 +3635,7 @@ fn downloads_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-/// Завантажує файл або фото з повідомлення в теку «Завантаження» і відкриває його.
+/// Downloads a file or photo from a message into Downloads and opens it.
 async fn download(client: &Client, r: PeerRef, id: i32) -> Result<PathBuf, String> {
     let msg = client
         .get_messages_by_id(r, &[id])

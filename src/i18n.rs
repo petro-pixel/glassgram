@@ -1,6 +1,6 @@
-//! Мова інтерфейсу. Переклади лежать поруч із кодом:
-//! `l!("Скасувати", "Cancel")` — рядок, `lf!("Голосів: {n}", "Votes: {n}")` — як `format!`.
-//! Обидва варіанти перевіряє компілятор, тож аргументи форматування не розійдуться.
+//! UI language. Translations live next to the code:
+//! `l!("Скасувати", "Cancel")` is a string, `lf!("Голосів: {n}", "Votes: {n}")` works like `format!`.
+//! The compiler checks both variants, so format arguments can't drift apart.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -8,19 +8,19 @@ static EN: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
-    /// Як у системі: українська для `uk`, інакше англійська.
+    /// Follow the system: Ukrainian for `uk`, English otherwise.
     System,
     Uk,
     En,
 }
 
 impl Lang {
-    /// Чи вибрана мова в результаті англійська.
+    /// Whether the resulting language is English.
     fn english(self) -> bool {
         match self {
             Lang::Uk => false,
             Lang::En => true,
-            // sys-locale читає мову з ОС на Linux, Windows і macOS.
+            // sys-locale reads the OS language on Linux, Windows and macOS.
             Lang::System => !sys_locale::get_locale().is_some_and(|l| l.to_lowercase().starts_with("uk")),
         }
     }
@@ -34,14 +34,14 @@ pub fn en() -> bool {
     EN.load(Ordering::Relaxed)
 }
 
-/// Рядок інтерфейсу: українською й англійською.
+/// UI string in Ukrainian and English.
 macro_rules! l {
     ($uk:literal, $en:literal) => {
         if $crate::i18n::en() { $en } else { $uk }
     };
 }
 
-/// `format!` для обох мов з тими самими аргументами.
+/// `format!` for both languages with the same arguments.
 macro_rules! lf {
     ($uk:literal, $en:literal $(, $arg:expr)* $(,)?) => {
         if $crate::i18n::en() { format!($en $(, $arg)*) } else { format!($uk $(, $arg)*) }

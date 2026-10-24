@@ -1,12 +1,12 @@
-// Шейдери «liquid glass»: процедурний фон, гаусове розмиття, скляні панелі із заломленням.
-// Усі кольори — у гамма-просторі (egui рендерить у не-sRGB поверхню).
+// “Liquid glass” shaders: procedural background, Gaussian blur, glass panels with refraction.
+// All colours are in gamma space (egui renders to a non-sRGB surface).
 
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
     @location(0) uv: vec2<f32>,
 };
 
-// Повноекранний трикутник; uv — у текстурних координатах (v=0 зверху).
+// Fullscreen triangle; uv is in texture coordinates (v=0 at the top).
 @vertex
 fn vs_full(@builtin(vertex_index) i: u32) -> VsOut {
     let p = vec2<f32>(f32((i << 1u) & 2u), f32(i & 2u));
@@ -16,7 +16,7 @@ fn vs_full(@builtin(vertex_index) i: u32) -> VsOut {
     return o;
 }
 
-// ───────────── Фон ─────────────
+// ───────────── Background ─────────────
 
 struct BgU {
     size: vec2<f32>,
@@ -38,7 +38,7 @@ fn fs_bg(in: VsOut) -> @location(0) vec4<f32> {
     let dark = mix(vec3<f32>(0.063, 0.071, 0.173), vec3<f32>(0.024, 0.031, 0.086), uv.y);
     let light = mix(vec3<f32>(0.933, 0.945, 1.0), vec3<f32>(0.84, 0.866, 0.973), uv.y);
     var col = mix(dark, light, bg.light);
-    // На світлому фоні плями пастельніші.
+    // On a light background the blobs are more pastel.
     let strength = mix(0.6, 0.38, bg.light);
 
     let cols = array<vec3<f32>, 5>(
@@ -59,14 +59,14 @@ fn fs_bg(in: VsOut) -> @location(0) vec4<f32> {
         col = mix(col, cols[i], k * strength);
     }
 
-    // Тонкі «топографічні» лінії — дрібна деталь, на якій видно розмиття й заломлення.
+    // Thin “topographic” lines: fine detail that makes blur and refraction visible.
     let f = field * 7.0 + t * 0.05;
     let line = 1.0 - smoothstep(0.0, 0.06, abs(fract(f) - 0.5));
     col += line * mix(0.10, -0.05, bg.light) * (0.4 + field);
     return vec4<f32>(col, 1.0);
 }
 
-// ───────────── Копіювання та розмиття ─────────────
+// ───────────── Copy and blur ─────────────
 
 @group(0) @binding(1) var src_tex: texture_2d<f32>;
 @group(0) @binding(2) var src_smp: sampler;
@@ -95,10 +95,10 @@ fn fs_blur(in: VsOut) -> @location(0) vec4<f32> {
     return vec4<f32>(acc, 1.0);
 }
 
-// ───────────── Скляна панель ─────────────
+// ───────────── Glass panel ─────────────
 
 struct PanelU {
-    rect: vec4<f32>,      // min.x, min.y, max.x, max.y у пікселях
+    rect: vec4<f32>,      // min.x, min.y, max.x, max.y in pixels
     screen: vec2<f32>,
     radius: f32,
     opacity: f32,
@@ -137,7 +137,7 @@ fn fs_panel(in: VsOut) -> @location(0) vec4<f32> {
         discard;
     }
 
-    // Нормаль до межі заокругленого прямокутника.
+    // Normal to the rounded rectangle's edge.
     var n: vec2<f32>;
     if (q.x > 0.0 && q.y > 0.0) {
         n = normalize(q) * sign(rel);
@@ -147,7 +147,7 @@ fn fs_panel(in: VsOut) -> @location(0) vec4<f32> {
         n = vec2<f32>(0.0, sign(rel.y));
     }
 
-    // Лінза на краях: чим ближче до межі, тим сильніше «затягується» фон ззовні.
+    // Lens at the edges: the closer to the border, the more the outside background is pulled in.
     let band = max(min(r * 1.2, 26.0 * panel.ppp), 1.0);
     let t = clamp(1.0 + d / band, 0.0, 1.0);
     let bend = t * t * panel.refract * panel.ppp;
@@ -158,7 +158,7 @@ fn fs_panel(in: VsOut) -> @location(0) vec4<f32> {
         textureSample(blur_tex, blur_smp, base + off).g,
         textureSample(blur_tex, blur_smp, base + off * 0.90).b);
 
-    // «Вібрантність»: трохи насиченості та світла, як у справжнього скла.
+    // “Vibrancy”: a bit of saturation and light, like real glass.
     let lum = dot(col, vec3<f32>(0.299, 0.587, 0.114));
     var outc = mix(vec3<f32>(lum), col, 1.35) * 1.06 + t * t * t * 0.07;
     outc = clamp(outc, vec3<f32>(0.0), vec3<f32>(1.0));

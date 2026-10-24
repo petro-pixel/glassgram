@@ -1,6 +1,6 @@
-//! Кілька акаунтів: у кожного своя сесія, спільні — кеш, налаштування й облікові дані API.
-//! Акаунт 0 — сесія в корені теки даних (так було до появи кількох акаунтів),
-//! решта — `accounts/<id>/session.sqlite`. Список і активний акаунт — у файлі `accounts`.
+//! Multiple accounts: each has its own session; the cache, settings and API credentials are shared.
+//! Account 0 keeps its session in the data folder root (as before multiple accounts existed),
+//! the rest use `accounts/<id>/session.sqlite`. The list and the active account live in the `accounts` file.
 
 use std::path::PathBuf;
 
@@ -9,7 +9,7 @@ use crate::backend::data_dir;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Account {
     pub id: u32,
-    /// Ім'я з Telegram (порожнє, поки не ввійшли).
+    /// Name from Telegram (empty until signed in).
     pub name: String,
 }
 
@@ -24,7 +24,7 @@ fn file() -> PathBuf {
 }
 
 impl Accounts {
-    /// Формат: `active=<id>`, далі рядки `<id>|<ім'я>`.
+    /// Format: `active=<id>`, then `<id>|<name>` lines.
     pub fn load() -> Self {
         let mut a = Self { active: 0, list: Vec::new() };
         if let Ok(text) = std::fs::read_to_string(file()) {
@@ -50,7 +50,7 @@ impl Accounts {
     pub fn save(&self) {
         let mut text = format!("active={}\n", self.active);
         for x in &self.list {
-            // Ім'я — в одному рядку, без розділювача.
+            // The name stays on one line, without the separator.
             text.push_str(&format!("{}|{}\n", x.id, x.name.replace(['\n', '|'], " ")));
         }
         let _ = std::fs::create_dir_all(data_dir());
@@ -58,7 +58,7 @@ impl Accounts {
         crate::backend::make_private(&file());
     }
 
-    /// Новий порожній акаунт; повертає його id.
+    /// New empty account; returns its id.
     pub fn add(&mut self) -> u32 {
         let id = self.list.iter().map(|x| x.id).max().unwrap_or(0) + 1;
         self.list.push(Account { id, name: String::new() });
@@ -82,7 +82,7 @@ impl Accounts {
     }
 }
 
-/// Файл сесії акаунта.
+/// Account's session file.
 pub fn session_path(id: u32) -> PathBuf {
     match id {
         0 => data_dir().join("session.sqlite"),

@@ -1,10 +1,11 @@
-// Glassgram — клієнт Telegram з інтерфейсом «liquid glass».
+// Glassgram: a Telegram client with a "liquid glass" interface.
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod accounts;
 mod app;
 mod backend;
 mod blur;
+mod cache;
 mod camera;
 mod demo;
 mod emoji;

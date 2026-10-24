@@ -1,6 +1,6 @@
-//! Вбудоване відео: `ffmpeg` декодує кадри в RGBA потрібного розміру, окремий потік
-//! читає їх із каналу, а UI показує кадр, коли настає його час (фіксовані 30 кадрів/с).
-//! Звук до відео грає `Player` — тут лише картинка.
+//! Embedded video: `ffmpeg` decodes frames to RGBA at the needed size, a separate thread
+//! reads them from a channel, and the UI shows a frame when its time comes (fixed 30 fps).
+//! Video sound is played by `Player`; this is picture only.
 
 use std::io::Read;
 use std::path::PathBuf;
@@ -12,22 +12,22 @@ use eframe::egui::{self, ColorImage, TextureHandle, TextureOptions};
 
 const FPS: f64 = 30.0;
 
-/// Що і як декодувати.
+/// What to decode and how.
 pub struct Spec {
     pub path: PathBuf,
-    /// Розмір кадру в пікселях.
+    /// Frame size in pixels.
     pub size: [usize; 2],
-    /// З якої секунди почати.
+    /// Second to start from.
     pub from: f64,
     pub speed: f32,
-    /// По колу (GIF, кружечки без звуку, відео-стікери).
+    /// Loop (GIFs, silent round videos, video stickers).
     pub looped: bool,
-    /// Вписати з прозорими полями замість розтягування (стікери).
+    /// Fit with transparent margins instead of stretching (stickers).
     pub contain: bool,
 }
 
 pub struct Clip {
-    /// Номер запуску програвача, з яким синхронізовано цей кліп (0 — без звуку).
+    /// Player run number this clip is synced with (0 means no sound).
     pub run: u64,
     size: [usize; 2],
     rx: Receiver<Vec<u8>>,
@@ -35,7 +35,7 @@ pub struct Clip {
     started: f64,
     frames: u64,
     pub tex: Option<TextureHandle>,
-    /// Потік декодування завершився (кінець файлу без повтору або помилка).
+    /// The decoding thread finished (end of file without looping, or an error).
     pub done: bool,
 }
 
@@ -49,7 +49,7 @@ impl Clip {
         Self { run, size, rx, child, started: now, frames: 0, tex: None, done: false }
     }
 
-    /// Забирає кадри, час яких настав, і оновлює текстуру останнім із них.
+    /// Takes frames whose time has come and updates the texture with the latest one.
     pub fn advance(&mut self, ctx: &egui::Context, key: &str, now: f64) {
         if self.done {
             return;
@@ -77,7 +77,7 @@ impl Clip {
         }
     }
 
-    /// Зупинити декодування, лишивши останній кадр (пауза).
+    /// Stop decoding, keeping the last frame (pause).
     pub fn stop(&mut self) {
         kill(&self.child);
         self.done = true;
@@ -109,7 +109,7 @@ fn decode(spec: Spec, tx: SyncSender<Vec<u8>>, slot: Arc<Mutex<Option<Child>>>) 
     loop {
         let mut cmd = Command::new("ffmpeg");
         cmd.args(["-loglevel", "quiet", "-nostdin"]);
-        // Вбудований декодер VP9 губить альфа-канал — для webm беремо libvpx.
+        // The built-in VP9 decoder drops the alpha channel, so use libvpx for webm.
         if spec.path.extension().is_some_and(|e| e == "webm") {
             cmd.args(["-c:v", "libvpx-vp9"]);
         }
@@ -128,13 +128,13 @@ fn decode(spec: Spec, tx: SyncSender<Vec<u8>>, slot: Arc<Mutex<Option<Child>>>) 
                 break;
             }
             if tx.send(frame).is_err() {
-                // Кліп закрито.
+                // Clip closed.
                 kill(&slot);
                 return;
             }
             sent += 1;
         }
-        // Кінець файлу або кліп зупинено (процес уже прибрано зі слота).
+        // End of file or clip stopped (the process has already been removed from the slot).
         let Some(mut c) = slot.lock().unwrap().take() else { return };
         let _ = c.wait();
         if !spec.looped || sent == 0 {

@@ -1,10 +1,10 @@
-//! Запис відеоповідомлень («кружечків»): `ffmpeg` бере камеру (v4l2) і мікрофон
-//! (PulseAudio/PipeWire), обрізає кадр до квадрата й пише MP4 (H.264 + AAC), а паралельно
-//! віддає в stdout маленьке дзеркальне прев'ю RGBA для круглого вікна в інтерфейсі.
+//! Video message (“round video”) recording: `ffmpeg` takes the camera (v4l2) and microphone
+//! (PulseAudio/PipeWire), crops the frame to a square and writes MP4 (H.264 + AAC), while also
+//! streaming a small mirrored RGBA preview to stdout for the round window in the UI.
 //!
-//! Камеру вибирають у налаштуваннях; `GLASSGRAM_CAMERA` її перекриває (`test` — тестова картинка).
-//! Пристрої й формати входу ffmpeg свої на кожній ОС: v4l2 + PulseAudio на Linux,
-//! DirectShow на Windows, AVFoundation на macOS.
+//! The camera is chosen in settings; `GLASSGRAM_CAMERA` overrides it (`test` gives a test pattern).
+//! ffmpeg input devices and formats differ per OS: v4l2 + PulseAudio on Linux,
+//! DirectShow on Windows, AVFoundation on macOS.
 
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -13,26 +13,26 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use crate::i18n::{l, lf};
 
-/// Сторона записаного відео (як у Telegram).
+/// Side of the recorded video (as in Telegram).
 pub const SIDE: u32 = 384;
-/// Сторона прев'ю в пікселях.
+/// Side of the preview in pixels.
 pub const PREVIEW: usize = 240;
-/// Найдовше відеоповідомлення.
+/// Longest video message.
 pub const MAX_SECS: f64 = 60.0;
 const MIN_SECS: f64 = 1.0;
 
-/// Камера, яку можна вибрати в налаштуваннях.
+/// A camera that can be chosen in settings.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Camera {
-    /// Що передати ffmpeg як вхід (шлях, ім'я DirectShow чи індекс AVFoundation).
+    /// What to pass to ffmpeg as input (path, DirectShow name or AVFoundation index).
     pub id: String,
     pub name: String,
 }
 
-/// Камери в системі.
+/// Cameras in the system.
 #[cfg(target_os = "linux")]
 pub fn list() -> Vec<Camera> {
-    // Кожна веб-камера має кілька вузлів /dev/video*; знімає кадри той, що з index 0.
+    // Each webcam has several /dev/video* nodes; the one with index 0 captures frames.
     let Ok(dir) = std::fs::read_dir("/sys/class/video4linux") else { return Vec::new() };
     let mut out: Vec<Camera> = dir
         .flatten()
@@ -46,13 +46,13 @@ pub fn list() -> Vec<Camera> {
     out
 }
 
-/// Камери в системі (зі списку пристроїв DirectShow чи AVFoundation, який друкує ffmpeg).
+/// Cameras in the system (from the DirectShow or AVFoundation device list that ffmpeg prints).
 #[cfg(not(target_os = "linux"))]
 pub fn list() -> Vec<Camera> {
     ffmpeg_devices(true).into_iter().map(|(id, name)| Camera { id, name }).collect()
 }
 
-/// Пристрої з виводу `ffmpeg -list_devices`: (id для `-i`, назва); `video` — камери чи мікрофони.
+/// Devices from `ffmpeg -list_devices` output: (id for `-i`, name); `video` selects cameras or microphones.
 #[cfg(not(target_os = "linux"))]
 fn ffmpeg_devices(video: bool) -> Vec<(String, String)> {
     #[cfg(target_os = "windows")]
@@ -63,11 +63,11 @@ fn ffmpeg_devices(video: bool) -> Vec<(String, String)> {
     parse_devices(&String::from_utf8_lossy(&out.stderr), video)
 }
 
-/// Розбір списку пристроїв ffmpeg для DirectShow (`"Назва" (video)`) і AVFoundation (`[0] Назва`).
+/// Parses ffmpeg's device list for DirectShow (`"Name" (video)`) and AVFoundation (`[0] Name`).
 #[cfg_attr(target_os = "linux", allow(dead_code))]
 fn parse_devices(log: &str, video: bool) -> Vec<(String, String)> {
     let mut out = Vec::new();
-    // AVFoundation ділить список заголовками «video devices» / «audio devices».
+    // AVFoundation splits the list with “video devices” / “audio devices” headers.
     let mut section_video = None;
     for line in log.lines() {
         if line.contains("AVFoundation video devices") {
@@ -95,7 +95,7 @@ fn parse_devices(log: &str, video: bool) -> Vec<(String, String)> {
     out
 }
 
-/// Аргументи ffmpeg для входу камери (відео) і мікрофона (аудіо) — по одному входу кожен.
+/// ffmpeg arguments for the camera (video) and microphone (audio) inputs, one input each.
 fn input_args(camera: &str) -> Vec<String> {
     let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
     let mut a = Vec::new();
@@ -103,7 +103,7 @@ fn input_args(camera: &str) -> Vec<String> {
         a.extend(s(&["-re", "-f", "lavfi", "-i", "testsrc2=size=640x480:rate=30"]));
     } else {
         #[cfg(target_os = "linux")]
-        // 640×480 при 30 кадрах/с підтримують майже всі веб-камери і в YUYV, і в MJPEG.
+        // 640×480 at 30 fps is supported by almost every webcam in both YUYV and MJPEG.
         a.extend(s(&["-f", "v4l2", "-framerate", "30", "-video_size", "640x480", "-i", camera]));
         #[cfg(target_os = "windows")]
         a.extend(s(&["-f", "dshow", "-video_size", "640x480", "-i", camera]));
@@ -126,7 +126,7 @@ pub struct RoundRecorder {
     child: Child,
     started: Instant,
     path: PathBuf,
-    /// Останній кадр прев'ю і його номер (щоб не вантажити текстуру двічі).
+    /// Latest preview frame and its number (so the texture isn't uploaded twice).
     frame: Arc<Mutex<(u64, Vec<u8>)>>,
 }
 
@@ -136,7 +136,7 @@ pub struct Round {
 }
 
 impl RoundRecorder {
-    /// `camera` — id з `list()`; порожній — перша знайдена камера.
+    /// `camera` is an id from `list()`; empty means the first camera found.
     pub fn start(camera: &str) -> Result<Self, String> {
         let path = std::env::temp_dir().join(format!("glassgram-round-{}-{}.mp4", std::process::id(), jiff::Timestamp::now().as_millisecond()));
         let camera = match std::env::var("GLASSGRAM_CAMERA") {
@@ -149,7 +149,7 @@ impl RoundRecorder {
         cmd.args(input_args(&camera));
         let side = SIDE;
         let pv = PREVIEW;
-        // Квадрат по центру кадру; прев'ю дзеркальне, як у фронтальній камері, запис — ні.
+        // Centred square crop; the preview is mirrored like a front camera, the recording is not.
         let graph = format!(
             "[0:v]crop='min(iw,ih)':'min(iw,ih)',scale={side}:{side},split=2[rec][p];[p]hflip,scale={pv}:{pv},fps=15[prev]"
         );
@@ -157,7 +157,7 @@ impl RoundRecorder {
         cmd.args(["-map", "[rec]", "-map", "1:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p"]);
         cmd.args(["-c:a", "aac", "-b:a", "64k", "-ac", "1", "-t", &MAX_SECS.to_string(), "-movflags", "+faststart", "-y"]);
         cmd.arg(&path);
-        // `-t` діє лише на наступний вихід — прев'ю обмежуємо окремо, інакше ffmpeg не завершиться сам.
+        // `-t` only applies to the next output, so the preview is limited separately, otherwise ffmpeg never exits on its own.
         cmd.args(["-map", "[prev]", "-t", &MAX_SECS.to_string(), "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1"]);
         let mut child = cmd
             .stdin(Stdio::piped())
@@ -183,24 +183,24 @@ impl RoundRecorder {
         self.started.elapsed().as_secs_f64()
     }
 
-    /// Новий кадр прев'ю, якщо він з'явився після `seen`.
+    /// New preview frame, if one appeared after `seen`.
     pub fn frame_after(&self, seen: u64) -> Option<(u64, Vec<u8>)> {
         let f = self.frame.lock().unwrap();
         (f.0 > seen).then(|| (f.0, f.1.clone()))
     }
 
-    /// Чи ffmpeg ще пише (інакше — камера зайнята чи відсутня, або досягнуто ліміт).
+    /// Whether ffmpeg is still writing (otherwise the camera is busy or missing, or the limit was reached).
     pub fn alive(&mut self) -> bool {
         matches!(self.child.try_wait(), Ok(None))
     }
 
-    /// Зупинити й дописати файл. `None` — закоротко або не вдалося.
+    /// Stop and finalize the file. `None` if too short or failed.
     pub fn finish(mut self) -> Option<Round> {
         let duration = self.elapsed().min(MAX_SECS);
         if let Some(mut stdin) = self.child.stdin.take() {
             let _ = stdin.write_all(b"q");
         }
-        // Після ліміту ffmpeg уже вийшов сам — це теж успіх.
+        // After the limit ffmpeg has already exited on its own; that is a success too.
         let ok = self.child.wait().is_ok_and(|s| s.success());
         let size = std::fs::metadata(&self.path).map_or(0, |m| m.len());
         if !ok || duration < MIN_SECS || size == 0 {

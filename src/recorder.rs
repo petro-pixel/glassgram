@@ -1,6 +1,6 @@
-//! Запис голосових: `ffmpeg` бере звук із PulseAudio/PipeWire і пише OGG/Opus,
-//! а паралельно віддає PCM 8 кГц у stdout — з нього рахуємо рівень для індикатора
-//! і хвильову форму для Telegram.
+//! Voice recording: `ffmpeg` takes audio from PulseAudio/PipeWire and writes OGG/Opus,
+//! while also streaming 8 kHz PCM to stdout, used for the level meter
+//! and the waveform for Telegram.
 
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -9,31 +9,31 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use crate::i18n::{l, lf};
 
-/// Скільки семплів (8 кГц) в одному стовпчику рівня — 50 мс.
+/// Samples (8 kHz) per level bar: 50 ms.
 const CHUNK: usize = 400;
-/// Коротші записи не надсилаємо, як Telegram Desktop.
+/// Shorter recordings are not sent, as in Telegram Desktop.
 pub const MIN_SECS: f64 = 0.7;
-/// Стовпчиків у хвильовій формі повідомлення.
+/// Bars in the message waveform.
 const WAVE_BARS: usize = 100;
 
 pub struct Recorder {
     child: Child,
     started: Instant,
     path: PathBuf,
-    /// Пікові рівні 0..1 кожні 50 мс.
+    /// Peak levels 0..1 every 50 ms.
     levels: Arc<Mutex<Vec<f32>>>,
 }
 
-/// Готовий запис.
+/// A finished recording.
 pub struct Voice {
     pub path: PathBuf,
     pub duration: f64,
-    /// Рівні 0..31.
+    /// Levels 0..31.
     pub waveform: Vec<u8>,
 }
 
 impl Voice {
-    /// Видалити запис, не надсилаючи.
+    /// Delete the recording without sending.
     pub fn discard(self) {
         let _ = std::fs::remove_file(&self.path);
     }
@@ -70,21 +70,21 @@ impl Recorder {
         self.started.elapsed().as_secs_f64()
     }
 
-    /// Останні `n` рівнів (0..1) для живого індикатора.
+    /// Last `n` levels (0..1) for the live meter.
     pub fn recent(&self, n: usize) -> Vec<f32> {
         let l = self.levels.lock().unwrap();
         l[l.len().saturating_sub(n)..].to_vec()
     }
 
-    /// Чи ffmpeg ще пише (інакше — немає мікрофона чи PulseAudio).
+    /// Whether ffmpeg is still writing (otherwise there is no microphone or PulseAudio).
     pub fn alive(&mut self) -> bool {
         matches!(self.child.try_wait(), Ok(None))
     }
 
-    /// Зупинити й дописати файл. `None` — запис закороткий або не вдався.
+    /// Stop and finalize the file. `None` if the recording is too short or failed.
     pub fn finish(mut self) -> Option<Voice> {
         let duration = self.elapsed();
-        // «q» — штатна зупинка ffmpeg: він закриває контейнер OGG коректно.
+        // “q” is ffmpeg's normal stop: it closes the OGG container properly.
         if let Some(mut stdin) = self.child.stdin.take() {
             let _ = stdin.write_all(b"q");
         }
@@ -106,7 +106,7 @@ impl Recorder {
 
 impl Drop for Recorder {
     fn drop(&mut self) {
-        // Запис не завершено (вікно закрили посеред запису) — прибираємо недописаний файл.
+        // Recording not finished (window closed mid-recording), so remove the partial file.
         if matches!(self.child.try_wait(), Ok(None)) {
             let _ = self.child.kill();
             let _ = self.child.wait();
@@ -115,7 +115,7 @@ impl Drop for Recorder {
     }
 }
 
-/// Пікові рівні → `WAVE_BARS` значень 0..31, нормованих за найгучнішим місцем.
+/// Peak levels → `WAVE_BARS` values 0..31, normalized to the loudest point.
 fn waveform(levels: &[f32]) -> Vec<u8> {
     if levels.is_empty() {
         return Vec::new();
@@ -131,7 +131,7 @@ fn waveform(levels: &[f32]) -> Vec<u8> {
     bars.iter().map(|v| (v / max * 31.0).round() as u8).collect()
 }
 
-/// Чи є `ffmpeg` для запису.
+/// Whether `ffmpeg` is available for recording.
 pub fn available() -> bool {
     Command::new("ffmpeg").arg("-version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
 }

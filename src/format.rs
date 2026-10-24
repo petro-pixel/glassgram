@@ -1,11 +1,11 @@
-//! Форматування тексту: сутності Telegram ↔ власні проміжки, розмітка в стилі Telegram Desktop
-//! (`**жирний**`, `__курсив__`, `~~закреслений~~`, `||спойлер||`, `` `код` ``, ```` ```блок``` ````,
-//! `[текст](посилання)`) та побудова `LayoutJob` для egui.
+//! Text formatting: Telegram entities ↔ our own spans, Telegram Desktop style markup
+//! (`**bold**`, `__italic__`, `~~strike~~`, `||spoiler||`, `` `code` ``, ```` ```block``` ````,
+//! `[label](url)`) and building a `LayoutJob` for egui.
 
 use eframe::egui::{Color32, FontFamily, FontId, Stroke, TextFormat, text::LayoutJob};
 use grammers_client::tl;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Style {
     Bold,
     Italic,
@@ -15,26 +15,26 @@ pub enum Style {
     Pre,
     Spoiler,
     Quote,
-    /// Посилання, згадки, хештеги тощо — усе, що підсвічується акцентом.
+    /// Links, mentions, hashtags, etc.: everything highlighted with the accent.
     Link,
 }
 
-/// Проміжок форматування в байтових зміщеннях рядка `Msg::text`.
-#[derive(Debug, Clone, PartialEq)]
+/// A formatting span in byte offsets of the `Msg::text` string.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
     pub style: Style,
-    /// Куди веде клік: URL, `#хештег` або `@згадка`.
+    /// Where a click leads: a URL, `#hashtag` or `@mention`.
     pub target: Option<String>,
 }
 
-/// Назви сімейств шрифтів, що реєструються в `install_fonts`.
+/// Font family names registered in `install_fonts`.
 pub const BOLD: &str = "bold";
 pub const ITALIC: &str = "italic";
 pub const BOLD_ITALIC: &str = "bold-italic";
 
-/// Перетворює UTF-16-зміщення Telegram на байтові.
+/// Converts Telegram UTF-16 offsets to byte offsets.
 fn utf16_to_byte(text: &str, units: usize) -> usize {
     let mut n = 0;
     for (i, c) in text.char_indices() {
@@ -50,7 +50,7 @@ fn utf16_len(text: &str) -> i32 {
     text.encode_utf16().count() as i32
 }
 
-/// Сутності повідомлення → проміжки; `shift` — скільки байтів додано перед текстом (мітка медіа).
+/// Message entities → spans; `shift` is how many bytes were added before the text (media label).
 pub fn from_entities(text: &str, entities: &[tl::enums::MessageEntity], shift: usize) -> Vec<Span> {
     use tl::enums::MessageEntity as E;
     let body = &text[shift.min(text.len())..];
@@ -82,7 +82,7 @@ pub fn from_entities(text: &str, entities: &[tl::enums::MessageEntity], shift: u
             if start >= end {
                 return None;
             }
-            // Порожній target означає «сам текст сутності» (URL, @згадка, #хештег).
+            // An empty target means "the entity text itself" (URL, @mention, #hashtag).
             let target = url.map(|u| match u.as_str() {
                 "" => body[start..end].to_owned(),
                 "mailto:" => format!("mailto:{}", &body[start..end]),
@@ -93,7 +93,7 @@ pub fn from_entities(text: &str, entities: &[tl::enums::MessageEntity], shift: u
         .collect()
 }
 
-/// Маркери розмітки: (відкривач, закривач, стиль). Порядок важливий: ``` перед `.
+/// Markup markers: (opener, closer, style). Order matters: ``` before `.
 const MARKERS: [(&str, Style); 6] = [
     ("```", Style::Pre),
     ("`", Style::Code),
@@ -103,7 +103,7 @@ const MARKERS: [(&str, Style); 6] = [
     ("||", Style::Spoiler),
 ];
 
-/// Розбирає розмітку з поля вводу. Повертає чистий текст і сутності для Telegram.
+/// Parses markup from the input field. Returns plain text and entities for Telegram.
 pub fn parse(input: &str) -> (String, Vec<tl::enums::MessageEntity>) {
     let mut out = String::new();
     let mut ents = Vec::new();
@@ -130,9 +130,9 @@ fn entity(style: Style, offset: i32, length: i32, url: Option<String>) -> tl::en
 fn parse_into(input: &str, out: &mut String, ents: &mut Vec<tl::enums::MessageEntity>) {
     let mut rest = input;
     'outer: while !rest.is_empty() {
-        // [текст](url)
-        // Підпис — до першої `]`, і одразу за нею має бути `(`: інакше «[тег] … [x](url)»
-        // з'їв би весь текст між дужками.
+        // [label](url)
+        // The label runs to the first `]`, and `(` must follow right after it: otherwise «[тег] … [x](url)»
+        // would swallow all the text between the brackets.
         if let Some(after) = rest.strip_prefix('[')
             && let Some(close) = after.find(']')
             && after[close + 1..].starts_with('(')
@@ -151,7 +151,7 @@ fn parse_into(input: &str, out: &mut String, ents: &mut Vec<tl::enums::MessageEn
             let Some(after) = rest.strip_prefix(marker) else { continue };
             let Some(close) = after.find(marker).filter(|&c| c > 0) else { continue };
             let inner = &after[..close];
-            // Код і блок коду не розбираються далі, решта — рекурсивно.
+            // Code and code blocks are not parsed further, the rest recursively.
             let code = matches!(style, Style::Code | Style::Pre);
             if inner.trim().is_empty() {
                 continue;
@@ -174,7 +174,7 @@ fn parse_into(input: &str, out: &mut String, ents: &mut Vec<tl::enums::MessageEn
     }
 }
 
-/// Зворотне перетворення для редагування: текст + проміжки → розмітка.
+/// Reverse conversion for editing: text + spans → markup.
 pub fn to_markup(text: &str, spans: &[Span]) -> String {
     let marker = |s: &Span| match s.style {
         Style::Bold => Some(("**", "**".to_owned())),
@@ -198,7 +198,7 @@ pub fn to_markup(text: &str, spans: &[Span]) -> String {
             inserts.push((s.end, false, close));
         }
     }
-    // Закривачі йдуть раніше за відкривачі на тій самій позиції.
+    // Closers come before openers at the same position.
     inserts.sort_by_key(|(pos, open, _)| (*pos, *open));
     let mut out = String::with_capacity(text.len() + inserts.len() * 2);
     let mut last = 0;
@@ -211,7 +211,7 @@ pub fn to_markup(text: &str, spans: &[Span]) -> String {
     out
 }
 
-/// Будує `LayoutJob` з урахуванням проміжків. `revealed` — чи показано спойлери.
+/// Builds a `LayoutJob` taking spans into account. `revealed`: whether spoilers are shown.
 pub fn layout(text: &str, spans: &[Span], size: f32, color: Color32, link: Color32, wrap: f32, revealed: bool) -> LayoutJob {
     let mut job = LayoutJob::default();
     job.wrap.max_width = wrap;
@@ -263,7 +263,7 @@ pub fn layout(text: &str, spans: &[Span], size: f32, color: Color32, link: Color
     job
 }
 
-/// Проміжок під байтовою позицією (для кліків по посиланнях і спойлерах).
+/// The span under a byte position (for clicks on links and spoilers).
 pub fn span_at(spans: &[Span], byte: usize) -> Option<&Span> {
     spans
         .iter()
@@ -271,13 +271,13 @@ pub fn span_at(spans: &[Span], byte: usize) -> Option<&Span> {
         .find(|s| matches!(s.style, Style::Link | Style::Spoiler))
 }
 
-/// Байтова позиція символу за його індексом.
+/// Byte position of a character by its index.
 pub fn char_to_byte(text: &str, chars: usize) -> usize {
     text.char_indices().nth(chars).map_or(text.len(), |(i, _)| i)
 }
 
-/// Шрифт Ubuntu (Ubuntu Font Licence, `assets/fonts/UFL.txt`), вбудований у програму.
-/// Стандартні шрифти egui лишаються запасними — для емодзі та символів, яких немає в Ubuntu.
+/// Ubuntu font (Ubuntu Font Licence, `assets/fonts/UFL.txt`), embedded in the program.
+/// The default egui fonts stay as fallbacks, for emoji and symbols missing from Ubuntu.
 pub fn install_fonts(ctx: &eframe::egui::Context) {
     use eframe::egui::{FontData, FontDefinitions};
     use std::sync::Arc;

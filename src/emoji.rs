@@ -1,9 +1,9 @@
-//! Набір емодзі для панелі: категорії, як у Telegram Desktop, і швидкі реакції.
+//! Emoji set for the panel: categories as in Telegram Desktop, plus quick reactions.
 
-/// Реакції, доступні в більшості чатів (стандартні Telegram).
+/// Reactions available in most chats (Telegram's standard ones).
 pub const QUICK_REACTIONS: [&str; 10] = ["👍", "❤", "🔥", "😂", "😮", "😢", "🎉", "🙏", "👏", "👎"];
 
-/// (назва українською, англійською, емодзі)
+/// (Ukrainian name, English name, emoji)
 pub const CATEGORIES: [(&str, &str, &str); 7] = [
     (
         "Смайли",
@@ -42,7 +42,7 @@ pub const CATEGORIES: [(&str, &str, &str); 7] = [
     ),
 ];
 
-/// Емодзі категорії як окремі рядки (усі в списку — з одного символу).
+/// Category emoji as separate strings (every item in the list is a single character).
 pub fn list(chars: &str) -> Vec<String> {
     chars.chars().map(String::from).collect()
 }

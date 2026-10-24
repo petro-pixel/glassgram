@@ -1,8 +1,8 @@
-//! Справжнє розмиття під склом (wgpu).
+//! Real blur under the glass (wgpu).
 //!
-//! Кадр: фон рендериться шейдером в офскрін-текстуру → зменшується в 4 рази →
-//! двічі розмивається гаусом (H+V) → фон малюється на екран, а кожна скляна панель
-//! бере розмиту текстуру зі зсувом на краях (заломлення) та легкою хроматичною аберацією.
+//! Frame: the background is rendered by a shader into an offscreen texture → downscaled 4× →
+//! blurred twice with a Gaussian (H+V) → the background is drawn to the screen, and each glass panel
+//! samples the blurred texture with an offset at the edges (refraction) and slight chromatic aberration.
 
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -21,7 +21,7 @@ const MAX_PANELS: u32 = 512;
 struct BgU {
     size: [f32; 2],
     time: f32,
-    /// 1 — світла тема.
+    /// 1 means light theme.
     light: f32,
 }
 
@@ -74,7 +74,7 @@ pub struct GlassGpu {
     panel_count: u32,
 }
 
-/// Реєструє GPU-ресурси в рендерері egui. Повертає `false`, якщо wgpu недоступний.
+/// Registers GPU resources in the egui renderer. Returns `false` if wgpu is unavailable.
 pub fn install(cc: &eframe::CreationContext<'_>) -> bool {
     let Some(rs) = &cc.wgpu_render_state else { return false };
     let gpu = GlassGpu::new(&rs.device, rs.target_format);

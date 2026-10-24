@@ -1,79 +1,99 @@
 # Glassgram
 
-Десктопний клієнт Telegram на Rust з інтерфейсом у стилі **Liquid Glass**.
+**English** · [Українська](README.uk.md)
 
-- **MTProto**: [grammers](https://codeberg.org/Lonami/grammers): вхід за номером або QR-кодом, 2FA, чати, історія, відповіді, редагування й видалення, оновлення наживо
-- **Медіа**: аватарки, фото, стікери з дисковим кешем (`~/.local/share/glassgram/cache`); надсилання файлів і стікерів; голосові та аудіо з хвильовою формою, перемотуванням і швидкістю; відео, GIF, кружечки й webm-стікери прямо в чаті; запис голосових (потрібен ffmpeg з `ffplay`)
-- **Чати**: форуми з темами, коментарі в каналах, папки й архів, закріплення, вимкнення сповіщень, чернетки, статуси «в мережі» та «друкує…»
-- **Пошук**: глобальний (поле над списком чатів) і в чаті (🔍 у шапці)
-- **Форматування**: показ сутностей Telegram і розмітка під час надсилання
-- **Повідомлення**: пересилання, вибір кількох, тихе й відкладене надсилання, кнопки ботів, вставка з буфера, прогрес файлів
-- **Сповіщення**: системні (через `notify-send`), лічильник у заголовку вікна, іконка в треї
-- **Мови**: українська й англійська (`src/i18n.rs`)
-- **Акаунти**: кілька акаунтів, перемикання в меню під іменем у шапці (`src/accounts.rs`)
-- **Налаштування** (⚙): мова, тема (темна, світла, як у системі), масштаб інтерфейсу, сповіщення, автовідтворення, SOCKS5-проксі, конфіденційність, активні сеанси, локальний пароль; зберігаються в `~/.local/share/glassgram/settings`
-- **Скло**: справжнє розмиття через wgpu-шейдер (`src/blur.rs`, `src/glass.wgsl`); без wgpu — векторний фолбек
-- **UI**: egui / eframe (wgpu), власний рендер скла — `src/glass.rs`
+A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
-## Запуск
+- **MTProto**: [grammers](https://codeberg.org/Lonami/grammers): sign-in by phone number or QR code, 2FA, chats, history, replies, editing and deleting, live updates
+- **Media**: avatars, photos, stickers with a disk cache (`~/.local/share/glassgram/cache`); sending files and stickers; voice and audio with a waveform, seeking and speed; videos, GIFs, round videos and webm stickers right in the chat; voice recording (needs ffmpeg with `ffplay`)
+- **Chats**: forums with topics, channel comments, folders and archive, pinning, muting, drafts, "online" and "typing…" statuses
+- **Search**: global (the field above the chat list) and in-chat (🔍 in the header)
+- **Formatting**: Telegram entities are shown, markup is converted when sending
+- **Messages**: forwarding, multi-select, silent and scheduled sending, bot buttons, pasting from the clipboard, file progress
+- **Notifications**: system ones (via `notify-send`), a counter in the window title, a tray icon
+- **Languages**: Ukrainian and English (`src/i18n.rs`)
+- **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
+- **Settings** (⚙): language, theme (dark, light, system), interface scale, notifications, autoplay, SOCKS5 proxy, privacy, active sessions, local passcode; stored in `~/.local/share/glassgram/settings`
+- **Settings layout** as in Telegram Desktop: My Account (name, bio, username with availability check, profile photo) · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language
+- **Send queue**: text messages show up at once (clock), are retried while offline and survive a restart; failed ones get a red mark with Retry / Delete
+- **Glass**: real blur via a wgpu shader (`src/blur.rs`, `src/glass.wgsl`); without wgpu — a vector fallback
+- **UI**: egui / eframe (wgpu), our own glass renderer — `src/glass.rs`
+
+## Running
 
 ```sh
-cargo run --release -- --demo   # демо з вигаданими чатами, без мережі
-cargo run --release             # справжній акаунт
+cargo run --release -- --demo   # demo with made-up chats, no network
+cargo run --release             # real account
 ```
 
-Для справжнього акаунта потрібні `api_id` та `api_hash` з <https://my.telegram.org> → *API development tools*.
-Їх можна ввести у вікні входу або передати через змінні `TG_API_ID` / `TG_API_HASH`.
+A real account needs an `api_id` and `api_hash` from <https://my.telegram.org> → *API development tools*.
+Enter them in the sign-in window or pass them via the `TG_API_ID` / `TG_API_HASH` variables.
 
-Сесія та облікові дані зберігаються в `~/.local/share/glassgram/`.
+The session and credentials are stored in `~/.local/share/glassgram/`.
 
-## Структура
+## Structure
 
-| Файл | Що робить |
+| File | What it does |
 |---|---|
-| `src/backend.rs` | Потік з tokio, логін, діалоги, історія, оновлення; канали `Cmd` / `Ev` до UI |
-| `src/blur.rs`, `src/glass.wgsl` | GPU-розмиття: фон у текстуру → гаус → скляні панелі із заломленням |
-| `src/glass.rs` | Живий фон, скляні панелі (градієнт, спекулярний обід, ореол заломлення, тінь), кнопки, поля, аватарки |
-| `src/app.rs` | Екрани входу та чатів |
-| `src/player.rs` | Програвач голосових і аудіо через `ffplay`: пауза, перемотування, швидкість |
-| `src/video.rs` | Кадри відео через `ffmpeg` у текстуру egui: GIF, кружечки, відео, webm-стікери |
-| `src/camera.rs` | Запис відеоповідомлень: камера + мікрофон → MP4, кругле прев'ю |
-| `src/recorder.rs` | Запис голосових через `ffmpeg` (PulseAudio/PipeWire), рівень і хвильова форма |
-| `src/export.rs` | Експорт історії чату в HTML і JSON |
-| `src/settings.rs` | Налаштування та їх збереження |
-| `src/lock.rs` | Локальний пароль (сіль + SHA-256) |
-| `src/tray.rs`, `src/logo.rs` | Іконка в треї та логотип програми |
-| `src/icons.rs` | Векторні іконки (шляхи на сітці 24×24) |
-| `src/format.rs` | Сутності Telegram ↔ розмітка, текст із форматуванням для egui, шрифти |
-| `src/demo.rs` | Демо-дані |
+| `src/backend.rs` | Tokio thread: login, dialogs, history, updates; `Cmd` / `Ev` channels to the UI |
+| `src/backend/account.rs`, `src/backend/outbox.rs` | Own profile, username and photo; one send attempt from the queue |
+| `src/cache.rs` | Local cache of dialogs, messages and the send queue (SQLite via `libsql`) |
+| `src/blur.rs`, `src/glass.wgsl` | GPU blur: background into a texture → Gaussian → glass panels with refraction |
+| `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars |
+| `src/app.rs` | Sign-in and chat screens |
+| `src/app/chatview.rs`, `src/backend/chatview.rs` | Chat view extras: pinned bar and list, jump buttons (down / mentions / reactions), "Seen by", view counters, protected content |
+| `src/app/suggest.rs`, `src/backend/suggest.rs` | Link previews (in bubbles and above the composer), @mention and bot command suggestions, "Start" for bots |
+| `src/app/info.rs`, `src/backend/info.rs` | Chat info column: profile, members, shared media, per-chat notifications, leave / clear / delete |
+| `src/app/settings_pages.rs` | Settings pages (Telegram Desktop layout), My Account editor |
+| `src/app/hotkeys.rs` | Keyboard shortcuts |
+| `src/app/outbox.rs` | Send queue: pending/failed bubbles, retries with backoff |
+| `src/app/chatlist.rs` | Folder column and tabs, dragging pinned chats and folders, "New chat" |
+| `src/player.rs` | Voice and audio player via `ffplay`: pause, seeking, speed |
+| `src/video.rs` | Video frames via `ffmpeg` into an egui texture: GIFs, round videos, videos, webm stickers |
+| `src/camera.rs` | Video message recording: camera + microphone → MP4, round preview |
+| `src/recorder.rs` | Voice recording via `ffmpeg` (PulseAudio/PipeWire), level and waveform |
+| `src/export.rs` | Chat history export to HTML and JSON |
+| `src/settings.rs` | Settings and saving them |
+| `src/lock.rs` | Local passcode (salt + SHA-256) |
+| `src/tray.rs`, `src/logo.rs` | Tray icon and the app logo |
+| `src/icons.rs` | Vector icons (paths on a 24×24 grid) |
+| `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |
+| `src/demo.rs` | Demo data |
 
-## Керування
+## Controls
 
-- Права кнопка миші на повідомленні відкриває меню: відповісти, копіювати, редагувати, видалити.
-- Подвійний клік — відповісти.
-- Esc скасовує відповідь або редагування й закриває панель стікерів.
-- 📎 — надіслати файли (або перетягніть їх у вікно); текст із поля вводу стане підписом.
-- 🙂 — панель стікерів.
-- Клік по фото чи файлу — завантажити в «Завантаження» і відкрити.
-- Права кнопка миші на чаті: закріпити, вимкнути сповіщення, позначити прочитаним, архівувати.
-- Розмітка в полі вводу: `**жирний**`, `__курсив__`, `~~закреслений~~`, `||спойлер||`, `` `код` ``, ```` ```блок``` ````, `[текст](https://…)`.
-- Клік по хештегу шукає його в чаті, по команді бота — надсилає її.
-- Права кнопка на «Надіслати»: без звуку або запланувати.
-- «Вибрати» в меню повідомлення вмикає режим вибору; Esc виходить із нього.
-- Enter надсилає, Shift+Enter — новий рядок.
-- Папки: «+» праворуч від вкладок — нова; права кнопка на вкладці — редагувати чи видалити.
-- Ctrl+V із картинкою чи скопійованими файлами надсилає їх.
-- ▶ на голосовому чи аудіо грає його; клік по хвилі перемотує, чип «1×» змінює швидкість. Клік по відео грає його в бульбашці; «Відкрити в програвачі» — у меню.
-- 🎤 (кнопка «Надіслати» при порожньому полі) починає запис голосового; ➤ надсилає, ■ зупиняє для прослуховування, Esc скасовує.
-- Права кнопка на мікрофоні — записати відеоповідомлення (камера — у налаштуваннях або `GLASSGRAM_CAMERA`).
+- Right-click a message for the menu: reply, copy, edit, delete.
+- Double-click — reply.
+- Esc cancels a reply or edit and closes the sticker panel.
+- 📎 — send files (or drag them into the window); the composer text becomes the caption.
+- 🙂 — sticker panel.
+- Click a photo or file — download it to Downloads and open it.
+- Right-click a chat: pin, mute, mark as read, archive.
+- Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat), shared media tabs, leave / clear history / delete chat.
+- Composer markup: `**bold**`, `__italic__`, `~~strike~~`, `||spoiler||`, `` `code` ``, ```` ```block``` ````, `[text](https://…)`.
+- Clicking a hashtag searches for it in the chat; clicking a bot command sends it.
+- `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu.
+- A link preview appears above the composer; ✕ sends the message without it.
+- Right-click "Send": send silently or schedule.
+- "Select" in the message menu turns on selection mode; Esc leaves it.
+- Enter sends, Shift+Enter — new line.
+- Hotkeys (as in Telegram Desktop): Ctrl+F — search in the chat (or the chat list), Ctrl+K — chat list search, Ctrl+1…9 — folders, Alt+↑/↓ or Ctrl+Tab / Ctrl+Shift+Tab — previous/next chat, Ctrl+E or ↑ in an empty composer — edit your last message, Esc — close the topmost panel, then the chat.
+- In `--demo`, a message containing `#offline` pretends there is no network (clock → retries → red mark).
+- Folders: "+" to the right of the tabs (or at the bottom of the column) — new; right-click a folder — edit or delete; dragging changes the order. Tabs on top or a column on the left — in Settings.
+- Pinned chats can be dragged to change their order (in folders and in the archive too).
+- ✎ next to search — "New group", "New channel", "Contacts".
+- Ctrl+V with an image or copied files sends them.
+- ▶ on a voice or audio message plays it; clicking the waveform seeks, the "1×" chip changes the speed. Clicking a video plays it in the bubble; "Open in player" is in the menu.
+- 🎤 (the "Send" button when the composer is empty) starts voice recording; ➤ sends, ■ stops for review, Esc cancels.
+- Right-click the microphone — record a video message (camera — in Settings or `GLASSGRAM_CAMERA`).
 
-## Що вже є і що далі
+## What's done and what's next
 
-Повна дорожня карта з пріоритетами й оцінкою часу — у [ROADMAP.md](ROADMAP.md).
-Правила для агентів і дизайн-код — у [AGENTS.md](AGENTS.md).
+The full roadmap with priorities and time estimates is in [ROADMAP.md](ROADMAP.md).
+Rules for agents and the design code are in [AGENTS.md](AGENTS.md).
 
-## Ліцензія
+## License
 
-GPL-3.0-or-later, як і в Telegram Desktop. Див. [LICENSE](LICENSE).
-Шрифт Ubuntu — під Ubuntu Font Licence, див. [assets/fonts/UFL.txt](assets/fonts/UFL.txt).
-Glassgram — неофіційний клієнт і не пов'язаний з Telegram FZ-LLC.
+GPL-3.0-or-later, like Telegram Desktop. See [LICENSE](LICENSE).
+The Ubuntu font is under the Ubuntu Font Licence, see [assets/fonts/UFL.txt](assets/fonts/UFL.txt).
+Glassgram is an unofficial client and is not affiliated with Telegram FZ-LLC.

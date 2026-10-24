@@ -1,5 +1,5 @@
-//! «Liquid glass»: напівпрозорі панелі з градієнтною заливкою, спекулярним ободом,
-//! внутрішнім «заломленням» на дальньому краю та м'якою тінню поверх живого фону.
+//! “Liquid glass”: translucent panels with a gradient fill, a specular rim,
+//! inner “refraction” on the far edge and a soft shadow over the live background.
 
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use std::sync::Arc;
@@ -14,12 +14,14 @@ use eframe::egui::{
 use crate::icons::{self, Icon};
 
 pub const ACCENT: Color32 = Color32::from_rgb(92, 124, 255);
-/// Світлий текст поверх темного — для переглядача фото, що завжди темний.
+/// Light text over dark, for the photo viewer, which is always dark.
 pub const ON_DARK: Color32 = Color32::from_rgb(244, 246, 255);
+/// Errors and destructive states (failed send, taken username); readable in both themes.
+pub const DANGER: Color32 = Color32::from_rgb(235, 87, 96);
 
 static LIGHT: AtomicBool = AtomicBool::new(false);
 
-/// Перемикає світлу тему для всіх кольорів нижче.
+/// Switches all colours below to the light theme.
 pub fn set_light(on: bool) {
     LIGHT.store(on, Ordering::Relaxed);
 }
@@ -36,27 +38,32 @@ pub fn ink_dim() -> Color32 {
     if is_light() { Color32::from_rgb(88, 96, 126) } else { Color32::from_rgb(178, 186, 214) }
 }
 
-/// Тон щільних панелей (поле вводу, меню, чипи).
+/// Tone of dense panels (input field, menus, chips).
 pub fn chrome() -> Color32 {
     if is_light() { Color32::from_rgb(250, 251, 255) } else { Color32::from_rgb(28, 32, 70) }
 }
 
-/// Легке підсвічування (наведення, заглушки): світле на темному, темне на світлому.
+/// Subtle highlight (hover, placeholders): light on dark, dark on light.
 pub fn veil(alpha: u8) -> Color32 {
     if is_light() { Color32::from_black_alpha((alpha as f32 * 0.6) as u8) } else { Color32::from_white_alpha(alpha) }
 }
 
-/// Тон і густина вхідних бульбашок.
+/// Tone and density of incoming bubbles.
 pub fn bubble_in() -> (Color32, u8) {
     if is_light() { (Color32::WHITE, 190) } else { (Color32::from_rgb(200, 210, 255), 28) }
 }
 
-/// Густина акцентного тону вихідних бульбашок.
+/// Density of the accent tone of outgoing bubbles.
 pub fn bubble_out_alpha() -> u8 {
     if is_light() { 70 } else { 140 }
 }
 
-/// Колір посилань у бульбашці.
+/// Destructive actions (leave, delete), readable in both themes.
+pub fn danger() -> Color32 {
+    if is_light() { Color32::from_rgb(214, 48, 72) } else { Color32::from_rgb(255, 110, 130) }
+}
+
+/// Link colour inside a bubble.
 pub fn link(out: bool) -> Color32 {
     match (is_light(), out) {
         (true, _) => Color32::from_rgb(28, 92, 210),
@@ -65,7 +72,7 @@ pub fn link(out: bool) -> Color32 {
     }
 }
 
-/// Напрям «джерела світла» (зверху зліва).
+/// Direction of the “light source” (top left).
 fn light() -> Vec2 {
     vec2(-0.45, -0.9).normalized()
 }
@@ -73,18 +80,18 @@ fn light() -> Vec2 {
 #[derive(Clone, Copy)]
 pub struct Glass {
     pub radius: f32,
-    /// Колір тонування; альфа задає «густину» скла.
+    /// Tint colour; alpha sets the glass “density”.
     pub tint: Color32,
     pub shadow: bool,
-    /// Сила верхнього відблиску (0..1).
+    /// Strength of the top highlight (0..1).
     pub shine: f32,
-    /// Непрозорість шару справжнього розмиття (0 — без нього).
+    /// Opacity of the real blur layer (0 means none).
     pub blur: f32,
 }
 
 static GPU: AtomicBool = AtomicBool::new(false);
 
-/// Вмикає GPU-розмиття (викликається, якщо wgpu-ресурси зареєстровано).
+/// Enables GPU blur (called if the wgpu resources were registered).
 pub fn set_gpu(enabled: bool) {
     GPU.store(enabled, Ordering::Relaxed);
 }
@@ -95,7 +102,7 @@ fn gpu() -> bool {
 
 impl Glass {
     pub fn panel(radius: f32) -> Self {
-        // На світлому фоні скло має бути густішим, інакше панелі зливаються з ним.
+        // On a light background glass must be denser, otherwise panels blend into it.
         let alpha = if is_light() { 125 } else { 22 };
         Self { radius, tint: Color32::from_rgba_unmultiplied(255, 255, 255, alpha), shadow: true, shine: 1.0, blur: 1.0 }
     }
@@ -131,9 +138,9 @@ fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
     Color32::from_rgba_premultiplied(l(a.r(), b.r()), l(a.g(), b.g()), l(a.b(), b.b()), l(a.a(), b.a()))
 }
 
-/// Точки заокругленого прямокутника за годинниковою стрілкою (екранні координати).
-/// Кількість сегментів дуги залежить від радіуса у фізичних пікселях (`ppp`), щоб хорда
-/// відхилялася від кола не більше ніж на 0.1 px — кути лишаються гладкими за будь-якого масштабу.
+/// Points of a rounded rectangle, clockwise (screen coordinates).
+/// The number of arc segments depends on the radius in physical pixels (`ppp`), so the chord
+/// deviates from the circle by at most 0.1 px and corners stay smooth at any scale.
 pub fn rounded_points(rect: Rect, r: f32, ppp: f32) -> Vec<Pos2> {
     let r = r.min(rect.width() / 2.0).min(rect.height() / 2.0).max(0.0);
     if r * ppp < 0.5 {
@@ -154,7 +161,7 @@ pub fn rounded_points(rect: Rect, r: f32, ppp: f32) -> Vec<Pos2> {
             pts.push(c + r * vec2(a.cos(), a.sin()));
         }
     }
-    // На стиках дуг (коли r дорівнює половині сторони) точки збігаються — прибираємо дублікати.
+    // Where arcs meet (when r equals half the side) points coincide, so duplicates are removed.
     pts.dedup_by(|a, b| a.distance(*b) < 1e-3);
     if pts.len() > 1 && pts[0].distance(pts[pts.len() - 1]) < 1e-3 {
         pts.pop();
@@ -162,9 +169,9 @@ pub fn rounded_points(rect: Rect, r: f32, ppp: f32) -> Vec<Pos2> {
     pts
 }
 
-/// Опуклий меш зі згладженим краєм: внутрішнє кільце з кольором `attr`, зовнішнє —
-/// прозоре, на відстані одного фізичного пікселя (як feathering у тесселяторі egui).
-/// `attr` повертає колір і UV для точки.
+/// Convex mesh with an anti-aliased edge: an inner ring coloured by `attr`, an outer one
+/// transparent, one physical pixel away (like feathering in egui's tessellator).
+/// `attr` returns the colour and UV for a point.
 fn aa_fan(points: &[Pos2], center: Pos2, ppp: f32, tex: TextureId, attr: impl Fn(Pos2) -> (Color32, Pos2)) -> Mesh {
     let mut mesh = Mesh::with_texture(tex);
     let n = points.len();
@@ -177,7 +184,7 @@ fn aa_fan(points: &[Pos2], center: Pos2, ppp: f32, tex: TextureId, attr: impl Fn
     mesh.vertices.push(vertex(center, c, uv));
     for i in 0..n {
         let (prev, cur, next) = (points[(i + n - 1) % n], points[i], points[(i + 1) % n]);
-        // Зовнішня нормаль для обходу за годинниковою стрілкою при осі y донизу.
+        // Outward normal for a clockwise walk with the y axis pointing down.
         let normal = |a: Pos2, b: Pos2| {
             let d = (b - a).normalized();
             vec2(d.y, -d.x)
@@ -201,12 +208,12 @@ fn aa_fan(points: &[Pos2], center: Pos2, ppp: f32, tex: TextureId, attr: impl Fn
     mesh
 }
 
-/// Опуклий згладжений меш з кольором, що залежить від позиції.
+/// Convex anti-aliased mesh with a position-dependent colour.
 fn fan(points: &[Pos2], center: Pos2, ppp: f32, color: impl Fn(Pos2) -> Color32) -> Mesh {
     aa_fan(points, center, ppp, TextureId::default(), |q| (color(q), WHITE_UV))
 }
 
-/// Радіальна пляма (еліпс) від `inner` у центрі до прозорого краю.
+/// Radial blob (ellipse) from `inner` at the centre to a transparent edge.
 fn radial(center: Pos2, radii: Vec2, inner: Color32) -> Mesh {
     let mut mesh = Mesh::default();
     const SEG: u32 = 48;
@@ -228,14 +235,14 @@ fn radial(center: Pos2, radii: Vec2, inner: Color32) -> Mesh {
     mesh
 }
 
-/// Нормаль межі заокругленого прямокутника в точці `p`.
+/// Normal of the rounded rectangle's edge at point `p`.
 fn edge_normal(rect: Rect, r: f32, p: Pos2) -> Vec2 {
     let inner = rect.shrink(r.min(rect.width() / 2.0).min(rect.height() / 2.0) - 0.01);
     let n = p - inner.clamp(p);
     if n.length_sq() < 1e-6 { vec2(0.0, -1.0) } else { n.normalized() }
 }
 
-/// Живий фон: темний градієнт і кольорові плями, що повільно пливуть.
+/// Live background: a dark gradient and slowly drifting coloured blobs.
 pub fn background(p: &Painter, rect: Rect, t: f64) {
     if gpu() {
         p.add(crate::blur::background_callback(rect, (t % 100_000.0) as f32, is_light()));
@@ -271,7 +278,7 @@ pub fn background(p: &Painter, rect: Rect, t: f64) {
     }
 }
 
-/// Основна функція: малює скляну поверхню.
+/// Main function: draws a glass surface.
 pub fn glass(p: &Painter, rect: Rect, g: Glass) {
     let r = g.radius.min(rect.width() / 2.0).min(rect.height() / 2.0);
     if g.shadow {
@@ -297,7 +304,7 @@ pub fn glass(p: &Painter, rect: Rect, g: Glass) {
         mix(lit, deep, k)
     })));
 
-    // Спекулярний відблиск у верхній частині.
+    // Specular highlight in the upper part.
     if g.shine > 0.0 && rect.height() > 18.0 {
         let gh = (rect.height() * 0.22).min(34.0);
         let center = pos2(rect.center().x, rect.top() + gh * 0.75);
@@ -305,7 +312,7 @@ pub fn glass(p: &Painter, rect: Rect, g: Glass) {
         p.add(Shape::mesh(radial(center, radii, Color32::from_white_alpha((22.0 * g.shine) as u8))));
     }
 
-    // Внутрішнє «заломлення»: світлий ореол на протилежному від світла краю.
+    // Inner “refraction”: a light halo on the edge opposite the light.
     let inset = rect.shrink(2.0);
     let ir = (r - 2.0).max(0.0);
     p.add(PathShape::closed_line(
@@ -320,7 +327,7 @@ pub fn glass(p: &Painter, rect: Rect, g: Glass) {
         },
     ));
 
-    // Обід зі спекулярним бліком.
+    // Rim with a specular glint.
     p.add(PathShape::closed_line(
         pts,
         PathStroke {
@@ -336,30 +343,30 @@ pub fn glass(p: &Painter, rect: Rect, g: Glass) {
     ));
 }
 
-/// Вміст кнопки: текст або векторна іконка.
+/// Button content: text or a vector icon.
 pub enum Label<'a> {
     Text(&'a str),
     Icon(Icon),
 }
 
-/// Скляна кнопка з текстом.
+/// Glass button with text.
 pub fn button(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt::Debug, label: &str, accent: bool, enabled: bool) -> Response {
     button_with(ui, rect, id, Label::Text(label), accent, enabled)
 }
 
-/// Скляна кнопка з векторною іконкою.
+/// Glass button with a vector icon.
 pub fn icon_button(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt::Debug, icon: Icon, accent: bool, enabled: bool) -> Response {
     button_with(ui, rect, id, Label::Icon(icon), accent, enabled)
 }
 
-/// Скляна кнопка з анімацією наведення та натискання.
+/// Glass button with hover and press animation.
 pub fn button_with(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt::Debug, label: Label<'_>, accent: bool, enabled: bool) -> Response {
     let resp = ui.interact(rect, ui.scope_id().with(id), if enabled { Sense::click() } else { Sense::hover() });
     let hover = ui.ctx().animate_bool(resp.id.with("hover"), resp.hovered() && enabled);
     let press = resp.is_pointer_button_down_on() && enabled;
     let rect = rect.expand(hover * 1.5).shrink(if press { 2.0 } else { 0.0 });
     let g = if accent {
-        // На світлому тлі акцент блідне — даємо густіший тон, щоб білий текст читався.
+        // On a light background the accent fades, so use a denser tone to keep white text readable.
         let base = match (enabled, is_light()) {
             (true, true) => 215.0,
             (true, false) => 150.0,
@@ -372,7 +379,7 @@ pub fn button_with(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt:
         Glass::tinted(rect.height() / 2.0, Color32::WHITE, (base + hover * 22.0) as u8).frosted(1.0)
     };
     glass(ui.painter(), rect, g);
-    // На акцентній кнопці текст завжди світлий — синій фон темний в обох темах.
+    // Text on the accent button is always light: the blue background is dark in both themes.
     let color = match (enabled, accent) {
         (true, true) => ON_DARK,
         (true, false) => ink(),
@@ -393,7 +400,7 @@ pub fn button_with(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt:
     resp
 }
 
-/// Поле вводу у скляній капсулі.
+/// Input field in a glass capsule.
 pub fn text_field(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, password: bool) -> Response {
     let focused_id = ui.scope_id().with(("field", hint));
     let focus = ui.ctx().animate_bool(focused_id, ui.memory(|m| m.has_focus(ui.scope_id().with(("edit", hint)))));
@@ -416,16 +423,16 @@ pub fn text_field(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, passwo
     ui.put(inner, edit)
 }
 
-/// Густина білого тону поля вводу залежно від фокуса.
+/// Density of the input field's white tone depending on focus.
 fn field_alpha(focus: f32) -> u8 {
     let base = if is_light() { 150.0 } else { 16.0 };
     (base + focus * 14.0) as u8
 }
 
-/// Шрифт поля вводу повідомлення.
+/// Font of the message input field.
 pub const AREA_FONT: f32 = 15.5;
 
-/// Багаторядкове поле: Enter без Shift повертає `submitted`, Shift+Enter переносить рядок.
+/// Multiline field: Enter without Shift returns `submitted`, Shift+Enter inserts a line break.
 pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str) -> (Response, bool) {
     let edit_id = ui.scope_id().with(("edit", hint));
     let focus = ui.ctx().animate_bool(ui.scope_id().with(("field", hint)), ui.memory(|m| m.has_focus(edit_id)));
@@ -435,7 +442,7 @@ pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str) -> (Res
         let cr = CornerRadius::same(radius as u8);
         ui.painter().rect_stroke(rect, cr, Stroke::new(1.5, rgba(ACCENT, (focus * 200.0) as u8)), StrokeKind::Outside);
     }
-    // Enter забираємо до TextEdit, інакше він вставить перенос рядка.
+    // Take Enter before TextEdit, otherwise it inserts a line break.
     let has_focus = ui.memory(|m| m.has_focus(edit_id));
     let submitted = has_focus && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
     let inner = rect.shrink2(vec2(20.0, 13.0));
@@ -471,7 +478,7 @@ const PALETTE: [(Color32, Color32); 7] = [
 
 pub fn name_color(seed: i64) -> Color32 {
     let (light, deep) = PALETTE[seed.unsigned_abs() as usize % PALETTE.len()];
-    // На білих бульбашках світла половина градієнта бліда — беремо темнішу.
+    // On white bubbles the light half of the gradient is pale, so use a darker one.
     if is_light() { mix(deep, Color32::BLACK, 0.15) } else { light }
 }
 
@@ -483,9 +490,9 @@ pub fn initials(name: &str) -> String {
         .collect()
 }
 
-/// Зображення, обрізане по заокругленому прямокутнику (UV-меш замість кліпу).
+/// Image clipped to a rounded rectangle (UV mesh instead of a clip).
 pub fn image_rounded(p: &Painter, rect: Rect, r: f32, tex: TextureId, tex_size: Vec2) {
-    // Режим "cover": заповнюємо прямокутник, обрізаючи зайве.
+    // "cover" mode: fill the rectangle, cropping the excess.
     let scale = (rect.width() / tex_size.x).max(rect.height() / tex_size.y);
     let uv_size = vec2(rect.width() / (tex_size.x * scale), rect.height() / (tex_size.y * scale));
     let uv_min = (Vec2::splat(1.0) - uv_size) / 2.0;
@@ -498,7 +505,7 @@ pub fn image_rounded(p: &Painter, rect: Rect, r: f32, tex: TextureId, tex_size: 
     p.add(Shape::mesh(aa_fan(&pts, rect.center(), ppp, tex, |q| (Color32::WHITE, uv(q)))));
 }
 
-/// Зображення, вписане в прямокутник зі збереженням пропорцій (для стікерів).
+/// Image fitted into a rectangle preserving aspect ratio (for stickers).
 pub fn image_contain(p: &Painter, rect: Rect, tex: &TextureHandle) {
     let s = tex.size_vec2();
     let k = (rect.width() / s.x).min(rect.height() / s.y);
@@ -506,7 +513,7 @@ pub fn image_contain(p: &Painter, rect: Rect, tex: &TextureHandle) {
     p.image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
 }
 
-/// Кругла аватарка: фото або градієнт з ініціалами, зі скляним ободом.
+/// Round avatar: photo or gradient with initials, with a glass rim.
 pub fn avatar(p: &Painter, center: Pos2, radius: f32, name: &str, seed: i64, icon: Option<Icon>, tex: Option<&TextureHandle>) {
     let rect = Rect::from_center_size(center, Vec2::splat(radius * 2.0));
     match tex {
@@ -528,7 +535,7 @@ pub fn avatar(p: &Painter, center: Pos2, radius: f32, name: &str, seed: i64, ico
     glass(p, rect, Glass { shine: 0.5, ..Glass::tinted(radius, Color32::WHITE, 0) });
 }
 
-/// QR-код на білій скляній підкладці.
+/// QR code on a white glass backing.
 pub fn qr(p: &Painter, rect: Rect, data: &str) {
     glass(p, rect, Glass::tinted(24.0, Color32::WHITE, 235).with_shadow());
     let Ok(code) = qrcode::QrCode::new(data.as_bytes()) else { return };
@@ -556,7 +563,7 @@ mod tests {
         let lo = rounded_points(rect, 20.0, 1.0);
         let hi = rounded_points(rect, 20.0, 2.0);
         assert!(hi.len() > lo.len());
-        // Капсула: стики дуг не дублюються.
+        // Capsule: arc joints are not duplicated.
         for w in hi.windows(2) {
             assert!(w[0].distance(w[1]) > 1e-3);
         }
@@ -569,7 +576,7 @@ mod tests {
         let pts = rounded_points(rect, 10.0, 1.0);
         let mesh = fan(&pts, rect.center(), 1.0, |_| Color32::WHITE);
         assert_eq!(mesh.vertices.len(), 1 + 2 * pts.len());
-        // Зовнішнє кільце лежить поза контуром і прозоре.
+        // The outer ring lies outside the contour and is transparent.
         let outer = &mesh.vertices[2];
         assert_eq!(outer.color, Color32::TRANSPARENT);
         assert!(!rect.shrink(0.1).contains(outer.pos));

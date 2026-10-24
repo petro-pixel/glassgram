@@ -30,22 +30,35 @@ use crate::tray::{self, TrayEv};
 use crate::video::{Clip, Spec};
 use crate::i18n::{l, lf};
 
+mod chatview;
+mod suggest;
+mod info;
+mod hotkeys;
+mod outbox;
+mod settings_pages;
+mod chatlist;
+use chatlist::{NewChat, Reorder, sort_chats};
+
 const GAP: f32 = 14.0;
 const HEADER_H: f32 = 62.0;
 const COMPOSER_H: f32 = 50.0;
-/// Найбільше рядків у полі вводу, далі — прокрутка.
+/// Maximum lines in the input field; beyond that it scrolls.
 const COMPOSER_ROWS: usize = 6;
 const COMPOSE_BAR_H: f32 = 42.0;
 const TABS_H: f32 = 32.0;
-/// Ідентифікатор вкладки «Архів» серед папок.
+/// Id of the "Archive" tab among folders.
 const ARCHIVE: i32 = i32::MIN;
-/// Пауза після введення, перш ніж шукати на сервері чи зберігати чернетку.
+/// Pause after typing before searching on the server or saving the draft.
 const SEARCH_DELAY: f64 = 0.45;
 const DRAFT_DELAY: f64 = 3.0;
+/// How often a changed chat list goes to the local cache (and always on exit).
+const CHATS_SAVE_EVERY: f64 = 30.0;
 const TYPING_EVERY: f64 = 5.0;
 const TYPING_TTL: f64 = 6.0;
 const JUMP_FLASH: f64 = 1.6;
-/// Розміри вбудованого відео в точках.
+/// How far off-screen we still draw bubbles: wheel scrolling can't outrun it and show emptiness.
+const VIRTUAL_MARGIN: f32 = 800.0;
+/// Inline video size in points.
 const VIDEO_PT: f32 = 340.0;
 const ROUND_PT: f32 = 220.0;
 const STICKER_PT: f32 = 160.0;
@@ -65,7 +78,7 @@ enum Screen {
     Main,
 }
 
-/// Що робить поле вводу: звичайне повідомлення, відповідь чи редагування.
+/// What the input field does: a plain message, a reply or an edit.
 #[derive(Clone, Copy, PartialEq)]
 enum Compose {
     New,
@@ -79,73 +92,87 @@ enum Action {
     Copy(String),
     Delete(i32),
     Download(i32),
-    /// Клік по посиланню, згадці, хештегу чи команді бота.
+    /// Click on a link, mention, hashtag or bot command.
     Open(String),
     RevealSpoiler(i32),
-    /// Увімкнути вибір з цим повідомленням або перемкнути його у вибраних.
+    /// Enable selection with this message or toggle it in the selection.
     Pick(i32),
     Forward(i32),
-    /// Кнопка бота: (повідомлення, рядок, стовпець).
+    /// Bot button: (message, row, column).
     Button(i32, usize, usize),
-    /// Відкрити фото в переглядачі.
+    /// Open a photo in the viewer.
     View(i32),
-    /// Поставити або зняти реакцію.
+    /// Add or remove a reaction.
     React(i32, String),
     Vote(i32, Vec<Vec<u8>>),
-    /// Дії над альбомом цілком.
+    /// Actions on the whole album.
     ForwardMany(Vec<i32>),
     DeleteMany(Vec<i32>),
     PickMany(Vec<i32>),
     OpenMap(f64, f64),
-    /// Позначити варіант в опитуванні з кількома відповідями.
+    /// Tick an option in a multiple-answer poll.
     TogglePoll(i32, Vec<u8>),
     Copy2(String, &'static str),
-    /// Програти / пауза медіа (відео відкривається в системному програвачі).
+    /// Play / pause media (video opens in the system player).
     Play(i32),
-    /// Перемотати поточне аудіо до частки тривалості.
+    /// Seek the current audio to a fraction of its duration.
     Seek(i32, f32),
     Speed,
-    /// Відкрити відео в системному програвачі.
+    /// Open a video in the system player.
     OpenExternal(i32),
-    /// Відкрити коментарі до допису каналу.
+    /// Open comments on a channel post.
     Comments(i32),
+    /// Pin: (message, silent, only for me).
+    Pin(i32, bool, bool),
+    Unpin(i32),
+    /// Show which group members have read it.
+    ReadBy(i32),
+    /// Queued message: send again / drop without sending.
+    Retry(i32),
+    Discard(i32),
 }
 
-/// Що планується: чернетка з поля вводу чи вже заплановане повідомлення (зміна часу).
+/// What is being scheduled: a draft from the input field or an already scheduled message (time change).
 #[derive(Clone, Copy, PartialEq)]
 enum ScheduleFor {
     Draft,
     Existing(i32),
 }
 
-/// Стан inline-запиту `@бот запит`.
+/// State of the inline query `@bot query`.
 struct Inline {
     bot: String,
     query: String,
     requested: Option<(String, String)>,
     results: Vec<InlineResult>,
     query_id: i64,
-    /// Для якого запиту прийшли результати.
+    /// Which query the results came for.
     results_for: Option<(String, String)>,
 }
 
-/// Як малювати бульбашку.
+/// How to draw a bubble.
 #[derive(Clone, Copy)]
 struct Look<'a> {
-    /// Позначені варіанти опитування з кількома відповідями.
+    /// Ticked options of multiple-answer polls.
     chosen: &'a [Vec<u8>],
     group: bool,
     revealed: bool,
-    /// Режим вибору: клік перемикає, а не відкриває.
+    /// Selection mode: a click toggles instead of opening.
     picking: bool,
     picked: bool,
     play: PlayView,
+    /// Ticks next to the time of our messages: `Some(true)` means read (✓✓).
+    ticks: Option<bool>,
+    /// Chat the bubble belongs to: menu items depend on it (pinning, protected content).
+    chat: Option<&'a ChatInfo>,
+    /// Queued message: `Some(false)` — sending (clock), `Some(true)` — failed (red mark).
+    pending: Option<bool>,
 }
 
-/// Стан програвання для картки медіа.
+/// Playback state for a media card.
 #[derive(Clone, Copy, Default)]
 struct PlayView {
-    /// Це повідомлення зараз у програвачі.
+    /// This message is in the player right now.
     current: bool,
     playing: bool,
     loading: bool,
@@ -154,7 +181,7 @@ struct PlayView {
     speed: f32,
 }
 
-/// Файл, що зараз надсилається.
+/// A file being sent right now.
 struct Upload {
     id: u64,
     name: String,
@@ -162,18 +189,18 @@ struct Upload {
     total: u64,
 }
 
-/// Вікно «Переслати в…».
+/// The "Forward to…" window.
 struct ForwardPicker {
     from: PeerId,
     ids: Vec<i32>,
     query: String,
 }
 
-/// Панель коментарів до допису каналу.
+/// Comments panel for a channel post.
 struct CommentsView {
     peer: PeerId,
     post: i32,
-    /// Група обговорення і її повідомлення-корінь (відомі після завантаження).
+    /// Discussion group and its root message (known after loading).
     discussion: Option<(PeerId, i32)>,
     msgs: Vec<Msg>,
     draft: String,
@@ -181,7 +208,7 @@ struct CommentsView {
     exhausted: bool,
 }
 
-/// Ім'я з посилання `t.me/<ім'я>` (без шляху далі — пости й запрошення відкриваємо в браузері).
+/// Name from a `t.me/<name>` link (no further path: posts and invites open in the browser).
 fn tme_username(url: &str) -> Option<String> {
     let rest = url.trim_start_matches("https://").trim_start_matches("http://");
     let name = rest.strip_prefix("t.me/").or_else(|| rest.strip_prefix("telegram.me/"))?.trim_end_matches('/');
@@ -189,7 +216,7 @@ fn tme_username(url: &str) -> Option<String> {
     ok.then(|| name.to_owned())
 }
 
-/// «1 коментар», «3 коментарі», «5 коментарів».
+/// "1 comment", "3 comments", "5 comments".
 fn comments_label(n: i32) -> String {
     let word = match (n % 10, n % 100) {
         (1, r) if r != 11 => l!("коментар", "comment"),
@@ -199,21 +226,28 @@ fn comments_label(n: i32) -> String {
     if n == 0 { l!("Залишити коментар", "Leave a comment").to_owned() } else { format!("{n} {word}") }
 }
 
-/// Вікно створення чи редагування папки.
+/// Folder create or edit window.
 struct FolderEdit {
     folder: Folder,
     new: bool,
     query: String,
 }
 
+/// Settings pages: the main list and the sections as in Telegram Desktop.
 #[derive(Clone, Copy, PartialEq)]
 enum SettingsTab {
-    General,
+    Main,
+    Account,
+    Notifications,
     Privacy,
+    Chats,
+    Folders,
+    Advanced,
     Devices,
+    Language,
 }
 
-/// Варіанти автоблокування в хвилинах (0 — лише на старті).
+/// Auto-lock options in minutes (0 means only at startup).
 fn lock_choices() -> [(u32, &'static str); 5] {
     [(0, l!("Лише на старті", "Only at startup")), (1, l!("1 хв", "1 min")), (5, l!("5 хв", "5 min")), (15, l!("15 хв", "15 min")), (60, l!("1 год", "1 hour"))]
 }
@@ -224,10 +258,10 @@ enum FolderMenu {
     Delete(i32),
 }
 
-/// Найдовша назва папки, яку приймає Telegram.
+/// Longest folder name Telegram accepts.
 const FOLDER_TITLE_MAX: usize = 12;
 
-/// Дії з контекстного меню чату в списку.
+/// Actions from a chat's context menu in the list.
 enum ChatAction {
     Pin(bool),
     Mute(bool),
@@ -237,7 +271,7 @@ enum ChatAction {
     Export,
 }
 
-/// Пошук: що введено, що вже запитано і що прийшло.
+/// Search: what was typed, what was already requested and what came back.
 #[derive(Default)]
 struct Search {
     query: String,
@@ -248,7 +282,7 @@ struct Search {
 }
 
 impl Search {
-    /// Чи настав час надіслати запит (після паузи у введенні).
+    /// Whether it's time to send the request (after a pause in typing).
     fn due(&self, now: f64) -> Option<String> {
         let q = self.query.trim();
         (q.chars().count() >= 2 && q != self.requested && now - self.edited_at > SEARCH_DELAY).then(|| q.to_owned())
@@ -267,12 +301,15 @@ pub struct App {
     backend: Option<Handle>,
     screen: Screen,
     busy: bool,
+    /// The chat list changed since the last cache snapshot.
+    chats_dirty: bool,
+    chats_saved_at: f64,
     api_id: String,
     api_hash: String,
     phone: String,
     code: String,
     password: String,
-    /// (текст, час появи, чи помилка)
+    /// (text, time shown, is error)
     toast: Option<(String, f64, bool)>,
     me: String,
     chats: Vec<ChatInfo>,
@@ -282,17 +319,17 @@ pub struct App {
     textures: HashMap<ImgKey, TextureHandle>,
     loading_older: bool,
     search: Search,
-    /// Пошук у відкритому чаті (`None` — панель закрита).
+    /// Search in the open chat (`None` means the panel is closed).
     chat_search: Option<Search>,
     draft: String,
-    /// Чернетка, яку востаннє збережено на сервері для відкритого чату.
+    /// Draft last saved on the server for the open chat.
     draft_synced: String,
     draft_edited_at: f64,
-    /// Чернетка, відкладена на час редагування повідомлення.
+    /// Draft set aside while a message is being edited.
     edit_stash: String,
     typing: HashMap<PeerId, (String, f64)>,
     typing_sent_at: f64,
-    /// (чат, повідомлення, коли почали перехід)
+    /// (chat, message, when the jump started)
     jump: Option<(PeerId, i32, f64)>,
     revealed: HashSet<(PeerId, i32)>,
     compose: Compose,
@@ -305,44 +342,46 @@ pub struct App {
     stickers_requested: bool,
     uploads: Vec<Upload>,
     next_upload: u64,
-    /// Вибрані повідомлення відкритого чату.
+    /// Selected messages of the open chat.
     picked: Vec<i32>,
     forward: Option<ForwardPicker>,
-    /// Відкрите вікно планування: для чого й введений час «ГГ:ХХ».
+    /// Open scheduling window: what for, and the typed time "HH:MM".
     schedule: Option<(ScheduleFor, String)>,
     scheduled: HashMap<PeerId, Vec<Msg>>,
     scheduled_open: bool,
     viewer: Option<Viewer>,
     inline: Option<Inline>,
     inline_edited_at: f64,
-    /// Вкладка емодзі в панелі стікерів.
+    /// Emoji tab in the sticker panel.
     emoji_tab: bool,
-    /// Позначені, але ще не надіслані варіанти в опитуваннях з кількома відповідями.
+    /// Options ticked but not yet sent in multiple-answer polls.
     multi_vote: HashMap<(PeerId, i32), Vec<Vec<u8>>>,
     settings: Settings,
     settings_open: bool,
     title_unread: usize,
-    /// Файли з системного діалогу: (чат, файли, без стиснення).
+    /// Files from the system dialog: (chat, files, uncompressed).
     picked_tx: mpsc::Sender<(PeerId, Vec<PathBuf>, bool)>,
     picked_rx: mpsc::Receiver<(PeerId, Vec<PathBuf>, bool)>,
     player: Player,
-    /// Чи є `ffplay` для звуку.
+    /// Whether `ffplay` is available for sound.
     can_play: bool,
-    /// Медіа, вже завантажені в кеш.
+    /// Media already downloaded to the cache.
     media: HashMap<(PeerId, i32), PathBuf>,
-    /// Медіа, що вантажаться, і що зробити після: `true` — відкрити в системному програвачі.
+    /// Media being downloaded, and what to do afterwards: `true` means open in the system player.
     media_wanted: HashMap<(PeerId, i32), bool>,
-    /// Медіа, що вантажаться для автопрогравання (GIF, кружечки, відео-стікери).
+    /// Media being downloaded for autoplay (GIFs, round videos, video stickers).
     media_loading: HashSet<(PeerId, i32)>,
-    /// Кадри відео, що зараз на екрані.
+    /// Video frames currently on screen.
     clips: HashMap<(PeerId, i32), Clip>,
-    /// Повідомлення з відео, видимі в цьому кадрі (заповнюється під час малювання).
+    /// Messages with video visible in this frame (filled during drawing).
     clip_wanted: RefCell<Vec<(PeerId, i32)>>,
-    /// Запис голосового в чат.
+    /// Measured heights of history rows (keyed by the row's first message), for virtualization.
+    row_h: RefCell<HashMap<(PeerId, i32), f32>>,
+    /// Voice message recording into a chat.
     recorder: Option<(PeerId, Recorder)>,
-    /// Записане, але ще не надіслане голосове (попереднє прослуховування).
+    /// Recorded but not yet sent voice message (preview playback).
     voice_draft: Option<(PeerId, Voice)>,
-    /// Запис відеоповідомлення: чат, процес, текстура прев'ю й номер останнього кадру.
+    /// Video message recording: chat, process, preview texture and number of the last frame.
     round_rec: Option<(PeerId, RoundRecorder)>,
     round_tex: Option<TextureHandle>,
     round_seen: u64,
@@ -351,40 +390,82 @@ pub struct App {
     tray_rx: mpsc::Receiver<TrayEv>,
     folder_edit: Option<FolderEdit>,
     accounts: Accounts,
-    /// Відкрите меню акаунтів під іменем у шапці.
+    /// Open accounts menu under the name in the header.
     accounts_open: bool,
     accounts_anchor: Rect,
-    /// Демо-режим: без мережі й без перемикання акаунтів.
+    /// Demo mode: no network and no account switching.
     demo: bool,
-    /// Висота поля вводу в минулому кадрі — під неї резервується місце внизу історії.
+    /// Input field height in the last frame; space is reserved for it at the bottom of the history.
     composer_h: f32,
-    /// Теми форумів і відкрита тема в поточному чаті (`None` — список тем).
+    /// Forum topics and the open topic in the current chat (`None` means the topic list).
     topics: HashMap<PeerId, Vec<Topic>>,
     topic: Option<i32>,
     topic_exhausted: HashSet<(PeerId, i32)>,
     comments: Option<CommentsView>,
-    /// Публічні чати з глобального пошуку за назвою.
+    /// Public chats from the global search by name.
     public_hits: Vec<ChatInfo>,
-    /// Вікно експорту: чат і чи вивантажувати медіа.
+    /// Export window: chat and whether to export media.
     export_ask: Option<(PeerId, bool)>,
-    /// Чати, що зараз експортуються.
+    /// Chats being exported right now.
     exporting: HashSet<PeerId>,
-    /// Вікно нової теми чи перейменування: (чат, тема або `None` для нової, назва, колір).
+    /// New topic or rename window: (chat, topic or `None` for a new one, name, color).
     topic_edit: Option<(PeerId, Option<i32>, String, u32)>,
     settings_tab: SettingsTab,
-    /// Камери для налаштувань (шукаємо, коли відкрито вкладку).
+    /// Cameras for settings (looked up when the tab is opened).
     cameras: Option<Vec<camera::Camera>>,
     sessions: Vec<Session>,
     privacy: HashMap<PrivacyKey, PrivacyState>,
-    /// Друге натискання підтверджує «Завершити всі інші сеанси».
+    /// A second press confirms "Terminate all other sessions".
     confirm_terminate: bool,
-    /// Поля локального пароля: новий, повтор, поточний (для вимкнення).
+    /// Local passcode fields: new, repeat, current (for disabling).
     pass_fields: [String; 3],
-    /// Інтерфейс заблоковано локальним паролем.
+    /// The interface is locked by a local passcode.
     locked: bool,
     lock_input: String,
     lock_error: bool,
     last_activity: f64,
+    /// Pinned messages per chat (oldest first) and which one the bar shows.
+    pins: HashMap<PeerId, Vec<Msg>>,
+    pin_shown: HashMap<PeerId, i32>,
+    /// The list of all pinned messages is open.
+    pins_open: bool,
+    /// Bar hidden by users who cannot unpin — until something new is pinned.
+    pins_hidden: HashSet<PeerId>,
+    /// Ids of unread mentions (`false`) and reactions (`true`), oldest first.
+    marks: HashMap<(PeerId, bool), Vec<i32>>,
+    /// The "@"/"❤" button was pressed while the list was still loading.
+    mark_wanted: Option<(PeerId, bool)>,
+    /// History is scrolled to the end (as of last frame); request to scroll down.
+    at_bottom: bool,
+    scroll_bottom: bool,
+    /// New messages that arrived while history was scrolled up.
+    unseen_below: usize,
+    /// "Seen by" popup: message and readers (`None` — still loading).
+    read_by: Option<(PeerId, i32, Option<Vec<(String, String)>>)>,
+    /// Composer helpers: link preview, @mentions, bot commands.
+    suggest: suggest::Suggest,
+    /// Chat info column (`None` = closed); follows the open chat.
+    info: Option<info::InfoPanel>,
+    /// Own profile for the settings header and "My account".
+    profile: backend::Profile,
+    profile_edit: Option<settings_pages::ProfileEdit>,
+    /// Profile photo picked in the system dialog.
+    photo_tx: mpsc::Sender<PathBuf>,
+    photo_rx: mpsc::Receiver<PathBuf>,
+    /// Send queue (`app/outbox.rs`) and the last local (negative) bubble id.
+    outbox: Vec<outbox::Pending>,
+    next_local: i32,
+    /// Ctrl+K: focus the chat list search field on the next frame.
+    focus_search: bool,
+    /// Pinned chat being dragged, with the folder it is dragged in.
+    pin_drag: Option<(Option<i32>, Reorder<PeerId>)>,
+    folder_drag: Option<Reorder<i32>>,
+    /// Open "New chat" menu, anchored to the pencil button.
+    new_chat_menu: Option<Rect>,
+    new_chat: Option<NewChat>,
+    contacts: Vec<ChatInfo>,
+    /// People search for "New chat": query and results.
+    contact_hits: (String, Vec<ChatInfo>),
 }
 
 impl App {
@@ -411,6 +492,7 @@ impl App {
             for (key, image) in demo::images() {
                 app.push_event(Ev::Image { key, image });
             }
+            app.push_event(Ev::Outbox(demo::outbox()));
             app.screen = Screen::Main;
             return app;
         }
@@ -418,7 +500,7 @@ impl App {
         app
     }
 
-    /// Бекенд для активного акаунта; з збереженими api_id/api_hash одразу підключаємося.
+    /// Backend for the active account; with saved api_id/api_hash we connect right away.
     fn start_backend(&mut self) {
         let session = accounts::session_path(self.accounts.active);
         self.backend = Some(backend::spawn(self.ctx.clone(), session));
@@ -430,24 +512,35 @@ impl App {
         }
     }
 
-    /// Перемкнутися на інший акаунт: зупинити бекенд і почати зі свіжого стану.
+    /// Switch to another account: stop the backend and start from a fresh state.
     fn switch_account(&mut self, id: u32) {
+        self.save_chats();
         self.send(Cmd::Shutdown);
         self.accounts.active = id;
         self.accounts.save();
         let tray = self.tray.take();
         let tray_rx = std::mem::replace(&mut self.tray_rx, mpsc::channel().1);
         let mut next = Self::fresh(self.ctx.clone(), self.settings.clone(), tray, tray_rx);
-        // Пароль уже введено в цьому запуску — інший акаунт не блокуємо.
+        // The passcode was already entered in this run, so don't lock the other account.
         next.locked = false;
         next.start_backend();
         *self = next;
     }
 
-    /// Меню акаунтів під іменем у шапці: перемикання й додавання.
+    /// Snapshot of the chat list to the cache: the next launch shows fresh previews and counters before the network.
+    fn save_chats(&mut self) {
+        if self.backend.is_none() || !matches!(self.screen, Screen::Main) || self.chats.is_empty() {
+            return;
+        }
+        self.chats_dirty = false;
+        let chats = self.chats.iter().filter(|c| c.joined).cloned().collect();
+        self.send(Cmd::CacheDialogs(chats));
+    }
+
+    /// Accounts menu under the name in the header: switching and adding.
     fn accounts_menu(&mut self, ui: &mut Ui) {
         let screen = ui.max_rect();
-        // Клік повз меню закриває його.
+        // A click outside the menu closes it.
         if ui.interact(screen, ui.scope_id().with("accounts-bg"), Sense::click()).clicked() {
             self.accounts_open = false;
             return;
@@ -495,20 +588,23 @@ impl App {
         }
     }
 
-    /// Додати акаунт: новий порожній запис і вхід у нього.
+    /// Add an account: a new empty entry and sign-in to it.
     fn add_account(&mut self) {
         let id = self.accounts.add();
         self.switch_account(id);
     }
 
-    /// Стан застосунку без акаунта: так починається запуск і перемикання акаунта.
+    /// App state without an account: launch and account switching start like this.
     fn fresh(ctx: egui::Context, settings: Settings, tray: Option<ksni::blocking::Handle<tray::Tray>>, tray_rx: mpsc::Receiver<TrayEv>) -> Self {
         let (picked_tx, picked_rx) = mpsc::channel();
+        let (photo_tx, photo_rx) = mpsc::channel();
         Self {
             ctx,
             backend: None,
             screen: Screen::Login(Step::Creds),
             busy: false,
+            chats_dirty: false,
+            chats_saved_at: 0.0,
             api_id: String::new(),
             api_hash: String::new(),
             phone: String::new(),
@@ -565,6 +661,7 @@ impl App {
             media_loading: HashSet::new(),
             clips: HashMap::new(),
             clip_wanted: RefCell::new(Vec::new()),
+            row_h: RefCell::new(HashMap::new()),
             recorder: None,
             voice_draft: None,
             round_rec: None,
@@ -586,7 +683,7 @@ impl App {
             export_ask: None,
             exporting: HashSet::new(),
             topic_edit: None,
-            settings_tab: SettingsTab::General,
+            settings_tab: SettingsTab::Main,
             cameras: None,
             sessions: Vec::new(),
             privacy: HashMap::new(),
@@ -596,6 +693,31 @@ impl App {
             lock_input: String::new(),
             lock_error: false,
             last_activity: 0.0,
+            pins: HashMap::new(),
+            pin_shown: HashMap::new(),
+            pins_open: false,
+            pins_hidden: HashSet::new(),
+            marks: HashMap::new(),
+            mark_wanted: None,
+            at_bottom: true,
+            scroll_bottom: false,
+            unseen_below: 0,
+            read_by: None,
+            suggest: Default::default(),
+            info: None,
+            profile: backend::Profile::default(),
+            profile_edit: None,
+            photo_tx,
+            photo_rx,
+            outbox: Vec::new(),
+            next_local: 0,
+            focus_search: false,
+            pin_drag: None,
+            folder_drag: None,
+            new_chat_menu: None,
+            new_chat: None,
+            contacts: Vec::new(),
+            contact_hits: Default::default(),
         }
     }
 
@@ -613,6 +735,21 @@ impl App {
         if !matches!(ev, Ev::Image { .. } | Ev::Qr(_)) {
             self.busy = false;
         }
+        if matches!(ev, Ev::NewMsg(_) | Ev::Edited(_) | Ev::Deleted { .. } | Ev::ReadInbox { .. } | Ev::ReadOutbox { .. } | Ev::Draft { .. } | Ev::Presence { .. }) {
+            self.chats_dirty = true;
+        }
+        // A fresh history page replaces the list: queued bubbles are put back after it.
+        let refreshed = match &ev {
+            Ev::History { peer, .. } | Ev::TopicHistory { peer, .. } => Some(*peer),
+            _ => None,
+        };
+        self.handle_event(ev);
+        if let Some(peer) = refreshed {
+            self.keep_outbox(peer);
+        }
+    }
+
+    fn handle_event(&mut self, ev: Ev) {
         match ev {
             Ev::NeedPhone => self.screen = Screen::Login(Step::Phone),
             Ev::NeedCode => self.screen = Screen::Login(Step::Code),
@@ -661,7 +798,11 @@ impl App {
                 let tex = self.ctx.load_texture(format!("{key:?}"), image, TextureOptions::LINEAR);
                 self.textures.insert(key, tex);
             }
+            ev @ (Ev::Contacts(_) | Ev::ContactResults { .. } | Ev::ChatCreated(_)) => self.chatlist_event(ev),
             Ev::Error(e) => {
+                if let Some(n) = &mut self.new_chat {
+                    n.busy = false;
+                }
                 if matches!(self.screen, Screen::Login(Step::Connecting)) {
                     self.screen = Screen::Login(Step::Creds);
                 }
@@ -693,7 +834,7 @@ impl App {
             Ev::Listened { peer, ids } => {
                 use grammers_client::session::types::PeerKind;
                 for (p, msgs) in &mut self.history {
-                    // Без чату id унікальні в межах акаунта для всього, крім каналів.
+                    // Without the chat, ids are unique within an account for everything except channels.
                     if peer.map_or(p.kind() != PeerKind::Channel, |x| x == *p) {
                         msgs.iter_mut().filter(|m| ids.contains(&m.id)).for_each(|m| m.media_unread = false);
                     }
@@ -742,7 +883,7 @@ impl App {
                 }
             }
             Ev::Draft { peer, text } => {
-                // Чернетку відкритого чату не чіпаємо, щоб не перебити введення.
+                // Don't touch the open chat's draft, so as not to interrupt typing.
                 if self.selected != Some(peer)
                     && let Some(c) = self.chat_mut(peer)
                 {
@@ -753,6 +894,11 @@ impl App {
                 if let Some(c) = self.chat_mut(peer) {
                     c.unread = unread;
                     c.unread_mark &= unread > 0;
+                }
+            }
+            Ev::ReadOutbox { peer, max_id } => {
+                if let Some(c) = self.chat_mut(peer) {
+                    c.read_out = c.read_out.max(max_id);
                 }
             }
             Ev::SearchResults { peer: None, query, hits } => self.search.accept(query, hits),
@@ -797,7 +943,7 @@ impl App {
                 if let Some(c) = self.comments.as_mut().filter(|c| c.peer == peer && c.post == post) {
                     c.discussion = Some((discussion, root));
                     c.loading = false;
-                    // Неповна сторінка — раніших коментарів більше немає.
+                    // Incomplete page: there are no earlier comments.
                     c.exhausted = msgs.len() < backend::PAGE;
                     if older {
                         let mut merged: Vec<Msg> = msgs.into_iter().filter(|m| !c.msgs.iter().any(|x| x.id == m.id)).collect();
@@ -815,12 +961,12 @@ impl App {
                 if older {
                     self.loading_older = false;
                 }
-                // Неповна сторінка — раніших повідомлень у темі більше немає.
+                // Incomplete page: there are no earlier messages in the topic.
                 if msgs.len() < backend::PAGE {
                     self.topic_exhausted.insert((peer, topic));
                 }
                 let last = msgs.last().map(|m| m.id);
-                // Теми ділять історію чату: зливаємо без дублікатів і тримаємо порядок за id.
+                // Topics share the chat history: merge without duplicates and keep order by id.
                 let list = self.history.entry(peer).or_default();
                 for m in msgs {
                     if !list.iter().any(|x| x.id == m.id) {
@@ -840,9 +986,14 @@ impl App {
             Ev::Privacy(key, state) => {
                 self.privacy.insert(key, state);
             }
+            ev @ (Ev::WebPreview { .. } | Ev::Mentions { .. } | Ev::BotCommands { .. }) => self.suggest_event(ev),
             Ev::Notice(text) => self.toast = Some((text, 0.0, false)),
+            ev @ (Ev::Pinned { .. } | Ev::PinnedChanged { .. } | Ev::UnreadMarks { .. } | Ev::ReadBy { .. } | Ev::Views { .. }) => self.chat_view_event(ev),
+            ev @ (Ev::ChatDetails { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
+                self.info_event(ev)
+            }
             Ev::LoggedOut => {
-                // Інші акаунти лишаються: прибираємо цей і переходимо до наступного.
+                // Other accounts remain: remove this one and move to the next.
                 if self.accounts.list.len() > 1 {
                     let gone = self.accounts.active;
                     self.accounts.remove(gone);
@@ -858,11 +1009,16 @@ impl App {
                 self.selected = None;
                 self.screen = Screen::Login(Step::Creds);
             }
+            Ev::Profile(p) => self.on_profile(p),
+            Ev::UsernameCheck { name, state } => self.on_username_check(name, state),
+            Ev::Outbox(list) => self.restore_outbox(list),
+            Ev::QueueSent { key, peer } => self.queue_sent(key, peer),
+            Ev::QueueFailed { key, error, retry } => self.queue_failed(key, error, retry),
         }
     }
 
     fn on_new_message(&mut self, m: Msg) {
-        // Новий коментар у відкритому обговоренні: відповідь на корінь або на інший коментар.
+        // New comment in the open discussion: a reply to the root or to another comment.
         if let Some(c) = self.comments.as_mut()
             && let Some((disc, root)) = c.discussion
             && m.peer == disc
@@ -881,7 +1037,7 @@ impl App {
             && (!open || !focused)
             && let Some(chat) = self.chats.iter().find(|c| c.id == m.peer && !c.muted)
         {
-            // Під локальним паролем не показуємо, від кого й що.
+            // Under a local passcode, don't show who sent what.
             if self.locked {
                 notify("Glassgram", l!("Нове повідомлення", "New message"));
             } else {
@@ -893,6 +1049,9 @@ impl App {
             && !list.iter().any(|x| x.id == m.id)
         {
             list.push(m.clone());
+            if open && !m.out && !self.at_bottom {
+                self.unseen_below += 1;
+            }
         }
         let label = match m.media.as_ref().map(|i| i.kind) {
             _ if m.photo => Some(l!("📷 Фото", "📷 Photo")),
@@ -919,11 +1078,11 @@ impl App {
                 if !open && !m.out {
                     chat.unread += 1;
                 }
-                // Як у Telegram: нове повідомлення повертає з архіву чати без вимкнених сповіщень.
+                // As in Telegram: a new message brings chats with unmuted notifications back from the archive.
                 if chat.archived && !chat.muted && !m.out {
                     chat.archived = false;
                 }
-                self.chats.sort_by_key(|c| (!c.pinned, -c.last_ts));
+                sort_chats(&mut self.chats);
             }
             None => self.send(Cmd::ReloadDialogs),
         }
@@ -941,6 +1100,7 @@ impl App {
         self.schedule = None;
         self.scheduled_open = false;
         self.inline = None;
+        self.suggest_reset();
         self.send(Cmd::LoadScheduled(id));
         if let Some(c) = self.chat_mut(id) {
             c.unread = 0;
@@ -949,6 +1109,7 @@ impl App {
         self.draft = self.chat_mut(id).map(|c| c.draft.clone()).unwrap_or_default();
         self.draft_synced = self.draft.clone();
         self.send(Cmd::OpenChat(id));
+        self.open_chat_view(id);
         self.topic = None;
         if self.chats.iter().any(|c| c.id == id && c.forum) {
             self.send(Cmd::LoadTopics(id));
@@ -962,7 +1123,7 @@ impl App {
         self.send(Cmd::OpenTopic { peer, topic, before: None });
     }
 
-    /// Панель коментарів: бульбашки з групи обговорення і поле для свого коментаря.
+    /// Comments panel: bubbles from the discussion group and a field for your own comment.
     fn comments_view(&mut self, ui: &mut Ui, rect: Rect) {
         let Some(c) = &self.comments else { return };
         ui.interact(rect, ui.scope_id().with("comments-bg"), Sense::click());
@@ -1006,7 +1167,7 @@ impl App {
                 });
                 let photo = self.textures.get(&ImgKey::Photo(m.peer, m.id));
                 let sticker = m.sticker.as_ref().and_then(|s| self.textures.get(&ImgKey::Sticker(s.0)));
-                let look = Look { chosen: &[], group: true, revealed: false, picking: false, picked: false, play: PlayView::default() };
+                let look = Look { chosen: &[], group: true, revealed: false, picking: false, picked: false, play: PlayView::default(), ticks: None, chat: None, pending: None };
                 if let Some(a) = bubble(ui, m, look, reply, photo, sticker) {
                     action = Some(a);
                 }
@@ -1030,12 +1191,12 @@ impl App {
             self.send(Cmd::Send { peer: disc, text, reply_to: Some(root), opts: SendOpts::default() });
             resp.request_focus();
         }
-        // Дії над коментарем (копіювати, реакція, завантажити) — у групі обговорення.
+        // Actions on a comment (copy, react, download) happen in the discussion group.
         if let Some(a) = action
             && let Some((disc, _)) = self.comments.as_ref().and_then(|c| c.discussion)
         {
             match a {
-                Action::Reply(_) | Action::Edit(_) | Action::Pick(_) | Action::Forward(_) | Action::Delete(_) => {}
+                Action::Reply(_) | Action::Edit(_) | Action::Pick(_) | Action::Forward(_) | Action::Delete(_) | Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) => {}
                 a => self.apply(disc, a),
             }
         }
@@ -1044,7 +1205,7 @@ impl App {
         }
     }
 
-    /// Підтвердження експорту: з медіа чи лише текст.
+    /// Export confirmation: with media or text only.
     fn export_view(&mut self, ui: &mut Ui) {
         let Some((peer, media)) = &mut self.export_ask else { return };
         let peer = *peer;
@@ -1076,7 +1237,7 @@ impl App {
         }
     }
 
-    /// Список тем форуму замість історії.
+    /// Forum topic list instead of the history.
     fn forum_view(&mut self, ui: &mut Ui, peer: PeerId, chat: &ChatInfo, rect: Rect) {
         let header = Rect::from_min_size(rect.min, vec2(rect.width(), HEADER_H));
         let list = Rect::from_min_max(pos2(rect.left(), header.bottom() + 10.0), rect.max);
@@ -1126,7 +1287,7 @@ impl App {
             self.open_topic(peer, t);
         }
         match edit {
-            // Перейменування відкриває вікно з поточною назвою.
+            // Renaming opens the window with the current name.
             Some(Cmd::EditTopic { id, title: None, closed: None, .. }) => {
                 let t = self.topics.get(&peer).and_then(|ts| ts.iter().find(|t| t.id == id));
                 self.topic_edit = t.map(|t| (peer, Some(id), t.title.clone(), t.color));
@@ -1139,7 +1300,7 @@ impl App {
         }
     }
 
-    /// Вікно нової теми або перейменування: назва й колір значка.
+    /// New topic or rename window: name and icon color.
     fn topic_editor(&mut self, ui: &mut Ui) {
         let Some((peer, id, title, color)) = &mut self.topic_edit else { return };
         let screen = ui.max_rect();
@@ -1157,7 +1318,7 @@ impl App {
         }
         let mut y = field.bottom() + 12.0;
         if id.is_none() {
-            // Колір значка можна задати лише під час створення.
+            // The icon color can only be set on creation.
             for (k, c) in TOPIC_COLORS.into_iter().enumerate() {
                 let center = pos2(inner.left() + 16.0 + k as f32 * 40.0, y + 14.0);
                 let r = Rect::from_center_size(center, vec2(30.0, 30.0));
@@ -1191,7 +1352,7 @@ impl App {
         }
     }
 
-    /// Перед перемиканням чату: повернути відкладену чернетку і зберегти її.
+    /// Before switching chats: restore the set-aside draft and save it.
     fn leave_chat(&mut self) {
         if matches!(self.compose, Compose::Edit(_)) {
             self.draft = std::mem::take(&mut self.edit_stash);
@@ -1217,7 +1378,7 @@ impl App {
         self.chats.iter_mut().find(|c| c.id == id)
     }
 
-    /// Відкрити чат і прокрутити до повідомлення (з пошуку).
+    /// Open a chat and scroll to a message (from search).
     fn jump_to(&mut self, hit: &SearchHit) {
         let (peer, id) = (hit.msg.peer, hit.msg.id);
         if !self.chats.iter().any(|c| c.id == peer) {
@@ -1239,6 +1400,11 @@ impl App {
                 forum: false,
                 joined: true,
                 can_post: true,
+                read_out: 0,
+                unread_mentions: 0,
+                unread_reactions: 0,
+                noforwards: false,
+                can_pin: false,
             });
         }
         self.open_chat(peer);
@@ -1262,6 +1428,11 @@ impl App {
             ChatAction::Export => return,
             ChatAction::Pin(pinned) => {
                 c.pinned = pinned;
+                // A newly pinned chat goes on top of the pinned ones, as in Telegram.
+                if pinned && let Some(i) = self.chats.iter().position(|c| c.id == peer) {
+                    let c = self.chats.remove(i);
+                    self.chats.insert(0, c);
+                }
                 Cmd::SetPinned { peer, pinned }
             }
             ChatAction::Mute(muted) => {
@@ -1285,7 +1456,7 @@ impl App {
                 Cmd::SetArchived { peer, archived }
             }
         };
-        self.chats.sort_by_key(|c| (!c.pinned, -c.last_ts));
+        sort_chats(&mut self.chats);
         self.send(cmd);
     }
 
@@ -1294,6 +1465,7 @@ impl App {
     }
 
     fn send_draft_with(&mut self, opts: SendOpts) {
+        let opts = SendOpts { no_webpage: opts.no_webpage || self.link_preview_off(), ..opts };
         let text = self.draft.trim().to_owned();
         let Some(peer) = self.selected else { return };
         if text.is_empty() {
@@ -1311,16 +1483,22 @@ impl App {
                 self.draft = std::mem::take(&mut self.edit_stash);
                 self.send(Cmd::Edit { peer, id, text });
             }
-            Compose::Reply(id) => self.send(Cmd::Send { peer, text, reply_to: Some(id), opts }),
+            // Scheduled messages go straight to the server; the rest through the send queue.
+            Compose::Reply(id) if opts.schedule.is_some() => self.send(Cmd::Send { peer, text, reply_to: Some(id), opts }),
+            Compose::Reply(id) => self.enqueue(peer, text, Some(id), &opts),
             Compose::New => {
                 let reply_to = self.reply_target();
-                self.send(Cmd::Send { peer, text, reply_to, opts });
+                if opts.schedule.is_some() {
+                    self.send(Cmd::Send { peer, text, reply_to, opts });
+                } else {
+                    self.enqueue(peer, text, reply_to, &opts);
+                }
             }
         }
         if opts.schedule.is_some() {
             self.send(Cmd::LoadScheduled(peer));
         }
-        // Після надсилання сервер сам очищає чернетку.
+        // After sending, the server clears the draft itself.
         if self.draft.is_empty() {
             self.draft_synced.clear();
             if let Some(c) = self.chat_mut(peer) {
@@ -1330,6 +1508,7 @@ impl App {
     }
 
     fn apply(&mut self, peer: PeerId, action: Action) {
+        let Some(action) = self.chat_view_action(peer, action) else { return };
         match action {
             Action::Reply(id) => self.compose = Compose::Reply(id),
             Action::Edit(id) => {
@@ -1381,6 +1560,10 @@ impl App {
             Action::RevealSpoiler(id) => {
                 self.revealed.insert((peer, id));
             }
+            Action::Retry(id) => self.retry_queued(id),
+            Action::Discard(id) => self.discard_queued(id),
+            // Queued bubbles have no server id yet — nothing to select.
+            Action::Pick(id) if id < 0 => {}
             Action::Pick(id) => match self.picked.iter().position(|x| *x == id) {
                 Some(i) => {
                     self.picked.remove(i);
@@ -1405,7 +1588,7 @@ impl App {
             Action::React(id, emoji) => {
                 let Some(m) = self.find_mut(peer, id) else { return };
                 let was_mine = m.reactions.iter().any(|r| r.mine && r.emoji == emoji);
-                // Без Premium — одна реакція на повідомлення: прибираємо попередню.
+                // Without Premium, one reaction per message: remove the previous one.
                 for r in &mut m.reactions {
                     if r.mine {
                         r.mine = false;
@@ -1454,14 +1637,14 @@ impl App {
                 }
             }
             Action::Open(target) => match target.chars().next() {
-                // Хештег — шукаємо в цьому чаті, команда бота — надсилаємо.
+                // A hashtag is searched in this chat, a bot command is sent.
                 Some('#' | '$') => {
                     let s = self.chat_search.get_or_insert_with(Search::default);
                     s.query = target;
                     s.edited_at = 0.0;
                 }
                 Some('/') => self.send(Cmd::Send { peer, text: target, reply_to: self.reply_target(), opts: SendOpts::default() }),
-                // Згадка відкриває чат у клієнті (публічний — без вступу).
+                // A mention opens the chat in the client (a public one without joining).
                 Some('@') if !self.demo => self.send(Cmd::ResolveUsername(target[1..].to_owned())),
                 Some('@') => self.ctx.open_url(egui::OpenUrl::new_tab(format!("https://t.me/{}", &target[1..]))),
                 _ if !self.demo && tme_username(&target).is_some() => {
@@ -1473,6 +1656,8 @@ impl App {
                     self.ctx.open_url(egui::OpenUrl::new_tab(url));
                 }
             },
+            // Handled by `chat_view_action`.
+            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) => {}
         }
     }
 
@@ -1482,12 +1667,12 @@ impl App {
             return;
         }
         let Some(info) = self.find(peer, id).and_then(|m| m.media.clone()) else { return };
-        // Своє голосове позначає прослуханим співрозмовник, а не ми.
+        // Our own voice message is marked as listened by the other side, not by us.
         if let Some(m) = self.find_mut(peer, id).filter(|m| m.media_unread && !m.out) {
             m.media_unread = false;
             self.send(Cmd::MarkListened { peer, id });
         }
-        // Відео й кружечки грають у бульбашці зі звуком, GIF і так крутиться сам.
+        // Videos and round videos play in the bubble with sound; a GIF loops on its own anyway.
         let external = info.kind == MediaKind::Gif;
         if !external && !self.can_play {
             self.toast = Some((l!("Для звуку потрібен ffplay (пакет ffmpeg)", "Sound needs ffplay (ffmpeg package)").into(), 0.0, true));
@@ -1501,7 +1686,7 @@ impl App {
             }
             None => {
                 if !external {
-                    // Поки вантажиться, попереднє не грає, а раніше натиснуте не почнеться.
+                    // While loading, the previous one doesn't play and an earlier pressed one won't start.
                     self.player.stop();
                     self.media_wanted.retain(|_, ext| *ext);
                 }
@@ -1512,7 +1697,7 @@ impl App {
         }
     }
 
-    /// Стан програвання для бульбашки.
+    /// Playback state for a bubble.
     fn play_view(&self, peer: PeerId, id: i32) -> PlayView {
         let current = self.player.is(peer, id);
         PlayView {
@@ -1525,7 +1710,7 @@ impl App {
         }
     }
 
-    /// Після голосового — наступне голосове в тому ж чаті, як у Telegram.
+    /// After a voice message, the next voice message in the same chat, as in Telegram.
     fn poll_player(&mut self) {
         let Some((peer, id)) = self.player.poll() else { return };
         let next = self.history.get(&peer).and_then(|msgs| {
@@ -1538,7 +1723,7 @@ impl App {
         }
     }
 
-    /// Запускає, синхронізує зі звуком і прибирає кліпи відео за списком видимих.
+    /// Starts, syncs with audio and removes video clips according to the visible list.
     fn update_clips(&mut self, now: f64) {
         let wanted = std::mem::take(self.clip_wanted.get_mut());
         self.clips.retain(|k, _| wanted.contains(k));
@@ -1585,8 +1770,8 @@ impl App {
         }
     }
 
-    /// На що відповідає нове повідомлення: явна відповідь або відкрита тема форуму
-    /// (відповідь на перше повідомлення теми кладе повідомлення в неї).
+    /// What a new message replies to: an explicit reply or the open forum topic
+    /// (replying to the topic's first message puts the message into it).
     fn reply_target(&self) -> Option<i32> {
         match self.compose {
             Compose::Reply(id) => Some(id),
@@ -1620,7 +1805,7 @@ impl App {
             self.toast = Some((l!("Для запису потрібен ffmpeg", "Recording needs ffmpeg").into(), 0.0, true));
             return;
         }
-        // Свій же голос у навушниках заважає — зупиняємо програвання.
+        // Your own voice in headphones is distracting, so stop playback.
         self.player.stop();
         match Recorder::start() {
             Ok(r) => self.recorder = Some((peer, r)),
@@ -1677,12 +1862,12 @@ impl App {
         self.send(Cmd::SendRound { id, peer, path: round.path, duration: round.duration, reply_to });
     }
 
-    /// Запис кружечка: кругле прев'ю над полем вводу і рядок з часом у полі.
+    /// Round video recording: a round preview above the input field and a time row in the field.
     fn round_bar(&mut self, ui: &mut Ui, input: Rect, chat: Rect, now: f64) {
         let Some((_, rec)) = self.round_rec.as_mut() else { return };
         let elapsed = rec.elapsed();
         if !rec.alive() {
-            // ffmpeg виходить сам на ліміті — тоді надсилаємо; раніше — камера не відкрилась.
+            // ffmpeg exits by itself at the limit, then we send; earlier means the camera failed to open.
             if elapsed >= camera::MAX_SECS - 1.0 {
                 self.send_round();
             } else {
@@ -1702,7 +1887,7 @@ impl App {
             }
         }
         let p = ui.painter().clone();
-        // Кругле прев'ю.
+        // Round preview.
         let side = (chat.height() * 0.5).clamp(160.0, 300.0);
         let c = pos2(chat.center().x, input.top() - 24.0 - side / 2.0);
         let r = Rect::from_center_size(c, vec2(side, side));
@@ -1722,7 +1907,7 @@ impl App {
         if pts.len() > 1 {
             p.add(egui::Shape::line(pts, egui::Stroke::new(3.5, Color32::from_rgb(255, 80, 90))));
         }
-        // Поле вводу: крапка, час і підказка.
+        // Input field: dot, time and hint.
         glass::glass(&p, input, Glass::tinted(COMPOSER_H / 2.0, glass::chrome(), 110).with_shadow().frosted(0.96));
         let pulse = 0.55 + 0.45 * (now * 4.0).sin().abs() as f32;
         let dot = pos2(input.left() + 24.0, input.center().y);
@@ -1732,7 +1917,7 @@ impl App {
         p.text(pos2(input.right() - 20.0, dot.y), Align2::RIGHT_CENTER, l!("Esc — скасувати", "Esc — cancel"), FontId::proportional(12.5), ink_dim());
     }
 
-    /// Зупинити запис; `None` — закороткий.
+    /// Stop recording; `None` means too short.
     fn finish_recording(&mut self) -> Option<(PeerId, Voice)> {
         let (peer, r) = self.recorder.take()?;
         let voice = r.finish();
@@ -1742,7 +1927,7 @@ impl App {
         Some((peer, voice?))
     }
 
-    /// Надіслати запис: одразу з режиму запису або з попереднього прослуховування.
+    /// Send the recording: straight from recording mode or from preview playback.
     fn send_recording(&mut self) {
         let next = match self.voice_draft.take() {
             Some(d) => Some(d),
@@ -1763,7 +1948,7 @@ impl App {
         self.send(Cmd::SendVoice { id, peer, path: voice.path, duration: voice.duration, waveform: voice.waveform, reply_to });
     }
 
-    /// Поле вводу під час запису: червона крапка, час, живий рівень і підказка.
+    /// Input field while recording: red dot, time, live level and hint.
     fn recording_bar(&mut self, ui: &mut Ui, input: Rect, now: f64) {
         let Some((_, rec)) = self.recorder.as_mut() else { return };
         if !rec.alive() {
@@ -1773,7 +1958,7 @@ impl App {
         }
         let p = ui.painter().clone();
         glass::glass(&p, input, Glass::tinted(COMPOSER_H / 2.0, glass::chrome(), 110).with_shadow().frosted(0.96));
-        // ■ — зупинити й прослухати перед надсиланням.
+        // ■ stops and lets you listen before sending.
         let stop = Rect::from_center_size(pos2(input.left() + 25.0, input.center().y), vec2(36.0, 36.0));
         let stop_clicked = glass::icon_button(ui, stop, "rec-stop", Icon::Stop, false, true).on_hover_text(l!("Зупинити й прослухати", "Stop and listen")).clicked();
         let pulse = 0.55 + 0.45 * (now * 4.0).sin().abs() as f32;
@@ -1784,7 +1969,7 @@ impl App {
         let hint = p.layout_no_wrap(l!("Esc — скасувати", "Esc — cancel").into(), FontId::proportional(12.5), ink_dim());
         let hint_x = input.right() - hint.size().x - 20.0;
         p.galley(pos2(hint_x, input.center().y - hint.size().y / 2.0), hint, ink_dim());
-        // Рівень за останні секунди: стовпчики справа наліво, найсвіжіший — праворуч.
+        // Level over the last seconds: bars from right to left, the newest on the right.
         let wave = Rect::from_min_max(pos2(dot.x + 80.0, input.top() + 12.0), pos2(hint_x - 16.0, input.bottom() - 12.0));
         let n = ((wave.width() / 4.0) as usize).max(1);
         let levels = rec.recent(n);
@@ -1798,7 +1983,7 @@ impl App {
         }
     }
 
-    /// Попереднє прослуховування запису: видалити, програти, хвиля з прогресом, тривалість.
+    /// Recording preview: delete, play, waveform with progress, duration.
     fn voice_draft_bar(&mut self, ui: &mut Ui, input: Rect) {
         let Some((peer, v)) = &self.voice_draft else { return };
         let (peer, path, duration) = (*peer, v.path.clone(), v.duration);
@@ -1833,7 +2018,7 @@ impl App {
         }
     }
 
-    /// Системний діалог вибору файлів в окремому потоці, щоб не блокувати UI.
+    /// System file picker in a separate thread, so as not to block the UI.
     fn pick_files(&self, peer: PeerId, as_file: bool) {
         let (tx, ctx) = (self.picked_tx.clone(), self.ctx.clone());
         let title = if as_file { l!("Надіслати без стиснення", "Send without compression") } else { l!("Надіслати файли", "Send files") };
@@ -1858,7 +2043,7 @@ impl App {
         self.chats.iter().filter(|c| c.is_unread() && !c.muted && self.in_folder(c, folder)).count()
     }
 
-    /// «Усі» — без архіву, `ARCHIVE` — лише архів, інакше — правила папки.
+    /// "All" excludes the archive, `ARCHIVE` is the archive only, otherwise the folder's rules.
     fn in_folder(&self, c: &ChatInfo, folder: Option<i32>) -> bool {
         match folder {
             None => !c.archived,
@@ -1872,13 +2057,13 @@ impl App {
     }
 
     fn new_folder(&mut self) {
-        // Id 0 і 1 зарезервовані Telegram («Усі чати» та архів).
+        // Ids 0 and 1 are reserved by Telegram ("All chats" and archive).
         let id = self.folders.iter().map(|f| f.id).max().unwrap_or(1).max(1) + 1;
         let folder = Folder { id, ..Default::default() };
         self.folder_edit = Some(FolderEdit { folder, new: true, query: String::new() });
     }
 
-    /// Вікно папки: назва, типи чатів, винятки й окремі чати.
+    /// Folder window: name, chat types, exceptions and individual chats.
     fn folder_editor(&mut self, ui: &mut Ui) {
         let Some(ed) = &mut self.folder_edit else { return };
         let screen = ui.max_rect();
@@ -1935,7 +2120,7 @@ impl App {
             let field = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
             glass::text_field(ui, field, &mut ed.query, l!("Пошук чату…", "Search chats…"), false);
             ui.add_space(4.0);
-            // Спершу ті, що вже в правилах, далі решта.
+            // First those already in the rules, then the rest.
             let state = |f: &Folder, id: &PeerId| if f.include.contains(id) { 1 } else if f.exclude.contains(id) { 2 } else { 0 };
             let mut list: Vec<&ChatInfo> = chats.iter().filter(|c| c.title.to_lowercase().contains(&q)).collect();
             list.sort_by_key(|c| state(f, &c.id) == 0);
@@ -1994,120 +2179,41 @@ impl App {
         }
     }
 
-    /// Вікно налаштувань. Зміни зберігаються одразу.
+    /// Settings window. Changes are saved immediately.
     fn settings_view(&mut self, ui: &mut Ui) {
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
         ui.interact(screen, ui.scope_id().with("settings-bg"), Sense::click());
-        let rect = Rect::from_center_size(screen.center(), vec2(screen.width().min(460.0) - 20.0, (screen.height() - 60.0).min(600.0)));
+        let rect = Rect::from_center_size(screen.center(), vec2(screen.width().min(460.0) - 20.0, (screen.height() - 60.0).min(640.0)));
         glass::glass(ui.painter(), rect, Glass::panel(26.0).with_shadow());
         let inner = rect.shrink(18.0);
-        ui.painter().text(inner.left_top() + vec2(4.0, 2.0), Align2::LEFT_TOP, l!("Налаштування", "Settings"), FontId::proportional(18.0), ink());
+        let tab = self.settings_tab;
+        // Sections open as pages with a back button, as in Telegram Desktop.
+        let mut back = false;
+        let title_x = if tab == SettingsTab::Main {
+            inner.left() + 4.0
+        } else {
+            let b = Rect::from_min_size(pos2(inner.left() - 4.0, inner.top() - 4.0), vec2(32.0, 32.0));
+            back = glass::icon_button(ui, b, "settings-back", Icon::ChevronLeft, false, true).on_hover_text(l!("Назад", "Back")).clicked();
+            inner.left() + 38.0
+        };
+        ui.painter().text(pos2(title_x, inner.top() + 12.0), Align2::LEFT_CENTER, self.settings_title(), FontId::proportional(17.0), ink());
         let close = Rect::from_min_size(pos2(inner.right() - 32.0, inner.top() - 4.0), vec2(32.0, 32.0));
-        let mut done = glass::icon_button(ui, close, "settings-close", Icon::Close, false, true).clicked();
+        let done = glass::icon_button(ui, close, "settings-close", Icon::Close, false, true).clicked();
         let before = self.settings.clone();
-        // Вкладки.
-        let tabs = [(SettingsTab::General, l!("Загальні", "General")), (SettingsTab::Privacy, l!("Конфіденційність", "Privacy")), (SettingsTab::Devices, l!("Пристрої", "Devices"))];
-        let tw = (inner.width() - 12.0) / 3.0;
-        for (k, (tab, label)) in tabs.into_iter().enumerate() {
-            let r = Rect::from_min_size(pos2(inner.left() + k as f32 * (tw + 6.0), inner.top() + 40.0), vec2(tw, 32.0));
-            if glass::button(ui, r, ("settings-tab", k), label, self.settings_tab == tab, true).clicked() && self.settings_tab != tab {
-                self.settings_tab = tab;
-                match tab {
-                    SettingsTab::Privacy => self.send(Cmd::LoadPrivacy),
-                    SettingsTab::Devices => self.send(Cmd::LoadSessions),
-                    SettingsTab::General => {}
-                }
-            }
-        }
-        let body = Rect::from_min_max(pos2(inner.left(), inner.top() + 84.0), pos2(inner.right(), inner.bottom() - 48.0));
+        // No "Done" button, as in Telegram Desktop: changes apply at once and ✕ closes.
+        let body = Rect::from_min_max(pos2(inner.left(), inner.top() + 40.0), inner.max);
         let mut child = ui.new_child(UiBuilder::new().max_rect(body));
         child.set_clip_rect(body);
-        match self.settings_tab {
-            SettingsTab::General => {
-            let cameras = self.cameras.get_or_insert_with(camera::list).clone();
-            let s = &mut self.settings;
-            let (can_play, can_record) = (self.can_play, self.can_record);
-            egui::ScrollArea::vertical().id_salt("settings-body").auto_shrink(false).show(&mut child, |ui| {
-                // Назва розділу двомовна — щоб знайти перемикач, навіть не знаючи поточної мови.
-            section_title(ui, "Мова · Language");
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 6.0;
-                for (lang, label) in [(crate::i18n::Lang::System, l!("Як у системі", "System")), (crate::i18n::Lang::Uk, "Українська"), (crate::i18n::Lang::En, "English")] {
-                    let (r, _) = ui.allocate_exact_size(vec2(122.0, 32.0), Sense::hover());
-                    if glass::button(ui, r, ("lang", label), label, s.lang == lang, true).clicked() {
-                        s.lang = lang;
-                    }
-                }
-            });
-            ui.add_space(10.0);
-            section_title(ui, l!("Тема", "Theme"));
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    for (t, label) in [(settings::Theme::System, l!("Як у системі", "System")), (settings::Theme::Dark, l!("Темна", "Dark")), (settings::Theme::Light, l!("Світла", "Light"))] {
-                        let (r, _) = ui.allocate_exact_size(vec2(122.0, 32.0), Sense::hover());
-                        if glass::button(ui, r, ("theme", label), label, s.theme == t, true).clicked() {
-                            s.theme = t;
-                        }
-                    }
-                });
-                ui.add_space(10.0);
-                section_title(ui, l!("Масштаб інтерфейсу", "Interface scale"));
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    for k in settings::SCALES {
-                        let (r, _) = ui.allocate_exact_size(vec2(58.0, 32.0), Sense::hover());
-                        if glass::button(ui, r, ("scale", (k * 100.0) as i32), &format!("{:.0}%", k * 100.0), s.scale == k, true).clicked() {
-                            s.scale = k;
-                        }
-                    }
-                });
-                ui.add_space(10.0);
-                section_title(ui, l!("Загальні", "General"));
-                ui.checkbox(&mut s.notifications, l!("Системні сповіщення про нові повідомлення", "System notifications for new messages"));
-                ui.checkbox(&mut s.autoplay, l!("Автовідтворення GIF, кружечків і відео-стікерів", "Autoplay GIFs, video messages and video stickers"));
-                ui.add_space(10.0);
-                section_title(ui, l!("Проксі SOCKS5", "SOCKS5 proxy"));
-                let field = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
-                glass::text_field(ui, field, &mut s.proxy, "socks5://127.0.0.1:1080", false);
-                match settings::proxy_error(&s.proxy) {
-                    Some(e) => ui.label(egui::RichText::new(e).color(Color32::from_rgb(255, 130, 130)).size(12.5)),
-                    None => ui.label(egui::RichText::new(l!("Діє після перезапуску програми", "Takes effect after restart")).color(ink_dim()).size(12.5)),
-                };
-                ui.add_space(10.0);
-                section_title(ui, l!("Камера для відеоповідомлень", "Camera for video messages"));
-                if cameras.is_empty() {
-                    ui.label(egui::RichText::new(l!("Камер не знайдено", "No cameras found")).color(ink_dim()).size(13.0));
-                }
-                for (k, c) in cameras.iter().enumerate() {
-                    // Без явного вибору записує перша камера.
-                    let on = s.camera == c.id || (s.camera.is_empty() && k == 0);
-                    let label = if c.name.is_empty() { c.id.clone() } else { c.name.clone() };
-                    let r = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover()).0;
-                    if glass::button(ui, r, ("camera", k), &label, on, true).clicked() {
-                        s.camera = c.id.clone();
-                    }
-                }
-                ui.add_space(10.0);
-                section_title(ui, l!("Медіа", "Media"));
-                let yes_no = |ok: bool, what: &str| format!("{} {what}", if ok { "✓" } else { "✗" });
-                ui.label(egui::RichText::new(yes_no(can_play, l!("ffplay — звук голосових, аудіо й відео", "ffplay — sound for voice, audio and video"))).color(ink_dim()).size(13.0));
-                ui.label(egui::RichText::new(yes_no(can_record, l!("ffmpeg — відео в чаті й запис голосових", "ffmpeg — in-chat video and voice recording"))).color(ink_dim()).size(13.0));
-            });
-            }
-            SettingsTab::Privacy => self.privacy_tab(&mut child),
-            SettingsTab::Devices => self.devices_tab(&mut child),
-        }
-        let ok = Rect::from_min_max(pos2(inner.left(), inner.bottom() - 38.0), inner.max);
-        done |= glass::button(ui, ok, "settings-done", l!("Готово", "Done"), true, true).clicked();
+        self.settings_page(&mut child, tab);
         if self.settings != before {
-            // Невалідний проксі не зберігаємо, щоб не зламати наступне підключення.
+            // Don't save an invalid proxy, so as not to break the next connection.
             if settings::proxy_error(&self.settings.proxy).is_none() {
                 self.settings.save();
             }
             if self.settings.lang != before.lang {
                 crate::i18n::set(self.settings.lang);
-                // Трей перебудовує меню й підказку лише після оновлення.
+                // The tray rebuilds its menu and tooltip only after an update.
                 if let Some(t) = &self.tray {
                     t.update(|_| {});
                 }
@@ -2123,12 +2229,18 @@ impl App {
                 t.update(|t| t.notifications = on);
             }
         }
-        if done || ui.input(|i| i.key_pressed(Key::Escape)) {
+        // Esc goes back to the main page first; the folder window on top handles its own Esc.
+        let esc = self.folder_edit.is_none() && ui.input(|i| i.key_pressed(Key::Escape));
+        if back || (esc && tab != SettingsTab::Main) {
+            self.settings_tab = SettingsTab::Main;
+            self.profile_edit = None;
+        } else if done || esc {
             self.settings_open = false;
+            self.profile_edit = None;
         }
     }
 
-    /// Вкладка «Конфіденційність»: хто що бачить і локальний пароль.
+    /// "Privacy" tab: who sees what, and the local passcode.
     fn privacy_tab(&mut self, ui: &mut Ui) {
         let mut set = None;
         let mut lock_now = false;
@@ -2205,7 +2317,7 @@ impl App {
         }
     }
 
-    /// Вкладка «Пристрої»: активні сеанси акаунта.
+    /// "Devices" tab: the account's active sessions.
     fn devices_tab(&mut self, ui: &mut Ui) {
         let mut terminate = None;
         let mut all = false;
@@ -2257,7 +2369,7 @@ impl App {
         }
     }
 
-    /// Екран блокування: лише поле пароля поверх фону.
+    /// Lock screen: just a passcode field over the background.
     fn lock_view(&mut self, ui: &mut Ui) {
         let screen = ui.max_rect();
         let rect = Rect::from_center_size(screen.center(), vec2(320.0, 230.0));
@@ -2289,7 +2401,7 @@ impl App {
         }
     }
 
-    /// Для демо-пошуку: (чат, (назва, тип), повідомлення).
+    /// For demo search: (chat, (name, type), message).
     pub fn demo_history(&self) -> impl Iterator<Item = (PeerId, (&str, ChatKind), &Vec<Msg>)> {
         self.history.iter().filter_map(|(p, msgs)| {
             let c = self.chats.iter().find(|c| c.id == *p)?;
@@ -2305,7 +2417,7 @@ impl App {
         self.history.get_mut(&peer)?.iter_mut().find(|m| m.id == id)
     }
 
-    /// Фото чату по порядку — для гортання в переглядачі.
+    /// Chat photos in order, for paging in the viewer.
     fn photo_ids(&self, peer: PeerId) -> Vec<i32> {
         self.history.get(&peer).map(|l| l.iter().filter(|m| m.photo).map(|m| m.id).collect()).unwrap_or_default()
     }
@@ -2332,7 +2444,7 @@ impl App {
         let Some(v) = &mut self.viewer else { return };
         match v.ui(ui, tex.as_ref(), &caption, (pos, ids.len()), loading) {
             Some(ViewerAction::Close) => self.viewer = None,
-            Some(ViewerAction::Download) => self.send(Cmd::Download { peer, id }),
+            Some(ViewerAction::Download) if !self.protected(peer, &[id]) => self.send(Cmd::Download { peer, id }),
             Some(ViewerAction::Prev) if pos > 1 => self.open_viewer(peer, ids[pos - 2]),
             Some(ViewerAction::Next) if pos < ids.len() => self.open_viewer(peer, ids[pos]),
             _ => {}
@@ -2343,7 +2455,7 @@ impl App {
         self.history.get(&peer)?.iter().find(|m| m.id == id)
     }
 
-    // ───────────────────────────── Вхід ─────────────────────────────
+    // ───────────────────────────── Sign-in ─────────────────────────────
 
     fn login_view(&mut self, ui: &mut Ui, step: Step) {
         if let Step::Qr(url) = &step {
@@ -2358,7 +2470,7 @@ impl App {
         };
         let card = Rect::from_center_size(screen.center(), vec2(380.0_f32.min(screen.width() - 32.0), card_h));
         glass::glass(ui.painter(), card, Glass::panel(34.0));
-        // Вхід у доданий акаунт можна покинути й повернутися до вже відкритого.
+        // Signing in to an added account can be abandoned to return to the already open one.
         let active = self.accounts.active;
         if let Some(back) = self.accounts.list.iter().find(|a| a.id != active && !a.name.is_empty()).cloned() {
             let b = Rect::from_center_size(pos2(card.center().x, card.bottom() + 30.0), vec2(card.width(), 38.0));
@@ -2487,15 +2599,32 @@ impl App {
         self.send(cmd);
     }
 
-    // ───────────────────────────── Головний екран ─────────────────────────────
+    // ───────────────────────────── Main screen ─────────────────────────────
 
     fn main_view(&mut self, ui: &mut Ui) {
-        let full = ui.max_rect().shrink(GAP);
+        let mut full = ui.max_rect().shrink(GAP);
+        if self.settings.folders_side && self.has_folder_bar() {
+            let column = Rect::from_min_size(full.min, vec2(chatlist::COLUMN_W, full.height()));
+            self.folder_column(ui, column);
+            full.min.x = column.right() + GAP;
+        }
         let side_w = (full.width() * 0.34).clamp(250.0, 370.0);
         let side = Rect::from_min_size(full.min, vec2(side_w, full.height()));
-        let chat = Rect::from_min_max(pos2(side.right() + GAP, full.top()), full.max);
+        let mut chat = Rect::from_min_max(pos2(side.right() + GAP, full.top()), full.max);
         self.sidebar(ui, side);
+        // Info column: beside the chat when there is room, otherwise over its right edge.
+        self.sync_info();
+        let info = self.info.is_some().then(|| {
+            let r = Rect::from_min_max(pos2(chat.right() - info::INFO_W.min(chat.width()), chat.top()), chat.max);
+            if chat.width() - info::INFO_W - GAP >= info::INFO_MIN_CHAT {
+                chat.max.x = r.left() - GAP;
+            }
+            r
+        });
         self.chat_area(ui, chat);
+        if let Some(r) = info {
+            self.info_view(ui, r);
+        }
     }
 
     fn sidebar(&mut self, ui: &mut Ui, rect: Rect) {
@@ -2505,7 +2634,7 @@ impl App {
 
         p.text(inner.left_top() + vec2(6.0, 2.0), Align2::LEFT_TOP, l!("Чати", "Chats"), FontId::proportional(24.0), ink());
         if !self.me.is_empty() {
-            // Ім'я — кнопка меню акаунтів.
+            // The name is the accounts menu button.
             let label = format!("{}  ▾", self.me);
             let r = p.text(inner.left_top() + vec2(6.0, 32.0), Align2::LEFT_TOP, label, FontId::proportional(12.5), ink_dim());
             let resp = ui.interact(r.expand(4.0), ui.scope_id().with("accounts-btn"), Sense::click());
@@ -2526,7 +2655,7 @@ impl App {
         }
         let (bell, hint) = if self.settings.notifications { (Icon::Bell, l!("Вимкнути сповіщення", "Turn off notifications")) } else { (Icon::Muted, l!("Увімкнути сповіщення", "Turn on notifications")) };
         if glass::icon_button(ui, btn(3.0), "settings", Icon::Gear, self.settings_open, true).on_hover_text(l!("Налаштування", "Settings")).clicked() {
-            self.settings_open = true;
+            self.open_settings();
         }
         if glass::icon_button(ui, btn(2.0), "notify", bell, false, true).on_hover_text(hint).clicked() {
             self.settings.notifications = !self.settings.notifications;
@@ -2537,9 +2666,14 @@ impl App {
             }
         }
 
-        let search = Rect::from_min_size(inner.left_top() + vec2(0.0, 56.0), vec2(inner.width(), 40.0));
+        let search = Rect::from_min_size(inner.left_top() + vec2(0.0, 56.0), vec2(inner.width() - 48.0, 40.0));
+        self.new_chat_button(ui, Rect::from_min_size(pos2(search.right() + 8.0, search.top()), vec2(40.0, 40.0)));
         let now = ui.input(|i| i.time);
-        if glass::text_field(ui, search, &mut self.search.query, l!("🔍  Пошук", "🔍  Search"), false).changed() {
+        let search_resp = glass::text_field(ui, search, &mut self.search.query, l!("🔍  Пошук", "🔍  Search"), false);
+        if std::mem::take(&mut self.focus_search) {
+            search_resp.request_focus();
+        }
+        if search_resp.changed() {
             self.search.edited_at = now;
         }
         if let Some(query) = self.search.due(now) {
@@ -2552,10 +2686,9 @@ impl App {
         }
 
         let mut list_top = search.bottom() + 10.0;
-        let has_archive = self.chats.iter().any(|c| c.archived);
-        if !self.folders.is_empty() || has_archive {
+        if !self.settings.folders_side && self.has_folder_bar() {
             let tabs = Rect::from_min_size(pos2(inner.left(), list_top), vec2(inner.width(), TABS_H));
-            self.folder_tabs(ui, tabs, has_archive);
+            self.folder_tabs(ui, tabs);
             list_top = tabs.bottom() + 8.0;
         }
         let list_rect = Rect::from_min_max(pos2(inner.left() - 6.0, list_top), pos2(inner.right() + 6.0, inner.bottom()));
@@ -2564,6 +2697,9 @@ impl App {
         let mut jump = None;
         let mut menu = None;
         let mut found = None;
+        let mut dropped = None;
+        let mut drag = self.pin_drag.take();
+        let (rows, pinned) = self.list_rows(&query, drag.as_ref());
         let mut child = ui.new_child(UiBuilder::new().max_rect(list_rect));
         child.set_clip_rect(list_rect);
         egui::ScrollArea::vertical()
@@ -2571,25 +2707,11 @@ impl App {
             .auto_shrink(false)
             .show(&mut child, |ui| {
                 ui.spacing_mut().item_spacing.y = 4.0;
-                // Під час пошуку показуємо чати з усіх папок, зокрема з архіву.
-                let visible = |c: &&ChatInfo| {
-                    if query.is_empty() { self.in_folder(c, self.folder) } else { c.title.to_lowercase().contains(&query) }
-                };
-                for chat in self.chats.iter().filter(visible) {
-                    let tex = self.textures.get(&ImgKey::Avatar(chat.id));
-                    let typing = self.typing.get(&chat.id).map(|(who, _)| who.as_str());
-                    let draft = (self.selected != Some(chat.id)).then_some(chat.draft.as_str()).filter(|d| !d.trim().is_empty());
-                    let resp = chat_row(ui, chat, self.selected == Some(chat.id), tex, typing, draft);
-                    if resp.clicked() {
-                        clicked = Some(chat.id);
-                    }
-                    resp.context_menu(|ui| {
-                        if let Some(a) = chat_menu(ui, chat) {
-                            menu = Some((chat.id, a));
-                        }
-                    });
-                }
-                // Публічні чати, яких ще немає в списку.
+                let rows_out = self.chat_rows(ui, &rows, pinned, &mut drag);
+                clicked = rows_out.clicked;
+                menu = rows_out.menu;
+                dropped = rows_out.dropped;
+                // Public chats not yet in the list.
                 let public: Vec<&ChatInfo> = self.public_hits.iter().filter(|p| !self.chats.iter().any(|c| c.id == p.id)).collect();
                 if !query.is_empty() && !public.is_empty() {
                     section_title(ui, l!("Публічні чати", "Public chats"));
@@ -2616,6 +2738,11 @@ impl App {
                     ui.vertical_centered(|ui| ui.add(egui::Spinner::new().color(ink_dim())));
                 }
             });
+        drop(rows);
+        self.pin_drag = drag;
+        if let Some(order) = dropped {
+            self.drop_pins(order);
+        }
         if let Some(id) = clicked {
             self.open_chat(id);
         }
@@ -2629,69 +2756,6 @@ impl App {
         }
         if let Some((peer, a)) = menu {
             self.apply_chat(peer, a);
-        }
-    }
-
-    /// Вкладки папок: «Усі чати» + папки з Telegram, з лічильником непрочитаних.
-    fn folder_tabs(&mut self, ui: &mut Ui, rect: Rect, archive: bool) {
-        let mut tabs: Vec<(Option<i32>, String, usize)> = vec![(None, l!("Усі", "All").into(), self.folder_unread(None))];
-        for f in &self.folders {
-            let title = if f.emoticon.is_empty() { f.title.clone() } else { format!("{} {}", f.emoticon, f.title) };
-            tabs.push((Some(f.id), title, self.folder_unread(Some(f.id))));
-        }
-        if archive {
-            tabs.push((Some(ARCHIVE), l!("🗄 Архів", "🗄 Archive").into(), self.folder_unread(Some(ARCHIVE))));
-        }
-        let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
-        child.set_clip_rect(rect.expand2(vec2(0.0, 4.0)));
-        let mut chosen = None;
-        let mut menu = None;
-        egui::ScrollArea::horizontal()
-            .id_salt("folder-tabs")
-            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
-            .show(&mut child, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    for (id, title, unread) in &tabs {
-                        let label = if *unread > 0 { format!("{title}  {unread}") } else { title.clone() };
-                        let w = elided(ui, &label, 14.0, ink(), 400.0).size().x + 26.0;
-                        let (r, _) = ui.allocate_exact_size(vec2(w, TABS_H), Sense::hover());
-                        let resp = glass::button(ui, r, ("folder", *id), &label, self.folder == *id, true);
-                        if resp.clicked() {
-                            chosen = Some(*id);
-                        }
-                        resp.context_menu(|ui| {
-                            if let Some(fid) = id.filter(|x| *x != ARCHIVE) {
-                                if ui.button(l!("✏  Редагувати папку", "✏  Edit folder")).clicked() {
-                                    menu = Some(FolderMenu::Edit(fid));
-                                }
-                                if ui.button(l!("🗑  Видалити папку", "🗑  Delete folder")).clicked() {
-                                    menu = Some(FolderMenu::Delete(fid));
-                                }
-                            }
-                            if ui.button(l!("➕  Нова папка", "➕  New folder")).clicked() {
-                                menu = Some(FolderMenu::New);
-                            }
-                        });
-                    }
-                    let (r, _) = ui.allocate_exact_size(vec2(TABS_H, TABS_H), Sense::hover());
-                    if glass::button(ui, r, "folder-new", "+", false, true).on_hover_text(l!("Нова папка", "New folder")).clicked() {
-                        menu = Some(FolderMenu::New);
-                    }
-                });
-            });
-        if let Some(id) = chosen {
-            self.folder = id;
-        }
-        match menu {
-            Some(FolderMenu::New) => self.new_folder(),
-            Some(FolderMenu::Edit(id)) => {
-                if let Some(f) = self.folders.iter().find(|f| f.id == id) {
-                    self.folder_edit = Some(FolderEdit { folder: f.clone(), new: false, query: String::new() });
-                }
-            }
-            Some(FolderMenu::Delete(id)) => self.send(Cmd::DeleteFolder(id)),
-            None => {}
         }
     }
 
@@ -2709,30 +2773,34 @@ impl App {
         }
         let topic = self.topic.filter(|_| chat.forum);
         let group = matches!(chat.kind, ChatKind::Group);
+        // In channels views replace ticks; in "Saved Messages" there is nobody to read.
+        let ticks = |m: &Msg| (m.out && !matches!(chat.kind, ChatKind::Channel | ChatKind::Saved)).then_some(m.id <= chat.read_out);
         let bar = if self.compose == Compose::New { 0.0 } else { COMPOSE_BAR_H + 8.0 };
 
         let now = ui.input(|i| i.time);
         if self.jump.is_some_and(|(p, _, start)| p != peer || now - start > JUMP_FLASH) {
             self.jump = None;
         }
-        // Повідомлення прокручуються під плаваючими скляними шапкою та полем вводу.
+        // Messages scroll under the floating glass header and input field.
         let mut load_older = None;
         let mut action = None;
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect);
-        egui::ScrollArea::vertical()
+        let pin_h = self.pin_bar_h(peer);
+        let scroll_bottom = std::mem::take(&mut self.scroll_bottom);
+        let scrolled = egui::ScrollArea::vertical()
             .id_salt(("history", peer))
             .auto_shrink(false)
             .stick_to_bottom(true)
             .show(&mut child, |ui| {
-                ui.add_space(HEADER_H + 16.0);
+                ui.add_space(HEADER_H + 16.0 + pin_h);
                 match self.history.get(&peer) {
                     None => {
                         ui.add_space(40.0);
                         ui.vertical_centered(|ui| ui.add(egui::Spinner::new().color(ink())));
                     }
                     Some(all) => {
-                        // У форумі показуємо лише відкриту тему.
+                        // In a forum, show only the open topic.
                         let msgs: Vec<&Msg> = all.iter().filter(|m| topic.is_none_or(|t| m.topic_id() == t)).collect();
                         let exhausted = match topic {
                             Some(t) => self.topic_exhausted.contains(&(peer, t)),
@@ -2749,43 +2817,57 @@ impl App {
                         }
                         let mut last_day = "";
                         let jump = self.jump.filter(|j| j.0 == peer);
+                        let mut heights = self.row_h.borrow_mut();
+                        let spacing = ui.spacing().item_spacing.y;
                         let mut i = 0;
                         while i < msgs.len() {
                             let m = msgs[i];
-                            i += 1;
-                            // Альбом: послідовні фото з одним grouped_id.
+                            // Album: consecutive photos with the same grouped_id form one row.
+                            let mut end = i + 1;
                             if m.photo && m.group.is_some() {
-                                let mut album = vec![m];
-                                while i < msgs.len() && msgs[i].photo && msgs[i].group == m.group {
-                                    album.push(msgs[i]);
-                                    i += 1;
-                                }
-                                if album.len() > 1 {
-                                    if m.day != last_day {
-                                        day_chip(ui, &m.day);
-                                        last_day = &m.day;
-                                    }
-                                    let ids: Vec<i32> = album.iter().map(|m| m.id).collect();
-                                    let look = Look {
-                                        chosen: &[],
-                                        group,
-                                        revealed: false,
-                                        picking: !self.picked.is_empty(),
-                                        picked: ids.iter().all(|id| self.picked.contains(id)),
-                                        play: PlayView::default(),
-                                    };
-                                    let texs: Vec<_> = album.iter().map(|m| self.textures.get(&ImgKey::Photo(peer, m.id))).collect();
-                                    if let Some(a) = album_bubble(ui, &album, &texs, look) {
-                                        action = Some(a);
-                                    }
-                                    continue;
+                                while end < msgs.len() && msgs[end].photo && msgs[end].group == m.group {
+                                    end += 1;
                                 }
                             }
-                            if m.day != last_day {
+                            let album = &msgs[i..end];
+                            i = end;
+                            let new_day = m.day != last_day;
+                            last_day = &m.day;
+                            // Virtualization: a row far from the screen and already measured is just empty space.
+                            // The height may be stale, but it's remeasured as soon as the row comes close.
+                            let top = ui.cursor().top();
+                            let jumping = jump.is_some_and(|j| album.iter().any(|x| x.id == j.1));
+                            if !jumping
+                                && let Some(&h) = heights.get(&(peer, m.id))
+                                && !ui.is_rect_visible(Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=top + h).expand(VIRTUAL_MARGIN))
+                            {
+                                ui.allocate_space(vec2(ui.available_width(), (h - spacing).max(0.0)));
+                                continue;
+                            }
+                            if new_day {
                                 day_chip(ui, &m.day);
-                                last_day = &m.day;
                             }
-                            // У форумі «відповідь» на корінь теми — це просто повідомлення в темі, без цитати.
+                            if album.len() > 1 {
+                                let ids: Vec<i32> = album.iter().map(|m| m.id).collect();
+                                let look = Look {
+                                    chosen: &[],
+                                    group,
+                                    revealed: false,
+                                    picking: !self.picked.is_empty(),
+                                    picked: ids.iter().all(|id| self.picked.contains(id)),
+                                    play: PlayView::default(),
+                                    ticks: ticks(m),
+                                    chat: Some(&chat),
+                                    pending: None,
+                                };
+                                let texs: Vec<_> = album.iter().map(|m| self.textures.get(&ImgKey::Photo(peer, m.id))).collect();
+                                if let Some(a) = album_bubble(ui, album, &texs, look) {
+                                    action = Some(a);
+                                }
+                                heights.insert((peer, m.id), ui.cursor().top() - top);
+                                continue;
+                            }
+                            // In a forum, a "reply" to the topic root is just a message in the topic, no quote.
                             let reply = m.reply_to.filter(|r| topic.is_none_or(|t| *r != t)).map(|id| match msgs.iter().find(|x| x.id == id) {
                                 Some(r) => (author(r, &self.me), quote(r)),
                                 None => (l!("Відповідь", "Reply").to_owned(), l!("Повідомлення", "Message").to_owned()),
@@ -2798,7 +2880,7 @@ impl App {
                             let photo = clip.or(self.textures.get(&ImgKey::Photo(peer, m.id)));
                             let sticker = clip.or(m.sticker.as_ref().and_then(|s| self.textures.get(&ImgKey::Sticker(s.0))));
                             let revealed = self.revealed.contains(&(peer, m.id));
-                            let top = ui.cursor().top();
+                            let bubble_top = ui.cursor().top();
                             let chosen = self.multi_vote.get(&(peer, m.id)).map_or(&[][..], |v| v.as_slice());
                             let look = Look {
                                 chosen,
@@ -2807,6 +2889,9 @@ impl App {
                                 picking: !self.picked.is_empty(),
                                 picked: self.picked.contains(&m.id),
                                 play: if m.media.is_some() { self.play_view(peer, m.id) } else { PlayView::default() },
+                                ticks: ticks(m).filter(|_| m.id > 0),
+                                chat: Some(&chat),
+                                pending: self.pending_state(m.id),
                             };
                             if let Some(a) = bubble(ui, m, look, reply, photo, sticker) {
                                 action = Some(a);
@@ -2819,21 +2904,22 @@ impl App {
                                     action = Some(Action::Comments(m.id));
                                 }
                             }
-                            if animated && ui.is_rect_visible(Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=ui.cursor().top())) {
+                            if animated && ui.is_rect_visible(Rect::from_x_y_ranges(ui.max_rect().x_range(), bubble_top..=ui.cursor().top())) {
                                 self.clip_wanted.borrow_mut().push((peer, m.id));
                             }
                             if let Some((_, id, start)) = jump
                                 && id == m.id
                             {
-                                let row = Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=ui.cursor().top());
+                                let row = Rect::from_x_y_ranges(ui.max_rect().x_range(), bubble_top..=ui.cursor().top());
                                 let age = now - start;
-                                // Кілька кадрів поспіль: висота вмісту може змінитися, поки вантажаться фото.
+                                // Several frames in a row: content height may change while photos load.
                                 if age < 0.3 {
                                     ui.scroll_to_rect(row, Some(Align::Center));
                                 }
                                 let a = (1.0 - age / JUMP_FLASH).clamp(0.0, 1.0) as f32;
                                 ui.painter().rect_filled(row.shrink2(vec2(4.0, 0.0)), 14.0, rgba(ACCENT, (a * 70.0) as u8));
                             }
+                            heights.insert((peer, m.id), ui.cursor().top() - top);
                         }
                         if msgs.is_empty() {
                             ui.add_space(60.0);
@@ -2842,7 +2928,11 @@ impl App {
                     }
                 }
                 ui.add_space(self.composer_h + 26.0 + bar);
+                if scroll_bottom {
+                    ui.scroll_to_cursor(Some(Align::BOTTOM));
+                }
             });
+        self.track_bottom(&scrolled);
         if let Some(before) = load_older {
             self.loading_older = true;
             match topic {
@@ -2854,13 +2944,13 @@ impl App {
             self.apply(peer, a);
         }
 
-        // Шапка.
+        // Header.
         let header = Rect::from_min_size(rect.min, vec2(rect.width(), HEADER_H));
         glass::glass(ui.painter(), header, Glass::tinted(HEADER_H / 2.0, glass::chrome(), 110).with_shadow().frosted(0.96));
         let p = ui.painter().clone();
         let open_topic = topic.and_then(|t| self.topics.get(&peer)?.iter().find(|x| x.id == t).cloned());
         if topic.is_some() {
-            // У темі замість аватарки — повернення до списку тем.
+            // In a topic, a back-to-topic-list button replaces the avatar.
             let back = Rect::from_center_size(pos2(header.left() + 34.0, header.center().y), vec2(40.0, 40.0));
             if glass::icon_button(ui, back, "topic-back", Icon::ChevronLeft, false, true).on_hover_text(l!("До списку тем", "Back to topics")).clicked() {
                 self.topic = None;
@@ -2876,6 +2966,22 @@ impl App {
             self.chat_search = if searching { None } else { Some(Search::default()) };
         }
         let text_x = header.left() + 66.0;
+        if self.chat_search.is_none() {
+            // Click on the title opens chat info, as in Telegram Desktop.
+            let left = if topic.is_some() { header.left() + 60.0 } else { header.left() + 8.0 };
+            let area = Rect::from_min_max(pos2(left, header.top()), pos2(search_btn.left() - 6.0, header.bottom()));
+            let resp = ui.interact(area, ui.scope_id().with(("chat-title", peer)), Sense::click());
+            if resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if resp.on_hover_text(l!("Інформація про чат", "Chat info")).clicked() {
+                if self.info.is_some() {
+                    self.info = None;
+                } else {
+                    self.open_info(peer);
+                }
+            }
+        }
         if let Some(s) = &mut self.chat_search {
             let field = Rect::from_min_max(pos2(text_x - 4.0, header.top() + 11.0), pos2(search_btn.left() - 10.0, header.bottom() - 11.0));
             let resp = glass::text_field(ui, field, &mut s.query, l!("Пошук у чаті", "Search in chat"), false);
@@ -2913,7 +3019,7 @@ impl App {
             p.text(pos2(text_x, header.center().y + 11.0), Align2::LEFT_CENTER, sub, FontId::proportional(12.5), color);
         }
 
-        // Не учасник публічного чату — «Приєднатися»; підписник каналу — лише перемикач сповіщень.
+        // Not a member of a public chat: "Join"; a channel subscriber gets only the notifications toggle.
         if !chat.joined || !chat.can_post {
             let bar = Rect::from_min_max(pos2(rect.left(), rect.bottom() - COMPOSER_H), rect.max);
             let (label, accent) = match (chat.joined, chat.muted) {
@@ -2932,7 +3038,12 @@ impl App {
             self.chat_overlays(ui, peer, rect, header, bar.top() - 8.0);
             return;
         }
-        // [📎] [поле вводу] [🙂] [➤]
+        if self.start_bot_bar(ui, peer, chat.kind, rect) {
+            self.composer_h = COMPOSER_H;
+            self.chat_overlays(ui, peer, rect, header, rect.bottom() - COMPOSER_H - 8.0);
+            return;
+        }
+        // [📎] [input field] [🙂] [➤]
         let circle = |x: f32| Rect::from_min_size(pos2(x, rect.bottom() - COMPOSER_H), vec2(COMPOSER_H, COMPOSER_H));
         let send_btn = circle(rect.right() - COMPOSER_H);
         let sticker_btn = circle(send_btn.left() - 8.0 - COMPOSER_H);
@@ -2940,8 +3051,9 @@ impl App {
         let n_scheduled = self.scheduled.get(&peer).map_or(0, Vec::len);
         let sched_btn = circle(sticker_btn.left() - 8.0 - COMPOSER_H);
         let input_right = if n_scheduled > 0 { sched_btn.left() } else { sticker_btn.left() } - 8.0;
-        // Поле росте з текстом (Shift+Enter), кнопки лишаються внизу.
-        let input_left = attach_btn.right() + 8.0;
+        // The field grows with the text (Shift+Enter), buttons stay at the bottom.
+        let bot_menu = self.bot_menu_width(peer, chat.kind);
+        let input_left = attach_btn.right() + 8.0 + bot_menu;
         let rows = {
             let job = LayoutJob::simple(self.draft.clone(), FontId::proportional(glass::AREA_FONT), ink(), (input_right - input_left - 40.0).max(40.0));
             ui.painter().layout_job(job).rows.len().clamp(1, COMPOSER_ROWS)
@@ -2956,6 +3068,7 @@ impl App {
             self.compose_bar(ui, peer, bar_rect);
             above = bar_rect.top() - 8.0;
         }
+        above = self.link_preview_bar(ui, rect.left(), send_btn.right(), above, now);
         for u in self.uploads.iter().take(3) {
             above = upload_pill(ui, u, pos2(rect.left(), above)) - 6.0;
         }
@@ -3031,8 +3144,18 @@ impl App {
             return;
         }
         self.paste_files(ui, peer);
+        if bot_menu > 0.0 {
+            self.bot_menu_button(ui, circle(attach_btn.right() + 8.0));
+        }
+        let suggest_rect = Rect::from_min_max(pos2(rect.left(), (above - 300.0).max(header.bottom() + 8.0)), pos2(send_btn.right(), above));
+        self.suggest_view(ui, peer, chat.kind, suggest_rect, now);
         glass::glass(ui.painter(), input, Glass::tinted((input.height() / 2.0).min(25.0), glass::chrome(), 110).with_shadow().frosted(0.96));
+        let arrow_edit = self.can_edit_by_arrow() && ui.input(|i| i.key_pressed(Key::ArrowUp) && i.modifiers.is_none());
         let (resp, submitted) = glass::text_area(ui, input, &mut self.draft, l!("Повідомлення", "Message"));
+        // ↑ in an empty composer edits the last own message, as in Telegram Desktop.
+        if arrow_edit && resp.has_focus() {
+            self.edit_last();
+        }
         if resp.changed() {
             self.draft_edited_at = now;
             if !self.draft.is_empty() && now - self.typing_sent_at > TYPING_EVERY && chat.kind != ChatKind::Saved {
@@ -3051,7 +3174,7 @@ impl App {
         let enter = submitted;
         let can_send = !self.draft.trim().is_empty();
         let editing = matches!(self.compose, Compose::Edit(_));
-        // Порожнє поле — кнопка мікрофона, як у Telegram.
+        // Empty field shows the microphone button, as in Telegram.
         let mic = !can_send && !editing;
         let icon = if editing { Icon::Check } else if mic { Icon::Mic } else { Icon::Send };
         let mut send = glass::icon_button(ui, send_btn, "send", icon, true, can_send || mic);
@@ -3073,7 +3196,7 @@ impl App {
             self.send_draft();
             resp.request_focus();
         }
-        // Права кнопка на «надіслати»: без звуку або за розкладом, як у Telegram Desktop.
+        // Right-click on "send": silent or scheduled, as in Telegram Desktop.
         if can_send && !editing {
             let mut choice = None;
             send.context_menu(|ui| {
@@ -3086,7 +3209,7 @@ impl App {
                 }
             });
             match choice {
-                Some(false) => self.send_draft_with(SendOpts { silent: true, schedule: None }),
+                Some(false) => self.send_draft_with(SendOpts { silent: true, schedule: None, ..Default::default() }),
                 Some(true) => self.schedule = Some((ScheduleFor::Draft, String::new())),
                 None => {}
             }
@@ -3098,8 +3221,9 @@ impl App {
         self.chat_overlays(ui, peer, rect, header, above);
     }
 
-    /// Панелі поверх чату (пошук, пересилання) та обробка Esc.
+    /// Panels over the chat (search, forwarding) and Esc handling.
     fn chat_overlays(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect, header: Rect, above: f32) {
+        self.chat_view_overlays(ui, peer, rect, header, above);
         if self.comments.as_ref().is_some_and(|c| c.peer != peer) {
             self.comments = None;
         }
@@ -3118,11 +3242,12 @@ impl App {
             self.forward_view(ui, panel);
         }
         let esc = ui.input(|i| i.key_pressed(Key::Escape));
-        if !esc {
+        // Windows above the chat close themselves on this Esc.
+        if !esc || self.modal_open() {
             return;
         }
         if self.viewer.is_some() {
-            // Закриває сам переглядач.
+            // Closes the viewer itself.
         } else if self.comments.is_some() {
             self.comments = None;
         } else if self.recorder.is_some() || self.voice_draft.is_some() || self.round_rec.is_some() {
@@ -3143,12 +3268,18 @@ impl App {
             self.picked.clear();
         } else if self.compose != Compose::New {
             self.cancel_compose();
+        } else if let Some(i) = &mut self.info {
+            if i.confirm.take().is_none() {
+                self.info = None;
+            }
         } else if self.topic.is_some() {
             self.topic = None;
+        } else {
+            self.esc_fallback();
         }
     }
 
-    /// Нижня панель у режимі вибору повідомлень.
+    /// Bottom panel in message selection mode.
     fn selection_bar(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
         glass::glass(ui.painter(), rect, Glass::tinted(rect.height() / 2.0, glass::chrome(), 140).with_shadow().frosted(0.96));
         let close = Rect::from_center_size(pos2(rect.left() + rect.height() / 2.0, rect.center().y), vec2(36.0, 36.0));
@@ -3160,6 +3291,14 @@ impl App {
         ui.painter().text(pos2(close.right() + 12.0, rect.center().y), Align2::LEFT_CENTER, lf!("Вибрано: {n}", "Selected: {n}"), FontId::proportional(15.0), ink());
         let all_out = self.picked.iter().all(|id| self.find(peer, *id).is_some_and(|m| m.out));
         let btn = |i: f32| Rect::from_center_size(pos2(rect.right() - 30.0 - i * 46.0, rect.center().y), vec2(38.0, 38.0));
+        let protected = self.protected(peer, &self.picked);
+        if protected {
+            if all_out && glass::icon_button(ui, btn(0.0), "pick-delete", Icon::Trash, false, true).on_hover_text(l!("Видалити", "Delete")).clicked() {
+                let ids = std::mem::take(&mut self.picked);
+                self.send(Cmd::Delete { peer, ids });
+            }
+            return;
+        }
         if glass::icon_button(ui, btn(0.0), "pick-forward", Icon::Forward, true, true).on_hover_text(l!("Переслати", "Forward")).clicked() {
             let mut ids = std::mem::take(&mut self.picked);
             ids.sort_unstable();
@@ -3179,10 +3318,10 @@ impl App {
         }
     }
 
-    /// Вікно «Переслати в…»: пошук і список чатів.
+    /// "Forward to…" window: search and chat list.
     fn forward_view(&mut self, ui: &mut Ui, rect: Rect) {
         let Some(fw) = &mut self.forward else { return };
-        // Затемнення та поглинання кліків під вікном.
+        // Dim the background and swallow clicks under the window.
         ui.painter().rect_filled(ui.max_rect(), 0.0, Color32::from_black_alpha(90));
         ui.interact(ui.max_rect(), ui.scope_id().with("forward-bg"), Sense::click());
         glass::glass(ui.painter(), rect, Glass::panel(26.0).with_shadow());
@@ -3222,7 +3361,7 @@ impl App {
         }
     }
 
-    /// Вибір часу відкладеного надсилання.
+    /// Scheduled send time picker.
     fn schedule_view(&mut self, ui: &mut Ui, rect: Rect) {
         glass::glass(ui.painter(), rect, Glass::tinted(22.0, glass::chrome(), 150).frosted(1.0).with_shadow());
         ui.interact(rect, ui.scope_id().with("schedule-bg"), Sense::click());
@@ -3254,7 +3393,7 @@ impl App {
         let Some((target, text)) = &mut self.schedule else { return };
         let target = *target;
         glass::text_field(ui, field, text, l!("ГГ:ХХ", "HH:MM"), false);
-        // Час без дати: сьогодні, а якщо вже минув — завтра.
+        // Time without a date: today, or tomorrow if it has already passed.
         let parsed = text.trim().split_once(':').and_then(|(h, m)| Some((h.parse::<i8>().ok()?, m.parse::<i8>().ok()?)));
         let custom = parsed.and_then(|(h, m)| {
             let today = at(now.date(), h, m)?;
@@ -3267,14 +3406,14 @@ impl App {
         if let Some(ts) = chosen {
             self.schedule = None;
             match (target, self.selected) {
-                (ScheduleFor::Draft, _) => self.send_draft_with(SendOpts { silent: false, schedule: Some(ts) }),
+                (ScheduleFor::Draft, _) => self.send_draft_with(SendOpts { silent: false, schedule: Some(ts), ..Default::default() }),
                 (ScheduleFor::Existing(id), Some(peer)) => self.send(Cmd::Reschedule { peer, id, at: ts }),
                 _ => {}
             }
         }
     }
 
-    /// Список запланованих повідомлень: надіслати зараз, змінити час, видалити.
+    /// Scheduled messages list: send now, change time, delete.
     fn scheduled_view(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
         let Some(list) = self.scheduled.get(&peer) else { return };
         let rows = list.len() as f32 * 62.0 + 46.0;
@@ -3319,7 +3458,7 @@ impl App {
         }
     }
 
-    /// `@бот запит` у полі вводу → inline-запит після паузи у введенні.
+    /// `@bot query` in the input field triggers an inline query after a pause in typing.
     fn update_inline(&mut self, peer: PeerId, now: f64, changed: bool) {
         if changed {
             self.inline_edited_at = now;
@@ -3399,7 +3538,7 @@ impl App {
         }
     }
 
-    /// Ctrl+V із зображенням або скопійованими файлами — надсилаємо їх замість вставки тексту.
+    /// Ctrl+V with an image or copied files sends them instead of pasting text.
     fn paste_files(&mut self, ui: &mut Ui, peer: PeerId) {
         let pasted = ui.input(|i| {
             i.events.iter().any(|e| matches!(e, egui::Event::Paste(_)))
@@ -3423,10 +3562,10 @@ impl App {
         self.send_files(peer, files, false);
     }
 
-    /// Панель емодзі та стікерів: вкладки зверху (емодзі, потім набори), сітка нижче.
+    /// Emoji and sticker panel: tabs on top (emoji, then sets), grid below.
     fn sticker_view(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
         glass::glass(ui.painter(), rect, Glass::tinted(24.0, glass::chrome(), 120).frosted(1.0).with_shadow());
-        // Поглинаємо кліки, щоб вони не проходили до повідомлень під панеллю.
+        // Swallow clicks so they don't reach the messages under the panel.
         ui.interact(rect, ui.scope_id().with("sticker-bg"), Sense::click());
         let inner = rect.shrink(10.0);
         let tabs = Rect::from_min_size(inner.min, vec2(inner.width(), 40.0));
@@ -3529,7 +3668,7 @@ impl App {
         }
     }
 
-    /// Сітка емодзі за категоріями; клік додає емодзі в поле вводу.
+    /// Emoji grid by category; a click adds the emoji to the input field.
     fn emoji_grid(&mut self, ui: &mut Ui, rect: Rect) {
         let mut picked = None;
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
@@ -3564,7 +3703,7 @@ impl App {
         }
     }
 
-    /// Підсвічування при перетягуванні файлів у вікно.
+    /// Highlight while dragging files into the window.
     fn drop_overlay(&mut self, ui: &mut Ui) {
         let (hovering, dropped) = ui.input(|i| (!i.raw.hovered_files.is_empty(), i.raw.dropped_files.clone()));
         let Some(peer) = self.selected else { return };
@@ -3577,7 +3716,7 @@ impl App {
         self.send_files(peer, paths, false);
     }
 
-    /// Смужка над полем вводу: «Відповідь …» або «Редагування».
+    /// Strip above the input field: "Reply …" or "Editing".
     fn compose_bar(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
         let (icon, title, id) = match self.compose {
             Compose::Reply(id) => (Icon::Reply, l!("Відповідь", "Reply"), id),
@@ -3610,7 +3749,7 @@ impl App {
         self.compose = Compose::New;
     }
 
-    /// Результати пошуку в чаті: скляна панель під шапкою.
+    /// In-chat search results: a glass panel under the header.
     fn chat_search_view(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
         let Some(s) = &self.chat_search else { return };
         if s.query.trim().chars().count() < 2 {
@@ -3651,7 +3790,7 @@ impl App {
         }
     }
 
-    /// Лічильник непрочитаного в заголовку вікна (як бейдж на панелі задач).
+    /// Unread counter in the window title (like a taskbar badge).
     fn update_title(&mut self, ui: &Ui) {
         let unread: usize = self.chats.iter().filter(|c| !c.muted && !c.archived).map(|c| c.unread.max(c.unread_mark as i32) as usize).sum();
         if unread != self.title_unread {
@@ -3703,11 +3842,20 @@ impl App {
 }
 
 impl eframe::App for App {
+    fn on_exit(&mut self) {
+        self.save_chats();
+        self.send(Cmd::Shutdown);
+        // Wait for the backend to finish writing the cache, but don't hold the window long.
+        if let Some(b) = &self.backend {
+            let _ = b.done.recv_timeout(std::time::Duration::from_secs(2));
+        }
+    }
+
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let events: Vec<Ev> = self.backend.as_ref().map(|b| b.rx.try_iter().collect()).unwrap_or_default();
         let account = self.accounts.active;
         for ev in events {
-            // Після перемикання акаунта решта подій — від старого бекенда.
+            // After an account switch, the remaining events come from the old backend.
             if self.accounts.active != account {
                 break;
             }
@@ -3718,6 +3866,7 @@ impl eframe::App for App {
         }
         self.poll_player();
         self.tray_events();
+        self.take_profile_photos();
         let light = match self.settings.theme {
             settings::Theme::Light => true,
             settings::Theme::Dark => false,
@@ -3728,10 +3877,15 @@ impl eframe::App for App {
         }
 
         let now = ui.input(|i| i.time);
+        self.pump_outbox(now);
+        if self.chats_dirty && now - self.chats_saved_at > CHATS_SAVE_EVERY {
+            self.chats_saved_at = now;
+            self.save_chats();
+        }
         glass::background(ui.painter(), ui.max_rect(), now);
         ui.ctx().request_repaint_after(Duration::from_millis(33));
 
-        // Автоблокування після бездіяльності.
+        // Auto-lock after inactivity.
         if ui.input(|i| !i.events.is_empty() || i.pointer.is_moving()) {
             self.last_activity = now;
         }
@@ -3745,6 +3899,7 @@ impl eframe::App for App {
             return;
         }
 
+        self.hotkeys(ui.ctx());
         match &self.screen {
             Screen::Login(step) => {
                 let step = step.clone();
@@ -3759,18 +3914,21 @@ impl eframe::App for App {
         if self.viewer.is_some() {
             self.viewer_view(ui);
         }
-        if self.folder_edit.is_some() {
-            self.folder_editor(ui);
-        }
+        self.chatlist_overlays(ui);
         if self.accounts_open {
             self.accounts_menu(ui);
         }
         if self.settings_open {
             self.settings_view(ui);
         }
+        // Above the settings: folders are also edited from the "Folders" page.
+        if self.folder_edit.is_some() {
+            self.folder_editor(ui);
+        }
         if self.export_ask.is_some() {
             self.export_view(ui);
         }
+        self.info_confirm_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);
     }
@@ -3867,7 +4025,7 @@ fn chat_row(
         let g = elided(ui, &label, 12.0, Color32::WHITE, 60.0);
         let bw = (g.size().x + 14.0).max(22.0);
         let b = Rect::from_min_size(pos2(rect.right() - 12.0 - bw, rect.bottom() - 32.0), vec2(bw, 22.0));
-        // Як у Telegram: у чатів без сповіщень лічильник сірий.
+        // As in Telegram: muted chats have a grey counter.
         let (tint, alpha) = if chat.muted { (Color32::from_rgb(150, 158, 190), 120) } else { (ACCENT, 230) };
         glass::glass(p, b, Glass::tinted(11.0, tint, alpha));
         p.galley(b.center() - g.size() / 2.0, g, Color32::WHITE);
@@ -3903,7 +4061,7 @@ fn chat_row(
     resp
 }
 
-/// Контекстне меню чату в списку.
+/// Chat context menu in the list.
 fn chat_menu(ui: &mut Ui, chat: &ChatInfo) -> Option<ChatAction> {
     ui.set_min_width(210.0);
     let mut action = None;
@@ -3937,7 +4095,7 @@ fn section_title(ui: &mut Ui, title: &str) {
     ui.painter().text(pos2(r.left() + 12.0, r.bottom() - 6.0), Align2::LEFT_BOTTOM, title, FontId::proportional(13.0), ink_dim());
 }
 
-/// Рядок результату пошуку: автор/чат, час і уривок тексту навколо збігу.
+/// Search result row: author/chat, time and a text snippet around the match.
 fn hit_row(ui: &mut Ui, hit: &SearchHit, query: &str, avatar: Option<&TextureHandle>) -> egui::Response {
     let w = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(vec2(w, 56.0), Sense::click());
@@ -3957,13 +4115,13 @@ fn hit_row(ui: &mut Ui, hit: &SearchHit, query: &str, avatar: Option<&TextureHan
     p.galley(pos2(rect.right() - 10.0 - time_w, rect.top() + 10.0), time, ink_dim());
     p.galley(pos2(x, rect.top() + 8.0), elided(ui, &hit.chat, 14.0, ink(), rect.right() - x - time_w - 18.0), ink());
 
-    // Уривок із підсвіченим збігом.
+    // Snippet with the match highlighted.
     let text = quote(&hit.msg);
     let lower = text.to_lowercase();
     let q = query.trim().to_lowercase();
     let mut job = LayoutJob { wrap: TextWrapping::truncate_at_width(rect.right() - x - 10.0), ..Default::default() };
     let fmt = |c| egui::TextFormat::simple(FontId::proportional(13.0), c);
-    // Пошук у нижньому регістрі може зсунути байти — підсвічуємо лише коли довжини збігаються.
+    // Lowercasing may shift bytes, so highlight only when the lengths match.
     let found = (lower.len() == text.len()).then(|| lower.find(&q)).flatten().filter(|_| !q.is_empty());
     match found {
         Some(i) => {
@@ -3991,8 +4149,10 @@ fn day_chip(ui: &mut Ui, day: &str) {
     ui.painter().galley(chip.center() - g.size() / 2.0, g, ink());
 }
 
-/// Бульбашка повідомлення: [фото] + [автор] [цитата відповіді] [текст] [час].
-fn message_menu(ui: &mut Ui, m: &Msg, action: &mut Option<Action>) {
+/// Message bubble: [photo] + [author] [reply quote] [text] [time].
+fn message_menu(ui: &mut Ui, m: &Msg, chat: Option<&ChatInfo>, action: &mut Option<Action>) {
+    // Protected content: no copying, saving or forwarding, as in Telegram.
+    let protected = m.noforwards || chat.is_some_and(|c| c.noforwards);
     ui.set_min_width(170.0);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
@@ -4006,32 +4166,39 @@ fn message_menu(ui: &mut Ui, m: &Msg, action: &mut Option<Action>) {
     if ui.button(l!("↩  Відповісти", "↩  Reply")).clicked() {
         *action = Some(Action::Reply(m.id));
     }
-    if !m.text.is_empty() && ui.button(l!("📋  Копіювати текст", "📋  Copy text")).clicked() {
+    if !protected && !m.text.is_empty() && ui.button(l!("📋  Копіювати текст", "📋  Copy text")).clicked() {
         *action = Some(Action::Copy(m.text.clone()));
     }
-    if (m.photo || m.file.is_some() || m.media.is_some()) && ui.button(l!("⬇  Завантажити", "⬇  Download")).clicked() {
+    if let Some(c) = chat {
+        chatview::pin_menu(ui, m, c, action);
+    }
+    if !protected && (m.photo || m.file.is_some() || m.media.is_some()) && ui.button(l!("⬇  Завантажити", "⬇  Download")).clicked() {
         *action = Some(Action::Download(m.id));
     }
     if m.out && !m.photo && m.sticker.is_none() && m.file.is_none() && m.media.is_none() && ui.button(l!("✏  Редагувати", "✏  Edit")).clicked() {
         *action = Some(Action::Edit(m.id));
     }
-    if m.media.as_ref().is_some_and(|i| matches!(i.kind, MediaKind::Video | MediaKind::Gif | MediaKind::Round))
+    if !protected
+        && m.media.as_ref().is_some_and(|i| matches!(i.kind, MediaKind::Video | MediaKind::Gif | MediaKind::Round))
         && ui.button(l!("▶  Відкрити в програвачі", "▶  Open in player")).clicked()
     {
         *action = Some(Action::OpenExternal(m.id));
     }
-    if ui.button(l!("➦  Переслати", "➦  Forward")).clicked() {
+    if !protected && ui.button(l!("➦  Переслати", "➦  Forward")).clicked() {
         *action = Some(Action::Forward(m.id));
     }
     if ui.button(l!("☑  Вибрати", "☑  Select")).clicked() {
         *action = Some(Action::Pick(m.id));
+    }
+    if m.out && chat.is_some_and(|c| c.kind == ChatKind::Group) && ui.button(l!("👁  Хто переглянув", "👁  Seen by")).clicked() {
+        *action = Some(Action::ReadBy(m.id));
     }
     if m.out && ui.button(l!("🗑  Видалити", "🗑  Delete")).clicked() {
         *action = Some(Action::Delete(m.id));
     }
 }
 
-/// Рядок теми: кольоровий значок з першою літерою, назва, останнє повідомлення, непрочитані.
+/// Topic row: colored icon with the first letter, name, last message, unread count.
 fn topic_row(ui: &mut Ui, t: &Topic) -> egui::Response {
     let w = ui.available_width();
     let (row, resp) = ui.allocate_exact_size(vec2(w, 62.0), Sense::click());
@@ -4074,7 +4241,7 @@ fn topic_row(ui: &mut Ui, t: &Topic) -> egui::Response {
     resp
 }
 
-/// Позначка вибору біля повідомлення та підсвічування рядка.
+/// Selection mark next to a message and row highlight.
 fn pick_mark(ui: &Ui, row: Rect, look: Look) {
     if !look.picking {
         return;
@@ -4093,7 +4260,7 @@ fn pick_mark(ui: &Ui, row: Rect, look: Look) {
     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
 }
 
-/// Кнопки бота під бульбашкою.
+/// Bot buttons under the bubble.
 fn bot_buttons(ui: &mut Ui, m: &Msg, x: f32, width: f32) -> Option<Action> {
     let mut action = None;
     for (i, row) in m.buttons.iter().enumerate() {
@@ -4114,7 +4281,7 @@ fn bot_buttons(ui: &mut Ui, m: &Msg, x: f32, width: f32) -> Option<Action> {
     action
 }
 
-/// Стікер: без бульбашки, як у Telegram, з часом у маленькому скляному чіпі.
+/// Sticker: no bubble, as in Telegram, with the time in a small glass chip.
 fn sticker_bubble(ui: &mut Ui, m: &Msg, emoji: &str, tex: Option<&TextureHandle>, look: Look) -> Option<Action> {
     const SIZE: f32 = 160.0;
     let avail = ui.available_width();
@@ -4140,14 +4307,14 @@ fn sticker_bubble(ui: &mut Ui, m: &Msg, emoji: &str, tex: Option<&TextureHandle>
     if !m.reactions.is_empty() {
         action = reaction_chips(ui, m.id, &m.reactions, r.left(), m.out, r.right());
     }
-    resp.context_menu(|ui| message_menu(ui, m, &mut action));
+    resp.context_menu(|ui| message_menu(ui, m, look.chat, &mut action));
     if resp.double_clicked() {
         action = Some(Action::Reply(m.id));
     }
     action
 }
 
-/// Рядок реакцій під повідомленням.
+/// Reactions row under a message.
 fn reaction_chips(ui: &mut Ui, id: i32, reactions: &[Reaction], left: f32, out: bool, right: f32) -> Option<Action> {
     let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
     let chips: Vec<_> = reactions
@@ -4172,7 +4339,7 @@ fn reaction_chips(ui: &mut Ui, id: i32, reactions: &[Reaction], left: f32, out: 
     action
 }
 
-/// Висота картки опитування / місця / контакту (0 — немає картки).
+/// Height of the poll / location / contact card (0 means no card).
 fn card_height(ui: &Ui, m: &Msg, w: f32, chosen: &[Vec<u8>]) -> f32 {
     if m.media.as_ref().is_some_and(|i| matches!(i.kind, MediaKind::Voice | MediaKind::Audio)) {
         return MEDIA_H;
@@ -4256,7 +4423,7 @@ fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<Action> {
         };
         p.text(pos2(rect.left(), y), Align2::LEFT_TOP, votes, FontId::proportional(12.0), rgba(ink(), 160));
     } else if let Some(g) = &m.geo {
-        // Стилізована «мапа»: сітка вулиць і мітка; клік відкриває OpenStreetMap.
+        // Stylized "map": a street grid and a pin; a click opens OpenStreetMap.
         let map = Rect::from_min_size(rect.min, vec2(rect.width(), 100.0));
         let resp = ui.interact(rect, ui.scope_id().with(("geo", m.id)), Sense::click());
         p.rect_filled(map, 12.0, Color32::from_rgb(34, 44, 78));
@@ -4296,10 +4463,10 @@ fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<Action> {
 }
 
 const MEDIA_H: f32 = 48.0;
-/// Ключ програвача для попереднього прослуховування запису (справжні id додатні).
+/// Player key for recording preview (real ids are positive).
 const PREVIEW_ID: i32 = -1;
 
-/// Хвильова форма стовпчиками; `progress` — програна частка (яскравіша).
+/// Waveform as bars; `progress` is the played fraction (brighter).
 fn draw_wave(p: &egui::Painter, wave: Rect, levels: &[u8], progress: Option<f32>) {
     let n = ((wave.width() / 4.0) as usize).max(8);
     let level = |k: usize| match levels.len() {
@@ -4319,7 +4486,7 @@ fn draw_wave(p: &egui::Painter, wave: Rect, levels: &[u8], progress: Option<f32>
     }
 }
 
-/// Голосове чи аудіо (кнопка, хвильова форма або назва, час) або відео (кнопка й тривалість).
+/// Voice or audio (button, waveform or name, time) or video (button and duration).
 fn media_card(ui: &mut Ui, m: &Msg, rect: Rect, play: PlayView) -> Option<Action> {
     let info = m.media.as_ref()?;
     let p = ui.painter().clone();
@@ -4348,12 +4515,12 @@ fn media_card(ui: &mut Ui, m: &Msg, rect: Rect, play: PlayView) -> Option<Action
     let x0 = btn.right() + 10.0;
     let right = rect.right();
     let time = if play.current { format!("{} / {}", player::clock(play.position), player::clock(info.duration)) } else { player::clock(info.duration) };
-    // Місце під перемикач швидкості тримаємо завжди, щоб хвиля не стрибала на старті.
+    // Always keep room for the speed toggle so the waveform doesn't jump at start.
     let audio = matches!(info.kind, MediaKind::Voice | MediaKind::Audio);
     let chip_w = if audio { 38.0 } else { 0.0 };
     match info.kind {
         MediaKind::Voice => {
-            // Хвильова форма: стовпчики, програна частина яскравіша; клік перемотує.
+            // Waveform: bars, the played part brighter; a click seeks.
             let wave = Rect::from_min_max(pos2(x0, rect.top() + 4.0), pos2(right - chip_w, rect.top() + 26.0));
             draw_wave(&p, wave, &info.waveform, play.current.then_some(play.progress));
             action = seek_area(ui, m.id, wave, play).or(action);
@@ -4382,7 +4549,7 @@ fn media_card(ui: &mut Ui, m: &Msg, rect: Rect, play: PlayView) -> Option<Action
     }
     let t = p.text(pos2(x0, rect.bottom() - 2.0), Align2::LEFT_BOTTOM, time, FontId::proportional(12.0), dim);
     if m.media_unread {
-        // Крапка «ще не прослухано», як у Telegram.
+        // "Not listened yet" dot, as in Telegram.
         p.circle_filled(pos2(t.right() + 7.0, t.center().y + 0.5), 3.0, if m.out { ink() } else { ACCENT });
     }
 
@@ -4399,7 +4566,7 @@ fn media_card(ui: &mut Ui, m: &Msg, rect: Rect, play: PlayView) -> Option<Action
     action
 }
 
-/// Клікабельна смуга перемотування поточного аудіо.
+/// Clickable seek bar for the current audio.
 fn seek_area(ui: &mut Ui, id: i32, r: Rect, play: PlayView) -> Option<Action> {
     if !play.current {
         return None;
@@ -4408,17 +4575,17 @@ fn seek_area(ui: &mut Ui, id: i32, r: Rect, play: PlayView) -> Option<Action> {
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
-    // Під час перетягування перемотуємо лише при відпусканні, щоб не перезапускати звук щокадру.
+    // While dragging, seek only on release, so the sound isn't restarted every frame.
     let pos = resp.interact_pointer_pos()?;
     (resp.clicked() || resp.drag_stopped()).then(|| Action::Seek(id, (pos.x - r.left()) / r.width()))
 }
 
-/// Відкрити файл у програмі за замовчуванням.
+/// Open a file in the default application.
 fn open_external(path: &std::path::Path) {
     let _ = std::process::Command::new("xdg-open").arg(path).spawn();
 }
 
-/// Розкладка альбому: скільки фото в кожному рядку.
+/// Album layout: how many photos in each row.
 fn album_rows(n: usize) -> Vec<usize> {
     match n {
         0..=2 => vec![n],
@@ -4433,7 +4600,7 @@ fn album_rows(n: usize) -> Vec<usize> {
     }
 }
 
-/// Альбом: сітка фото в одній бульбашці, підпис — з повідомлення, де він є.
+/// Album: a grid of photos in one bubble; the caption comes from the message that has one.
 fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHandle>], look: Look) -> Option<Action> {
     let first = msgs[0];
     let ids: Vec<i32> = msgs.iter().map(|m| m.id).collect();
@@ -4485,11 +4652,12 @@ fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHandle>], loo
     } else {
         let chip = Rect::from_min_size(rect.max - meta.size() - vec2(22.0, 16.0), meta.size() + vec2(12.0, 6.0));
         p.rect_filled(chip, chip.height() / 2.0, Color32::from_black_alpha(120));
-        // Чип поверх фото темний в обох темах — текст на ньому завжди світлий.
+        // The chip over the photo is dark in both themes, so its text is always light.
         let meta = p.layout_no_wrap(last.time.clone(), FontId::proportional(11.0), glass::ON_DARK);
         p.galley(chip.min + vec2(6.0, 3.0), meta, glass::ON_DARK);
     }
     let main = cap.unwrap_or(first);
+    let album_protected = msgs.iter().any(|m| m.noforwards);
     let mut action = None;
     if !main.reactions.is_empty() {
         action = reaction_chips(ui, main.id, &main.reactions, rect.left(), first.out, rect.right());
@@ -4510,7 +4678,7 @@ fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHandle>], loo
         if ui.button(l!("↩  Відповісти", "↩  Reply")).clicked() {
             action = Some(Action::Reply(main.id));
         }
-        if ui.button(l!("➦  Переслати альбом", "➦  Forward album")).clicked() {
+        if !look.chat.is_some_and(|c| c.noforwards) && !album_protected && ui.button(l!("➦  Переслати альбом", "➦  Forward album")).clicked() {
             action = Some(Action::ForwardMany(ids.clone()));
         }
         if ui.button(l!("☑  Вибрати", "☑  Select")).clicked() {
@@ -4531,6 +4699,41 @@ fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHandle>], loo
     action
 }
 
+/// Room for ticks in the time label (≈14 pt at font size 11).
+const TICKS_GAP: &str = "     ";
+
+/// Queued message instead of ticks: a clock while sending, a red "!" mark after a failure.
+fn draw_pending(p: &egui::Painter, right: egui::Pos2, failed: bool, color: Color32) {
+    let c = right + vec2(-7.0, -0.5);
+    if failed {
+        p.circle_filled(c, 6.0, glass::DANGER);
+        let s = egui::Stroke::new(1.6, glass::ON_DARK);
+        p.line_segment([c + vec2(0.0, -3.2), c + vec2(0.0, 0.8)], s);
+        p.circle_filled(c + vec2(0.0, 3.0), 0.9, glass::ON_DARK);
+    } else {
+        icons::draw(p, Rect::from_center_size(c, vec2(13.0, 13.0)), Icon::Clock, color);
+    }
+}
+
+/// Menu of a queued bubble: copy, and retry / delete instead of server actions.
+fn pending_menu(ui: &mut Ui, m: &Msg, failed: bool, action: &mut Option<Action>) {
+    ui.set_min_width(190.0);
+    if failed {
+        ui.label(egui::RichText::new(l!("Не надіслано", "Not sent")).color(glass::DANGER).size(12.5));
+        if ui.button(l!("🔁  Повторити", "🔁  Retry")).clicked() {
+            *action = Some(Action::Retry(m.id));
+        }
+    } else {
+        ui.label(egui::RichText::new(l!("Надсилається…", "Sending…")).color(ink_dim()).size(12.5));
+    }
+    if ui.button(l!("📋  Копіювати", "📋  Copy")).clicked() {
+        *action = Some(Action::Copy(m.text.clone()));
+    }
+    if ui.button(l!("🗑  Видалити", "🗑  Delete")).clicked() {
+        *action = Some(Action::Discard(m.id));
+    }
+}
+
 fn bubble(
     ui: &mut Ui,
     m: &Msg,
@@ -4549,7 +4752,7 @@ fn bubble(
     if kind == Some(MediaKind::Round) {
         return round_bubble(ui, m, photo, look);
     }
-    // Відео й GIF малюються як фото: кадр або мініатюра.
+    // Video and GIF are drawn like photos: a frame or a thumbnail.
     let video = matches!(kind, Some(MediaKind::Video | MediaKind::Gif));
     let avail = ui.available_width();
     let max_w = (avail * 0.72).min(560.0);
@@ -4568,7 +4771,8 @@ fn bubble(
 
     let link = glass::link(m.out);
     let body = (!m.text.is_empty()).then(|| p.layout_job(format::layout(&m.text, &m.spans, 15.0, ink(), link, text_w, revealed)));
-    let meta = format!("{}{}", if m.edited { l!("ред. ", "edited ") } else { "" }, m.time);
+    // Trailing spaces leave room for the ticks drawn on top.
+    let meta = format!("{}{}{}{}", chatview::views_label(m, look), if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
     let meta = p.layout_no_wrap(meta, FontId::proportional(11.0), rgba(ink(), 170));
     let name_color = glass::name_color(m.sender.len() as i64 * 31 + m.sender.chars().next().map_or(0, |c| c as i64));
     let sender = (show_sender && !m.out && !m.sender.is_empty())
@@ -4577,7 +4781,7 @@ fn bubble(
     let reply = reply.map(|(who, what)| (elided(ui, &who, 12.5, quote_accent, text_w - 12.0), elided(ui, &what, 13.0, quote_text, text_w - 12.0)));
     let fwd = m.forwarded.as_ref().map(|from| elided(ui, &lf!("Переслано від {from}", "Forwarded from {from}"), 12.5, quote_accent, text_w));
 
-    // Текстовий блок під фото (або вся бульбашка, якщо фото немає).
+    // Text block under the photo (or the whole bubble if there is no photo).
     let mut block = vec2(0.0, 0.0);
     if let Some(f) = &fwd {
         block.x = block.x.max(f.size().x);
@@ -4606,10 +4810,16 @@ fn bubble(
         block.x = block.x.max(card_w);
         block.y += card_h + 6.0;
     }
+    // The link preview card goes under the text, like in Telegram.
+    let web = m.webpage.as_ref().filter(|_| img_size.is_none()).map(|w| suggest::WebCard::layout(ui, w, text_w.min(380.0), photo, quote_accent));
+    if let Some(c) = &web {
+        block.x = block.x.max(c.width);
+        block.y += c.height() + 6.0;
+    }
     match &body {
         Some(body) => {
             let last_row_w = body.rows.last().map_or(0.0, |r| r.rect().width());
-            let meta_inline = last_row_w + meta.size().x + 10.0 <= text_w;
+            let meta_inline = last_row_w + meta.size().x + 10.0 <= text_w && web.is_none();
             block.x = block.x.max(body.size().x);
             block.y += body.size().y;
             if meta_inline {
@@ -4619,7 +4829,7 @@ fn bubble(
                 block.y += meta.size().y + 2.0;
             }
         }
-        // Час — у нижньому правому куті картки медіа, поруч із тривалістю.
+        // Time goes in the bottom right corner of the media card, next to the duration.
         None if m.media.is_some() => {
             block.x = block.x.max(card_w.min(150.0) + meta.size().x);
             block.y -= 6.0;
@@ -4664,7 +4874,9 @@ fn bubble(
             let chip = Rect::from_min_size(ir.max - meta.size() - vec2(18.0, 12.0), meta.size() + vec2(12.0, 6.0));
             p.rect_filled(chip, chip.height() / 2.0, Color32::from_black_alpha(120));
             let on_media = p.layout_no_wrap(meta.text().to_owned(), FontId::proportional(11.0), glass::ON_DARK);
-            p.galley(chip.min + vec2(6.0, 3.0), on_media, glass::ON_DARK);
+            let at = Rect::from_min_size(chip.min + vec2(6.0, 3.0), on_media.size());
+            p.galley(at.min, on_media, glass::ON_DARK);
+            chatview::meta_icons(&p, at, m, look, glass::ON_DARK);
         }
         cursor.y = ir.bottom() + pad.y;
     }
@@ -4707,8 +4919,18 @@ fn bubble(
         p.galley(cursor, body.clone(), ink());
         body_pos = Some(cursor);
     }
+    if let Some(c) = web {
+        let top = cursor.y + body.as_ref().map_or(0.0, |b| b.size().y + 6.0);
+        card_action = c.draw(ui, m, pos2(cursor.x, top), photo, quote_accent).or(card_action);
+    }
     if has_block || img_size.is_none() {
-        p.galley(rect.max - pad - meta.size(), meta, ink());
+        let at = Rect::from_min_size(rect.max - pad - meta.size(), meta.size());
+        p.galley(at.min, meta, ink());
+        if let Some(failed) = look.pending {
+            draw_pending(&p, at.right_center(), failed, rgba(ink(), 200));
+        } else {
+            chatview::meta_icons(&p, at, m, look, rgba(ink(), 200));
+        }
     }
 
     let mut action = card_action;
@@ -4721,8 +4943,16 @@ fn bubble(
     if look.picking {
         return resp.clicked().then_some(Action::Pick(m.id)).or(action);
     }
-    resp.context_menu(|ui| message_menu(ui, m, &mut action));
-    // Посилання та спойлери в тексті.
+    if let Some(failed) = look.pending {
+        resp.context_menu(|ui| pending_menu(ui, m, failed, &mut action));
+        // A failed bubble retries on click, like the red mark in Telegram Desktop.
+        if failed && resp.clicked() {
+            action = Some(Action::Retry(m.id));
+        }
+        return action;
+    }
+    resp.context_menu(|ui| message_menu(ui, m, look.chat, &mut action));
+    // Links and spoilers in the text.
     if let (Some(body), Some(origin), Some(pos)) = (&body, body_pos, resp.hover_pos())
         && Rect::from_min_size(origin, body.size()).contains(pos)
     {
@@ -4764,7 +4994,7 @@ fn bubble(
     action
 }
 
-/// Тривалість і кнопка програвання поверх кадру відео.
+/// Duration and play button over the video frame.
 fn video_overlay(p: &egui::Painter, r: Rect, info: &backend::MediaInfo, play: PlayView) {
     let label = match info.kind {
         MediaKind::Gif => "GIF".to_owned(),
@@ -4791,14 +5021,14 @@ fn video_overlay(p: &egui::Painter, r: Rect, info: &backend::MediaInfo, play: Pl
     }
 }
 
-/// Кільце, що обертається, поки щось вантажиться.
+/// A spinning ring while something loads.
 fn spinner(p: &egui::Painter, c: egui::Pos2, r: f32) {
     let t = p.ctx().input(|i| i.time) as f32 * 5.0;
     let pts: Vec<_> = (0..=24).map(|k| t + k as f32 * 0.18).map(|a| c + vec2(a.cos(), a.sin()) * r).collect();
     p.add(egui::Shape::line(pts, egui::Stroke::new(2.2, ink())));
 }
 
-/// Кругле відеоповідомлення без бульбашки: кадр у колі, скляний обід, прогрес по колу.
+/// Round video message without a bubble: frame in a circle, glass rim, progress around the circle.
 fn round_bubble(ui: &mut Ui, m: &Msg, tex: Option<&TextureHandle>, look: Look) -> Option<Action> {
     let size = ROUND_PT;
     let avail = ui.available_width();
@@ -4830,7 +5060,7 @@ fn round_bubble(ui: &mut Ui, m: &Msg, tex: Option<&TextureHandle>, look: Look) -
             p.add(egui::Shape::line(pts, egui::Stroke::new(3.0, ink())));
         }
     } else if !play.loading {
-        // Без звуку: значок динаміка-«вимкнено» внизу.
+        // Muted: a speaker-off icon at the bottom.
         let c = Rect::from_center_size(pos2(r.center().x, r.bottom() - 22.0), vec2(26.0, 26.0));
         p.circle_filled(c.center(), 13.0, Color32::from_black_alpha(170));
         icons::draw(p, c.shrink(5.0), Icon::Muted, glass::ON_DARK);
@@ -4858,7 +5088,7 @@ fn round_bubble(ui: &mut Ui, m: &Msg, tex: Option<&TextureHandle>, look: Look) -
     if inside {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
-    resp.context_menu(|ui| message_menu(ui, m, &mut action));
+    resp.context_menu(|ui| message_menu(ui, m, look.chat, &mut action));
     if resp.double_clicked() {
         return Some(Action::Reply(m.id));
     }
@@ -4873,7 +5103,7 @@ fn upload_pill(ui: &Ui, u: &Upload, bottom_left: egui::Pos2) -> f32 {
     glass::glass(ui.painter(), pill, Glass::tinted(20.0, glass::chrome(), 150).frosted(1.0).with_shadow());
     let p = ui.painter();
     let frac = if u.total > 0 { (u.done as f32 / u.total as f32).clamp(0.0, 1.0) } else { 0.0 };
-    // Кругове кільце прогресу.
+    // Circular progress ring.
     let c = pos2(pill.left() + 21.0, pill.center().y);
     p.circle_stroke(c, 10.0, egui::Stroke::new(2.5, glass::veil(40)));
     if frac > 0.0 {
@@ -4896,7 +5126,7 @@ fn upload_pill(ui: &Ui, u: &Upload, bottom_left: egui::Pos2) -> f32 {
     pill.top()
 }
 
-/// Системне сповіщення через `notify-send` (libnotify), без блокування UI.
+/// System notification via `notify-send` (libnotify), without blocking the UI.
 fn notify(title: &str, body: &str) {
     let body: String = body.chars().take(180).collect();
     let _ = std::process::Command::new("notify-send")
@@ -4904,7 +5134,7 @@ fn notify(title: &str, body: &str) {
         .spawn();
 }
 
-/// Зберігає картинку з буфера в PNG у кеші, щоб надіслати як фото.
+/// Saves a clipboard image as PNG in the cache to send as a photo.
 fn save_clipboard_image(img: &arboard::ImageData<'_>) -> Option<PathBuf> {
     let buf = image::RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.to_vec())?;
     let dir = backend::data_dir().join("cache");
@@ -4919,7 +5149,7 @@ fn setup_style(ctx: &egui::Context) {
     apply_theme(ctx, false);
 }
 
-/// Тема: кольори скла (`glass::set_light`) і віджетів egui (меню, прапорці, виділення).
+/// Theme: glass colors (`glass::set_light`) and egui widget colors (menus, checkboxes, selection).
 fn apply_theme(ctx: &egui::Context, light: bool) {
     glass::set_light(light);
     ctx.set_theme(if light { egui::Theme::Light } else { egui::Theme::Dark });

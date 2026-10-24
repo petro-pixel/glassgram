@@ -1,11 +1,11 @@
-//! Налаштування програми: простий файл `ключ=значення` у теці даних.
+//! App settings: a simple `key=value` file in the data folder.
 
 use crate::backend::data_dir;
 use crate::i18n::{l};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Theme {
-    /// Як у системі (світла чи темна схема робочого столу).
+    /// Follow the system (light or dark desktop scheme).
     System,
     Dark,
     Light,
@@ -15,24 +15,26 @@ pub enum Theme {
 pub struct Settings {
     pub theme: Theme,
     pub lang: crate::i18n::Lang,
-    /// Масштаб інтерфейсу (множник до щільності екрана).
+    /// UI scale (multiplier on top of screen density).
     pub scale: f32,
     pub notifications: bool,
-    /// GIF, кружечки й відео-стікери грають самі.
+    /// GIFs, round videos and video stickers autoplay.
     pub autoplay: bool,
-    /// SOCKS5-проксі (`socks5://[логін:пароль@]хост:порт`), порожній — без проксі.
+    /// SOCKS5 proxy (`socks5://[user:password@]host:port`), empty means no proxy.
     pub proxy: String,
-    /// Локальний пароль (`lock::make`), порожній — вимкнено.
+    /// Local passcode (`lock::make`), empty means disabled.
     pub passcode: String,
-    /// Блокувати після стількох хвилин бездіяльності (0 — лише на старті).
+    /// Lock after this many minutes of inactivity (0 means only at startup).
     pub lock_minutes: u32,
-    /// Камера для відеоповідомлень (`camera::Camera::id`), порожня — перша знайдена.
+    /// Camera for video messages (`camera::Camera::id`), empty means the first one found.
     pub camera: String,
+    /// Folders as a vertical column on the left, as in Telegram Desktop, instead of tabs above the list.
+    pub folders_side: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new() }
+        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false }
     }
 }
 
@@ -68,6 +70,7 @@ impl Settings {
                 "passcode" => s.passcode = v.to_owned(),
                 "camera" => s.camera = v.to_owned(),
                 "lock_minutes" => s.lock_minutes = v.parse().unwrap_or(0),
+                "folders_side" => s.folders_side = flag,
                 _ => {}
             }
         }
@@ -79,7 +82,7 @@ impl Settings {
         let _ = std::fs::create_dir_all(&dir);
         let b = |v: bool| if v { "1" } else { "0" };
         let text = format!(
-            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\n",
+            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\n",
             match self.lang {
                 crate::i18n::Lang::System => "system",
                 crate::i18n::Lang::Uk => "uk",
@@ -96,15 +99,16 @@ impl Settings {
             self.proxy.trim(),
             self.passcode,
             self.lock_minutes,
-            self.camera
+            self.camera,
+            b(self.folders_side)
         );
-        // Тут хеш локального пароля — тільки для власника.
+        // Holds the local passcode hash, so owner-only.
         let _ = std::fs::write(dir.join("settings"), text);
         crate::backend::make_private(&dir.join("settings"));
     }
 }
 
-/// Перевірка адреси проксі: схема socks5, хост і порт. `None` — усе гаразд.
+/// Validates a proxy address: socks5 scheme, host and port. `None` means it's fine.
 pub fn proxy_error(url: &str) -> Option<&'static str> {
     let url = url.trim();
     if url.is_empty() {

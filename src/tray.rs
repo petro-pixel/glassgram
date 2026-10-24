@@ -1,5 +1,5 @@
-//! Іконка в системному треї (StatusNotifierItem через D-Bus): лічильник непрочитаного
-//! на іконці, перемикач сповіщень і вихід. Трей працює у своєму потоці й шле події в UI каналом.
+//! System tray icon (StatusNotifierItem over D-Bus): unread counter
+//! on the icon, notification toggle and quit. The tray runs in its own thread and sends events to the UI over a channel.
 
 use std::sync::mpsc::Sender;
 
@@ -8,7 +8,7 @@ use ksni::blocking::{Handle, TrayMethods};
 use crate::i18n::{l, lf};
 
 pub enum TrayEv {
-    /// Клік по іконці — показати вікно.
+    /// Click on the icon: show the window.
     Show,
     Notifications(bool),
     Quit,
@@ -46,12 +46,12 @@ impl ksni::Tray for Tray {
     }
 
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
-        // Кілька розмірів — панель сама вибере найближчий.
+        // Several sizes; the panel picks the closest one itself.
         [22, 32, 48, 64]
             .into_iter()
             .map(|size| {
                 let mut data = crate::logo::render(size, self.unread > 0).into_raw();
-                // RGBA → ARGB, як вимагає специфікація.
+                // RGBA → ARGB, as the spec requires.
                 data.chunks_exact_mut(4).for_each(|px| px.rotate_right(1));
                 ksni::Icon { width: size as i32, height: size as i32, data }
             })
@@ -93,7 +93,7 @@ impl ksni::Tray for Tray {
     }
 }
 
-/// Запускає трей. `None`, якщо в сесії немає хоста StatusNotifier (тоді просто без трею).
+/// Starts the tray. `None` if the session has no StatusNotifier host (then simply no tray).
 pub fn spawn(tx: Sender<TrayEv>, ctx: egui::Context, notifications: bool) -> Option<Handle<Tray>> {
     let tray = Tray { tx, ctx, unread: 0, notifications };
     match tray.spawn() {

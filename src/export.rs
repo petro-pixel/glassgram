@@ -1,6 +1,6 @@
-//! Експорт історії чату, як у Telegram Desktop: `messages.html` для читання
-//! і `result.json` для програм; за бажанням — фото й файли в теці `files/`.
-//! Шляхи й відкриття теки — через `dirs` і `open`, тож працює на будь-якій ОС.
+//! Chat history export, as in Telegram Desktop: `messages.html` for reading
+//! and `result.json` for programs; optionally photos and files in the `files/` folder.
+//! Paths and opening the folder go through `dirs` and `open`, so it works on any OS.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -11,20 +11,20 @@ use grammers_client::session::types::PeerRef;
 
 use crate::i18n::{l, lf};
 
-/// Одне повідомлення в експорті.
+/// One message in the export.
 struct Entry {
     id: i32,
     date: String,
     from: String,
     text: String,
     reply_to: Option<i32>,
-    /// Шлях до файлу відносно теки експорту.
+    /// File path relative to the export folder.
     file: Option<String>,
-    /// Позначка вкладення, якщо файл не збережено.
+    /// Attachment label, if the file was not saved.
     media: Option<&'static str>,
 }
 
-/// Тека для нового експорту: «Завантаження/Glassgram Export/<назва> <дата>».
+/// Folder for a new export: “Downloads/Glassgram Export/<name> <date>”.
 pub fn target_dir(title: &str) -> PathBuf {
     let base = dirs::download_dir().or_else(dirs::home_dir).unwrap_or_else(|| PathBuf::from("."));
     let safe: String = title.chars().map(|c| if c.is_alphanumeric() || " -_.".contains(c) { c } else { '_' }).collect();
@@ -32,7 +32,7 @@ pub fn target_dir(title: &str) -> PathBuf {
     base.join("Glassgram Export").join(format!("{} {stamp}", safe.trim()))
 }
 
-/// Вивантажує всю історію. `progress` викликається кожні 100 повідомлень.
+/// Dumps the whole history. `progress` is called every 100 messages.
 pub async fn run(client: &Client, r: PeerRef, title: &str, with_media: bool, dir: &Path, mut progress: impl FnMut(usize)) -> Result<usize, String> {
     let files = dir.join("files");
     std::fs::create_dir_all(&files).map_err(|e| e.to_string())?;

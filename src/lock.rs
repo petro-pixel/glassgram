@@ -1,10 +1,10 @@
-//! Локальний пароль (passcode): блокує інтерфейс на старті й після бездіяльності.
-//! Зберігається лише сіль і хеш (SHA-256, багато ітерацій), а не сам пароль.
-//! Сесію Telegram на диску він не шифрує — це захист від чужих очей, а не від доступу до файлів.
+//! Local passcode: locks the UI at startup and after inactivity.
+//! Only a salt and a hash (SHA-256, many iterations) are stored, not the passcode itself.
+//! It does not encrypt the Telegram session on disk: it guards against prying eyes, not file access.
 
 use sha2::{Digest, Sha256};
 
-/// Ітерацій хешування — щоб перебір коротких паролів був повільнішим.
+/// Hashing iterations, so brute-forcing short passcodes is slower.
 const ROUNDS: u32 = 100_000;
 
 fn digest(salt: &str, passcode: &str) -> String {
@@ -15,7 +15,7 @@ fn digest(salt: &str, passcode: &str) -> String {
     h.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Запис для налаштувань: `сіль$хеш`.
+/// Settings entry: `salt$hash`.
 pub fn make(passcode: &str) -> String {
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
     let salt = format!("{:x}{:x}", now.as_nanos(), std::process::id());

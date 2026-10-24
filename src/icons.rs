@@ -1,5 +1,5 @@
-//! Векторні іконки: шляхи на сітці 24×24, які масштабуються до будь-якого розміру
-//! й згладжуються тесселятором egui (на відміну від емодзі з растрового атласу).
+//! Vector icons: paths on a 24×24 grid that scale to any size
+//! and are anti-aliased by egui's tessellator (unlike emoji from the raster atlas).
 
 use std::f32::consts::{FRAC_PI_2, PI};
 
@@ -39,14 +39,37 @@ pub enum Icon {
     Stop,
     Gear,
     Lock,
+    ChevronDown,
+    /// Mention "@".
+    At,
+    /// Reaction.
+    Heart,
+    /// Views.
+    Eye,
+    /// List (all pinned).
+    List,
+    Link,
+    /// Bot command menu: a slash in a circle.
+    Commands,
+    Info,
+    Phone,
+    User,
+    Chat,
+    Folder,
+    Globe,
+    Laptop,
+    /// Speech bubble for "All chats".
+    Chats,
+    Users,
+    Archive,
 }
 
-/// Відображення сітки 24×24 у квадрат усередині `rect` (з необов'язковим поворотом).
+/// Maps the 24×24 grid into a square inside `rect` (with optional rotation).
 struct Grid {
     origin: Pos2,
     scale: f32,
     rot: f32,
-    /// Дзеркально по горизонталі.
+    /// Mirror horizontally.
     flip: bool,
 }
 
@@ -61,7 +84,7 @@ impl Grid {
         xy.iter().map(|&(x, y)| self.p(x, y)).collect()
     }
 
-    /// Точки дуги з центром (cx, cy), кути в радіанах (y донизу: 0 — праворуч, π/2 — донизу).
+    /// Arc points around centre (cx, cy), angles in radians (y down: 0 is right, π/2 is down).
     fn arc(&self, cx: f32, cy: f32, r: f32, from: f32, to: f32) -> Vec<Pos2> {
         let n = (((to - from).abs() * r * self.scale / 2.0).ceil() as usize).clamp(6, 96);
         (0..=n)
@@ -94,7 +117,7 @@ pub fn draw(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
 
     match icon {
         Icon::Send => {
-            // Паперовий літачок з двох опуклих половин.
+            // Paper plane made of two convex halves.
             fill(g.pts(&[(3.0, 3.5), (21.0, 12.0), (14.5, 12.0), (3.0, 10.2)]));
             fill(g.pts(&[(3.0, 13.8), (14.5, 12.0), (21.0, 12.0), (3.0, 20.5)]));
         }
@@ -118,7 +141,7 @@ pub fn draw(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             line(g.pts(&[(12.0, 3.5), (12.0, 11.5)]));
         }
         Icon::Attach => {
-            // Скріпка: дві дуги та прямі, повернуті на 45°.
+            // Paperclip: two arcs and straight segments, rotated by 45°.
             let g = Grid { rot: PI / 4.0, ..g };
             let mut pts = g.pts(&[(15.5, 6.5), (15.5, 16.0)]);
             pts.extend(g.arc(12.0, 16.0, 3.5, 0.0, PI));
@@ -161,7 +184,7 @@ pub fn draw(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             p.rect_filled(Rect::from_two_pos(g.p(14.0, 5.0), g.p(17.5, 19.0)), 1.0 * scale, color);
         }
         Icon::Lock => {
-            // Дужка й корпус замка з замковою щілиною.
+            // Lock shackle and body with a keyhole.
             let mut pts = g.pts(&[(8.0, 11.0)]);
             pts.extend(g.arc(12.0, 8.0, 4.0, PI, 2.0 * PI));
             pts.extend(g.pts(&[(16.0, 11.0)]));
@@ -169,8 +192,21 @@ pub fn draw(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             closed(g.pts(&[(5.5, 11.0), (18.5, 11.0), (18.5, 20.5), (5.5, 20.5)]));
             dot(12.0, 15.2, 1.4);
         }
+        Icon::Link => {
+            // Two overlapping chain links at 45°.
+            let g = Grid { rot: -PI / 4.0, ..g };
+            for (a, b) in [(6.8, 11.0), (13.0, 17.2)] {
+                let mut pts = g.arc(a, 12.0, 3.4, FRAC_PI_2, 3.0 * FRAC_PI_2);
+                pts.extend(g.arc(b, 12.0, 3.4, -FRAC_PI_2, FRAC_PI_2));
+                closed(pts);
+            }
+        }
+        Icon::Commands => {
+            circle(12.0, 12.0, 8.5);
+            line(g.pts(&[(14.2, 7.6), (9.8, 16.4)]));
+        }
         Icon::Gear => {
-            // Шестерня: вісім зубців по колу й отвір.
+            // Gear: eight teeth around a circle and a hole.
             let mut pts = Vec::new();
             for k in 0..8 {
                 let a = k as f32 * PI / 4.0;
@@ -185,7 +221,7 @@ pub fn draw(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             p.rect_filled(Rect::from_two_pos(g.p(6.0, 6.0), g.p(18.0, 18.0)), 2.5 * scale, color);
         }
         Icon::Mic => {
-            // Капсула мікрофона, тримач-дуга і ніжка.
+            // Microphone capsule, arc holder and stand.
             let mut pts = g.arc(12.0, 7.0, 3.2, PI, 2.0 * PI);
             pts.extend(g.arc(12.0, 12.0, 3.2, 0.0, PI));
             closed(pts);
@@ -237,7 +273,7 @@ pub fn draw(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             line(g.pts(&[(12.0, 7.0), (12.0, 12.0), (15.5, 14.0)]));
         }
         Icon::Location => {
-            // Мітка на мапі: дуга зверху й загострений низ.
+            // Map pin: arc on top and a pointed bottom.
             let mut pts = g.arc(12.0, 9.5, 6.5, PI - 0.5, 2.0 * PI + 0.5);
             pts.push(g.p(12.0, 21.0));
             closed(pts);
@@ -251,5 +287,102 @@ pub fn draw(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             closed(g.pts(&[(8.5, 8.5), (20.0, 8.5), (20.0, 20.0), (8.5, 20.0)]));
             line(g.pts(&[(15.5, 8.5), (15.5, 4.0), (4.0, 4.0), (4.0, 15.5), (8.5, 15.5)]));
         }
+        Icon::ChevronDown => line(g.pts(&[(5.0, 9.0), (12.0, 16.0), (19.0, 9.0)])),
+        Icon::At => {
+            // Inner ring and a tail that curls into the outer arc counter-clockwise.
+            circle(12.0, 12.0, 3.6);
+            let mut pts = g.pts(&[(15.6, 8.4), (15.6, 13.5)]);
+            pts.extend(g.arc(18.0, 13.5, 2.4, PI, 0.0));
+            pts.extend(g.arc(12.0, 12.0, 8.6, 0.18, 0.18 - 2.0 * PI + 1.3));
+            line(pts);
+        }
+        Icon::Heart => {
+            // Two arcs on top and a pointed bottom.
+            let mut pts = g.arc(8.0, 9.0, 4.2, PI * 0.75, PI * 2.0);
+            pts.extend(g.arc(16.0, 9.0, 4.2, PI, PI * 2.25));
+            pts.push(g.p(12.0, 20.0));
+            closed(pts);
+        }
+        Icon::Eye => {
+            // Almond outline and a pupil.
+            let mut pts = g.arc(12.0, 17.45, 10.95, -PI * 0.834, -PI * 0.166);
+            pts.extend(g.arc(12.0, 6.55, 10.95, PI * 0.166, PI * 0.834));
+            closed(pts);
+            dot(12.0, 12.0, 2.8);
+        }
+        Icon::List => {
+            for y in [6.5, 12.0, 17.5] {
+                dot(4.8, y, 1.3);
+                line(g.pts(&[(9.0, y), (20.0, y)]));
+            }
+        }
+        Icon::Info => {
+            circle(12.0, 12.0, 8.8);
+            dot(12.0, 7.8, 1.2);
+            line(g.pts(&[(12.0, 11.0), (12.0, 16.5)]));
+        }
+        Icon::Phone => {
+            closed(g.pts(&[(7.0, 3.0), (17.0, 3.0), (17.0, 21.0), (7.0, 21.0)]));
+            dot(12.0, 18.0, 1.1);
+        }
+        Icon::User => {
+            // Head and shoulders.
+            circle(12.0, 8.0, 4.0);
+            line(g.arc(12.0, 21.0, 7.5, PI + 0.15, 2.0 * PI - 0.15));
+        }
+        Icon::Chat => {
+            // Speech bubble with a tail at the bottom left.
+            let mut pts = g.arc(12.0, 11.0, 8.5, PI * 0.72, PI * 2.62);
+            pts.extend(g.pts(&[(4.0, 20.5)]));
+            closed(pts);
+        }
+        Icon::Folder => closed(g.pts(&[(3.0, 6.0), (9.5, 6.0), (11.5, 8.5), (21.0, 8.5), (21.0, 19.0), (3.0, 19.0)])),
+        Icon::Globe => {
+            circle(12.0, 12.0, 8.8);
+            line(g.pts(&[(3.2, 12.0), (20.8, 12.0)]));
+            let cx = g.p(12.0, 12.0).x;
+            line(g.arc(12.0, 12.0, 8.8, -FRAC_PI_2, FRAC_PI_2).into_iter().map(|q| squeeze_x(q, cx, 0.45)).collect());
+            line(g.arc(12.0, 12.0, 8.8, FRAC_PI_2, PI + FRAC_PI_2).into_iter().map(|q| squeeze_x(q, cx, 0.45)).collect());
+        }
+        Icon::Laptop => {
+            closed(g.pts(&[(5.0, 5.5), (19.0, 5.5), (19.0, 15.5), (5.0, 15.5)]));
+            line(g.pts(&[(2.5, 19.0), (21.5, 19.0)]));
+        }
+        Icon::Chats => {
+            // A circle with a tail at the bottom left.
+            let mut pts = g.arc(12.0, 11.0, 8.0, PI * 0.78, PI * 2.62);
+            pts.push(g.p(4.0, 20.0));
+            closed(pts);
+        }
+        Icon::Users => {
+            circle(9.0, 8.5, 3.3);
+            line(g.arc(9.0, 20.5, 6.5, PI + 0.15, 2.0 * PI - 0.15));
+            line(g.arc(16.5, 9.0, 2.7, -FRAC_PI_2 - 0.9, FRAC_PI_2 + 0.4));
+            line(g.arc(16.5, 20.0, 5.5, PI * 1.45, 2.0 * PI - 0.15));
+        }
+        Icon::Archive => {
+            closed(g.pts(&[(3.5, 4.5), (20.5, 4.5), (20.5, 9.0), (3.5, 9.0)]));
+            line(g.pts(&[(5.0, 9.0), (5.0, 19.5), (19.0, 19.5), (19.0, 9.0)]));
+            line(g.pts(&[(10.0, 13.0), (14.0, 13.0)]));
+        }
     }
+}
+
+/// Read ticks next to the time: ✓ — sent, ✓✓ — read; `right` is the right edge at the text's mid-line.
+/// Own small layout instead of the 24×24 grid: ticks must stay crisp next to an 11 pt font.
+pub fn ticks(p: &Painter, right: Pos2, read: bool, color: Color32) {
+    let stroke = Stroke::new(1.4, color);
+    let check = |dx: f32| {
+        let o = right + vec2(dx - 4.5, -1.0);
+        p.add(Shape::line(vec![o + vec2(-4.0, 0.5), o + vec2(-1.2, 3.3), o + vec2(4.2, -3.2)], stroke));
+    };
+    check(0.0);
+    if read {
+        check(-4.0);
+    }
+}
+
+/// Squeezes a point towards the vertical line `cx` (meridians of the globe).
+fn squeeze_x(p: Pos2, cx: f32, k: f32) -> Pos2 {
+    Pos2::new(cx + (p.x - cx) * k, p.y)
 }
