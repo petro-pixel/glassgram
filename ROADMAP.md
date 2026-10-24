@@ -202,10 +202,10 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Opening files and links via the `open` crate everywhere (downloads, bot buttons, files)
 - ✅ Data and Downloads folders via `dirs` (`%APPDATA%\glassgram`, `~/Library/Application Support/glassgram`)
 - ✅ Tray: `ksni` on Linux, `tray-icon` on Windows and macOS behind one `TrayHandle`
-- ✅ Microphone: PulseAudio on Linux, DirectShow on Windows, AVFoundation on macOS (voice and video messages)
+- ✅ Microphone: PipeWire (via `pw-record`) or PulseAudio on Linux, DirectShow on Windows, AVFoundation on macOS (voice and video messages)
 - ✅ ffmpeg/ffplay next to the executable, in `PATH` or Homebrew; no console windows on Windows, no console for the app itself
 - ⬜ **P1** Run on real Windows and macOS: tray, notifications, recording, wgpu blur (DX12/Metal)
-- ⬜ Minimise to the tray on close (Windows)
+- ✅ Closing the window hides it to the tray on Windows, the tray icon brings it back, "Quit" exits (not run on Windows yet)
 
 **Windows**
 - ⬜ Build and CI for `x86_64-pc-windows-msvc`, checking the wgpu blur on DX12/Vulkan

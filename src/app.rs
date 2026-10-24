@@ -388,6 +388,10 @@ pub struct App {
     can_record: bool,
     tray: Option<tray::TrayHandle>,
     tray_rx: mpsc::Receiver<TrayEv>,
+    /// "Quit" in the tray: the window really closes instead of hiding to the tray.
+    quitting: bool,
+    /// The "still running in the tray" notice is shown once per run.
+    tray_hint_shown: bool,
     folder_edit: Option<FolderEdit>,
     accounts: Accounts,
     /// Open accounts menu under the name in the header.
@@ -670,6 +674,8 @@ impl App {
             can_record: recorder::available(),
             tray,
             tray_rx,
+            quitting: false,
+            tray_hint_shown: false,
             folder_edit: None,
             accounts_open: false,
             accounts_anchor: Rect::NOTHING,
@@ -3800,6 +3806,18 @@ impl App {
         }
     }
 
+    /// With a tray (Windows), closing the window hides it there, as Telegram Desktop does.
+    fn close_to_tray(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
+        let Some(t) = &self.tray else { return };
+        t.attach(frame);
+        if !self.quitting && ctx.input(|i| i.viewport().close_requested()) && t.hide_window() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            if !std::mem::replace(&mut self.tray_hint_shown, true) {
+                notify("Glassgram", l!("Glassgram працює далі в треї. Вийти — через меню іконки.", "Glassgram keeps running in the tray. Quit from the icon's menu."));
+            }
+        }
+    }
+
     fn tray_events(&mut self) {
         while let Ok(ev) = self.tray_rx.try_recv() {
             match ev {
@@ -3814,7 +3832,10 @@ impl App {
                         t.set_notifications(self.settings.notifications);
                     }
                 }
-                TrayEv::Quit => self.ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                TrayEv::Quit => {
+                    self.quitting = true;
+                    self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
             }
         }
     }
@@ -3851,7 +3872,8 @@ impl eframe::App for App {
         }
     }
 
-    fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
+        self.close_to_tray(ui.ctx(), frame);
         let events: Vec<Ev> = self.backend.as_ref().map(|b| b.rx.try_iter().collect()).unwrap_or_default();
         let account = self.accounts.active;
         for ev in events {

@@ -1,8 +1,8 @@
-//! Voice recording: `ffmpeg` takes audio from PulseAudio/PipeWire and writes OGG/Opus,
+//! Voice recording: `ffmpeg` takes the microphone (`camera::Mic`) and writes OGG/Opus,
 //! while also streaming 8 kHz PCM to stdout, used for the level meter
 //! and the waveform for Telegram.
 
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Child, Stdio};
 use std::sync::{Arc, Mutex};
@@ -18,6 +18,7 @@ const WAVE_BARS: usize = 100;
 
 pub struct Recorder {
     child: Child,
+    mic: crate::camera::Mic,
     started: Instant,
     path: PathBuf,
     /// Peak levels 0..1 every 50 ms.
@@ -43,14 +44,15 @@ impl Recorder {
     pub fn start() -> Result<Self, String> {
         let dir = std::env::temp_dir();
         let path = dir.join(format!("glassgram-voice-{}-{}.ogg", std::process::id(), jiff::Timestamp::now().as_millisecond()));
+        let mut mic = crate::camera::Mic::open()?;
         let mut child = crate::platform::tool("ffmpeg")
             .args(["-loglevel", "error"])
-            .args(crate::camera::mic_args())
+            .args(&mic.args)
             .args(["-ac", "1", "-ar", "48000"])
             .args(["-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-y"])
             .arg(&path)
             .args(["-ac", "1", "-ar", "8000", "-f", "s16le", "pipe:1"])
-            .stdin(Stdio::piped())
+            .stdin(mic.stdin())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
@@ -65,7 +67,7 @@ impl Recorder {
                 sink.lock().unwrap().push(peak as f32 / i16::MAX as f32);
             }
         });
-        Ok(Self { child, started: Instant::now(), path, levels })
+        Ok(Self { child, mic, started: Instant::now(), path, levels })
     }
 
     pub fn elapsed(&self) -> f64 {
@@ -86,11 +88,8 @@ impl Recorder {
     /// Stop and finalize the file. `None` if the recording is too short or failed.
     pub fn finish(mut self) -> Option<Voice> {
         let duration = self.elapsed();
-        // “q” is ffmpeg's normal stop: it closes the OGG container properly.
-        if let Some(mut stdin) = self.child.stdin.take() {
-            let _ = stdin.write_all(b"q");
-        }
-        let ok = self.child.wait().is_ok_and(|s| s.success());
+        let signalled = self.mic.stop(&mut self.child);
+        let ok = self.child.wait().is_ok_and(|s| s.success() || signalled);
         let levels = self.levels.lock().unwrap().clone();
         if !ok || duration < MIN_SECS || std::fs::metadata(&self.path).map_or(true, |m| m.len() == 0) {
             let _ = std::fs::remove_file(&self.path);
@@ -102,6 +101,7 @@ impl Recorder {
     pub fn cancel(mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+        self.mic.kill();
         let _ = std::fs::remove_file(&self.path);
     }
 }

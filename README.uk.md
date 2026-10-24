@@ -37,6 +37,10 @@ cargo run --release             # справжній акаунт
 - **Windows**: покладіть `ffmpeg.exe` і `ffplay.exe` поруч із `glassgram.exe` або будь-де в `PATH`;
 - **macOS**: `brew install ffmpeg`.
 
+На Linux мікрофон береться з PipeWire (`pw-record`), якщо він працює, інакше з PulseAudio;
+`GLASSGRAM_AUDIO=pulse` або `GLASSGRAM_AUDIO=pipewire` вибирає примусово. На Windows закриття вікна ховає
+Glassgram у трей; вийти — через меню іконки в треї.
+
 Збірки для Windows і macOS компілюються, але на справжніх машинах ще не запускалися.
 
 ## Переклади
@@ -72,8 +76,8 @@ cargo run --release             # справжній акаунт
 | `src/app/chatlist.rs` | Колонка й вкладки папок, перетягування закріплених чатів і папок, «Новий чат» |
 | `src/player.rs` | Програвач голосових і аудіо через `ffplay`: пауза, перемотування, швидкість |
 | `src/video.rs` | Кадри відео через `ffmpeg` у текстуру egui: GIF, кружечки, відео, webm-стікери |
-| `src/camera.rs` | Запис відеоповідомлень: камера + мікрофон → MP4, кругле прев'ю |
-| `src/recorder.rs` | Запис голосових через `ffmpeg` (PulseAudio/PipeWire), рівень і хвильова форма |
+| `src/camera.rs` | Запис відеоповідомлень: камера + мікрофон → MP4, кругле прев'ю; мікрофон для всіх записів (`Mic`) |
+| `src/recorder.rs` | Запис голосових через `ffmpeg`, рівень і хвильова форма |
 | `src/export.rs` | Експорт історії чату в HTML і JSON |
 | `src/platform.rs` | Усе, що відрізняється між Linux, Windows і macOS: теки, відкриття файлів, ffmpeg/ffplay, сповіщення |
 | `src/settings.rs` | Налаштування та їх збереження |

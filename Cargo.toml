@@ -40,3 +40,8 @@ ksni = { version = "0.3.7", default-features = false, features = ["async-io", "b
 # Tray on Windows and macOS (on Linux it would need GTK, so ksni is used there).
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 tray-icon = { version = "0.21", default-features = false }
+
+# Hiding the window to the tray and bringing it back (its HWND).
+[target.'cfg(target_os = "windows")'.dependencies]
+raw-window-handle = "0.6"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

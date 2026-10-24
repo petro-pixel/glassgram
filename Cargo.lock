@@ -1881,6 +1881,7 @@ dependencies = [
  "notify-rust",
  "open",
  "qrcode",
+ "raw-window-handle",
  "rfd",
  "roxmltree",
  "serde",
@@ -1889,6 +1890,7 @@ dependencies = [
  "sys-locale",
  "tokio",
  "tray-icon",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

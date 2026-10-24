@@ -37,6 +37,10 @@ Voice, audio, video and recording need ffmpeg (`ffmpeg` and `ffplay`):
 - **Windows**: put `ffmpeg.exe` and `ffplay.exe` next to `glassgram.exe` or anywhere in `PATH`;
 - **macOS**: `brew install ffmpeg`.
 
+On Linux the microphone is taken from PipeWire (`pw-record`) when it runs, otherwise from PulseAudio;
+`GLASSGRAM_AUDIO=pulse` or `GLASSGRAM_AUDIO=pipewire` forces one. On Windows closing the window hides
+Glassgram to the tray; quit from the tray icon's menu.
+
 Windows and macOS builds compile but haven't been tried on real machines yet.
 
 ## Translations
@@ -72,8 +76,8 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/chatlist.rs` | Folder column and tabs, dragging pinned chats and folders, "New chat" |
 | `src/player.rs` | Voice and audio player via `ffplay`: pause, seeking, speed |
 | `src/video.rs` | Video frames via `ffmpeg` into an egui texture: GIFs, round videos, videos, webm stickers |
-| `src/camera.rs` | Video message recording: camera + microphone → MP4, round preview |
-| `src/recorder.rs` | Voice recording via `ffmpeg` (PulseAudio/PipeWire), level and waveform |
+| `src/camera.rs` | Video message recording: camera + microphone → MP4, round preview; the microphone for all recordings (`Mic`) |
+| `src/recorder.rs` | Voice recording via `ffmpeg`, level and waveform |
 | `src/export.rs` | Chat history export to HTML and JSON |
 | `src/platform.rs` | Everything that differs between Linux, Windows and macOS: folders, opening files, ffmpeg/ffplay, notifications |
 | `src/settings.rs` | Settings and saving them |

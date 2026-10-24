@@ -95,7 +95,7 @@ fn parse_devices(log: &str, video: bool) -> Vec<(String, String)> {
 }
 
 /// ffmpeg arguments for the camera (video) and microphone (audio) inputs, one input each.
-fn input_args(camera: &str) -> Vec<String> {
+fn input_args(camera: &str, mic: &Mic) -> Vec<String> {
     let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
     let mut a = Vec::new();
     if camera == "test" {
@@ -109,24 +109,96 @@ fn input_args(camera: &str) -> Vec<String> {
         #[cfg(target_os = "macos")]
         a.extend(s(&["-f", "avfoundation", "-framerate", "30", "-video_size", "640x480", "-i", &format!("{camera}:none")]));
     }
-    a.extend(mic_args());
+    a.extend(mic.args.iter().cloned());
     a
 }
 
-/// ffmpeg input for the default microphone: PulseAudio/PipeWire on Linux, the first DirectShow
-/// microphone on Windows, the first AVFoundation one on macOS. Voice messages use it too.
-pub fn mic_args() -> Vec<String> {
-    #[cfg(target_os = "windows")]
-    let input = ["-f".into(), "dshow".into(), "-i".into(), ffmpeg_devices(false).into_iter().next().map(|d| d.0).unwrap_or_else(|| "audio=default".into())];
-    #[cfg(target_os = "macos")]
-    let input = ["-f", "avfoundation", "-i", "none:0"].map(String::from);
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    let input = ["-f", "pulse", "-i", "default"].map(String::from);
-    input.to_vec()
+/// The default microphone for ffmpeg (voice and video messages): PipeWire or PulseAudio on Linux,
+/// the first DirectShow microphone on Windows, the first AVFoundation one on macOS.
+pub struct Mic {
+    /// ffmpeg input arguments.
+    pub args: Vec<String>,
+    /// PipeWire: `pw-record` writing raw PCM into ffmpeg's stdin (ffmpeg has no PipeWire input of its own).
+    feeder: Option<Child>,
+    /// Its output, until ffmpeg takes it as stdin.
+    pcm: Option<std::process::ChildStdout>,
+}
+
+impl Mic {
+    pub fn open() -> Result<Mic, String> {
+        #[cfg(target_os = "linux")]
+        if pipewire() {
+            let mut feeder = std::process::Command::new("pw-record")
+                .args(["--raw", "--rate", "48000", "--channels", "1", "--format", "s16", "--media-category", "Capture", "-"])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .spawn()
+                .map_err(|e| lf!("Не вдалося запустити pw-record: {e}", "Could not start pw-record: {e}"))?;
+            let pcm = feeder.stdout.take().ok_or(l!("pw-record без stdout", "pw-record without stdout"))?;
+            let args = ["-f", "s16le", "-ar", "48000", "-ac", "1", "-i", "pipe:0"].map(String::from).to_vec();
+            return Ok(Mic { args, feeder: Some(feeder), pcm: Some(pcm) });
+        }
+        #[cfg(target_os = "windows")]
+        let input = ["-f".into(), "dshow".into(), "-i".into(), ffmpeg_devices(false).into_iter().next().map(|d| d.0).unwrap_or_else(|| "audio=default".into())];
+        #[cfg(target_os = "macos")]
+        let input = ["-f", "avfoundation", "-i", "none:0"].map(String::from);
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        let input = ["-f", "pulse", "-i", "default"].map(String::from);
+        Ok(Mic { args: input.to_vec(), feeder: None, pcm: None })
+    }
+
+    /// ffmpeg's stdin: the sound itself on PipeWire, otherwise a pipe for the "q" stop key.
+    pub fn stdin(&mut self) -> Stdio {
+        self.pcm.take().map_or_else(Stdio::piped, Stdio::from)
+    }
+
+    /// Asks ffmpeg to finish the file. Returns `true` when it was stopped by a signal:
+    /// then exit code 255 is normal and the file is still complete.
+    pub fn stop(&mut self, ffmpeg: &mut Child) -> bool {
+        if let Some(mut stdin) = ffmpeg.stdin.take() {
+            // "q" is ffmpeg's normal stop: it closes the container properly.
+            let _ = stdin.write_all(b"q");
+            return false;
+        }
+        // The sound comes through stdin, so SIGINT does the same; then the feeder can go.
+        let _ = std::process::Command::new("kill").args(["-INT", &ffmpeg.id().to_string()]).status();
+        let _ = ffmpeg.wait();
+        self.kill();
+        true
+    }
+
+    pub fn kill(&mut self) {
+        if let Some(mut f) = self.feeder.take() {
+            let _ = f.kill();
+            let _ = f.wait();
+        }
+    }
+}
+
+impl Drop for Mic {
+    fn drop(&mut self) {
+        self.kill();
+    }
+}
+
+/// PipeWire is used when its socket is there and `pw-record` runs; `GLASSGRAM_AUDIO=pulse|pipewire` overrides.
+#[cfg(target_os = "linux")]
+fn pipewire() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| match std::env::var("GLASSGRAM_AUDIO").as_deref() {
+        Ok("pulse") => false,
+        Ok("pipewire") => true,
+        _ => {
+            let socket = std::env::var_os("XDG_RUNTIME_DIR").map(|d| PathBuf::from(d).join("pipewire-0"));
+            socket.is_some_and(|s| s.exists())
+                && std::process::Command::new("pw-record").arg("--version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
+        }
+    })
 }
 
 pub struct RoundRecorder {
     child: Child,
+    mic: Mic,
     started: Instant,
     path: PathBuf,
     /// Latest preview frame and its number (so the texture isn't uploaded twice).
@@ -147,9 +219,10 @@ impl RoundRecorder {
             Err(_) if !camera.is_empty() => camera.to_owned(),
             Err(_) => list().into_iter().next().map(|c| c.id).ok_or(l!("Камеру не знайдено", "No camera found"))?,
         };
+        let mut mic = Mic::open()?;
         let mut cmd = crate::platform::tool("ffmpeg");
         cmd.args(["-loglevel", "error"]);
-        cmd.args(input_args(&camera));
+        cmd.args(input_args(&camera, &mic));
         let side = SIDE;
         let pv = PREVIEW;
         // Centred square crop; the preview is mirrored like a front camera, the recording is not.
@@ -163,7 +236,7 @@ impl RoundRecorder {
         // `-t` only applies to the next output, so the preview is limited separately, otherwise ffmpeg never exits on its own.
         cmd.args(["-map", "[prev]", "-t", &MAX_SECS.to_string(), "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1"]);
         let mut child = cmd
-            .stdin(Stdio::piped())
+            .stdin(mic.stdin())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
@@ -179,7 +252,7 @@ impl RoundRecorder {
                 f.1.clone_from(&buf);
             }
         });
-        Ok(Self { child, started: Instant::now(), path, frame })
+        Ok(Self { child, mic, started: Instant::now(), path, frame })
     }
 
     pub fn elapsed(&self) -> f64 {
@@ -200,11 +273,9 @@ impl RoundRecorder {
     /// Stop and finalize the file. `None` if too short or failed.
     pub fn finish(mut self) -> Option<Round> {
         let duration = self.elapsed().min(MAX_SECS);
-        if let Some(mut stdin) = self.child.stdin.take() {
-            let _ = stdin.write_all(b"q");
-        }
+        let signalled = self.mic.stop(&mut self.child);
         // After the limit ffmpeg has already exited on its own; that is a success too.
-        let ok = self.child.wait().is_ok_and(|s| s.success());
+        let ok = self.child.wait().is_ok_and(|s| s.success() || signalled);
         let size = std::fs::metadata(&self.path).map_or(0, |m| m.len());
         if !ok || duration < MIN_SECS || size == 0 {
             let _ = std::fs::remove_file(&self.path);
@@ -216,6 +287,7 @@ impl RoundRecorder {
     pub fn cancel(mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+        self.mic.kill();
         let _ = std::fs::remove_file(&self.path);
     }
 }

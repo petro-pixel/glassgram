@@ -50,6 +50,66 @@ impl TrayHandle {
     pub fn refresh(&self) {
         self.0.refresh();
     }
+
+    /// Remembers the native window so the tray can bring it back (Windows; elsewhere nothing).
+    pub fn attach(&self, frame: &eframe::Frame) {
+        #[cfg(target_os = "windows")]
+        win::attach(frame);
+        #[cfg(not(target_os = "windows"))]
+        let _ = frame;
+    }
+
+    /// Closing the window hides it to the tray, as in Telegram Desktop on Windows.
+    /// `false` where that isn't done: the window then closes as usual.
+    pub fn hide_window(&self) -> bool {
+        #[cfg(target_os = "windows")]
+        return win::hide();
+        #[cfg(not(target_os = "windows"))]
+        false
+    }
+}
+
+/// The window is shown and hidden through its HWND: a window hidden by eframe stops getting
+/// frames, so it couldn't show itself again on a tray click.
+#[cfg(target_os = "windows")]
+mod win {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use std::sync::atomic::{AtomicIsize, Ordering};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_RESTORE, SetForegroundWindow, ShowWindow};
+
+    static HWND: AtomicIsize = AtomicIsize::new(0);
+
+    pub fn attach(frame: &eframe::Frame) {
+        if HWND.load(Ordering::Relaxed) != 0 {
+            return;
+        }
+        if let Ok(h) = frame.window_handle()
+            && let RawWindowHandle::Win32(w) = h.as_raw()
+        {
+            HWND.store(w.hwnd.get(), Ordering::Relaxed);
+        }
+    }
+
+    pub fn hide() -> bool {
+        let h = HWND.load(Ordering::Relaxed);
+        if h == 0 {
+            return false;
+        }
+        // SAFETY: a window handle we got from eframe; ShowWindow tolerates a stale one.
+        unsafe { ShowWindow(h as _, SW_HIDE) };
+        true
+    }
+
+    pub fn show() {
+        let h = HWND.load(Ordering::Relaxed);
+        if h != 0 {
+            // SAFETY: as above.
+            unsafe {
+                ShowWindow(h as _, SW_RESTORE);
+                SetForegroundWindow(h as _);
+            }
+        }
+    }
 }
 
 /// Starts the tray. `None` when the desktop has no tray (then simply no tray).
@@ -216,6 +276,8 @@ mod imp {
         let (menu_tx, menu_ctx) = (tx.clone(), ctx.clone());
         MenuEvent::set_event_handler(Some(move |e: MenuEvent| {
             let ev = if e.id == open_id {
+                #[cfg(target_os = "windows")]
+                super::win::show();
                 TrayEv::Show
             } else if e.id == check_id {
                 TrayEv::ToggleNotifications
@@ -229,6 +291,8 @@ mod imp {
         }));
         TrayIconEvent::set_event_handler(Some(move |e: TrayIconEvent| {
             if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
+                #[cfg(target_os = "windows")]
+                super::win::show();
                 let _ = tx.send(TrayEv::Show);
                 ctx.request_repaint();
             }

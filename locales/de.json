@@ -528,5 +528,8 @@
   "Open Glassgram": "Glassgram öffnen",
   "Close (Esc)": "Schließen (Esc)",
   "{n} of {total}": "{n} von {total}",
-  "Quit Glassgram": "Glassgram beenden"
+  "Quit Glassgram": "Glassgram beenden",
+  "Glassgram keeps running in the tray. Quit from the icon's menu.": "Glassgram läuft im Infobereich weiter. Beenden über das Menü des Symbols.",
+  "Could not start pw-record: {e}": "pw-record konnte nicht gestartet werden: {e}",
+  "pw-record without stdout": "pw-record ohne stdout"
 }

@@ -79,7 +79,8 @@ New code must work on Linux, Windows and macOS. Everything that differs between 
 - open files and links with `platform::open`, not `xdg-open`;
 - folders from `platform::data_dir` / `platform::download_dir` (the `dirs` crate), not XDG variables or `HOME`;
 - `ffmpeg` / `ffplay` only via `platform::tool` (finds them next to the exe and in Homebrew, hides
-  the console window on Windows), never `Command::new("ffmpeg")`; the microphone input via `camera::mic_args`;
+  the console window on Windows), never `Command::new("ffmpeg")`; the microphone via `camera::Mic`
+  (PipeWire through `pw-record` or PulseAudio on Linux, DirectShow, AVFoundation; stop with `Mic::stop`);
 - notifications via `platform::notify`; the tray only through `tray::TrayHandle`;
 - the system language from `sys_locale`; file permissions via `backend::make_private`;
 - if the OS can't be avoided — `#[cfg(target_os = …)]` for **every** platform, not just Linux;
