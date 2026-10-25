@@ -32,6 +32,10 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 ## Installing
 
+> [!WARNING]
+> The latest release (v0.3.0) is out of date: it has none of the features added since — sponsored messages,
+> notifications for chats, jump to date, translation, contacts, mini apps. Build from source (below) to get them.
+
 Ready builds are on the [Releases](https://github.com/petro-pixel/glassgram/releases) page; they already
 contain the Telegram API keys and ffmpeg, so you only sign in with your phone number:
 - **Windows**: `Glassgram-<version>-setup.exe`;
