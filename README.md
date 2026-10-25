@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 40%** `████████░░░░░░░░░░░░` — 58 done, 13 partial, 91 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 40%** `████████░░░░░░░░░░░░` — 59 done, 13 partial, 90 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -95,6 +95,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars |
 | `src/app.rs` | Sign-in and chat screens |
 | `src/app/chatview.rs`, `src/backend/chatview.rs` | Chat view extras: pinned bar and list, jump buttons (down / mentions / reactions), "Seen by", view counters, protected content |
+| `src/app/chatedit.rs`, `src/backend/chatedit.rs` | "Edit group / channel": photo, title, description, member permissions, slow mode |
 | `src/app/privacy.rs`, `src/backend/privacy.rs` | Privacy rule exceptions (always / never allow) and global switches: new non-contact chats, read time, who can message me |
 | `src/app/polls.rs`, `src/backend/polls.rs` | "New poll" box: polls and quizzes |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Mini apps: server requests, the WebView window process (`glassgram --webview`) and its bridge |

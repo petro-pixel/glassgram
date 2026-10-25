@@ -145,7 +145,7 @@ impl Worker {
 }
 
 /// Center square of the image, at most `PHOTO_PX`, as JPEG in the temp dir.
-fn square_photo(path: &Path) -> Result<PathBuf, String> {
+pub(super) fn square_photo(path: &Path) -> Result<PathBuf, String> {
     let img = image::open(path).map_err(|e| lf!("Не вдалося відкрити зображення: {e}", "Could not open the image: {e}"))?;
     let side = img.width().min(img.height());
     let img = img.crop_imm((img.width() - side) / 2, (img.height() - side) / 2, side, side);

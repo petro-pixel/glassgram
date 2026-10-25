@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -599,6 +599,13 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::LoadGlobalPrivacy => app.push_event(Ev::GlobalPrivacy(GlobalPrivacy { archive_new: true, keep_unmuted: false, keep_folders: true, hide_read: false, premium_only: false })),
         Cmd::SetGlobalPrivacy(p) => app.push_event(Ev::GlobalPrivacy(p)),
+        Cmd::EditChat { peer, title, .. } => {
+            if let Some(title) = title {
+                app.push_event(Ev::ChatTitle { peer, title });
+            }
+            app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into()));
+        }
+        Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. } => app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into())),
         Cmd::LoadContacts => app.push_event(Ev::Contacts(demo_contacts())),
         Cmd::AddContact { user, phone, first, last } => {
             let name = if last.is_empty() { first } else { format!("{first} {last}") };
@@ -1079,6 +1086,12 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             d.online = Some(2);
             d.admins = Some(2);
             d.admin = id == 2;
+            // We run "Команда Rust": its edit box shows permissions and slow mode.
+            d.can_edit = id == 2;
+            let mut rights = ChatRights::from_banned(None);
+            rights.change_info = false;
+            d.rights = Some(rights);
+            d.slowmode = Some(if id == 2 { 30 } else { 0 });
         }
         Some(ChatKind::Channel) => {
             d.about = "Головні новини технологій щодня.".into();
@@ -1099,6 +1112,7 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
         d.online = None;
         d.admins = Some(1);
         d.can_view_members = true;
+        d.can_edit = true;
     }
     // Channel 4 starts muted, as in the chat list.
     if id == 4 {

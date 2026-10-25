@@ -74,6 +74,8 @@ enum Do {
     More(SharedKind),
     CreateInvite,
     Confirm(Confirm),
+    /// The "Edit" box of a group or channel.
+    Edit,
     AddContact,
     Unblock,
 }
@@ -81,6 +83,7 @@ enum Do {
 fn has_members(kind: ChatKind) -> bool {
     matches!(kind, ChatKind::Group | ChatKind::Channel)
 }
+
 
 impl App {
     /// Opens the panel for a chat and requests everything it shows.
@@ -236,6 +239,13 @@ impl App {
         if glass::icon_button(ui, close, "info-close", Icon::Close, false, true).on_hover_text(l!("Закрити", "Close")).clicked() {
             todo.push(Do::Close);
         }
+        // Admins edit the group or channel from the pencil, as in Telegram Desktop.
+        if matches!(chat.kind, ChatKind::Group | ChatKind::Channel) && info.details.as_ref().is_some_and(|d| d.can_edit) {
+            let edit = close.translate(vec2(-44.0, 0.0));
+            if glass::icon_button(ui, edit, "info-edit", Icon::Pencil, false, true).on_hover_text(l!("Редагувати", "Edit")).clicked() {
+                todo.push(Do::Edit);
+            }
+        }
 
         let body = Rect::from_min_max(pos2(rect.left() + 8.0, top.bottom()), pos2(rect.right() - 8.0, rect.bottom() - 10.0));
         let mut child = ui.new_child(UiBuilder::new().max_rect(body));
@@ -314,6 +324,10 @@ impl App {
                 self.send(Cmd::LoadShared { peer, kind, before });
             }
             Do::CreateInvite => self.send(Cmd::ExportInvite(peer)),
+            Do::Edit => {
+                let d = self.info.as_ref().and_then(|i| i.details.clone()).unwrap_or_default();
+                self.open_chat_edit(peer, d.about, d.rights, d.slowmode);
+            }
             Do::AddContact => self.open_contact_form(Some((peer, &chat.title))),
             Do::Unblock => self.send(Cmd::Block { peer, blocked: false }),
             Do::Confirm(c) => {

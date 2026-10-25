@@ -106,7 +106,7 @@ Time estimate — [at the end of the file](#time-estimate).
 ## 6. Groups and channels
 - ✅ **P0** Chat info column (click the header): description/bio, @username, phone, invite link (`exportChatInvite`), member and admin list with search, click opens a private chat (`getFullUser` / `getFullChat` / `getFullChannel`, `channels.getParticipants`)
 - ✅ **P0** Leave a group or channel, clear history, delete chat with confirmation and "also for the other side" (`leaveChannel`, `deleteChatUser`, `deleteHistory`, `channels.deleteHistory`); the owner gets "Delete group" / "Delete channel" instead of "Leave", for everyone (`channels.deleteChannel`, `messages.deleteChat`)
-- ⬜ **P1** Editing: title, photo, description; default member permissions; slow mode
+- ✅ Editing a group or channel (pencil in chat info, for admins who may change info): title, photo, description; default member permissions; slow mode in supergroups (`editTitle` / `editChatTitle`, `editChatAbout`, `editPhoto`, `editChatDefaultBannedRights`, `toggleSlowMode`)
 - ⬜ **P1** Administration: admin rights, bans and restrictions, join requests, invite link management
 - ⬜ **P1** Reactions allowed in the chat; hiding the member list; anti-spam
 - ⬜ **P2** Admin action log (`getAdminLog`), linking a discussion group, author signatures in channels

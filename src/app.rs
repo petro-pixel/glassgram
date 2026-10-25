@@ -45,6 +45,7 @@ mod contacts;
 mod webapp;
 mod polls;
 mod privacy;
+mod chatedit;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -514,6 +515,10 @@ pub struct App {
     /// Profile photo picked in the system dialog.
     photo_tx: mpsc::Sender<PathBuf>,
     photo_rx: mpsc::Receiver<PathBuf>,
+    /// "Edit group / channel" box and the photos picked in it.
+    chat_edit: Option<chatedit::ChatEdit>,
+    chat_photo_tx: mpsc::Sender<(PeerId, PathBuf)>,
+    chat_photo_rx: mpsc::Receiver<(PeerId, PathBuf)>,
     /// Send queue (`app/outbox.rs`) and the last local (negative) bubble id.
     outbox: Vec<outbox::Pending>,
     next_local: i32,
@@ -661,6 +666,7 @@ impl App {
     fn fresh(ctx: egui::Context, settings: Settings, tray: Option<tray::TrayHandle>, tray_rx: mpsc::Receiver<TrayEv>) -> Self {
         let (picked_tx, picked_rx) = mpsc::channel();
         let (photo_tx, photo_rx) = mpsc::channel();
+        let (chat_photo_tx, chat_photo_rx) = mpsc::channel();
         Self {
             ctx,
             backend: None,
@@ -788,6 +794,9 @@ impl App {
             profile_edit: None,
             photo_tx,
             photo_rx,
+            chat_edit: None,
+            chat_photo_tx,
+            chat_photo_rx,
             outbox: Vec::new(),
             next_local: 0,
             focus_search: false,
@@ -1064,6 +1073,12 @@ impl App {
                 }
             }
             Ev::GlobalPrivacy(p) => self.global_privacy = Some(p),
+            Ev::ChatTitle { peer, title } => {
+                if let Some(c) = self.chat_mut(peer) {
+                    c.title = title;
+                }
+                self.chats_dirty = true;
+            }
             Ev::PrivacyExceptions(key, ex) => {
                 self.privacy_ex.insert(key, ex);
             }
@@ -4031,6 +4046,7 @@ impl eframe::App for App {
         self.poll_player();
         self.tray_events();
         self.take_profile_photos();
+        self.take_chat_photos();
         let light = match self.settings.theme {
             settings::Theme::Light => true,
             settings::Theme::Dark => false,
@@ -4096,6 +4112,7 @@ impl eframe::App for App {
         self.info_confirm_view(ui);
         self.contact_form_view(ui);
         self.poll_form_view(ui);
+        self.chat_edit_view(ui);
         self.privacy_pick_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);

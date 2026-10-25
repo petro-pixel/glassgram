@@ -5,7 +5,7 @@ use grammers_client::peer::Peer;
 use grammers_client::session::types::{PeerKind, PeerRef};
 use grammers_client::tl;
 
-use super::{ChatInfo, Cmd, Ev, Worker, clock, convert, found_chat, local, peer_title, remember_name};
+use super::{ChatInfo, ChatRights, Cmd, Ev, Worker, clock, convert, found_chat, local, peer_title, remember_name};
 use crate::i18n::{l, lf};
 
 /// How many members we show at once; beyond that, search.
@@ -113,6 +113,12 @@ pub struct ChatDetails {
     pub common: i32,
     /// We blocked this user (or stopped this bot).
     pub blocked: bool,
+    /// We may change the title, photo, description and permissions.
+    pub can_edit: bool,
+    /// Default member permissions (groups only).
+    pub rights: Option<ChatRights>,
+    /// Slow mode in seconds (supergroups only).
+    pub slowmode: Option<i32>,
     pub notify: NotifyState,
     /// Item counts per shared media tab.
     pub counts: Vec<(SharedKind, i32)>,
@@ -382,6 +388,8 @@ async fn details(client: &Client, r: PeerRef) -> Result<ChatDetails, String> {
             if let Some(tl::enums::Chat::Chat(c)) = f.chats.into_iter().find(|c| c.id() == r.id.bare_id_unchecked()) {
                 d.creator = c.creator;
                 d.admin = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.invite_users);
+                d.can_edit = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.change_info);
+                d.rights = Some(ChatRights::from_banned(c.default_banned_rights.as_ref()));
             }
             d.can_view_members = true;
         }
@@ -396,11 +404,18 @@ async fn details(client: &Client, r: PeerRef) -> Result<ChatDetails, String> {
                 d.online = c.online_count;
                 d.admins = c.admins_count;
                 d.can_view_members = c.can_view_participants;
+                d.slowmode = Some(c.slowmode_seconds.unwrap_or(0));
             }
             if let Some(tl::enums::Chat::Channel(c)) = f.chats.into_iter().find(|c| c.id() == r.id.bare_id_unchecked()) {
                 d.creator = c.creator;
                 d.admin = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.invite_users);
                 d.username = first_username(c.username, c.usernames);
+                d.can_edit = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.change_info);
+                if c.megagroup {
+                    d.rights = Some(ChatRights::from_banned(c.default_banned_rights.as_ref()));
+                } else {
+                    d.slowmode = None;
+                }
             }
         }
     }

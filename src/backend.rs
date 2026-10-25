@@ -43,6 +43,8 @@ mod contacts;
 mod webapp;
 mod polls;
 mod privacy;
+mod chatedit;
+pub use chatedit::ChatRights;
 pub use privacy::{GlobalPrivacy, PrivacyExceptions};
 pub use polls::NewPoll;
 pub use webapp::{WebAppKind, WebAppOpened};
@@ -185,6 +187,13 @@ pub enum Cmd {
     WebAppData { bot: PeerId, button_text: String, data: String },
     /// `invokeCustomMethod` (cloud storage and the like), answered by `req_id`.
     WebAppMethod { bot: PeerId, req_id: String, method: String, params: String },
+    /// New title and / or description of a group or channel (`None` — unchanged).
+    EditChat { peer: PeerId, title: Option<String>, about: Option<String> },
+    SetChatPhoto { peer: PeerId, path: PathBuf },
+    /// Default permissions of group members.
+    SetChatRights { peer: PeerId, rights: ChatRights },
+    /// Slow mode of a supergroup, in seconds (0 — off).
+    SetSlowMode { peer: PeerId, seconds: i32 },
     /// Send a new poll or quiz.
     SendPoll { peer: PeerId, poll: NewPoll, reply_to: Option<i32> },
     /// Translate a message's text into `to` (a language code).
@@ -338,6 +347,8 @@ pub enum Ev {
     BotMenuApp { peer: PeerId, text: String, url: String },
     /// Answer to `WebAppMethod`: the result JSON or an error.
     WebAppMethodResult { bot: PeerId, req_id: String, result: Result<String, String> },
+    /// A group or channel got a new title.
+    ChatTitle { peer: PeerId, title: String },
     /// A contact was added or renamed.
     ContactSaved(ChatInfo),
     ContactRemoved(PeerId),
@@ -2237,6 +2248,7 @@ impl Worker {
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
+            cmd @ (Cmd::EditChat { .. } | Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. }) => self.chat_edit_cmd(cmd).await,
             cmd @ (Cmd::LoadGlobalPrivacy | Cmd::SetGlobalPrivacy(_)) => self.global_privacy_cmd(cmd).await,
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
