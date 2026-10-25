@@ -40,6 +40,8 @@ pub use sponsored::{Sponsored, SponsoredReport};
 mod notify;
 mod translate;
 mod contacts;
+mod webapp;
+pub use webapp::{WebAppKind, WebAppOpened};
 pub use notify::{NotifyException, NotifyScope};
 
 const DIALOG_LIMIT: usize = 300;
@@ -165,6 +167,16 @@ pub enum Cmd {
     /// Block or unblock a user (for bots: stop / restart).
     Block { peer: PeerId, blocked: bool },
     LoadBlocked,
+    /// Ask the server for a mini app URL; `theme` is the `theme_params` JSON.
+    OpenWebApp { peer: PeerId, bot: PeerId, kind: WebAppKind, theme: String },
+    /// `t.me/<bot>/<app>?startapp=…` (`app: Some`) or `t.me/<bot>?startapp=…`.
+    OpenWebAppLink { username: String, app: Option<String>, start_param: String, theme: String },
+    /// Keep an inline-button mini app session alive (every minute while open).
+    ProlongWebApp { peer: PeerId, bot: PeerId, query_id: i64 },
+    /// `Telegram.WebApp.sendData` from a keyboard-button mini app.
+    WebAppData { bot: PeerId, button_text: String, data: String },
+    /// `invokeCustomMethod` (cloud storage and the like), answered by `req_id`.
+    WebAppMethod { bot: PeerId, req_id: String, method: String, params: String },
     /// Translate a message's text into `to` (a language code).
     Translate { peer: PeerId, id: i32, to: String },
     /// Find the first message sent at or after `date` (unix time), for the calendar.
@@ -309,6 +321,11 @@ pub enum Ev {
     ReadBy { peer: PeerId, id: i32, readers: Vec<(String, String)> },
     /// New view count of a channel post.
     Views { peer: PeerId, id: i32, views: i32 },
+    WebAppOpened(WebAppOpened),
+    /// The bot's menu button opens a mini app: its text and URL.
+    BotMenuApp { peer: PeerId, text: String, url: String },
+    /// Answer to `WebAppMethod`: the result JSON or an error.
+    WebAppMethodResult { bot: PeerId, req_id: String, result: Result<String, String> },
     /// A contact was added or renamed.
     ContactSaved(ChatInfo),
     ContactRemoved(PeerId),
@@ -678,7 +695,10 @@ pub enum ButtonAction {
     /// A regular keyboard button: sends its own text.
     Text,
     Copy(String),
-    /// A type that is not supported yet (payment, games, web app…).
+    /// Mini app button: inline (`simple: false`) or on the reply keyboard;
+    /// `bot` is the bare id of the bot that owns it (sender or "via" bot).
+    WebApp { url: String, simple: bool, bot: i64 },
+    /// A type that is not supported yet (payment, games…).
     Other,
 }
 
@@ -1282,6 +1302,28 @@ impl Worker {
         self.client.clone().ok_or_else(|| l!("Немає з'єднання", "No connection").to_owned())
     }
 
+    /// A public chat or user by username, remembered for later requests.
+    async fn resolve_peer(&self, name: &str) -> Result<Peer, String> {
+        let client = self.client()?;
+        let name = name.trim_start_matches('@');
+        let peer = client
+            .resolve_username(name)
+            .await
+            .map_err(|e| lf!("@{name}: {e}", "@{name}: {e}"))?
+            .ok_or_else(|| lf!("@{name} не знайдено", "@{name} not found"))?;
+        let r = peer.to_ref().await.ok().flatten().ok_or_else(|| lf!("@{name}: немає доступу", "@{name}: no access"))?;
+        self.refs.lock().unwrap().insert(peer.id(), r);
+        self.names.lock().unwrap().insert(peer.id(), peer_title(&peer));
+        if let Some(loader) = &self.loader {
+            loader.avatar(&peer);
+        }
+        Ok(peer)
+    }
+
+    async fn resolve(&self, name: &str) -> Result<PeerId, String> {
+        Ok(self.resolve_peer(name).await?.id())
+    }
+
     fn peer_ref(&self, peer: PeerId) -> Result<PeerRef, String> {
         self.refs
             .lock()
@@ -1750,19 +1792,8 @@ impl Worker {
                 Ok(())
             }
             Cmd::ResolveUsername(name) => {
-                let client = self.client()?;
                 let name = name.trim_start_matches('@').to_owned();
-                let peer = client
-                    .resolve_username(&name)
-                    .await
-                    .map_err(|e| lf!("@{name}: {e}", "@{name}: {e}"))?
-                    .ok_or_else(|| lf!("@{name} не знайдено", "@{name} not found"))?;
-                let r = peer.to_ref().await.ok().flatten().ok_or_else(|| lf!("@{name}: немає доступу", "@{name}: no access"))?;
-                self.refs.lock().unwrap().insert(peer.id(), r);
-                self.names.lock().unwrap().insert(peer.id(), peer_title(&peer));
-                if let Some(loader) = &self.loader {
-                    loader.avatar(&peer);
-                }
+                let peer = self.resolve_peer(&name).await?;
                 self.out.send(Ev::ChatFound(found_chat(&peer, format!("@{name}"))));
                 Ok(())
             }
@@ -2199,6 +2230,7 @@ impl Worker {
                 self.chat_view_cmd(cmd).await
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
+            cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
             cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. }) => self.sponsored_cmd(cmd).await,
@@ -3253,6 +3285,7 @@ fn preview_text(m: &Message) -> String {
 /// Buttons under a message (inline keyboard or a regular bot keyboard).
 fn buttons(m: &Message) -> Vec<Vec<Button>> {
     use tl::enums::{InlineButtonType as T, KeyboardButton as K, KeyboardInlineButton as I, ReplyMarkup as R};
+    let bot = m.via_bot_id().or_else(|| m.sender_id().filter(|p| p.kind() == grammers_client::session::types::PeerKind::User).map(|p| p.bare_id_unchecked())).unwrap_or(0);
     match m.reply_markup() {
         Some(R::ReplyInlineMarkup(k)) => k
             .rows
@@ -3266,7 +3299,7 @@ fn buttons(m: &Message) -> Vec<Vec<Button>> {
                             T::Callback(c) => ButtonAction::Callback(c.data),
                             T::Url(u) => ButtonAction::Url(u.url),
                             T::UrlAuth(u) => ButtonAction::Url(u.url),
-                            T::WebView(u) => ButtonAction::Url(u.url),
+                            T::WebView(u) => ButtonAction::WebApp { url: u.url, simple: false, bot },
                             T::Copy(c) => ButtonAction::Copy(c.copy_text),
                             _ => ButtonAction::Other,
                         },
@@ -3281,7 +3314,11 @@ fn buttons(m: &Message) -> Vec<Vec<Button>> {
                 row.buttons
                     .into_iter()
                     .map(|K::Button(b)| Button {
-                        action: if matches!(b.r#type, tl::enums::ButtonType::Default) { ButtonAction::Text } else { ButtonAction::Other },
+                        action: match b.r#type {
+                            tl::enums::ButtonType::Default => ButtonAction::Text,
+                            tl::enums::ButtonType::SimpleWebView(w) => ButtonAction::WebApp { url: w.url, simple: true, bot },
+                            _ => ButtonAction::Other,
+                        },
                         text: b.text,
                     })
                     .collect()

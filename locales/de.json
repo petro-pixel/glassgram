@@ -609,5 +609,13 @@
   "This number is not on Telegram": "Diese Nummer ist nicht bei Telegram",
   "Contact not deleted: {e}": "Kontakt nicht gelöscht: {e}",
   "Could not change blocking: {e}": "Blockierung konnte nicht geändert werden: {e}",
-  "Blocked users: {e}": "Blockierte Nutzer: {e}"
+  "Blocked users: {e}": "Blockierte Nutzer: {e}",
+  "Mini app: {}": "Mini-App: {}",
+  "Could not open the mini app window: {e}": "Mini-App-Fenster konnte nicht geöffnet werden: {e}",
+  "Mini app": "Mini-App",
+  "Data not sent: {e}": "Daten nicht gesendet: {e}",
+  "Mini app not opened: {e}": "Mini-App nicht geöffnet: {e}",
+  "@{name}: {e}": "@{name}: {e}",
+  "@{name} not found": "@{name} nicht gefunden",
+  "@{name}: no access": "@{name}: kein Zugriff"
 }

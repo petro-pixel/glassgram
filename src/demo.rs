@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -261,6 +261,10 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 _ => &[],
             };
             let commands = list.iter().map(|(bot, command, description)| BotCmd { bot: (*bot).into(), command: (*command).into(), description: (*description).into() }).collect();
+            // The weather bot has a mini app behind its menu button.
+            if peer == PeerId::user_unchecked(6) {
+                app.push_event(Ev::BotMenuApp { peer, text: "Радар".into(), url: "https://example.org/radar".into() });
+            }
             app.push_event(Ev::BotCommands { peer, commands });
         }
         Cmd::Send { peer, text, reply_to, .. } => {
@@ -559,6 +563,15 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             list.sort_by_key(|f| order.iter().position(|id| *id == f.id));
             app.push_event(Ev::Folders(list));
         }
+        Cmd::OpenWebApp { peer, bot, kind, .. } => {
+            let url = match &kind {
+                WebAppKind::Inline(u) | WebAppKind::Simple(u) | WebAppKind::Menu(u) => u.clone(),
+                WebAppKind::Main { .. } | WebAppKind::Named { .. } => "https://example.org/app".into(),
+            };
+            app.push_event(Ev::WebAppOpened(WebAppOpened { peer, bot, kind, url, query_id: None }));
+        }
+        Cmd::OpenWebAppLink { username, .. } => app.push_event(Ev::Notice(format!("t.me/{username}"))),
+        Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } => {}
         Cmd::LoadContacts => app.push_event(Ev::Contacts(demo_contacts())),
         Cmd::AddContact { user, phone, first, last } => {
             let name = if last.is_empty() { first } else { format!("{first} {last}") };
@@ -921,7 +934,7 @@ fn weather_buttons() -> Vec<Vec<Button>> {
     let b = |text: &str, action| Button { text: text.into(), action };
     vec![
         vec![b("Оновити", ButtonAction::Callback(b"now".to_vec())), b("Завтра", ButtonAction::Callback(b"tomorrow".to_vec()))],
-        vec![b("Мапа погоди", ButtonAction::Url("https://www.windy.com".into()))],
+        vec![b("Мапа погоди", ButtonAction::Url("https://www.windy.com".into())), b("Радар", ButtonAction::WebApp { url: "https://example.org/radar".into(), simple: false, bot: 6 })],
     ]
 }
 

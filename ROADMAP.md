@@ -115,10 +115,12 @@ Time estimate — [at the end of the file](#time-estimate).
 ## 7. Bots and mini apps
 - ✅ Inline mode, callback and URL buttons, regular bot keyboard
 - 🟡 Bot command menu button next to the field and the "Start" bar in an empty bot chat (sends `/start`). Left: deep-link start parameters (`messages.startBot` with `start_param`)
-- ⬜ **P1** **Mini apps (Web Apps)**: embedded `wry` browser (WebView2 / WebKitGTK / WKWebView — on every OS)
-      with a `window.Telegram.WebApp` bridge: theme, MainButton, BackButton, popups, cloud storage, contact and location requests
-      (`requestWebView`, `requestAppWebView`, `requestMainWebView`, `invokeWebViewCustomMethod`)
-- ⬜ **P1** Bot menu button (`setBotMenuButton`), direct mini app links (`t.me/bot/app`)
+- 🟡 **Mini apps (Web Apps)**: a separate window process (`glassgram --webview`) with the system WebView through `wry`
+      (WebView2 / WebKitGTK / WKWebView); opened from inline and keyboard buttons, the bot's menu button and `t.me/bot/app`,
+      `t.me/bot?startapp` links (`requestWebView`, `requestSimpleWebView`, `requestMainWebView`, `requestAppWebView`, `prolongWebView`);
+      bridge: theme, viewport, main / secondary / back buttons, popups, `sendData`, cloud storage and other custom methods
+      (`invokeWebViewCustomMethod`), links, clipboard. Left: payments (`openInvoice`), phone and write-access requests,
+      location, fullscreen, QR scanner, biometry
 - ⬜ **P2** Bots in the attachment menu (`getAttachMenuBots`), logging in to websites via Telegram (`requestUrlAuth`)
 - ⬜ **P2** Payments in bots: invoices, payment form, Stars (`payments.getPaymentForm`, `sendStarsForm`)
 - ⬜ **P2** Guest AI bots that can be mentioned in any chat (2026); ephemeral bot replies in groups (`ephemeral.*`)

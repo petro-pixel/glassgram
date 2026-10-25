@@ -25,8 +25,14 @@ mod settings;
 mod tray;
 mod video;
 mod viewer;
+mod webview;
 
 fn main() -> eframe::Result {
+    // The mini app window runs as a separate process of the same executable.
+    if std::env::args().any(|a| a == "--webview") {
+        webview::run();
+        return Ok(());
+    }
     let demo = std::env::args().any(|a| a == "--demo");
     let logo = logo::render(256, false);
     let icon = eframe::egui::IconData { width: logo.width(), height: logo.height(), rgba: logo.into_raw() };

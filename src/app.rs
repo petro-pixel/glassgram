@@ -42,6 +42,7 @@ mod notify;
 mod calendar;
 mod translate;
 mod contacts;
+mod webapp;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -220,6 +221,29 @@ fn tme_username(url: &str) -> Option<String> {
     let name = rest.strip_prefix("t.me/").or_else(|| rest.strip_prefix("telegram.me/"))?.trim_end_matches('/');
     let ok = name.len() >= 4 && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') && !name.starts_with('+');
     ok.then(|| name.to_owned())
+}
+
+/// Mini app link: `t.me/<bot>/<app>[?startapp=…]` or `t.me/<bot>?startapp[=…]`.
+/// Returns (bot username, app short name, start parameter).
+fn tme_web_app(url: &str) -> Option<(String, Option<String>, String)> {
+    let rest = url.trim_start_matches("https://").trim_start_matches("http://");
+    let rest = rest.strip_prefix("t.me/").or_else(|| rest.strip_prefix("telegram.me/"))?;
+    let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
+    let start = query.split('&').find_map(|kv| match kv.split_once('=') {
+        Some(("startapp", v)) => Some(v.to_owned()),
+        None if kv == "startapp" => Some(String::new()),
+        _ => None,
+    });
+    let mut parts = path.trim_end_matches('/').split('/');
+    let bot = parts.next().filter(|b| b.len() >= 4 && b.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))?;
+    match (parts.next(), parts.next()) {
+        // A second segment that is a number is a post link, not an app.
+        (Some(app), None) if bot.to_lowercase().ends_with("bot") && !app.chars().all(|c| c.is_ascii_digit()) => {
+            Some((bot.to_owned(), Some(app.to_owned()), start.unwrap_or_default()))
+        }
+        (None, None) => Some((bot.to_owned(), None, start?)),
+        _ => None,
+    }
 }
 
 /// "1 comment", "3 comments", "5 comments".
@@ -465,6 +489,10 @@ pub struct App {
     contact_form: Option<contacts::ContactForm>,
     /// Blocked users for Privacy and Security (`None` — not loaded).
     blocked: Option<Vec<ChatInfo>>,
+    /// Open mini app windows (separate WebView processes).
+    web_apps: Vec<webapp::WebAppWin>,
+    /// Text of the keyboard button whose mini app is being opened (for `sendWebViewData`).
+    web_app_button: String,
     /// Composer helpers: link preview, @mentions, bot commands.
     suggest: suggest::Suggest,
     /// Chat info column (`None` = closed); follows the open chat.
@@ -537,6 +565,7 @@ impl App {
 
     /// Switch to another account: stop the backend and start from a fresh state.
     fn switch_account(&mut self, id: u32) {
+        self.close_web_apps();
         self.save_chats();
         self.send(Cmd::Shutdown);
         self.accounts.active = id;
@@ -735,6 +764,8 @@ impl App {
             translate_to: None,
             contact_form: None,
             blocked: None,
+            web_apps: Vec::new(),
+            web_app_button: String::new(),
             suggest: Default::default(),
             info: None,
             profile: backend::Profile::default(),
@@ -1025,6 +1056,7 @@ impl App {
             ev @ (Ev::Sponsored { .. } | Ev::SponsoredReport { .. }) => self.sponsored_event(ev),
             Ev::DateFound { peer, id } => self.date_found(peer, id),
             Ev::Translated { peer, id, to, result } => self.translated(peer, id, to, result),
+            ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. }) => self.web_app_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
             ev @ (Ev::ChatDetails { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
@@ -1671,6 +1703,12 @@ impl App {
                         self.ctx.copy_text(text);
                         self.toast = Some((l!("Скопійовано", "Copied").into(), 0.0, false));
                     }
+                    ButtonAction::WebApp { url, simple, bot } => {
+                        // Inline buttons in groups belong to the bot that sent the message.
+                        let bot = PeerId::user(bot).filter(|_| bot != 0).unwrap_or(peer);
+                        let kind = if simple { backend::WebAppKind::Simple(url) } else { backend::WebAppKind::Inline(url) };
+                        self.open_web_app(peer, bot, kind, b.text);
+                    }
                     ButtonAction::Other => self.toast = Some((l!("Цей тип кнопки ще не підтримується", "This button type is not supported yet").into(), 0.0, true)),
                 }
             }
@@ -1685,6 +1723,11 @@ impl App {
                 // A mention opens the chat in the client (a public one without joining).
                 Some('@') if !self.demo => self.send(Cmd::ResolveUsername(target[1..].to_owned())),
                 Some('@') => self.ctx.open_url(egui::OpenUrl::new_tab(format!("https://t.me/{}", &target[1..]))),
+                _ if tme_web_app(&target).is_some() => {
+                    if let Some((username, app, start_param)) = tme_web_app(&target) {
+                        self.open_web_app_link(username, app, start_param);
+                    }
+                }
                 _ if !self.demo && tme_username(&target).is_some() => {
                     let name = tme_username(&target).unwrap_or_default();
                     self.send(Cmd::ResolveUsername(name));
@@ -2687,6 +2730,7 @@ impl App {
         }
         let btn = |i: f32| Rect::from_min_size(pos2(inner.right() - 36.0 - i * 44.0, inner.top() + 4.0), vec2(36.0, 36.0));
         if glass::icon_button(ui, btn(0.0), "logout", Icon::Power, false, true).on_hover_text(l!("Вийти", "Log out")).clicked() {
+            self.close_web_apps();
             self.send(Cmd::Logout);
         }
         if glass::icon_button(ui, btn(1.0), "reload", Icon::Reload, false, true).on_hover_text(l!("Оновити", "Refresh")).clicked() {
@@ -3928,6 +3972,7 @@ impl App {
 
 impl eframe::App for App {
     fn on_exit(&mut self) {
+        self.close_web_apps();
         self.save_chats();
         self.send(Cmd::Shutdown);
         // Wait for the backend to finish writing the cache, but don't hold the window long.
@@ -3940,6 +3985,7 @@ impl eframe::App for App {
         self.close_to_tray(ui.ctx(), frame);
         let events: Vec<Ev> = self.backend.as_ref().map(|b| b.rx.try_iter().collect()).unwrap_or_default();
         let account = self.accounts.active;
+        self.poll_web_apps();
         for ev in events {
             // After an account switch, the remaining events come from the old backend.
             if self.accounts.active != account {
@@ -5263,4 +5309,18 @@ fn apply_theme(ctx: &egui::Context, light: bool) {
         style.spacing.scroll = egui::style::ScrollStyle::floating();
         style.spacing.scroll.bar_width = 6.0;
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tme_web_app;
+
+    #[test]
+    fn parses_mini_app_links() {
+        assert_eq!(tme_web_app("https://t.me/somebot/game?startapp=ref1"), Some(("somebot".into(), Some("game".into()), "ref1".into())));
+        assert_eq!(tme_web_app("https://t.me/somebot?startapp"), Some(("somebot".into(), None, String::new())));
+        assert_eq!(tme_web_app("https://t.me/somebot"), None);
+        assert_eq!(tme_web_app("https://t.me/somechannel/123"), None);
+        assert_eq!(tme_web_app("https://t.me/somechannel/news"), None);
+    }
 }

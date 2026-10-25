@@ -34,6 +34,12 @@ tokio = { version = "1.54.0", features = ["full"] }
 # Desktop notifications: D-Bus via zbus on Linux (pure Rust), WinRT toasts on Windows, Notification Center on macOS.
 notify-rust = { version = "4.11", default-features = false, features = ["z"] }
 
+# Mini app windows (webview.rs): the system WebView — WebView2 on Windows, WKWebView on macOS,
+# WebKitGTK on Linux. The one exception to "no system dev libraries": Linux builds need
+# libwebkit2gtk-4.1-dev; the Flatpak gets it from the GNOME runtime.
+wry = "0.57"
+tao = "0.37"
+
 # Tray: StatusNotifierItem over D-Bus on Linux, without GTK or other system libraries.
 [target.'cfg(target_os = "linux")'.dependencies]
 ksni = { version = "0.3.7", default-features = false, features = ["async-io", "blocking"] }

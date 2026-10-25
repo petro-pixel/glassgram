@@ -2,9 +2,11 @@
 # secrets through an untracked keys.env (see build.rs), so this manifest is not for Flathub as is:
 # Flathub builds from a public manifest without network or secrets.
 app-id: io.github.petro_pixel.Glassgram
-runtime: org.freedesktop.Platform
-runtime-version: '25.08'
-sdk: org.freedesktop.Sdk
+# GNOME rather than the plain freedesktop runtime: it ships WebKitGTK for mini apps (webview.rs).
+# GNOME 49 sits on the same freedesktop 25.08 base, so the rest of the build is unchanged.
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
 command: glassgram

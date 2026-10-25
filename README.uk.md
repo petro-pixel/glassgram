@@ -33,6 +33,9 @@ cargo run --release -- --demo   # демо з вигаданими чатами,
 cargo run --release             # справжній акаунт
 ```
 
+На Linux для вікон міні-застосунків збірці потрібен WebKitGTK: `sudo apt install libwebkit2gtk-4.1-dev pkg-config`
+(`sudo dnf install webkit2gtk4.1-devel` на Fedora). Windows (WebView2) і macOS (WKWebView) нічого додаткового не потребують.
+
 Збірці з коду потрібні `api_id` та `api_hash` з <https://my.telegram.org> → *API development tools*.
 Їх можна ввести у вікні входу або передати через змінні `TG_API_ID` / `TG_API_HASH`. Щоб вбудувати їх
 у програму, як у релізах, задайте під час збірки `GLASSGRAM_API_ID` / `GLASSGRAM_API_HASH` (`build.rs`).
@@ -76,6 +79,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/glass.rs` | Живий фон, скляні панелі (градієнт, спекулярний обід, ореол заломлення, тінь), кнопки, поля, аватарки |
 | `src/app.rs` | Екрани входу та чатів |
 | `src/app/chatview.rs`, `src/backend/chatview.rs` | Доповнення чату: панель і список закріплених, кнопки переходу (вниз / згадки / реакції), «Переглянули», лічильники переглядів, захищений вміст |
+| `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Міні-застосунки: запити до сервера, процес вікна WebView (`glassgram --webview`) і його міст |
 | `src/app/contacts.rs`, `src/backend/contacts.rs` | Вікно «Новий контакт», додавання / видалення контакту й блокування з інформації про користувача, список заблокованих у «Конфіденційності» |
 | `src/app/translate.rs`, `src/backend/translate.rs` | Вікно «Перекласти» з меню повідомлення |
 | `src/app/calendar.rs` | Календар «Перейти до дати» над чатом (запит — `Cmd::JumpToDate` у `src/backend/chatview.rs`) |

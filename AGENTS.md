@@ -25,7 +25,7 @@ Before you finish, the build must have **no warnings** and the tests must be gre
 - **`app.rs`** — all state and drawing. Events are handled in `push_event`, user actions in `apply`.
 - **Features live in submodules**: UI in `src/app/<feature>.rs` (`impl App` blocks), network in
   `src/backend/<feature>.rs` (handlers called from `Worker::handle`). Current ones: `chatlist`,
-  `chatview`, `info`, `suggest`, `sponsored`, `notify`, `translate`, `contacts`, `outbox`, `hotkeys`, `settings_pages` (Settings pages in the
+  `chatview`, `info`, `suggest`, `sponsored`, `notify`, `translate`, `contacts`, `webapp`, `outbox`, `hotkeys`, `settings_pages` (Settings pages in the
   Telegram Desktop layout), `account`. A new feature of any size gets its own pair of files instead
   of growing `app.rs` / `backend.rs`; see the structure table in README.
 - **`demo.rs`** — answers the same `Cmd`s synchronously, without the network. Code must cope with
@@ -54,6 +54,8 @@ Before you finish, the build must have **no warnings** and the tests must be gre
 - No `unwrap()` on data from the network or disk; errors go as a string into `Ev::Error`.
 - New dependencies — pure Rust only, building on Linux, Windows and macOS without system
   dev libraries. Before adding a crate, check whether a suitable one is already in `Cargo.lock`.
+  The one agreed exception is the mini app WebView (`wry` + `tao`, `webview.rs`): Linux builds need
+  `libwebkit2gtk-4.1-dev` (and `pkg-config`), the Flatpak uses the GNOME runtime for WebKitGTK.
 
 ### UI strings
 

@@ -44,6 +44,8 @@ pub(super) struct Suggest {
     closed_for: Option<String>,
     /// Bot command menu opened with the button next to the field.
     menu_open: bool,
+    /// Bots whose menu button opens a mini app: (button text, URL).
+    menu_apps: HashMap<PeerId, (String, String)>,
 }
 
 /// What the popup offers.
@@ -143,12 +145,31 @@ impl App {
         if matches!(kind, ChatKind::Bot | ChatKind::Group) && self.suggest.commands_requested.insert(peer) {
             self.send(Cmd::LoadBotCommands(peer));
         }
+        if kind == ChatKind::Bot
+            && let Some((text, _)) = self.suggest.menu_apps.get(&peer)
+        {
+            return menu_app_width(text) + 8.0;
+        }
         let has = kind == ChatKind::Bot && self.suggest.commands.get(&peer).is_some_and(|c| !c.is_empty());
         if has { COMPOSER_H + 8.0 } else { 0.0 }
     }
 
+    pub(super) fn suggest_menu_app(&mut self, peer: PeerId, text: String, url: String) {
+        self.suggest.menu_apps.insert(peer, (text, url));
+    }
+
     /// Bot command menu button; `at` is its square.
     pub(super) fn bot_menu_button(&mut self, ui: &mut Ui, at: Rect) {
+        // A bot with a mini app shows its own button text instead of the command list, as in Telegram Desktop.
+        if let Some(peer) = self.selected
+            && let Some((text, url)) = self.suggest.menu_apps.get(&peer).cloned()
+        {
+            let r = Rect::from_min_size(at.min, vec2(menu_app_width(&text), at.height()));
+            if glass::button(ui, r, ("bot-menu-app", peer), &text, true, true).clicked() {
+                self.open_web_app(peer, peer, crate::backend::WebAppKind::Menu(url), String::new());
+            }
+            return;
+        }
         let open = self.suggest.menu_open;
         if glass::icon_button(ui, at, "bot-menu", Icon::Commands, open, true).on_hover_text(l!("Меню команд бота", "Bot command menu")).clicked() {
             self.suggest.menu_open = !open;
@@ -487,4 +508,9 @@ mod tests {
         replace_token(&mut d, "@iryna ");
         assert_eq!(d, "Привіт @iryna ");
     }
+}
+
+/// Width of the mini app menu button: its text plus capsule padding, within limits.
+fn menu_app_width(text: &str) -> f32 {
+    (text.chars().count() as f32 * 8.0 + 32.0).clamp(COMPOSER_H, 160.0)
 }

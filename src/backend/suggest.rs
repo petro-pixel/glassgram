@@ -165,7 +165,12 @@ impl Worker {
         let out = self.out.clone();
         tokio::spawn(async move {
             match bot_commands(&client, r).await {
-                Ok(commands) => out.send(Ev::BotCommands { peer, commands }),
+                Ok((commands, menu)) => {
+                    if let Some((text, url)) = menu {
+                        out.send(Ev::BotMenuApp { peer, text, url });
+                    }
+                    out.send(Ev::BotCommands { peer, commands });
+                }
                 Err(e) => {
                     log_error(&e);
                     out.send(Ev::BotCommands { peer, commands: Vec::new() });
@@ -176,7 +181,8 @@ impl Worker {
     }
 }
 
-async fn bot_commands(client: &Client, r: grammers_client::session::types::PeerRef) -> Result<Vec<BotCmd>, String> {
+/// Commands, and the bot's mini app menu button (text, URL) when it has one instead of commands.
+async fn bot_commands(client: &Client, r: grammers_client::session::types::PeerRef) -> Result<(Vec<BotCmd>, Option<(String, String)>), String> {
     let err = |e| lf!("Команди бота: {e}", "Bot commands: {e}");
     let (infos, users) = match r.id.kind() {
         PeerKind::User => {
@@ -201,13 +207,17 @@ async fn bot_commands(client: &Client, r: grammers_client::session::types::PeerR
         })
     };
     let mut out = Vec::new();
+    let mut menu = None;
     for tl::enums::BotInfo::Info(info) in infos {
+        if let Some(tl::enums::BotMenuButton::Button(b)) = &info.menu_button {
+            menu = Some((b.text.clone(), b.url.clone()));
+        }
         let bot = info.user_id.and_then(username).unwrap_or_default();
         for tl::enums::BotCommand::Command(c) in info.commands.unwrap_or_default() {
             out.push(BotCmd { bot: bot.clone(), command: c.command, description: c.description });
         }
     }
-    Ok(out)
+    Ok((out, menu))
 }
 
 fn chat_bot_info(full: tl::enums::ChatFull) -> Vec<tl::enums::BotInfo> {
