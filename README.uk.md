@@ -4,6 +4,17 @@
 
 Десктопний клієнт Telegram на Rust з інтерфейсом у стилі **Liquid Glass**.
 
+<!-- progress -->
+**Готовність за дорожньою картою: 38%** `████████░░░░░░░░░░░░` — 55 готово, 12 частково, 94 попереду ([ROADMAP.md](ROADMAP.md))
+<!-- /progress -->
+
+<p>
+  <img src="assets/screenshots/dark-uk.png" width="49%" alt="Glassgram, темна тема">
+  <img src="assets/screenshots/light-uk.png" width="49%" alt="Glassgram, світла тема">
+</p>
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/K8Z3299QVD)
+
 - **MTProto**: [grammers](https://codeberg.org/Lonami/grammers): вхід за номером або QR-кодом, 2FA, чати, історія, відповіді, редагування й видалення, оновлення наживо
 - **Медіа**: аватарки, фото, стікери з дисковим кешем (`~/.local/share/glassgram/cache`); надсилання файлів і стікерів; голосові та аудіо з хвильовою формою, перемотуванням і швидкістю; відео, GIF, кружечки й webm-стікери прямо в чаті; запис голосових (потрібен ffmpeg з `ffplay`)
 - **Чати**: форуми з темами, коментарі в каналах, папки й архів, закріплення, вимкнення сповіщень, чернетки, статуси «в мережі» та «друкує…»

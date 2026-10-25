@@ -4,6 +4,17 @@
 
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
+<!-- progress -->
+**Roadmap progress: 38%** `████████░░░░░░░░░░░░` — 55 done, 12 partial, 94 to go ([ROADMAP.md](ROADMAP.md))
+<!-- /progress -->
+
+<p>
+  <img src="assets/screenshots/dark-en.png" width="49%" alt="Glassgram, dark theme">
+  <img src="assets/screenshots/light-en.png" width="49%" alt="Glassgram, light theme">
+</p>
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/K8Z3299QVD)
+
 - **MTProto**: [grammers](https://codeberg.org/Lonami/grammers): sign-in by phone number or QR code, 2FA, chats, history, replies, editing and deleting, live updates
 - **Media**: avatars, photos, stickers with a disk cache (`~/.local/share/glassgram/cache`); sending files and stickers; voice and audio with a waveform, seeking and speed; videos, GIFs, round videos and webm stickers right in the chat; voice recording (needs ffmpeg with `ffplay`)
 - **Chats**: forums with topics, channel comments, folders and archive, pinning, muting, drafts, "online" and "typing…" statuses

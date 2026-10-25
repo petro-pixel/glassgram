@@ -20,6 +20,8 @@ mod lock;
 mod logo;
 mod platform;
 mod player;
+#[cfg(test)]
+mod progress;
 mod recorder;
 mod settings;
 mod tray;

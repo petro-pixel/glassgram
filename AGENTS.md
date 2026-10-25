@@ -43,6 +43,8 @@ Before you finish, the build must have **no warnings** and the tests must be gre
 4. UI is a separate `*_view` method or function; colours and glass only through `glass::*`.
 5. **Mandatory** — an answer in `demo.rs` and demo data, so the feature is visible in `--demo`.
 6. Update `ROADMAP.md` (mark ✅/🟡) and `README.md` (plus `README.uk.md`) if controls or structure changed.
+   The readiness bar at the top of both READMEs is counted from the marks: refresh it with
+   `UPDATE_PROGRESS=1 cargo test progress` (`src/progress.rs`).
 
 ## Code style
 
