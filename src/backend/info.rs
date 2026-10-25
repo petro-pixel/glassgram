@@ -57,6 +57,8 @@ pub struct NotifyState {
     /// Unix time muted until (0 = on, `MUTE_FOREVER` = forever).
     pub mute_until: i32,
     pub silent: bool,
+    /// The chat has no mute setting of its own and follows its category.
+    pub inherit: bool,
 }
 
 impl NotifyState {
@@ -82,9 +84,9 @@ impl NotifyState {
         }
     }
 
-    fn from_raw(raw: &tl::enums::PeerNotifySettings) -> Self {
+    pub(super) fn from_raw(raw: &tl::enums::PeerNotifySettings) -> Self {
         let tl::enums::PeerNotifySettings::Settings(n) = raw;
-        Self { mute_until: n.mute_until.unwrap_or(0), silent: n.silent.unwrap_or(false) }
+        Self { mute_until: n.mute_until.unwrap_or(0), silent: n.silent.unwrap_or(false), inherit: n.mute_until.is_none() }
     }
 }
 
@@ -138,9 +140,13 @@ impl Worker {
         match cmd {
             Cmd::LoadChatInfo(peer) => {
                 let r = self.peer_ref(peer)?;
+                let notifs = self.notifs.clone();
                 tokio::spawn(async move {
                     out.send(match details(&client, r).await {
-                        Ok(details) => Ev::ChatDetails { peer, details },
+                        Ok(mut details) => {
+                            details.notify = notifs.lock().unwrap().resolve(peer, details.notify);
+                            Ev::ChatDetails { peer, details }
+                        }
                         Err(e) => Ev::Error(lf!("Інформація про чат: {e}", "Chat info: {e}")),
                     });
                 });
@@ -270,8 +276,8 @@ impl Worker {
                 // The server may round the time, so read back what it stored.
                 let get = tl::functions::account::GetNotifySettings { peer: tl::types::InputNotifyPeer { peer: r.into() }.into() };
                 let state = match client.invoke(&get).await {
-                    Ok(raw) => NotifyState::from_raw(&raw),
-                    Err(_) => NotifyState { mute_until, silent },
+                    Ok(raw) => self.notifs.lock().unwrap().resolve(peer, NotifyState::from_raw(&raw)),
+                    Err(_) => NotifyState { mute_until, silent, inherit: false },
                 };
                 out.send(Ev::Notify { peer, state });
             }

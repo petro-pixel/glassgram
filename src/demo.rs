@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{Sponsored, SponsoredReport, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -438,6 +438,27 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let ids = if left > 0 { ids } else { Vec::new() };
             app.push_event(Ev::UnreadMarks { peer, reactions, ids });
         }
+        Cmd::LoadNotifyExceptions(scope) => {
+            let default = app.demo_notify_default(scope);
+            app.push_event(Ev::NotifyDefault { scope, state: default });
+            // Chats that differ from their category are its exceptions.
+            let list = app
+                .demo_chats()
+                .iter()
+                .filter(|c| NotifyScope::of(c.kind) == scope && c.muted != default.muted())
+                .map(|c| NotifyException { peer: c.id, title: c.title.clone(), state: NotifyState { mute_until: if c.muted { MUTE_FOREVER } else { 0 }, silent: false, inherit: false } })
+                .collect();
+            app.push_event(Ev::NotifyExceptions { scope, list });
+        }
+        Cmd::SetNotifyDefault { scope, muted } => {
+            app.push_event(Ev::NotifyDefault { scope, state: NotifyState { mute_until: if muted { MUTE_FOREVER } else { 0 }, ..Default::default() } });
+            handle(app, Cmd::LoadNotifyExceptions(scope));
+        }
+        Cmd::ResetNotify(peer) => {
+            let Some(kind) = app.demo_chat(peer).map(|c| c.kind) else { return };
+            let state = NotifyState { inherit: true, ..app.demo_notify_default(NotifyScope::of(kind)) };
+            app.push_event(Ev::Notify { peer, state });
+        }
         Cmd::LoadSponsored(peer) => {
             let ads = if peer == PeerId::user_unchecked(DEMO_CHANNEL) { vec![demo_ad()] } else { Vec::new() };
             app.push_event(Ev::Sponsored { peer, ads });
@@ -472,7 +493,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let msgs = if before.is_some() { Vec::new() } else { demo_shared(app, peer, kind) };
             app.push_event(Ev::Shared { peer, kind, msgs, older: before.is_some() });
         }
-        Cmd::SetNotify { peer, mute_until, silent } => app.push_event(Ev::Notify { peer, state: NotifyState { mute_until, silent } }),
+        Cmd::SetNotify { peer, mute_until, silent } => app.push_event(Ev::Notify { peer, state: NotifyState { mute_until, silent, inherit: false } }),
         Cmd::LeaveChat(peer) | Cmd::DeleteChat { peer, .. } => app.push_event(Ev::ChatRemoved(peer)),
         Cmd::ClearHistory { peer, .. } => app.push_event(Ev::HistoryCleared(peer)),
         Cmd::LoadProfile => {

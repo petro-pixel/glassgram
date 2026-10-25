@@ -168,6 +168,7 @@ impl App {
                 }
             }
             Ev::Notify { peer, state } => {
+                self.notify_changed(peer, state);
                 if let Some(c) = self.chat_mut(peer) {
                     c.muted = state.muted();
                 }

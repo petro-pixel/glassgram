@@ -146,6 +146,7 @@ impl App {
         match tab {
             SettingsTab::Privacy => self.send(Cmd::LoadPrivacy),
             SettingsTab::Devices => self.send(Cmd::LoadSessions),
+            SettingsTab::Notifications => self.load_notify_exceptions(),
             SettingsTab::Account => {
                 self.profile_edit = Some(ProfileEdit::from(&self.profile));
                 self.send(Cmd::LoadProfile);
@@ -376,12 +377,13 @@ impl App {
     }
 
     fn notifications_page(&mut self, ui: &mut Ui) {
-        let s = &mut self.settings;
         egui::ScrollArea::vertical().id_salt("settings-notify").auto_shrink(false).show(ui, |ui| {
             section_title(ui, l!("Сповіщення на робочому столі", "Desktop notifications"));
-            ui.checkbox(&mut s.notifications, l!("Системні сповіщення про нові повідомлення", "System notifications for new messages"));
+            ui.checkbox(&mut self.settings.notifications, l!("Системні сповіщення про нові повідомлення", "System notifications for new messages"));
             hint(ui, l!("Те саме перемикає дзвіночок над списком чатів і меню в треї.", "The bell above the chat list and the tray menu toggle the same."));
             hint(ui, l!("Чати без звуку сповіщень не показують; перемикач — у меню чату.", "Muted chats don't notify; the toggle is in the chat menu."));
+            ui.add_space(10.0);
+            self.notify_scopes(ui);
         });
     }
 

@@ -38,6 +38,7 @@ mod outbox;
 mod settings_pages;
 mod chatlist;
 mod sponsored;
+mod notify;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -449,6 +450,8 @@ pub struct App {
     read_by: Option<(PeerId, i32, Option<Vec<(String, String)>>)>,
     /// Sponsored messages of channels and their popups.
     ads: sponsored::Ads,
+    /// Notification defaults of chat categories and their exceptions (Settings → Notifications).
+    notify: notify::NotifyPrefs,
     /// Composer helpers: link preview, @mentions, bot commands.
     suggest: suggest::Suggest,
     /// Chat info column (`None` = closed); follows the open chat.
@@ -713,6 +716,7 @@ impl App {
             unseen_below: 0,
             read_by: None,
             ads: Default::default(),
+            notify: Default::default(),
             suggest: Default::default(),
             info: None,
             profile: backend::Profile::default(),
@@ -1000,6 +1004,7 @@ impl App {
             Ev::Notice(text) => self.toast = Some((text, 0.0, false)),
             ev @ (Ev::Pinned { .. } | Ev::PinnedChanged { .. } | Ev::UnreadMarks { .. } | Ev::ReadBy { .. } | Ev::Views { .. }) => self.chat_view_event(ev),
             ev @ (Ev::Sponsored { .. } | Ev::SponsoredReport { .. }) => self.sponsored_event(ev),
+            ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
             ev @ (Ev::ChatDetails { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
                 self.info_event(ev)
             }

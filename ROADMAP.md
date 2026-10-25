@@ -156,7 +156,8 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 
 ## 12. Notifications
 - ✅ System notifications, counter in the title, tray with an unread dot
-- 🟡 **P0** Per-chat notifications in chat info: mute for 1 h / 8 h / 2 days / forever, unmute, silent, current state (`updateNotifySettings`, `getNotifySettings`); still missing: mentions-only and the exceptions list
+- ✅ **P0** Per-chat notifications in chat info: mute for 1 h / 8 h / 2 days / forever, unmute, silent, current state (`updateNotifySettings`, `getNotifySettings`)
+- ✅ Notifications for chats in Settings → Notifications, as in Telegram Desktop: private chats, groups and channels on / off (`inputNotifyUsers` / `Chats` / `Broadcasts`), the exceptions of each with "Remove exception" (`getNotifyExceptions`); chats without their own setting follow their category, live `updateNotifySettings` from other devices. (MTProto has no per-chat "mentions only" mode.)
 - ⬜ **P1** Reply and "mark as read" right from the notification (where the OS allows), grouping by chat
 - ⬜ **P1** Notification sounds and custom ringtones (`saveRingtone`), reaction notification settings
 - ⬜ **P2** Unread badge on the taskbar icon (Windows, macOS, Unity)

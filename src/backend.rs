@@ -37,6 +37,8 @@ mod info;
 pub use info::{ChatDetails, MUTE_FOREVER, Member, MemberRole, NotifyState, SHARED_PAGE, SharedKind};
 mod sponsored;
 pub use sponsored::{Sponsored, SponsoredReport};
+mod notify;
+pub use notify::{NotifyException, NotifyScope};
 
 const DIALOG_LIMIT: usize = 300;
 pub const PAGE: usize = 50;
@@ -163,6 +165,12 @@ pub enum Cmd {
     ClickSponsored(Vec<u8>),
     /// Report an ad; an empty `option` asks the server for the list of reasons.
     ReportSponsored { peer: PeerId, random_id: Vec<u8>, option: Vec<u8> },
+    /// Turn notifications for a whole category on or off.
+    SetNotifyDefault { scope: NotifyScope, muted: bool },
+    /// Chats of a category with settings of their own.
+    LoadNotifyExceptions(NotifyScope),
+    /// Drop a chat's own notification settings: it follows its category again.
+    ResetNotify(PeerId),
     /// Preview for the link being typed (`messages.getWebPagePreview`).
     WebPreview(String),
     /// Chat members for the @mention popup.
@@ -292,6 +300,9 @@ pub enum Ev {
     /// Ads for the end of a channel's history (empty: none).
     Sponsored { peer: PeerId, ads: Vec<Sponsored> },
     SponsoredReport { peer: PeerId, random_id: Vec<u8>, result: SponsoredReport },
+    /// Default notification settings of a category (at start and when changed anywhere).
+    NotifyDefault { scope: NotifyScope, state: NotifyState },
+    NotifyExceptions { scope: NotifyScope, list: Vec<NotifyException> },
     /// `page: None`: the text has no link with a preview.
     WebPreview { text: String, page: Option<WebPageInfo> },
     Mentions { peer: PeerId, query: String, members: Vec<Mentionable> },
@@ -1163,6 +1174,8 @@ struct Worker {
     docs: HashMap<i64, tl::types::Document>,
     /// Bots for inline mode, by username.
     bots: HashMap<String, PeerRef>,
+    /// Category notification defaults, to tell which chats are muted.
+    notifs: notify::Notifs,
 }
 
 impl Worker {
@@ -1185,6 +1198,7 @@ impl Worker {
             names: Arc::default(),
             docs: HashMap::new(),
             bots: HashMap::new(),
+            notifs: Arc::default(),
         }
     }
 
@@ -2162,6 +2176,7 @@ impl Worker {
             cmd @ (Cmd::LoadPinned(_) | Cmd::PinMessage { .. } | Cmd::UnpinAll(_) | Cmd::LoadUnreadMarks { .. } | Cmd::ReadMarks { .. } | Cmd::LoadReadBy { .. }) => {
                 self.chat_view_cmd(cmd).await
             }
+            cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
             cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. }) => self.sponsored_cmd(cmd).await,
             Cmd::WebPreview(text) => self.web_preview(text),
             Cmd::LoadMentions { peer, query } => self.load_members(peer, query),
@@ -2270,6 +2285,8 @@ impl Worker {
             limit: Arc::new(Semaphore::new(6)),
             requested: Arc::default(),
         };
+        // Defaults are per account: fetch them again for this connection.
+        self.notifs = Arc::default();
         tokio::spawn(update_loop(
             client.clone(),
             updates,
@@ -2278,6 +2295,7 @@ impl Worker {
             self.out.clone(),
             self.refs.clone(),
             self.names.clone(),
+            self.notifs.clone(),
             loader.clone(),
         ));
 
@@ -2515,6 +2533,7 @@ impl Worker {
 
     async fn load_dialogs(&mut self) -> Result<(), String> {
         let client = self.client()?;
+        self.load_notify_defaults().await;
         let mut iter = client.iter_dialogs();
         let mut chats = Vec::new();
         let mut peers = Vec::new();
@@ -2526,8 +2545,10 @@ impl Worker {
             self.refs.lock().unwrap().insert(peer.id(), d.peer_ref());
             let (unread, pinned, muted, archived, unread_mark, draft, read_out) = match &d.raw {
                 tl::enums::Dialog::Dialog(x) => {
-                    let tl::enums::PeerNotifySettings::Settings(n) = &x.notify_settings;
-                    let muted = n.mute_until.is_some_and(|t| t as i64 > jiff::Timestamp::now().as_second());
+                    let mut notifs = self.notifs.lock().unwrap();
+                    notifs.remember(peer);
+                    let muted = notifs.resolve(peer.id(), NotifyState::from_raw(&x.notify_settings)).muted();
+                    drop(notifs);
                     (x.unread_count, x.pinned, muted, x.folder_id == Some(1), x.unread_mark, draft_text(&x.draft), x.read_outbox_max_id)
                 }
                 _ => (0, false, false, false, false, String::new(), 0),
@@ -3014,6 +3035,7 @@ async fn update_loop(
     out: Emitter,
     refs: Refs,
     names: Names,
+    notifs: notify::Notifs,
     loader: Loader,
 ) {
     // Before authorization we only listen for updateLoginToken (the signal that the QR was scanned).
@@ -3050,7 +3072,7 @@ async fn update_loop(
                 out.send(Ev::Deleted { ids: d.into_messages(), peer })
             }
             Ok(Update::Raw(raw)) => {
-                if let Some(ev) = raw_event(&raw.raw, &names) {
+                if let Some(ev) = raw_event(&raw.raw, &names, &notifs) {
                     out.send(ev);
                 }
             }
@@ -3064,7 +3086,7 @@ async fn update_loop(
 }
 
 /// Raw updates that grammers has no wrappers for: typing, statuses, reads, drafts.
-fn raw_event(u: &tl::enums::Update, names: &Names) -> Option<Ev> {
+fn raw_event(u: &tl::enums::Update, names: &Names, notifs: &notify::Notifs) -> Option<Ev> {
     use tl::enums::{SendMessageAction as A, Update as U};
     let typing = |peer: PeerId, from: PeerId, action: &A| {
         let who = names.lock().unwrap().get(&from).cloned().unwrap_or_default();
@@ -3088,6 +3110,7 @@ fn raw_event(u: &tl::enums::Update, names: &Names) -> Option<Ev> {
         U::PinnedMessages(p) => Ev::PinnedChanged { peer: PeerId::from(&p.peer), ids: p.messages.clone(), pinned: p.pinned },
         U::PinnedChannelMessages(p) => Ev::PinnedChanged { peer: PeerId::channel(p.channel_id)?, ids: p.messages.clone(), pinned: p.pinned },
         U::ChannelMessageViews(v) => Ev::Views { peer: PeerId::channel(v.channel_id)?, id: v.id, views: v.views },
+        U::NotifySettings(n) => return notify::update_event(n, notifs),
         U::DraftMessage(d) if d.top_msg_id.is_none() => Ev::Draft { peer: PeerId::from(&d.peer), text: draft_text(&Some(d.draft.clone())) },
         _ => return None,
     })
