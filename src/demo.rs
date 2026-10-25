@@ -396,9 +396,24 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                     _ => Audience::Everybody,
                 };
                 app.push_event(Ev::Privacy(key, PrivacyState { audience, exceptions: key == PrivacyKey::LastSeen }));
+                // "Last seen": hidden from one colleague, shown to a whole group.
+                let ex = if key == PrivacyKey::LastSeen {
+                    let pick = |id: i64| app.demo_chats().iter().find(|c| c.id == PeerId::user_unchecked(id)).cloned();
+                    crate::backend::PrivacyExceptions { allow: pick(7).into_iter().collect(), deny: pick(5).into_iter().collect() }
+                } else {
+                    Default::default()
+                };
+                app.push_event(Ev::PrivacyExceptions(key, ex));
             }
         }
-        Cmd::SetPrivacy(key, audience) => app.push_event(Ev::Privacy(key, crate::backend::PrivacyState { audience, exceptions: false })),
+        Cmd::SetPrivacy { key, audience, allow, deny } => {
+            let exceptions = !allow.is_empty() || !deny.is_empty();
+            app.push_event(Ev::Privacy(key, crate::backend::PrivacyState { audience, exceptions }));
+            // Names come from the chat list and contacts the app already has.
+            let find = |ids: &[PeerId]| ids.iter().filter_map(|p| app.demo_chats().iter().chain(demo_contacts().iter()).find(|c| c.id == *p).cloned()).collect::<Vec<_>>();
+            let ex = crate::backend::PrivacyExceptions { allow: find(&allow), deny: find(&deny) };
+            app.push_event(Ev::PrivacyExceptions(key, ex));
+        }
         Cmd::SendRound { id, peer, path, duration, reply_to } => {
             let info = MediaInfo { kind: MediaKind::Round, duration, size: (384, 384), title: String::new(), performer: String::new(), waveform: Vec::new() };
             let m = Msg { media: Some(info), ..outgoing(peer, String::new(), reply_to) };

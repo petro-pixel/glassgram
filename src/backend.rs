@@ -43,7 +43,7 @@ mod contacts;
 mod webapp;
 mod polls;
 mod privacy;
-pub use privacy::GlobalPrivacy;
+pub use privacy::{GlobalPrivacy, PrivacyExceptions};
 pub use polls::NewPoll;
 pub use webapp::{WebAppKind, WebAppOpened};
 pub use notify::{NotifyException, NotifyScope};
@@ -130,7 +130,8 @@ pub enum Cmd {
     TerminateSession(i64),
     TerminateOtherSessions,
     LoadPrivacy,
-    SetPrivacy(PrivacyKey, Audience),
+    /// A privacy rule: the base audience plus "always" / "never" exceptions.
+    SetPrivacy { key: PrivacyKey, audience: Audience, allow: Vec<PeerId>, deny: Vec<PeerId> },
     /// Archive / read time / who can message me (`account.getGlobalPrivacySettings`).
     LoadGlobalPrivacy,
     SetGlobalPrivacy(GlobalPrivacy),
@@ -317,6 +318,7 @@ pub enum Ev {
     Joined(PeerId),
     Sessions(Vec<Session>),
     Privacy(PrivacyKey, PrivacyState),
+    PrivacyExceptions(PrivacyKey, PrivacyExceptions),
     GlobalPrivacy(GlobalPrivacy),
     Notice(String),
     Error(String),
@@ -594,15 +596,6 @@ impl PrivacyState {
             )
         });
         Self { audience, exceptions }
-    }
-}
-
-fn privacy_rules(a: Audience) -> Vec<tl::enums::InputPrivacyRule> {
-    use tl::enums::InputPrivacyRule as R;
-    match a {
-        Audience::Everybody => vec![R::InputPrivacyValueAllowAll],
-        Audience::Contacts => vec![R::InputPrivacyValueAllowContacts, R::InputPrivacyValueDisallowAll],
-        Audience::Nobody => vec![R::InputPrivacyValueDisallowAll],
     }
 }
 
@@ -1891,22 +1884,25 @@ impl Worker {
             }
             Cmd::LoadPrivacy => {
                 let client = self.client()?;
-                let out = self.out.clone();
-                tokio::spawn(async move {
-                    for key in PrivacyKey::ALL {
-                        match client.invoke(&tl::functions::account::GetPrivacy { key: key.input() }).await {
-                            Ok(tl::enums::account::PrivacyRules::Rules(r)) => out.send(Ev::Privacy(key, PrivacyState::from_rules(&r.rules))),
-                            Err(e) => log_error(&lf!("Приватність: {e}", "Privacy: {e}")),
+                for key in PrivacyKey::ALL {
+                    match client.invoke(&tl::functions::account::GetPrivacy { key: key.input() }).await {
+                        Ok(tl::enums::account::PrivacyRules::Rules(r)) => {
+                            self.out.send(Ev::Privacy(key, PrivacyState::from_rules(&r.rules)));
+                            let ex = self.privacy_exceptions(&r).await;
+                            self.out.send(Ev::PrivacyExceptions(key, ex));
                         }
+                        Err(e) => log_error(&lf!("Приватність: {e}", "Privacy: {e}")),
                     }
-                });
+                }
                 Ok(())
             }
-            Cmd::SetPrivacy(key, audience) => {
+            Cmd::SetPrivacy { key, audience, allow, deny } => {
                 let client = self.client()?;
-                let req = tl::functions::account::SetPrivacy { key: key.input(), rules: privacy_rules(audience) };
+                let req = tl::functions::account::SetPrivacy { key: key.input(), rules: self.privacy_input(audience, &allow, &deny)? };
                 let tl::enums::account::PrivacyRules::Rules(r) = client.invoke(&req).await.map_err(|e| lf!("Приватність: {e}", "Privacy: {e}"))?;
                 self.out.send(Ev::Privacy(key, PrivacyState::from_rules(&r.rules)));
+                let ex = self.privacy_exceptions(&r).await;
+                self.out.send(Ev::PrivacyExceptions(key, ex));
                 Ok(())
             }
             Cmd::MarkListened { peer, id } => {

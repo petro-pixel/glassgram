@@ -246,7 +246,6 @@
   "Everybody": "Alle",
   "My contacts": "Meine Kontakte",
   "Nobody": "Niemand",
-  "Has exceptions for specific people — changing the preset removes them": "Hat Ausnahmen für bestimmte Personen — eine Änderung der Vorgabe entfernt sie",
   "Local passcode": "Lokaler Code",
   "Locks Glassgram on this computer. Does not encrypt the session on disk.": "Sperrt Glassgram auf diesem Computer. Verschlüsselt die Sitzung auf der Festplatte nicht.",
   "New passcode": "Neuer Code",
@@ -661,5 +660,9 @@
   "Read time": "Lesezeit",
   "Hide read time": "Lesezeit verbergen",
   "Others won't see when you've read their messages, and you won't see theirs.": "Andere sehen nicht, wann du ihre Nachrichten gelesen hast, und du siehst ihre Lesezeit nicht.",
-  "Could not change privacy: {e}": "Privatsphäre konnte nicht geändert werden: {e}"
+  "Could not change privacy: {e}": "Privatsphäre konnte nicht geändert werden: {e}",
+  "Always allow": "Immer erlauben",
+  "Never allow": "Nie erlauben",
+  "add": "hinzufügen",
+  "Search people and groups": "Personen und Gruppen suchen"
 }

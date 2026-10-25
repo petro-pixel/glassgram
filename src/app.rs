@@ -491,6 +491,11 @@ pub struct App {
     contact_form: Option<contacts::ContactForm>,
     /// Blocked users for Privacy and Security (`None` — not loaded).
     blocked: Option<Vec<ChatInfo>>,
+    /// "Always" / "never" lists of each privacy rule.
+    privacy_ex: HashMap<PrivacyKey, backend::PrivacyExceptions>,
+    /// The rule and side whose exception list is unfolded.
+    privacy_open: Option<(PrivacyKey, bool)>,
+    privacy_pick: Option<privacy::PrivacyPick>,
     /// Global privacy switches (`None` — not loaded yet).
     global_privacy: Option<backend::GlobalPrivacy>,
     /// "New poll" box.
@@ -772,6 +777,9 @@ impl App {
             blocked: None,
             poll_form: None,
             global_privacy: None,
+            privacy_ex: HashMap::new(),
+            privacy_open: None,
+            privacy_pick: None,
             web_apps: Vec::new(),
             web_app_button: String::new(),
             suggest: Default::default(),
@@ -1056,6 +1064,9 @@ impl App {
                 }
             }
             Ev::GlobalPrivacy(p) => self.global_privacy = Some(p),
+            Ev::PrivacyExceptions(key, ex) => {
+                self.privacy_ex.insert(key, ex);
+            }
             Ev::Privacy(key, state) => {
                 self.privacy.insert(key, state);
             }
@@ -2356,9 +2367,7 @@ impl App {
                         }
                     }
                 });
-                if state.is_some_and(|s| s.exceptions) {
-                    ui.label(egui::RichText::new(l!("Є винятки для окремих людей — зміна пресету їх прибере", "Has exceptions for specific people — changing the preset removes them")).color(ink_dim()).size(12.0));
-                }
+                self.privacy_exception_rows(ui, key);
                 ui.add_space(6.0);
             }
             ui.add_space(6.0);
@@ -2408,7 +2417,7 @@ impl App {
             }
         });
         if let Some((key, a)) = set {
-            self.send(Cmd::SetPrivacy(key, a));
+            self.set_privacy_audience(key, a);
         }
         if lock_now {
             self.settings_open = false;
@@ -4087,6 +4096,7 @@ impl eframe::App for App {
         self.info_confirm_view(ui);
         self.contact_form_view(ui);
         self.poll_form_view(ui);
+        self.privacy_pick_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);
     }
