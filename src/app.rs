@@ -37,6 +37,7 @@ mod hotkeys;
 mod outbox;
 mod settings_pages;
 mod chatlist;
+mod sponsored;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -446,6 +447,8 @@ pub struct App {
     unseen_below: usize,
     /// "Seen by" popup: message and readers (`None` — still loading).
     read_by: Option<(PeerId, i32, Option<Vec<(String, String)>>)>,
+    /// Sponsored messages of channels and their popups.
+    ads: sponsored::Ads,
     /// Composer helpers: link preview, @mentions, bot commands.
     suggest: suggest::Suggest,
     /// Chat info column (`None` = closed); follows the open chat.
@@ -709,6 +712,7 @@ impl App {
             scroll_bottom: false,
             unseen_below: 0,
             read_by: None,
+            ads: Default::default(),
             suggest: Default::default(),
             info: None,
             profile: backend::Profile::default(),
@@ -995,6 +999,7 @@ impl App {
             ev @ (Ev::WebPreview { .. } | Ev::Mentions { .. } | Ev::BotCommands { .. }) => self.suggest_event(ev),
             Ev::Notice(text) => self.toast = Some((text, 0.0, false)),
             ev @ (Ev::Pinned { .. } | Ev::PinnedChanged { .. } | Ev::UnreadMarks { .. } | Ev::ReadBy { .. } | Ev::Views { .. }) => self.chat_view_event(ev),
+            ev @ (Ev::Sponsored { .. } | Ev::SponsoredReport { .. }) => self.sponsored_event(ev),
             ev @ (Ev::ChatDetails { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
                 self.info_event(ev)
             }
@@ -2787,6 +2792,7 @@ impl App {
         // Messages scroll under the floating glass header and input field.
         let mut load_older = None;
         let mut action = None;
+        let (mut ad_seen, mut ad_action) = (None, None);
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect);
         let pin_h = self.pin_bar_h(peer);
@@ -2924,6 +2930,18 @@ impl App {
                             }
                             heights.insert((peer, m.id), ui.cursor().top() - top);
                         }
+                        // The ad goes after the newest post, as in Telegram Desktop.
+                        if topic.is_none()
+                            && !msgs.is_empty()
+                            && let Some(ad) = self.ads.first(peer)
+                        {
+                            let tex = ad.photo.and_then(|id| self.textures.get(&ImgKey::Sponsored(id)));
+                            let (visible, a) = sponsored::card(ui, ad, tex);
+                            if visible {
+                                ad_seen = Some(ad.random_id.clone());
+                            }
+                            ad_action = a;
+                        }
                         if msgs.is_empty() {
                             ui.add_space(60.0);
                             ui.vertical_centered(|ui| ui.label(egui::RichText::new(l!("Тут поки порожньо", "Nothing here yet")).color(ink_dim())));
@@ -2945,6 +2963,12 @@ impl App {
         }
         if let Some(a) = action {
             self.apply(peer, a);
+        }
+        if let Some(id) = ad_seen {
+            self.ad_seen(&id);
+        }
+        if let Some(a) = ad_action {
+            self.ad_action(peer, a);
         }
 
         // Header.

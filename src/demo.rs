@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{Sponsored, SponsoredReport, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -438,6 +438,20 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let ids = if left > 0 { ids } else { Vec::new() };
             app.push_event(Ev::UnreadMarks { peer, reactions, ids });
         }
+        Cmd::LoadSponsored(peer) => {
+            let ads = if peer == PeerId::user_unchecked(DEMO_CHANNEL) { vec![demo_ad()] } else { Vec::new() };
+            app.push_event(Ev::Sponsored { peer, ads });
+        }
+        Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) => {}
+        Cmd::ReportSponsored { peer, random_id, option } => {
+            let result = if option.is_empty() {
+                let reasons = ["Не цікавить", "Оманлива реклама", "Шахрайство", "Інше"];
+                SponsoredReport::Choose { title: "Чому ви скаржитесь?".into(), options: reasons.iter().map(|r| (r.to_string(), r.as_bytes().to_vec())).collect() }
+            } else {
+                SponsoredReport::Reported
+            };
+            app.push_event(Ev::SponsoredReport { peer, random_id, result });
+        }
         Cmd::LoadReadBy { peer, id } => {
             let readers = [("Тарас", "Сьогодні 11:02"), ("Ірина", "Сьогодні 11:15"), ("Остап", "Сьогодні 12:40")];
             app.push_event(Ev::ReadBy { peer, id, readers: readers.iter().map(|(n, t)| (n.to_string(), t.to_string())).collect() });
@@ -598,6 +612,27 @@ fn created(app: &mut App, title: &str, kind: ChatKind, text: String) {
 const FORUM: i64 = 10;
 /// Our message in "Команда Rust" with an unread reaction.
 const DEMO_REACTED: i32 = 3;
+/// The channel that shows a sponsored message.
+const DEMO_CHANNEL: i64 = 4;
+const DEMO_AD_PHOTO: i64 = 77;
+
+fn demo_ad() -> Sponsored {
+    let text = "Щотижневий огляд нових крейтів, релізів і статей про **Rust**. Без води.";
+    let (text, entities) = format::parse(text);
+    Sponsored {
+        random_id: vec![7; 16],
+        title: "Rust Weekly".into(),
+        spans: format::from_entities(&text, &entities, 0),
+        text,
+        url: "https://t.me/rustweekly".into(),
+        button: "Переглянути канал".into(),
+        recommended: false,
+        can_report: true,
+        sponsor_info: "ТОВ «Демо Медіа», ЄДРПОУ 00000000".into(),
+        additional_info: "Реклама розміщена через Telegram Ads.".into(),
+        photo: Some(DEMO_AD_PHOTO),
+    }
+}
 /// Bot chat with no messages yet: shows the "Start" bar.
 const HELPER_BOT: i64 = 11;
 
@@ -905,6 +940,7 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
         (ImgKey::Photo(id, 72), sunset(320, 420)),
         (ImgKey::Avatar(PeerId::user_unchecked(5)), sunset(96, 96)),
         (ImgKey::Photo(PeerId::user_unchecked(2), 5), sunset(480, 250)),
+        (ImgKey::Sponsored(DEMO_AD_PHOTO), sunset(112, 112)),
     ]
 }
 

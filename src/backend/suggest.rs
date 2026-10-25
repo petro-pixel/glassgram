@@ -82,7 +82,7 @@ impl Loader {
         self.page_photo(ImgKey::Photo(peer, m.id()), file, photo);
     }
 
-    fn page_photo(&self, key: ImgKey, file: String, photo: Photo) {
+    pub(super) fn page_photo(&self, key: ImgKey, file: String, photo: Photo) {
         match best_thumb(&photo) {
             Some(size) => self.fetch(key, file, PHOTO_PT, size),
             None => self.fetch(key, file, PHOTO_PT, photo),

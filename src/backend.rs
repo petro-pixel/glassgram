@@ -35,6 +35,8 @@ mod suggest;
 pub use suggest::{BotCmd, Mentionable, WebPageInfo};
 mod info;
 pub use info::{ChatDetails, MUTE_FOREVER, Member, MemberRole, NotifyState, SHARED_PAGE, SharedKind};
+mod sponsored;
+pub use sponsored::{Sponsored, SponsoredReport};
 
 const DIALOG_LIMIT: usize = 300;
 pub const PAGE: usize = 50;
@@ -153,6 +155,14 @@ pub enum Cmd {
     ReadMarks { peer: PeerId, reactions: bool },
     /// Which group members have read our message.
     LoadReadBy { peer: PeerId, id: i32 },
+    /// Sponsored messages of a channel (`messages.getSponsoredMessages`).
+    LoadSponsored(PeerId),
+    /// The ad was shown on screen; the server counts views.
+    ViewSponsored(Vec<u8>),
+    /// The ad's button or card was clicked.
+    ClickSponsored(Vec<u8>),
+    /// Report an ad; an empty `option` asks the server for the list of reasons.
+    ReportSponsored { peer: PeerId, random_id: Vec<u8>, option: Vec<u8> },
     /// Preview for the link being typed (`messages.getWebPagePreview`).
     WebPreview(String),
     /// Chat members for the @mention popup.
@@ -214,6 +224,8 @@ pub enum ImgKey {
     Sticker(i64),
     /// Link preview picture above the composer (by page id).
     WebPage(i64),
+    /// Sponsored message picture (by photo id).
+    Sponsored(i64),
 }
 
 pub enum Ev {
@@ -277,6 +289,9 @@ pub enum Ev {
     ReadBy { peer: PeerId, id: i32, readers: Vec<(String, String)> },
     /// New view count of a channel post.
     Views { peer: PeerId, id: i32, views: i32 },
+    /// Ads for the end of a channel's history (empty: none).
+    Sponsored { peer: PeerId, ads: Vec<Sponsored> },
+    SponsoredReport { peer: PeerId, random_id: Vec<u8>, result: SponsoredReport },
     /// `page: None`: the text has no link with a preview.
     WebPreview { text: String, page: Option<WebPageInfo> },
     Mentions { peer: PeerId, query: String, members: Vec<Mentionable> },
@@ -2147,6 +2162,7 @@ impl Worker {
             cmd @ (Cmd::LoadPinned(_) | Cmd::PinMessage { .. } | Cmd::UnpinAll(_) | Cmd::LoadUnreadMarks { .. } | Cmd::ReadMarks { .. } | Cmd::LoadReadBy { .. }) => {
                 self.chat_view_cmd(cmd).await
             }
+            cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. }) => self.sponsored_cmd(cmd).await,
             Cmd::WebPreview(text) => self.web_preview(text),
             Cmd::LoadMentions { peer, query } => self.load_members(peer, query),
             Cmd::LoadBotCommands(peer) => self.load_bot_commands(peer),

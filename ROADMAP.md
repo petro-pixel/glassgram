@@ -61,7 +61,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - 🟡 Protected content (`noforwards` of chat and message): no Forward / Copy / Download / Open in player in menus, selection bar and viewer, blocked with a toast. Left: restricted content (`restriction_reason`)
 - ✅ Virtualised long history: only bubbles near the screen are drawn, the heights of the rest are cached (3000 messages — ≈2 ms per frame; in the demo — "Старий проєкт")
 - ✅ Right info column: profile, members, shared media, links, files, voice — see sections 5 and 6
-- ⬜ **P1** Sponsored messages in channels (`getSponsoredMessages`, `viewSponsoredMessage`) — **required** by the API terms of service
+- 🟡 Sponsored messages in channels — **required** by the API terms of service: an "Ad" / "Recommended" bubble after the newest post with title, text, picture and button, views counted once per session (`viewSponsoredMessage`), clicks (`clickSponsoredMessage`), "About this ad" with the advertiser info, reporting with the server's reasons (`reportSponsoredMessage`), refreshed at most every 5 minutes. Left: ads between posts (`posts_between`), video/media ads, hiding ads for Premium
 - ⬜ **P1** Jump to a date via a calendar (`getSearchResultsCalendar`), search filters by type and sender
 - ⬜ **P1** Translating messages and chats (`translateText`, `togglePeerTranslations`)
 - ⬜ **P1** Reply quoting part of the text, reply in another chat

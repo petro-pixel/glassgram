@@ -133,6 +133,7 @@ impl App {
         self.at_bottom = true;
         self.unseen_below = 0;
         self.send(Cmd::LoadPinned(peer));
+        self.open_sponsored(peer);
         let (mentions, reactions) = self.chats.iter().find(|c| c.id == peer).map_or((0, 0), |c| (c.unread_mentions, c.unread_reactions));
         if mentions > 0 {
             self.send(Cmd::LoadUnreadMarks { peer, reactions: false });
@@ -335,6 +336,7 @@ impl App {
             let panel = Rect::from_center_size(rect.center(), vec2(rect.width().min(320.0), (rect.height() - 120.0).min(360.0)));
             self.read_by_view(ui, panel);
         }
+        self.sponsored_overlay(ui, peer, rect);
         if self.viewer.is_none() && (self.read_by.is_some() || self.pins_open) && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
             if self.read_by.is_some() {
                 self.read_by = None;

@@ -531,5 +531,18 @@
   "Quit Glassgram": "Glassgram beenden",
   "Glassgram keeps running in the tray. Quit from the icon's menu.": "Glassgram läuft im Infobereich weiter. Beenden über das Menü des Symbols.",
   "Could not start pw-record: {e}": "pw-record konnte nicht gestartet werden: {e}",
-  "pw-record without stdout": "pw-record ohne stdout"
+  "pw-record without stdout": "pw-record ohne stdout",
+  "Recommended": "Empfohlen",
+  "Ad": "Werbung",
+  "what's this?": "was ist das?",
+  "About this ad": "Über diese Werbung",
+  "Report": "Melden",
+  "Thank you! Telegram moderators will review your report.": "Danke! Die Telegram-Moderatoren prüfen deine Meldung.",
+  "Ads are hidden in this channel": "Werbung ist in diesem Kanal ausgeblendet",
+  "Report ad": "Werbung melden",
+  "Unlike other apps, Telegram never uses your private data to target ads. Sponsored messages are based solely on the topic of the public channel in which they are shown.": "Anders als andere Apps nutzt Telegram niemals deine privaten Daten für Werbung. Gesponserte Nachrichten richten sich nur nach dem Thema des öffentlichen Kanals, in dem sie erscheinen.",
+  "Advertiser": "Werbetreibender",
+  "Additional info": "Weitere Informationen",
+  "Learn more": "Mehr erfahren",
+  "Report not sent: {e}": "Meldung nicht gesendet: {e}"
 }
