@@ -572,6 +572,16 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::OpenWebAppLink { username, .. } => app.push_event(Ev::Notice(format!("t.me/{username}"))),
         Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } => {}
+        Cmd::SendPoll { peer, poll, reply_to } => {
+            let answers = poll
+                .options
+                .iter()
+                .enumerate()
+                .map(|(i, o)| PollOption { text: o.clone(), option: vec![i as u8], voters: 0, chosen: false, correct: poll.quiz == Some(i) })
+                .collect();
+            let info = PollInfo { question: poll.question, answers, total: 0, closed: false, quiz: poll.quiz.is_some(), multiple: poll.multiple };
+            app.push_event(Ev::NewMsg(Msg { id: rand_ish(), poll: Some(info), ..outgoing(peer, String::new(), reply_to) }));
+        }
         Cmd::LoadContacts => app.push_event(Ev::Contacts(demo_contacts())),
         Cmd::AddContact { user, phone, first, last } => {
             let name = if last.is_empty() { first } else { format!("{first} {last}") };

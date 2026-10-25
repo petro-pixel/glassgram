@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 38%** `████████░░░░░░░░░░░░` — 55 done, 12 partial, 94 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 38%** `████████░░░░░░░░░░░░` — 56 done, 12 partial, 94 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -95,6 +95,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars |
 | `src/app.rs` | Sign-in and chat screens |
 | `src/app/chatview.rs`, `src/backend/chatview.rs` | Chat view extras: pinned bar and list, jump buttons (down / mentions / reactions), "Seen by", view counters, protected content |
+| `src/app/polls.rs`, `src/backend/polls.rs` | "New poll" box: polls and quizzes |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Mini apps: server requests, the WebView window process (`glassgram --webview`) and its bridge |
 | `src/app/contacts.rs`, `src/backend/contacts.rs` | "New contact" box, add / delete contact and block from user info, blocked list in Privacy and Security |
 | `src/app/translate.rs`, `src/backend/translate.rs` | "Translate" window from the message menu |
@@ -128,7 +129,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - Right-click a message for the menu: reply, copy, edit, delete.
 - Double-click — reply.
 - Esc cancels a reply or edit and closes the sticker panel.
-- 📎 — send files (or drag them into the window); the composer text becomes the caption.
+- 📎 — send files (or drag them into the window); the composer text becomes the caption. Right click on 📎: send without compression, create a poll or quiz.
 - 🙂 — sticker panel.
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.

@@ -41,6 +41,8 @@ mod notify;
 mod translate;
 mod contacts;
 mod webapp;
+mod polls;
+pub use polls::NewPoll;
 pub use webapp::{WebAppKind, WebAppOpened};
 pub use notify::{NotifyException, NotifyScope};
 
@@ -177,6 +179,8 @@ pub enum Cmd {
     WebAppData { bot: PeerId, button_text: String, data: String },
     /// `invokeCustomMethod` (cloud storage and the like), answered by `req_id`.
     WebAppMethod { bot: PeerId, req_id: String, method: String, params: String },
+    /// Send a new poll or quiz.
+    SendPoll { peer: PeerId, poll: NewPoll, reply_to: Option<i32> },
     /// Translate a message's text into `to` (a language code).
     Translate { peer: PeerId, id: i32, to: String },
     /// Find the first message sent at or after `date` (unix time), for the calendar.
@@ -2230,6 +2234,7 @@ impl Worker {
                 self.chat_view_cmd(cmd).await
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
+            Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,

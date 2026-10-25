@@ -43,6 +43,7 @@ mod calendar;
 mod translate;
 mod contacts;
 mod webapp;
+mod polls;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -489,6 +490,8 @@ pub struct App {
     contact_form: Option<contacts::ContactForm>,
     /// Blocked users for Privacy and Security (`None` — not loaded).
     blocked: Option<Vec<ChatInfo>>,
+    /// "New poll" box.
+    poll_form: Option<polls::PollForm>,
     /// Open mini app windows (separate WebView processes).
     web_apps: Vec<webapp::WebAppWin>,
     /// Text of the keyboard button whose mini app is being opened (for `sendWebViewData`).
@@ -764,6 +767,7 @@ impl App {
             translate_to: None,
             contact_form: None,
             blocked: None,
+            poll_form: None,
             web_apps: Vec::new(),
             web_app_button: String::new(),
             suggest: Default::default(),
@@ -3192,9 +3196,14 @@ impl App {
         if attach.clicked() {
             self.pick_files(peer, false);
         }
+        let can_poll = self.chats.iter().any(|c| c.id == peer && matches!(c.kind, ChatKind::Group | ChatKind::Channel | ChatKind::Bot | ChatKind::Saved));
         attach.context_menu(|ui| {
             if glass::menu_button(ui, Icon::File, l!("Надіслати без стиснення", "Send without compression")).clicked() {
                 self.pick_files(peer, true);
+            }
+            // Polls go to groups, channels, bots and Saved Messages, as in Telegram.
+            if can_poll && glass::menu_button(ui, Icon::Poll, l!("Опитування", "Poll")).clicked() {
+                self.open_poll_form(peer);
             }
         });
         if glass::icon_button(ui, sticker_btn, "stickers", Icon::Smile, self.sticker_panel, true).on_hover_text(l!("Стікери", "Stickers")).clicked() {
@@ -4062,6 +4071,7 @@ impl eframe::App for App {
         }
         self.info_confirm_view(ui);
         self.contact_form_view(ui);
+        self.poll_form_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);
     }
