@@ -75,15 +75,7 @@ impl Worker {
                     };
                     match res {
                         Ok(list) => {
-                            let mut ids: Vec<i32> = match list {
-                                tl::enums::messages::Messages::Messages(m) => m.messages,
-                                tl::enums::messages::Messages::Slice(m) => m.messages,
-                                tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
-                                tl::enums::messages::Messages::NotModified(_) => Vec::new(),
-                            }
-                            .iter()
-                            .map(|m| m.id())
-                            .collect();
+                            let mut ids = message_ids(list);
                             ids.sort_unstable();
                             out.send(Ev::UnreadMarks { peer, reactions, ids });
                         }
@@ -157,6 +149,24 @@ impl Worker {
                     out.send(Ev::ReadBy { peer, id, readers });
                 });
             }
+            Cmd::JumpToDate { peer, date } => {
+                let r = self.peer_ref(peer)?;
+                tokio::spawn(async move {
+                    // History is newest first and `offset_date` returns older messages,
+                    // so `add_offset: -1` steps back to the first message at or after the date.
+                    let req = |offset_date, add_offset| tl::functions::messages::GetHistory { peer: r.into(), offset_id: 0, offset_date, add_offset, limit: 1, max_id: 0, min_id: 0, hash: 0 };
+                    let found = match client.invoke(&req(date, -1)).await {
+                        Ok(list) => message_ids(list).first().copied(),
+                        Err(e) => return out.send(Ev::Error(lf!("Перехід до дати: {e}", "Jump to date: {e}"))),
+                    };
+                    // Nothing that late: the date is after the last message, so show the newest.
+                    let id = match found {
+                        Some(id) => Some(id),
+                        None => client.invoke(&req(0, 0)).await.ok().and_then(|l| message_ids(l).first().copied()),
+                    };
+                    out.send(Ev::DateFound { peer, id });
+                });
+            }
             _ => {}
         }
         Ok(())
@@ -167,3 +177,15 @@ impl Worker {
 const PINNED_LIMIT: usize = 100;
 /// Mentions or reactions per request; the button walks through them one by one.
 const MARKS_LIMIT: i32 = 100;
+
+fn message_ids(list: tl::enums::messages::Messages) -> Vec<i32> {
+    match list {
+        tl::enums::messages::Messages::Messages(m) => m.messages,
+        tl::enums::messages::Messages::Slice(m) => m.messages,
+        tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
+        tl::enums::messages::Messages::NotModified(_) => Vec::new(),
+    }
+    .iter()
+    .map(|m| m.id())
+    .collect()
+}

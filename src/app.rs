@@ -39,6 +39,7 @@ mod settings_pages;
 mod chatlist;
 mod sponsored;
 mod notify;
+mod calendar;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -452,6 +453,8 @@ pub struct App {
     ads: sponsored::Ads,
     /// Notification defaults of chat categories and their exceptions (Settings → Notifications).
     notify: notify::NotifyPrefs,
+    /// "Jump to date" calendar over the open chat.
+    calendar: Option<calendar::Calendar>,
     /// Composer helpers: link preview, @mentions, bot commands.
     suggest: suggest::Suggest,
     /// Chat info column (`None` = closed); follows the open chat.
@@ -717,6 +720,7 @@ impl App {
             read_by: None,
             ads: Default::default(),
             notify: Default::default(),
+            calendar: None,
             suggest: Default::default(),
             info: None,
             profile: backend::Profile::default(),
@@ -1004,6 +1008,7 @@ impl App {
             Ev::Notice(text) => self.toast = Some((text, 0.0, false)),
             ev @ (Ev::Pinned { .. } | Ev::PinnedChanged { .. } | Ev::UnreadMarks { .. } | Ev::ReadBy { .. } | Ev::Views { .. }) => self.chat_view_event(ev),
             ev @ (Ev::Sponsored { .. } | Ev::SponsoredReport { .. }) => self.sponsored_event(ev),
+            Ev::DateFound { peer, id } => self.date_found(peer, id),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
             ev @ (Ev::ChatDetails { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
                 self.info_event(ev)
@@ -2798,6 +2803,7 @@ impl App {
         let mut load_older = None;
         let mut action = None;
         let (mut ad_seen, mut ad_action) = (None, None);
+        let mut open_calendar = None;
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect);
         let pin_h = self.pin_bar_h(peer);
@@ -2858,8 +2864,8 @@ impl App {
                                 ui.allocate_space(vec2(ui.available_width(), (h - spacing).max(0.0)));
                                 continue;
                             }
-                            if new_day {
-                                day_chip(ui, &m.day);
+                            if new_day && day_chip(ui, &m.day).clicked() {
+                                open_calendar = Some(m.ts);
                             }
                             if album.len() > 1 {
                                 let ids: Vec<i32> = album.iter().map(|m| m.id).collect();
@@ -2969,6 +2975,9 @@ impl App {
         if let Some(a) = action {
             self.apply(peer, a);
         }
+        if let Some(ts) = open_calendar {
+            self.open_calendar(peer, Some(ts));
+        }
         if let Some(id) = ad_seen {
             self.ad_seen(&id);
         }
@@ -3014,8 +3023,14 @@ impl App {
                 }
             }
         }
+        if self.chat_search.is_some() {
+            let cal = search_btn.translate(vec2(-44.0, 0.0));
+            if glass::icon_button(ui, cal, "chat-calendar", Icon::Calendar, self.calendar.is_some(), true).on_hover_text(l!("Перейти до дати", "Jump to date")).clicked() {
+                self.open_calendar(peer, None);
+            }
+        }
         if let Some(s) = &mut self.chat_search {
-            let field = Rect::from_min_max(pos2(text_x - 4.0, header.top() + 11.0), pos2(search_btn.left() - 10.0, header.bottom() - 11.0));
+            let field = Rect::from_min_max(pos2(text_x - 4.0, header.top() + 11.0), pos2(search_btn.left() - 54.0, header.bottom() - 11.0));
             let resp = glass::search_field(ui, field, &mut s.query, l!("Пошук у чаті", "Search in chat"));
             if !resp.has_focus() && s.query.is_empty() && s.edited_at == 0.0 {
                 resp.request_focus();
@@ -4194,13 +4209,19 @@ fn hit_row(ui: &mut Ui, hit: &SearchHit, query: &str, avatar: Option<&TextureHan
     resp
 }
 
-fn day_chip(ui: &mut Ui, day: &str) {
+/// Date between messages; a click opens the calendar, as in Telegram Desktop.
+fn day_chip(ui: &mut Ui, day: &str) -> egui::Response {
     let w = ui.available_width();
     let (r, _) = ui.allocate_exact_size(vec2(w, 40.0), Sense::hover());
     let g = elided(ui, day, 12.5, ink(), 300.0);
     let chip = Rect::from_center_size(r.center(), g.size() + vec2(24.0, 12.0));
     glass::glass(ui.painter(), chip, Glass::tinted(chip.height() / 2.0, Color32::WHITE, 26).frosted(1.0));
     ui.painter().galley(chip.center() - g.size() / 2.0, g, ink());
+    let resp = ui.interact(chip, ui.scope_id().with(("day-chip", day)), Sense::click());
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp.on_hover_text(l!("Перейти до дати", "Jump to date"))
 }
 
 /// Message bubble: [photo] + [author] [reply quote] [text] [time].

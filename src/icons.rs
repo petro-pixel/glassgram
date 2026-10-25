@@ -84,6 +84,7 @@ pub enum Icon {
     /// Open in the external player.
     PlayCircle,
     Flag,
+    Calendar,
 }
 
 /// The Lucide SVG file of an icon; `None` for our own filled icons.
@@ -147,6 +148,7 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Select => include_str!("../assets/icons/square-check-big.svg"),
         Icon::PlayCircle => include_str!("../assets/icons/circle-play.svg"),
         Icon::Flag => include_str!("../assets/icons/flag.svg"),
+        Icon::Calendar => include_str!("../assets/icons/calendar.svg"),
         Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
     })
 }
@@ -295,7 +297,7 @@ mod tests {
             Icon::Copy, Icon::Download, Icon::Clock, Icon::Location, Icon::ChevronLeft, Icon::ChevronRight, Icon::Bell, Icon::Mic,
             Icon::Gear, Icon::Lock, Icon::ChevronDown, Icon::At, Icon::Heart, Icon::Eye, Icon::List, Icon::Link, Icon::Commands,
             Icon::Info, Icon::Phone, Icon::User, Icon::Chat, Icon::Folder, Icon::Globe, Icon::Laptop, Icon::Chats, Icon::Users,
-            Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle, Icon::Flag,
+            Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle, Icon::Flag, Icon::Calendar,
         ];
         for icon in all {
             let text = svg(icon).unwrap_or_else(|| panic!("{icon:?} has no SVG"));

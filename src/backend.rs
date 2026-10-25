@@ -157,6 +157,8 @@ pub enum Cmd {
     ReadMarks { peer: PeerId, reactions: bool },
     /// Which group members have read our message.
     LoadReadBy { peer: PeerId, id: i32 },
+    /// Find the first message sent at or after `date` (unix time), for the calendar.
+    JumpToDate { peer: PeerId, date: i32 },
     /// Sponsored messages of a channel (`messages.getSponsoredMessages`).
     LoadSponsored(PeerId),
     /// The ad was shown on screen; the server counts views.
@@ -297,6 +299,8 @@ pub enum Ev {
     ReadBy { peer: PeerId, id: i32, readers: Vec<(String, String)> },
     /// New view count of a channel post.
     Views { peer: PeerId, id: i32, views: i32 },
+    /// The message to jump to for a calendar date (`None`: the chat is empty).
+    DateFound { peer: PeerId, id: Option<i32> },
     /// Ads for the end of a channel's history (empty: none).
     Sponsored { peer: PeerId, ads: Vec<Sponsored> },
     SponsoredReport { peer: PeerId, random_id: Vec<u8>, result: SponsoredReport },
@@ -2173,7 +2177,7 @@ impl Worker {
                 Ok(())
             }
             Cmd::Search { peer, query } => self.search(peer, query).await,
-            cmd @ (Cmd::LoadPinned(_) | Cmd::PinMessage { .. } | Cmd::UnpinAll(_) | Cmd::LoadUnreadMarks { .. } | Cmd::ReadMarks { .. } | Cmd::LoadReadBy { .. }) => {
+            cmd @ (Cmd::LoadPinned(_) | Cmd::PinMessage { .. } | Cmd::UnpinAll(_) | Cmd::LoadUnreadMarks { .. } | Cmd::ReadMarks { .. } | Cmd::LoadReadBy { .. } | Cmd::JumpToDate { .. }) => {
                 self.chat_view_cmd(cmd).await
             }
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,

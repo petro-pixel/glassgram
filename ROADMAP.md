@@ -62,7 +62,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Virtualised long history: only bubbles near the screen are drawn, the heights of the rest are cached (3000 messages — ≈2 ms per frame; in the demo — "Старий проєкт")
 - ✅ Right info column: profile, members, shared media, links, files, voice — see sections 5 and 6
 - 🟡 Sponsored messages in channels — **required** by the API terms of service: an "Ad" / "Recommended" bubble after the newest post with title, text, picture and button, views counted once per session (`viewSponsoredMessage`), clicks (`clickSponsoredMessage`), "About this ad" with the advertiser info, reporting with the server's reasons (`reportSponsoredMessage`), refreshed at most every 5 minutes. Left: ads between posts (`posts_between`), video/media ads, hiding ads for Premium
-- ⬜ **P1** Jump to a date via a calendar (`getSearchResultsCalendar`), search filters by type and sender
+- ✅ Jump to a date: a month calendar from the calendar button in chat search or a click on a date chip; finds the first message of the day (`messages.getHistory` with `offset_date`) and scrolls to it
+- ⬜ **P1** Search filters by type and sender, days with media in the calendar (`getSearchResultsCalendar`)
 - ⬜ **P1** Translating messages and chats (`translateText`, `togglePeerTranslations`)
 - ⬜ **P1** Reply quoting part of the text, reply in another chat
 - ⬜ **P2** Chat wallpapers and themes, including custom and gift ones (`setChatWallPaper`, `setChatTheme`)

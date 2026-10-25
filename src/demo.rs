@@ -473,6 +473,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             };
             app.push_event(Ev::SponsoredReport { peer, random_id, result });
         }
+        Cmd::JumpToDate { peer, date } => {
+            let msgs = app.demo_history().find(|(p, _, _)| *p == peer).map(|(_, _, msgs)| msgs.clone()).unwrap_or_default();
+            let id = msgs.iter().find(|m| m.ts >= date as i64).or(msgs.last()).map(|m| m.id);
+            app.push_event(Ev::DateFound { peer, id });
+        }
         Cmd::LoadReadBy { peer, id } => {
             let readers = [("Тарас", "Сьогодні 11:02"), ("Ірина", "Сьогодні 11:15"), ("Остап", "Сьогодні 12:40")];
             app.push_event(Ev::ReadBy { peer, id, readers: readers.iter().map(|(n, t)| (n.to_string(), t.to_string())).collect() });
@@ -857,10 +862,13 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
             let lines = ["Хто сьогодні чергує?", "Я, після обіду", "Збірка впала на CI, дивлюсь", "Полагодив, була застаріла залежність", "👍", "Нагадую про ретро в п'ятницю"];
             let now = jiff::Zoned::now();
             let old = (1..=LONG).map(|n| {
-                let day = now.checked_sub(jiff::Span::new().days(i64::from((LONG - n) / 40 + 1))).map_or_else(|_| String::new(), |d| d.strftime("%d.%m.%Y").to_string());
+                let date = now.checked_sub(jiff::Span::new().days(i64::from((LONG - n) / 40 + 1))).ok();
+                let day = date.as_ref().map_or_else(String::new, |d| d.strftime("%d.%m.%Y").to_string());
+                // Real times so the calendar can jump through this history.
+                let ts = date.map_or(0, |d| d.timestamp().as_second());
                 let sender = ["Олег", "Наталя", ""][(n % 3) as usize];
                 let text = lines[(n as usize * 7) % lines.len()];
-                Msg { id: n, text: text.into(), spans: format::from_entities(text, &[], 0), day, reply_to: (n % 17 == 0).then_some(n - 2), ..base(n % 60, sender) }
+                Msg { id: n, text: text.into(), spans: format::from_entities(text, &[], 0), day, ts, reply_to: (n % 17 == 0).then_some(n - 2), ..base(n % 60, sender) }
             });
             let tail = std::mem::take(msgs);
             msgs.extend(old);

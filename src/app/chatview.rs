@@ -263,7 +263,7 @@ impl App {
     }
 
     /// Scroll the open chat to a message, loading history around it if needed.
-    fn jump_in_chat(&mut self, peer: PeerId, id: i32) {
+    pub(super) fn jump_in_chat(&mut self, peer: PeerId, id: i32) {
         if self.find(peer, id).is_none() {
             self.send(Cmd::OpenAt { peer, id });
         }
@@ -337,6 +337,7 @@ impl App {
             self.read_by_view(ui, panel);
         }
         self.sponsored_overlay(ui, peer, rect);
+        self.calendar_view(ui, peer, rect);
         if self.viewer.is_none() && (self.read_by.is_some() || self.pins_open) && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
             if self.read_by.is_some() {
                 self.read_by = None;

@@ -76,6 +76,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars |
 | `src/app.rs` | Sign-in and chat screens |
 | `src/app/chatview.rs`, `src/backend/chatview.rs` | Chat view extras: pinned bar and list, jump buttons (down / mentions / reactions), "Seen by", view counters, protected content |
+| `src/app/calendar.rs` | "Jump to date" calendar over the chat (the request is `Cmd::JumpToDate` in `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Notifications for chats: private / groups / channels defaults, exceptions, resolving a chat's mute state from its category |
 | `src/app/sponsored.rs`, `src/backend/sponsored.rs` | Sponsored messages at the end of channel history: "Ad" bubble, view and click reports, "About this ad", reporting |
 | `src/app/suggest.rs`, `src/backend/suggest.rs` | Link previews (in bubbles and above the composer), @mention and bot command suggestions, "Start" for bots |
@@ -117,6 +118,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - Right-click "Send": send silently or schedule.
 - "Select" in the message menu turns on selection mode; Esc leaves it.
 - Enter sends, Shift+Enter — new line.
+- Jump to a date: the calendar button in chat search, or click a date chip between messages.
 - Hotkeys (as in Telegram Desktop): Ctrl+F — search in the chat (or the chat list), Ctrl+K — chat list search, Ctrl+1…9 — folders, Alt+↑/↓ or Ctrl+Tab / Ctrl+Shift+Tab — previous/next chat, Ctrl+E or ↑ in an empty composer — edit your last message, Esc — close the topmost panel, then the chat.
 - In `--demo`, a message containing `#offline` pretends there is no network (clock → retries → red mark).
 - Folders: "+" to the right of the tabs (or at the bottom of the column) — new; right-click a folder — edit or delete; dragging changes the order. Tabs on top or a column on the left — in Settings.
