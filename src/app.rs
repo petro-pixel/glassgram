@@ -44,6 +44,7 @@ mod translate;
 mod contacts;
 mod webapp;
 mod polls;
+mod privacy;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -490,6 +491,8 @@ pub struct App {
     contact_form: Option<contacts::ContactForm>,
     /// Blocked users for Privacy and Security (`None` — not loaded).
     blocked: Option<Vec<ChatInfo>>,
+    /// Global privacy switches (`None` — not loaded yet).
+    global_privacy: Option<backend::GlobalPrivacy>,
     /// "New poll" box.
     poll_form: Option<polls::PollForm>,
     /// Open mini app windows (separate WebView processes).
@@ -768,6 +771,7 @@ impl App {
             contact_form: None,
             blocked: None,
             poll_form: None,
+            global_privacy: None,
             web_apps: Vec::new(),
             web_app_button: String::new(),
             suggest: Default::default(),
@@ -1051,6 +1055,7 @@ impl App {
                     self.send(Cmd::ReadTopic { peer, topic, max_id });
                 }
             }
+            Ev::GlobalPrivacy(p) => self.global_privacy = Some(p),
             Ev::Privacy(key, state) => {
                 self.privacy.insert(key, state);
             }
@@ -2356,6 +2361,8 @@ impl App {
                 }
                 ui.add_space(6.0);
             }
+            ui.add_space(6.0);
+            self.global_privacy_section(ui);
             ui.add_space(6.0);
             section_title(ui, l!("Локальний пароль", "Local passcode"));
             let s = &mut self.settings;

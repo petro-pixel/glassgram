@@ -649,5 +649,17 @@
   "Cmd+Enter": "Cmd+Enter",
   "Ctrl+Enter": "Strg+Enter",
   "Enter starts a new line.": "Enter beginnt eine neue Zeile.",
-  "Shift+Enter starts a new line.": "Umschalt+Enter beginnt eine neue Zeile."
+  "Shift+Enter starts a new line.": "Umschalt+Enter beginnt eine neue Zeile.",
+  "Who can message me": "Wer mir schreiben darf",
+  "Contacts and Premium": "Kontakte und Premium",
+  "Limiting new chats to contacts and Premium users needs Telegram Premium.": "Neue Chats auf Kontakte und Premium-Nutzer zu beschränken erfordert Telegram Premium.",
+  "New chats from non-contacts": "Neue Chats von Nicht-Kontakten",
+  "Archive and mute": "Archivieren und stummschalten",
+  "Keep unmuted chats archived": "Nicht stummgeschaltete Chats im Archiv lassen",
+  "Keep chats from folders archived": "Chats aus Ordnern im Archiv lassen",
+  "With these off, archived chats come back to the list on a new message.": "Sind diese aus, kehren archivierte Chats bei einer neuen Nachricht in die Liste zurück.",
+  "Read time": "Lesezeit",
+  "Hide read time": "Lesezeit verbergen",
+  "Others won't see when you've read their messages, and you won't see theirs.": "Andere sehen nicht, wann du ihre Nachrichten gelesen hast, und du siehst ihre Lesezeit nicht.",
+  "Could not change privacy: {e}": "Privatsphäre konnte nicht geändert werden: {e}"
 }

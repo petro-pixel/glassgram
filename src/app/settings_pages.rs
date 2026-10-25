@@ -147,6 +147,7 @@ impl App {
             SettingsTab::Privacy => {
                 self.send(Cmd::LoadPrivacy);
                 self.send(Cmd::LoadBlocked);
+                self.send(Cmd::LoadGlobalPrivacy);
             }
             SettingsTab::Devices => self.send(Cmd::LoadSessions),
             SettingsTab::Notifications => self.load_notify_exceptions(),

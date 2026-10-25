@@ -42,6 +42,8 @@ mod translate;
 mod contacts;
 mod webapp;
 mod polls;
+mod privacy;
+pub use privacy::GlobalPrivacy;
 pub use polls::NewPoll;
 pub use webapp::{WebAppKind, WebAppOpened};
 pub use notify::{NotifyException, NotifyScope};
@@ -129,6 +131,9 @@ pub enum Cmd {
     TerminateOtherSessions,
     LoadPrivacy,
     SetPrivacy(PrivacyKey, Audience),
+    /// Archive / read time / who can message me (`account.getGlobalPrivacySettings`).
+    LoadGlobalPrivacy,
+    SetGlobalPrivacy(GlobalPrivacy),
     Forward { from: PeerId, ids: Vec<i32>, to: PeerId },
     /// An inline button with callback data was pressed.
     PressButton { peer: PeerId, id: i32, data: Vec<u8> },
@@ -312,6 +317,7 @@ pub enum Ev {
     Joined(PeerId),
     Sessions(Vec<Session>),
     Privacy(PrivacyKey, PrivacyState),
+    GlobalPrivacy(GlobalPrivacy),
     Notice(String),
     Error(String),
     LoggedOut,
@@ -2235,6 +2241,7 @@ impl Worker {
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
+            cmd @ (Cmd::LoadGlobalPrivacy | Cmd::SetGlobalPrivacy(_)) => self.global_privacy_cmd(cmd).await,
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
