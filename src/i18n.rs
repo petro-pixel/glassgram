@@ -54,6 +54,11 @@ impl Lang {
         }
     }
 
+    /// Code of the language actually shown (`uk`, `en`, `de`…), e.g. as a translation target.
+    pub fn shown_code(&self) -> String {
+        self.resolve().code().to_owned()
+    }
+
     /// The language actually shown (System resolved, a broken file replaced with English).
     fn resolve(&self) -> Lang {
         match self {

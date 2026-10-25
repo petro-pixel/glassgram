@@ -473,6 +473,19 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             };
             app.push_event(Ev::SponsoredReport { peer, random_id, result });
         }
+        Cmd::Translate { peer, id, to } => {
+            let text = app.demo_history().find(|(p, _, _)| *p == peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == id)).map(|m| m.text.clone()).unwrap_or_default();
+            // A couple of real translations, the rest just marked with the target language.
+            let known = [
+                ("Привіт! Ти бачив новий дизайн у стилі liquid glass?", "Hi! Have you seen the new liquid glass design?"),
+                ("Ого, а як ти робиш розмиття та заломлення?", "Wow, how do you do the blur and refraction?"),
+            ];
+            let translated = match known.iter().find(|(uk, _)| *uk == text) {
+                Some((uk, en)) => if to == "uk" { uk.to_string() } else { en.to_string() },
+                None => format!("[{to}] {text}"),
+            };
+            app.push_event(Ev::Translated { peer, id, to, result: Ok((translated, Vec::new())) });
+        }
         Cmd::JumpToDate { peer, date } => {
             let msgs = app.demo_history().find(|(p, _, _)| *p == peer).map(|(_, _, msgs)| msgs.clone()).unwrap_or_default();
             let id = msgs.iter().find(|m| m.ts >= date as i64).or(msgs.last()).map(|m| m.id);

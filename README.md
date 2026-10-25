@@ -76,6 +76,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars |
 | `src/app.rs` | Sign-in and chat screens |
 | `src/app/chatview.rs`, `src/backend/chatview.rs` | Chat view extras: pinned bar and list, jump buttons (down / mentions / reactions), "Seen by", view counters, protected content |
+| `src/app/translate.rs`, `src/backend/translate.rs` | "Translate" window from the message menu |
 | `src/app/calendar.rs` | "Jump to date" calendar over the chat (the request is `Cmd::JumpToDate` in `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Notifications for chats: private / groups / channels defaults, exceptions, resolving a chat's mute state from its category |
 | `src/app/sponsored.rs`, `src/backend/sponsored.rs` | Sponsored messages at the end of channel history: "Ad" bubble, view and click reports, "About this ad", reporting |

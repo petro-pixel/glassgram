@@ -573,5 +573,11 @@
   "Previous month": "Vorheriger Monat",
   "Next month": "Nächster Monat",
   "Jump to date": "Zum Datum springen",
-  "Jump to date: {e}": "Zum Datum springen: {e}"
+  "Jump to date: {e}": "Zum Datum springen: {e}",
+  "Translation": "Übersetzung",
+  "Original": "Original",
+  "Copy translation": "Übersetzung kopieren",
+  "Translate": "Übersetzen",
+  "The server returned no translation": "Der Server hat keine Übersetzung geliefert",
+  "Could not translate: {e}": "Übersetzung fehlgeschlagen: {e}"
 }

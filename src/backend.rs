@@ -38,6 +38,7 @@ pub use info::{ChatDetails, MUTE_FOREVER, Member, MemberRole, NotifyState, SHARE
 mod sponsored;
 pub use sponsored::{Sponsored, SponsoredReport};
 mod notify;
+mod translate;
 pub use notify::{NotifyException, NotifyScope};
 
 const DIALOG_LIMIT: usize = 300;
@@ -157,6 +158,8 @@ pub enum Cmd {
     ReadMarks { peer: PeerId, reactions: bool },
     /// Which group members have read our message.
     LoadReadBy { peer: PeerId, id: i32 },
+    /// Translate a message's text into `to` (a language code).
+    Translate { peer: PeerId, id: i32, to: String },
     /// Find the first message sent at or after `date` (unix time), for the calendar.
     JumpToDate { peer: PeerId, date: i32 },
     /// Sponsored messages of a channel (`messages.getSponsoredMessages`).
@@ -299,6 +302,8 @@ pub enum Ev {
     ReadBy { peer: PeerId, id: i32, readers: Vec<(String, String)> },
     /// New view count of a channel post.
     Views { peer: PeerId, id: i32, views: i32 },
+    /// Translated text (formatting as spans), or the server's error.
+    Translated { peer: PeerId, id: i32, to: String, result: Result<(String, Vec<Span>), String> },
     /// The message to jump to for a calendar date (`None`: the chat is empty).
     DateFound { peer: PeerId, id: Option<i32> },
     /// Ads for the end of a channel's history (empty: none).
@@ -2180,6 +2185,7 @@ impl Worker {
             cmd @ (Cmd::LoadPinned(_) | Cmd::PinMessage { .. } | Cmd::UnpinAll(_) | Cmd::LoadUnreadMarks { .. } | Cmd::ReadMarks { .. } | Cmd::LoadReadBy { .. } | Cmd::JumpToDate { .. }) => {
                 self.chat_view_cmd(cmd).await
             }
+            Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
             cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. }) => self.sponsored_cmd(cmd).await,
             Cmd::WebPreview(text) => self.web_preview(text),

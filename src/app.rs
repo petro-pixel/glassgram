@@ -40,6 +40,7 @@ mod chatlist;
 mod sponsored;
 mod notify;
 mod calendar;
+mod translate;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -130,6 +131,7 @@ enum Action {
     Unpin(i32),
     /// Show which group members have read it.
     ReadBy(i32),
+    Translate(i32),
     /// Queued message: send again / drop without sending.
     Retry(i32),
     Discard(i32),
@@ -455,6 +457,9 @@ pub struct App {
     notify: notify::NotifyPrefs,
     /// "Jump to date" calendar over the open chat.
     calendar: Option<calendar::Calendar>,
+    /// "Translate" window and the last language chosen in it.
+    translate: Option<translate::TranslateView>,
+    translate_to: Option<String>,
     /// Composer helpers: link preview, @mentions, bot commands.
     suggest: suggest::Suggest,
     /// Chat info column (`None` = closed); follows the open chat.
@@ -721,6 +726,8 @@ impl App {
             ads: Default::default(),
             notify: Default::default(),
             calendar: None,
+            translate: None,
+            translate_to: None,
             suggest: Default::default(),
             info: None,
             profile: backend::Profile::default(),
@@ -1009,6 +1016,7 @@ impl App {
             ev @ (Ev::Pinned { .. } | Ev::PinnedChanged { .. } | Ev::UnreadMarks { .. } | Ev::ReadBy { .. } | Ev::Views { .. }) => self.chat_view_event(ev),
             ev @ (Ev::Sponsored { .. } | Ev::SponsoredReport { .. }) => self.sponsored_event(ev),
             Ev::DateFound { peer, id } => self.date_found(peer, id),
+            Ev::Translated { peer, id, to, result } => self.translated(peer, id, to, result),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
             ev @ (Ev::ChatDetails { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
                 self.info_event(ev)
@@ -1217,7 +1225,7 @@ impl App {
             && let Some((disc, _)) = self.comments.as_ref().and_then(|c| c.discussion)
         {
             match a {
-                Action::Reply(_) | Action::Edit(_) | Action::Pick(_) | Action::Forward(_) | Action::Delete(_) | Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) => {}
+                Action::Reply(_) | Action::Edit(_) | Action::Pick(_) | Action::Forward(_) | Action::Delete(_) | Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) => {}
                 a => self.apply(disc, a),
             }
         }
@@ -1678,7 +1686,7 @@ impl App {
                 }
             },
             // Handled by `chat_view_action`.
-            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) => {}
+            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) => {}
         }
     }
 
@@ -4243,6 +4251,9 @@ fn message_menu(ui: &mut Ui, m: &Msg, chat: Option<&ChatInfo>, action: &mut Opti
     }
     if !protected && !m.text.is_empty() && glass::menu_button(ui, Icon::Copy, l!("Копіювати текст", "Copy text")).clicked() {
         *action = Some(Action::Copy(m.text.clone()));
+    }
+    if !m.out && m.id > 0 && !m.text.is_empty() && glass::menu_button(ui, Icon::Translate, l!("Перекласти", "Translate")).clicked() {
+        *action = Some(Action::Translate(m.id));
     }
     if let Some(c) = chat {
         chatview::pin_menu(ui, m, c, action);
