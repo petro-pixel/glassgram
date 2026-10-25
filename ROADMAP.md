@@ -42,7 +42,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Left folder column as in Telegram Desktop (icons, names, unread badges), or tabs on top — switch in Settings → General → Folders
 - ✅ Drag to reorder pinned chats (main list, archive, inside a folder) and folders in the column or tabs (`reorderPinnedDialogs`, `updateDialogFiltersOrder`)
 - 🟡 New chat (pencil next to search): contacts with search (`contacts.getContacts`, `contacts.search`), new group (`createChat`), new channel (`channels.createChannel`); still missing: group/channel photo, public link and channel type step, adding subscribers to a new channel
-- ⬜ **P1** Contacts: list, add, import by number, delete, blocked (`contacts.*`)
+- ✅ Contacts: list with search (pencil → Contacts), "New contact" by name and phone (`importContacts`), "Add to contacts" / "Delete contact" in user info (`addContact`, `deleteContacts`), block / unblock and stop / restart bots (`contacts.block`, `unblock`), blocked list at the top of Privacy and Security (`getBlocked`)
 - ⬜ **P1** Saved Messages as separate dialogs by source and reaction tags (`getSavedDialogs`, `savedReactionTags`)
 - ⬜ **P1** Folder tags in the chat list (`toggleDialogFilterTags`), suggested folders
 - ⬜ **P1** Contact birthday reminders (`contacts.getBirthdays`)
@@ -150,7 +150,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Privacy (phone number, last seen, photo, forwards, calls, voice messages, invites), local passcode
 - ⬜ **P1** Exceptions in privacy rules (allow or deny specific people and groups)
 - ⬜ **P1** Global settings: archive new non-contacts, hide read time, who can message me (`setGlobalPrivacySettings`)
-- ⬜ **P1** Reporting spam and content (`messages.report`), blocking from the chat
+- 🟡 **P1** Blocking from user info ✅; still missing: reporting spam and content (`messages.report`)
 - ⬜ **P2** End-to-end encrypted secret chats (`requestEncryption`, MTProto 2.0 E2E)
 - ⬜ **P2** Default and per-chat message auto-delete (`setDefaultHistoryTTL`, `setHistoryTTL`)
 - ⬜ **P2** Encrypting local data with the local passcode (for now the passcode only hides the interface)

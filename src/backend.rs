@@ -39,6 +39,7 @@ mod sponsored;
 pub use sponsored::{Sponsored, SponsoredReport};
 mod notify;
 mod translate;
+mod contacts;
 pub use notify::{NotifyException, NotifyScope};
 
 const DIALOG_LIMIT: usize = 300;
@@ -158,6 +159,12 @@ pub enum Cmd {
     ReadMarks { peer: PeerId, reactions: bool },
     /// Which group members have read our message.
     LoadReadBy { peer: PeerId, id: i32 },
+    /// Save a contact: an existing user (`user`), or import by `phone`.
+    AddContact { user: Option<PeerId>, phone: String, first: String, last: String },
+    DeleteContact(PeerId),
+    /// Block or unblock a user (for bots: stop / restart).
+    Block { peer: PeerId, blocked: bool },
+    LoadBlocked,
     /// Translate a message's text into `to` (a language code).
     Translate { peer: PeerId, id: i32, to: String },
     /// Find the first message sent at or after `date` (unix time), for the calendar.
@@ -302,6 +309,12 @@ pub enum Ev {
     ReadBy { peer: PeerId, id: i32, readers: Vec<(String, String)> },
     /// New view count of a channel post.
     Views { peer: PeerId, id: i32, views: i32 },
+    /// A contact was added or renamed.
+    ContactSaved(ChatInfo),
+    ContactRemoved(PeerId),
+    Blocked { peer: PeerId, blocked: bool },
+    /// Blocked users and chats, newest first.
+    BlockedList(Vec<ChatInfo>),
     /// Translated text (formatting as spans), or the server's error.
     Translated { peer: PeerId, id: i32, to: String, result: Result<(String, Vec<Span>), String> },
     /// The message to jump to for a calendar date (`None`: the chat is empty).
@@ -2186,6 +2199,7 @@ impl Worker {
                 self.chat_view_cmd(cmd).await
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
+            cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
             cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. }) => self.sponsored_cmd(cmd).await,
             Cmd::WebPreview(text) => self.web_preview(text),

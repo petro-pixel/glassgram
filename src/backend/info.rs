@@ -111,6 +111,8 @@ pub struct ChatDetails {
     pub can_view_members: bool,
     /// Groups in common with the user.
     pub common: i32,
+    /// We blocked this user (or stopped this bot).
+    pub blocked: bool,
     pub notify: NotifyState,
     /// Item counts per shared media tab.
     pub counts: Vec<(SharedKind, i32)>,
@@ -358,6 +360,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<ChatDetails, String> {
             let tl::enums::UserFull::Full(u) = f.full_user;
             d.about = u.about.unwrap_or_default();
             d.common = u.common_chats_count;
+            d.blocked = u.blocked;
             d.notify = NotifyState::from_raw(&u.notify_settings);
             if let Some(tl::enums::User::User(x)) = f.users.into_iter().find(|x| x.id() == u.id) {
                 d.username = first_username(x.username, x.usernames);

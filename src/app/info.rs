@@ -31,6 +31,9 @@ pub(super) enum Confirm {
     Leave,
     Clear,
     Delete,
+    DeleteContact,
+    /// Block a user, or stop a bot.
+    Block,
 }
 
 #[derive(Default)]
@@ -71,6 +74,8 @@ enum Do {
     More(SharedKind),
     CreateInvite,
     Confirm(Confirm),
+    AddContact,
+    Unblock,
 }
 
 fn has_members(kind: ChatKind) -> bool {
@@ -248,7 +253,8 @@ impl App {
             }
             ui.add_space(10.0);
             let creator = info.details.as_ref().is_some_and(|d| d.creator);
-            info_actions(ui, &chat, creator, &mut todo);
+            let blocked = info.details.as_ref().map(|d| d.blocked);
+            info_actions(ui, &chat, creator, blocked, &mut todo);
             ui.add_space(8.0);
         });
 
@@ -308,6 +314,8 @@ impl App {
                 self.send(Cmd::LoadShared { peer, kind, before });
             }
             Do::CreateInvite => self.send(Cmd::ExportInvite(peer)),
+            Do::AddContact => self.open_contact_form(Some((peer, &chat.title))),
+            Do::Unblock => self.send(Cmd::Block { peer, blocked: false }),
             Do::Confirm(c) => {
                 if let Some(i) = &mut self.info {
                     i.confirm = Some(c);
@@ -562,6 +570,13 @@ impl App {
         }
     }
 
+    /// The profile shows "Unblock" right after blocking, without reloading.
+    pub(super) fn info_blocked(&mut self, peer: PeerId, blocked: bool) {
+        if let Some(d) = self.info.as_mut().filter(|i| i.peer == peer).and_then(|i| i.details.as_mut()) {
+            d.blocked = blocked;
+        }
+    }
+
     /// Confirmation for leave / clear / delete, over the whole window.
     pub(super) fn info_confirm_view(&mut self, ui: &mut Ui) {
         let Some(info) = &mut self.info else { return };
@@ -579,9 +594,12 @@ impl App {
             Confirm::Delete if creator && kind == ChatKind::Group => (l!("Видалити групу", "Delete group"), lf!("Ви справді хочете видалити «{t}»? Усіх учасників буде видалено, а всі повідомлення — втрачено.", "Are you sure you want to delete “{t}”? All members will be removed and all messages will be lost."), l!("Видалити", "Delete")),
             Confirm::Delete if kind == ChatKind::Group => (l!("Видалити й вийти", "Delete and leave"), lf!("Вийти з «{t}» і видалити чат зі списку?", "Leave “{t}” and delete the chat from the list?"), l!("Видалити", "Delete")),
             Confirm::Delete => (l!("Видалити чат", "Delete chat"), lf!("Видалити чат з «{t}»? Цю дію не можна скасувати.", "Delete the chat with “{t}”? This cannot be undone."), l!("Видалити", "Delete")),
+            Confirm::DeleteContact => (l!("Видалити контакт", "Delete contact"), lf!("Видалити «{t}» з ваших контактів?", "Delete “{t}” from your contacts?"), l!("Видалити", "Delete")),
+            Confirm::Block if kind == ChatKind::Bot => (l!("Зупинити бота", "Stop bot"), lf!("Зупинити «{t}»? Бот більше не зможе вам писати.", "Stop “{t}”? The bot won't be able to message you."), l!("Зупинити", "Stop")),
+            Confirm::Block => (l!("Заблокувати", "Block user"), lf!("Заблокувати «{t}»? Цей користувач не зможе писати вам і дзвонити.", "Block “{t}”? They won't be able to message or call you."), l!("Заблокувати", "Block")),
         };
         // Only private chats with a person can be wiped on both sides.
-        let can_revoke = kind == ChatKind::User && what != Confirm::Leave;
+        let can_revoke = kind == ChatKind::User && matches!(what, Confirm::Clear | Confirm::Delete);
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
         ui.interact(screen, ui.scope_id().with("info-confirm-bg"), Sense::click());
@@ -609,6 +627,8 @@ impl App {
                 Confirm::Leave => Cmd::LeaveChat(peer),
                 Confirm::Clear => Cmd::ClearHistory { peer, revoke },
                 Confirm::Delete => Cmd::DeleteChat { peer, revoke },
+                Confirm::DeleteContact => Cmd::DeleteContact(peer),
+                Confirm::Block => Cmd::Block { peer, blocked: true },
             });
         } else if cancel {
             info.confirm = None;
@@ -645,31 +665,51 @@ fn info_tabs(ui: &mut Ui, chat: &ChatInfo, info: &InfoPanel, todo: &mut Vec<Do>)
 
 /// Leave / clear / delete in the danger colour, as at the bottom of the Telegram Desktop profile.
 /// The owner gets "Delete" instead of "Leave", so the group or channel isn't left without one.
-fn info_actions(ui: &mut Ui, chat: &ChatInfo, creator: bool, todo: &mut Vec<Do>) {
+/// Private chats also get the contact and block rows, in Telegram Desktop's order;
+/// `blocked` is `None` until the profile has loaded.
+fn info_actions(ui: &mut Ui, chat: &ChatInfo, creator: bool, blocked: Option<bool>, todo: &mut Vec<Do>) {
     if !chat.joined {
         return;
     }
-    let mut act = |ui: &mut Ui, label: &str, c: Confirm| {
+    let act = |ui: &mut Ui, todo: &mut Vec<Do>, label: &str, c: Confirm| {
         if danger_row(ui, label).clicked() {
             todo.push(Do::Confirm(c));
         }
     };
     match chat.kind {
         ChatKind::User | ChatKind::Bot => {
-            act(ui, l!("Очистити історію", "Clear history"), Confirm::Clear);
-            act(ui, l!("Видалити чат", "Delete chat"), Confirm::Delete);
-        }
-        ChatKind::Saved => act(ui, l!("Очистити історію", "Clear history"), Confirm::Clear),
-        ChatKind::Group => {
-            act(ui, l!("Очистити історію", "Clear history"), Confirm::Clear);
-            if creator {
-                act(ui, l!("Видалити групу", "Delete group"), Confirm::Delete);
-            } else {
-                act(ui, l!("Вийти з групи", "Leave group"), Confirm::Leave);
+            if chat.kind == ChatKind::User {
+                if chat.contact {
+                    act(ui, todo, l!("Видалити контакт", "Delete contact"), Confirm::DeleteContact);
+                } else if action_row(ui, l!("Додати в контакти", "Add to contacts"), ACCENT).clicked() {
+                    todo.push(Do::AddContact);
+                }
+            }
+            act(ui, todo, l!("Очистити історію", "Clear history"), Confirm::Clear);
+            act(ui, todo, l!("Видалити чат", "Delete chat"), Confirm::Delete);
+            let bot = chat.kind == ChatKind::Bot;
+            match blocked {
+                Some(true) => {
+                    let label = if bot { l!("Перезапустити бота", "Restart bot") } else { l!("Розблокувати", "Unblock user") };
+                    if action_row(ui, label, ACCENT).clicked() {
+                        todo.push(Do::Unblock);
+                    }
+                }
+                Some(false) => act(ui, todo, if bot { l!("Зупинити бота", "Stop bot") } else { l!("Заблокувати", "Block user") }, Confirm::Block),
+                None => {}
             }
         }
-        ChatKind::Channel if creator => act(ui, l!("Видалити канал", "Delete channel"), Confirm::Delete),
-        ChatKind::Channel => act(ui, l!("Вийти з каналу", "Leave channel"), Confirm::Leave),
+        ChatKind::Saved => act(ui, todo, l!("Очистити історію", "Clear history"), Confirm::Clear),
+        ChatKind::Group => {
+            act(ui, todo, l!("Очистити історію", "Clear history"), Confirm::Clear);
+            if creator {
+                act(ui, todo, l!("Видалити групу", "Delete group"), Confirm::Delete);
+            } else {
+                act(ui, todo, l!("Вийти з групи", "Leave group"), Confirm::Leave);
+            }
+        }
+        ChatKind::Channel if creator => act(ui, todo, l!("Видалити канал", "Delete channel"), Confirm::Delete),
+        ChatKind::Channel => act(ui, todo, l!("Вийти з каналу", "Leave channel"), Confirm::Leave),
     }
 }
 
@@ -715,6 +755,10 @@ fn menu_row(ui: &mut Ui, label: &str, on: bool) -> egui::Response {
 }
 
 fn danger_row(ui: &mut Ui, label: &str) -> egui::Response {
+    action_row(ui, label, glass::danger())
+}
+
+fn action_row(ui: &mut Ui, label: &str, color: Color32) -> egui::Response {
     let w = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(vec2(w, 40.0), Sense::click());
     let hover = ui.ctx().animate_bool(resp.id, resp.hovered());
@@ -722,7 +766,7 @@ fn danger_row(ui: &mut Ui, label: &str) -> egui::Response {
     if hover > 0.0 {
         p.rect_filled(rect, 14.0, glass::veil((hover * 14.0) as u8));
     }
-    p.text(pos2(rect.left() + 18.0, rect.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.5), glass::danger());
+    p.text(pos2(rect.left() + 18.0, rect.center().y), Align2::LEFT_CENTER, label, FontId::proportional(14.5), color);
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }

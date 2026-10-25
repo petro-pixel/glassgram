@@ -671,7 +671,8 @@ impl App {
             if let Some(q) = &search {
                 nc.requested = q.clone();
             }
-            let bottom = if nc.kind == NewKind::Group { buttons.top() - 10.0 } else { inner.bottom() };
+            // Groups have Cancel / Next under the list, contacts the "New contact" button.
+            let bottom = buttons.top() - 10.0;
             let body = Rect::from_min_max(pos2(inner.left() - 6.0, field.bottom() + 10.0), pos2(inner.right() + 6.0, bottom));
             let mut child = ui.new_child(UiBuilder::new().max_rect(body));
             child.set_clip_rect(body);
@@ -726,7 +727,13 @@ impl App {
 
         let mut cmd = None;
         match (nc.kind, nc.named) {
-            (NewKind::Contacts, _) => {}
+            (NewKind::Contacts, _) => {
+                if glass::button(ui, buttons, "new-contact", l!("Новий контакт", "New contact"), false, true).clicked() {
+                    self.new_chat = None;
+                    self.open_contact_form(None);
+                    return;
+                }
+            }
             (NewKind::Group, false) => {
                 let w = (buttons.width() - 8.0) / 2.0;
                 if glass::button(ui, Rect::from_min_size(buttons.min, vec2(w, buttons.height())), "group-cancel", l!("Скасувати", "Cancel"), false, true).clicked() {

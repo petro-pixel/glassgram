@@ -144,7 +144,10 @@ impl App {
     pub(super) fn open_settings_page(&mut self, tab: SettingsTab) {
         self.settings_tab = tab;
         match tab {
-            SettingsTab::Privacy => self.send(Cmd::LoadPrivacy),
+            SettingsTab::Privacy => {
+                self.send(Cmd::LoadPrivacy);
+                self.send(Cmd::LoadBlocked);
+            }
             SettingsTab::Devices => self.send(Cmd::LoadSessions),
             SettingsTab::Notifications => self.load_notify_exceptions(),
             SettingsTab::Account => {

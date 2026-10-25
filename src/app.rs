@@ -41,6 +41,7 @@ mod sponsored;
 mod notify;
 mod calendar;
 mod translate;
+mod contacts;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -460,6 +461,10 @@ pub struct App {
     /// "Translate" window and the last language chosen in it.
     translate: Option<translate::TranslateView>,
     translate_to: Option<String>,
+    /// "New contact" / "Add to contacts" box.
+    contact_form: Option<contacts::ContactForm>,
+    /// Blocked users for Privacy and Security (`None` — not loaded).
+    blocked: Option<Vec<ChatInfo>>,
     /// Composer helpers: link preview, @mentions, bot commands.
     suggest: suggest::Suggest,
     /// Chat info column (`None` = closed); follows the open chat.
@@ -728,6 +733,8 @@ impl App {
             calendar: None,
             translate: None,
             translate_to: None,
+            contact_form: None,
+            blocked: None,
             suggest: Default::default(),
             info: None,
             profile: backend::Profile::default(),
@@ -828,6 +835,7 @@ impl App {
                 if let Some(n) = &mut self.new_chat {
                     n.busy = false;
                 }
+                self.contact_failed();
                 if matches!(self.screen, Screen::Login(Step::Connecting)) {
                     self.screen = Screen::Login(Step::Creds);
                 }
@@ -1017,6 +1025,7 @@ impl App {
             ev @ (Ev::Sponsored { .. } | Ev::SponsoredReport { .. }) => self.sponsored_event(ev),
             Ev::DateFound { peer, id } => self.date_found(peer, id),
             Ev::Translated { peer, id, to, result } => self.translated(peer, id, to, result),
+            ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
             ev @ (Ev::ChatDetails { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
                 self.info_event(ev)
@@ -2272,6 +2281,9 @@ impl App {
         let mut set = None;
         let mut lock_now = false;
         egui::ScrollArea::vertical().id_salt("privacy-body").auto_shrink(false).show(ui, |ui| {
+            // First on the page, as in Telegram Desktop.
+            self.blocked_section(ui);
+            ui.add_space(6.0);
             for key in PrivacyKey::ALL {
                 section_title(ui, key.title());
                 let state = self.privacy.get(&key).copied();
@@ -4003,6 +4015,7 @@ impl eframe::App for App {
             self.export_view(ui);
         }
         self.info_confirm_view(ui);
+        self.contact_form_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);
     }

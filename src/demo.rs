@@ -560,6 +560,27 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::Folders(list));
         }
         Cmd::LoadContacts => app.push_event(Ev::Contacts(demo_contacts())),
+        Cmd::AddContact { user, phone, first, last } => {
+            let name = if last.is_empty() { first } else { format!("{first} {last}") };
+            let c = match user {
+                Some(peer) => ChatInfo { title: name, contact: true, ..app.demo_chat(peer).cloned().unwrap_or_else(|| person(0, "", "", Presence::None)) },
+                // A made-up account behind any number.
+                None => person(40 + phone.len() as i64, &name, "був(ла) нещодавно", Presence::None),
+            };
+            app.push_event(Ev::ContactSaved(c));
+        }
+        Cmd::DeleteContact(peer) => app.push_event(Ev::ContactRemoved(peer)),
+        Cmd::Block { peer, blocked } => {
+            let chat = app.demo_chat(peer).cloned();
+            BLOCKED.with_borrow_mut(|list| {
+                list.retain(|c| c.id != peer);
+                if blocked && let Some(c) = chat {
+                    list.insert(0, c);
+                }
+            });
+            app.push_event(Ev::Blocked { peer, blocked });
+        }
+        Cmd::LoadBlocked => app.push_event(Ev::BlockedList(BLOCKED.with_borrow(Clone::clone))),
         Cmd::SearchContacts(query) => {
             let q = query.to_lowercase();
             let chats = GLOBAL_PEOPLE
@@ -587,6 +608,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         _ => {}
     }
+}
+
+thread_local! {
+    /// Demo blocked list: starts with one spammer, follows Block / Unblock.
+    static BLOCKED: std::cell::RefCell<Vec<ChatInfo>> = std::cell::RefCell::new(vec![person(50, "Спам-розсилка", "", Presence::None)]);
 }
 
 /// People found only by global search in the demo: (id, name, username).
