@@ -50,7 +50,7 @@ cargo run --release             # real account
 ```
 
 On Linux the build needs WebKitGTK for mini app windows: `sudo apt install libwebkit2gtk-4.1-dev pkg-config`
-(`sudo dnf install webkit2gtk4.1-devel` on Fedora). Windows (WebView2) and macOS (WKWebView) need nothing extra.
+(`sudo dnf install webkit2gtk4.1-devel` on Fedora, `sudo pacman -S webkit2gtk-4.1` on Arch); the version from the distribution's repositories is used. Windows (WebView2) and macOS (WKWebView) need nothing extra.
 
 A build from source needs an `api_id` and `api_hash` from <https://my.telegram.org> → *API development tools*.
 Enter them in the sign-in window or pass them via the `TG_API_ID` / `TG_API_HASH` variables. To build them

@@ -50,7 +50,7 @@ cargo run --release             # справжній акаунт
 ```
 
 На Linux для вікон міні-застосунків збірці потрібен WebKitGTK: `sudo apt install libwebkit2gtk-4.1-dev pkg-config`
-(`sudo dnf install webkit2gtk4.1-devel` на Fedora). Windows (WebView2) і macOS (WKWebView) нічого додаткового не потребують.
+(`sudo dnf install webkit2gtk4.1-devel` на Fedora, `sudo pacman -S webkit2gtk-4.1` на Arch); використовується версія з репозиторіїв дистрибутива. Windows (WebView2) і macOS (WKWebView) нічого додаткового не потребують.
 
 Збірці з коду потрібні `api_id` та `api_hash` з <https://my.telegram.org> → *API development tools*.
 Їх можна ввести у вікні входу або передати через змінні `TG_API_ID` / `TG_API_HASH`. Щоб вбудувати їх
