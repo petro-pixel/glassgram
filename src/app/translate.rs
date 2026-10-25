@@ -88,7 +88,7 @@ impl App {
                     ui.vertical_centered(|ui| ui.add(egui::Spinner::new().color(ink())));
                 }
                 Some(Ok((text, spans))) => {
-                    let job = format::layout(text, spans, 15.0, ink(), glass::link(false), w, true);
+                    let job = format::layout(text, spans, glass::msg_font(), ink(), glass::link(false), w, true);
                     ui.label(job);
                 }
                 Some(Err(e)) => {

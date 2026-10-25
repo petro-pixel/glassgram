@@ -638,5 +638,16 @@
   "Explanation": "Erklärung",
   "Shown after answering (optional)": "Wird nach der Antwort gezeigt (optional)",
   "Poll not sent: {e}": "Umfrage nicht gesendet: {e}",
-  "Poll sent": "Umfrage gesendet"
+  "Poll sent": "Umfrage gesendet",
+  "Message text size": "Textgröße der Nachrichten",
+  "Small": "Klein",
+  "Standard": "Standard",
+  "Large": "Groß",
+  "Huge": "Sehr groß",
+  "Sending messages": "Nachrichten senden",
+  "Enter": "Enter",
+  "Cmd+Enter": "Cmd+Enter",
+  "Ctrl+Enter": "Strg+Enter",
+  "Enter starts a new line.": "Enter beginnt eine neue Zeile.",
+  "Shift+Enter starts a new line.": "Umschalt+Enter beginnt eine neue Zeile."
 }

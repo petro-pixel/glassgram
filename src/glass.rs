@@ -3,7 +3,7 @@
 
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use eframe::egui::{
     self, Color32, CornerRadius, FontId, Mesh, Painter, Pos2, Rect, Response, Sense, Shape,
@@ -24,6 +24,18 @@ static LIGHT: AtomicBool = AtomicBool::new(false);
 /// Switches all colours below to the light theme.
 pub fn set_light(on: bool) {
     LIGHT.store(on, Ordering::Relaxed);
+}
+
+/// Message text size in points (Settings → Chat Settings); stored as `f32` bits.
+static MSG_FONT: AtomicU32 = AtomicU32::new(0x4170_0000); // 15.0
+
+pub fn set_msg_font(size: f32) {
+    MSG_FONT.store(size.to_bits(), Ordering::Relaxed);
+}
+
+/// Size of message text in bubbles and of message-like text (captions, ads, translations).
+pub fn msg_font() -> f32 {
+    f32::from_bits(MSG_FONT.load(Ordering::Relaxed))
 }
 
 pub fn is_light() -> bool {
@@ -458,7 +470,9 @@ fn field_alpha(focus: f32) -> u8 {
 pub const AREA_FONT: f32 = 15.5;
 
 /// Multiline field: Enter without Shift returns `submitted`, Shift+Enter inserts a line break.
-pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str) -> (Response, bool) {
+/// `send`: the modifiers that send with Enter (`NONE`: Enter sends, Shift+Enter breaks the line;
+/// `COMMAND`: Ctrl/Cmd+Enter sends, Enter breaks the line).
+pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modifiers) -> (Response, bool) {
     let edit_id = ui.scope_id().with(("edit", hint));
     let focus = ui.ctx().animate_bool(ui.scope_id().with(("field", hint)), ui.memory(|m| m.has_focus(edit_id)));
     let radius = (rect.height() / 2.0).min(25.0);
@@ -469,7 +483,7 @@ pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str) -> (Res
     }
     // Take Enter before TextEdit, otherwise it inserts a line break.
     let has_focus = ui.memory(|m| m.has_focus(edit_id));
-    let submitted = has_focus && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+    let submitted = has_focus && ui.input_mut(|i| i.consume_key(send, egui::Key::Enter));
     let inner = rect.shrink2(vec2(20.0, 13.0));
     let edit = TextEdit::multiline(text)
         .id(edit_id)

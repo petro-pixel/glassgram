@@ -397,6 +397,15 @@ impl App {
             let themes = [(settings::Theme::System, l!("Як у системі", "System")), (settings::Theme::Dark, l!("Темна", "Dark")), (settings::Theme::Light, l!("Світла", "Light"))];
             choice(ui, "theme", &mut s.theme, &themes, 122.0);
             ui.add_space(10.0);
+            section_title(ui, l!("Розмір тексту повідомлень", "Message text size"));
+            let sizes = [(13.0, l!("Малий", "Small")), (15.0, l!("Звичайний", "Standard")), (17.0, l!("Великий", "Large")), (19.0, l!("Дуже великий", "Huge"))];
+            choice(ui, "text-size", &mut s.text_size, &sizes, 122.0);
+            ui.add_space(10.0);
+            section_title(ui, l!("Надсилання повідомлень", "Sending messages"));
+            let keys = [(false, l!("Enter", "Enter")), (true, if cfg!(target_os = "macos") { l!("Cmd+Enter", "Cmd+Enter") } else { l!("Ctrl+Enter", "Ctrl+Enter") })];
+            choice(ui, "send-key", &mut s.ctrl_enter, &keys, 122.0);
+            hint(ui, if s.ctrl_enter { l!("Enter переносить рядок.", "Enter starts a new line.") } else { l!("Shift+Enter переносить рядок.", "Shift+Enter starts a new line.") });
+            ui.add_space(10.0);
             section_title(ui, l!("Медіа", "Media"));
             ui.checkbox(&mut s.autoplay, l!("Автовідтворення GIF, кружечків і відео-стікерів", "Autoplay GIFs, video messages and video stickers"));
         });

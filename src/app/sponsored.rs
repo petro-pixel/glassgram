@@ -63,7 +63,7 @@ pub(super) fn card(ui: &mut Ui, ad: &Sponsored, tex: Option<&TextureHandle>) -> 
     let label = elided(ui, label, 12.5, ACCENT, text_w);
     let what = p.layout_no_wrap(l!("що це?", "what's this?").to_owned(), FontId::proportional(12.5), ink_dim());
     let title = (!ad.title.is_empty()).then(|| elided(ui, &ad.title, 14.5, ink(), text_w));
-    let body = (!ad.text.is_empty()).then(|| p.layout_job(format::layout(&ad.text, &ad.spans, 15.0, ink(), glass::link(false), text_w, true)));
+    let body = (!ad.text.is_empty()).then(|| p.layout_job(format::layout(&ad.text, &ad.spans, glass::msg_font(), ink(), glass::link(false), text_w, true)));
 
     let mut block = vec2(label.size().x + 8.0 + what.size().x, label.size().y + 4.0);
     if let Some(t) = &title {

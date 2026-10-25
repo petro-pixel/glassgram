@@ -1253,9 +1253,10 @@ impl App {
             let (peer, id) = (c.peer, c.post);
             self.send(Cmd::OpenComments { peer, id, before: Some(before) });
         }
+        let send_mods = self.send_mods();
         let Some(c) = self.comments.as_mut() else { return };
         let ready = c.discussion.is_some();
-        let (resp, submitted) = glass::text_area(ui, field, &mut c.draft, l!("Коментар…", "Comment…"));
+        let (resp, submitted) = glass::text_area(ui, field, &mut c.draft, l!("Коментар…", "Comment…"), send_mods);
         let can = ready && !c.draft.trim().is_empty();
         let clicked = glass::icon_button(ui, send, "comment-send", Icon::Send, true, can).clicked();
         if (clicked || submitted) && can
@@ -1857,6 +1858,11 @@ impl App {
 
     /// What a new message replies to: an explicit reply or the open forum topic
     /// (replying to the topic's first message puts the message into it).
+    /// Modifiers that send from the composer (Settings → Chat Settings).
+    fn send_mods(&self) -> egui::Modifiers {
+        if self.settings.ctrl_enter { egui::Modifiers::COMMAND } else { egui::Modifiers::NONE }
+    }
+
     fn reply_target(&self) -> Option<i32> {
         match self.compose {
             Compose::Reply(id) => Some(id),
@@ -3271,7 +3277,8 @@ impl App {
         self.suggest_view(ui, peer, chat.kind, suggest_rect, now);
         glass::glass(ui.painter(), input, Glass::tinted((input.height() / 2.0).min(25.0), glass::chrome(), 110).with_shadow().frosted(0.96));
         let arrow_edit = self.can_edit_by_arrow() && ui.input(|i| i.key_pressed(Key::ArrowUp) && i.modifiers.is_none());
-        let (resp, submitted) = glass::text_area(ui, input, &mut self.draft, l!("Повідомлення", "Message"));
+        let send_mods = self.send_mods();
+        let (resp, submitted) = glass::text_area(ui, input, &mut self.draft, l!("Повідомлення", "Message"), send_mods);
         // ↑ in an empty composer edits the last own message, as in Telegram Desktop.
         if arrow_edit && resp.has_focus() {
             self.edit_last();
@@ -4013,6 +4020,7 @@ impl eframe::App for App {
             settings::Theme::Dark => false,
             settings::Theme::System => ui.ctx().system_theme() == Some(egui::Theme::Light),
         };
+        glass::set_msg_font(self.settings.text_size);
         if light != glass::is_light() {
             apply_theme(ui.ctx(), light);
         }
@@ -4767,7 +4775,7 @@ fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHandle>], loo
     let grid_h: f32 = heights.iter().sum::<f32>() + gap * (rows.len() as f32 - 1.0);
     let cap = msgs.iter().find(|m| !m.text.is_empty()).copied();
     let p = ui.painter().clone();
-    let body = cap.map(|c| p.layout_job(format::layout(&c.text, &c.spans, 15.0, ink(), glass::link(false), w - 20.0, false)));
+    let body = cap.map(|c| p.layout_job(format::layout(&c.text, &c.spans, glass::msg_font(), ink(), glass::link(false), w - 20.0, false)));
     let last = msgs[msgs.len() - 1];
     let meta = p.layout_no_wrap(last.time.clone(), FontId::proportional(11.0), rgba(ink(), 170));
     let text_h = body.as_ref().map_or(0.0, |b| b.size().y + meta.size().y + 22.0);
@@ -4925,7 +4933,7 @@ fn bubble(
     let text_w = img_size.map_or(max_w, |s| s.x) - pad.x * 2.0;
 
     let link = glass::link(m.out);
-    let body = (!m.text.is_empty()).then(|| p.layout_job(format::layout(&m.text, &m.spans, 15.0, ink(), link, text_w, revealed)));
+    let body = (!m.text.is_empty()).then(|| p.layout_job(format::layout(&m.text, &m.spans, glass::msg_font(), ink(), link, text_w, revealed)));
     // Trailing spaces leave room for the ticks drawn on top.
     let meta = format!("{}{}{}{}", chatview::views_label(m, look), if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
     let meta = p.layout_no_wrap(meta, FontId::proportional(11.0), rgba(ink(), 170));
