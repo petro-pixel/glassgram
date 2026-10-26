@@ -161,6 +161,10 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ⬜ **P2** Default and per-chat message auto-delete (`setDefaultHistoryTTL`, `setHistoryTTL`)
 - ⬜ **P2** Encrypting local data with the local passcode (for now the passcode only hides the interface)
 - ⬜ **P3** Sensitive content (`setContentSettings`)
+- ✅ Hardening against untrusted content (audit 2026-10): links open only https/http/mailto/tg; sender file names can't leave Downloads; received programs and scripts are shown in their folder, not run; mini apps can't open local paths, read the clipboard or navigate to `file:`; recordings live in an owner-only temp folder
+- ⬜ **P1** Confirmation for hidden links whose text differs from the target (`[text](url)`), as in Telegram Desktop
+- ⬜ **P1** Warning before opening a received program (now it is only revealed in its folder)
+- ⬜ **P2** Mini app permissions asked from the user: clipboard, location, contact, biometry (`requestWriteAccess`, `requestContact`)
 
 ## 12. Notifications
 - ✅ System notifications, counter in the title, tray with an unread dot
@@ -231,6 +235,20 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ⬜ Submitting a PR to `flathub/flathub`
 
 **macOS** — ⬜ **P3**: `.app`/`.dmg` bundle (with ffmpeg inside or via Homebrew), signing and notarisation
+
+## 18. Code health
+
+Structure rules are in [AGENTS.md](AGENTS.md#architecture). Status of the refactor started in October 2026:
+
+- ✅ `app.rs` split by area (5.4k → 2.1k lines): history, bubbles, composer, recording, media, dialogs, login, accounts, forum, comments, folders
+- ✅ `backend.rs` split (3.9k → 1.6k lines): types, loader, convert, updates, upload; `Worker::handle` dispatches command groups to `<feature>_cmd` handlers
+- ✅ Feature state owned by its module for stories, saved, birthdays, forum topics
+- ⬜ **P1** Split `history::chat_area` (~500 lines): header, the message list and one message row as separate methods
+- ⬜ **P1** Split `App::handle_event` (~300 lines) the same way as `Worker::handle`: one arm per feature module
+- ⬜ **P1** The rest of the loose `App` fields (~140) into feature structs: composer and drafts, recording, player and clips, viewer, search, settings windows
+- ⬜ **P1** The remaining inline arms of `Worker::handle` (history, chats, media, stickers, privacy) into feature handlers
+- ⬜ **P2** Tests for `convert.rs` and `format.rs` on recorded server objects; a CI job that builds and tests on Linux, Windows and macOS
+- ⬜ **P2** `demo.rs` (1.3k lines) split by feature next to the code it answers for
 
 ## Not planned
 - SMS jobs (`smsjobs`), managing ad accounts — not needed in a personal client

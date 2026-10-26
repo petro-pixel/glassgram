@@ -16,18 +16,29 @@ cargo run --release -- --demo   # made-up chats, no network
 cargo run --release             # real account (session in ~/.local/share/glassgram)
 ```
 
-Before you finish, the build must have **no warnings** and the tests must be green.
+Before you finish, go through [the checklist](#before-you-finish).
 
 ## Architecture
 
-- **`backend.rs`** — a separate thread with tokio. The UI sends `Cmd`, the backend answers with `Ev`
-  over channels. The UI never waits for the network.
-- **`app.rs`** — all state and drawing. Events are handled in `push_event`, user actions in `apply`.
-- **Features live in submodules**: UI in `src/app/<feature>.rs` (`impl App` blocks), network in
-  `src/backend/<feature>.rs` (handlers called from `Worker::handle`). Current ones: `chatlist`,
-  `chatview`, `info`, `suggest`, `sponsored`, `notify`, `translate`, `contacts`, `webapp`, `polls`, `privacy`, `chatedit`, `birthdays`, `botstart`, `similar`, `saved`, `chatsearch`, `stories`, `outbox`, `hotkeys`, `settings_pages` (Settings pages in the
-  Telegram Desktop layout), `account`. A new feature of any size gets its own pair of files instead
-  of growing `app.rs` / `backend.rs`; see the structure table in README.
+Two threads talk through two enums. The UI sends `Cmd`, the backend answers with `Ev`; the UI
+never waits for the network.
+
+- **`backend.rs`** — the protocol (`Cmd`, `Ev`, `ImgKey`) and the `Worker` on a tokio thread:
+  connection, dialogs, history. `Worker::handle` only dispatches: a group of commands goes to its
+  feature's handler in one line, `cmd @ (Cmd::A { .. } | Cmd::B(..)) => self.feature_cmd(cmd).await`.
+  Shared pieces: `types.rs` (data for the UI), `loader.rs` (images), `convert.rs` (Telegram → our
+  types), `updates.rs`, `upload.rs`.
+- **`app.rs`** — the `App` struct, `push_event` (events), `apply` (user actions) and the frame loop.
+  Everything else is in `src/app/<area>.rs` as `impl App` blocks: `history` and `bubbles` (the open
+  chat), `composer`, `recording`, `media`, `chatlist`, `info`, `settings_pages`, `login` and so on.
+- **A feature is a pair of files**: `src/app/<feature>.rs` and `src/backend/<feature>.rs`, listed in
+  the structure table in README. It never grows `app.rs` or `backend.rs` beyond a field, an event
+  arm and a dispatch line.
+- **A feature owns its state.** Instead of loose `App` fields, the module defines a struct
+  (`stories::Stories`, `saved::Saved`, `forum::Forum`, `info::InfoPanel`…) and `App` holds one field
+  of it. Methods that change that state live next to it.
+- **Size limits**: a file over ~1000 lines or a function over ~150 lines is a sign to split it.
+  Known debt: `history::chat_area`, `App::handle_event`, `App` with ~140 fields (see ROADMAP §18).
 - **`demo.rs`** — answers the same `Cmd`s synchronously, without the network. Code must cope with
   the answer (`Ev`) arriving while still inside `send()`.
 - **`cache.rs`** — local cache of dialogs, messages and the send queue (SQLite, `chats.sqlite`).
@@ -37,10 +48,15 @@ Before you finish, the build must have **no warnings** and the tests must be gre
 
 ### How to add a feature
 
-1. A `Cmd` variant (with a doc-comment) and its handler in `Worker::handle`.
-2. An `Ev` variant for the result. Long operations go into `tokio::spawn` so they don't block other commands.
-3. Handle the `Ev` in `App::push_event`; state lives in `App` fields with a comment.
-4. UI is a separate `*_view` method or function; colours and glass only through `glass::*`.
+1. `Cmd` variants (with doc-comments) and `src/backend/<feature>.rs` with
+   `impl Worker { pub(super) async fn <feature>_cmd(&mut self, cmd: Cmd) -> Result<(), String> }`,
+   plus its dispatch line in `Worker::handle`.
+2. `Ev` variants for the results. Long or slow requests go into `tokio::spawn` with clones of
+   `client` and `out`, so they don't hold up other commands.
+3. `src/app/<feature>.rs`: the state struct (`#[derive(Default)]`, documented fields), event
+   handlers (`on_<event>`), and the UI as `*_view` / `*_bar` methods. `App` gets one field and
+   `push_event` one arm that calls into the module.
+4. Colours and glass only through `glass::*`; strings only through `l!` / `lf!`.
 5. **Mandatory** — an answer in `demo.rs` and demo data, so the feature is visible in `--demo`.
 6. Update `ROADMAP.md` (mark ✅/🟡) and `README.md` (plus `README.uk.md`) if controls or structure changed.
    The readiness bar at the top of both READMEs is counted from the marks: refresh it with
@@ -80,7 +96,8 @@ keep the placeholders of a translation the same as in English. In `lf!` put text
 
 New code must work on Linux, Windows and macOS. Everything that differs between them lives in
 `platform.rs`; the rest of the code calls it instead of OS tools:
-- open files and links with `platform::open`, not `xdg-open`;
+- links with `platform::open_url` (in the UI: `App::open_link`), received files with `platform::open_file`,
+  our own files and folders with `platform::open` — never `xdg-open` (see [Security](#security));
 - folders from `platform::data_dir` / `platform::download_dir` (the `dirs` crate), not XDG variables or `HOME`;
 - `ffmpeg` / `ffplay` only via `platform::tool` (finds them next to the exe and in Homebrew, hides
   the console window on Windows), never `Command::new("ffmpeg")`; the microphone via `camera::Mic`
@@ -153,8 +170,15 @@ and **remove** it before finishing (check: `grep -c TMP src/app.rs` gives 0).
 - Output **only counts and types** — no chat names, names or texts.
 - Without the owner's explicit permission — **read only**. Send only to chats the owner named
   themselves; mark every test message `[тест Glassgram]`.
-- Never without direct permission: terminate sessions, change privacy, join or leave
-  chats, delete other people's content, pay Stars.
+- Never without direct permission: terminate sessions, change privacy or the profile, join or
+  leave chats, start bots, mark stories seen (the owner sees you), delete other people's content,
+  pay Stars.
+- The test account has few chats. To test groups, channels or stories, find public ones with
+  `Cmd::SearchPublic` / `Cmd::ResolveUsername` and read them **without joining**.
+- The probe skeleton: `backend::spawn(egui::Context::default(), accounts::session_path(0))`, send
+  `Cmd::Connect` with the saved credentials, then a `wait(secs, |ev| …)` helper over `rx.recv_timeout`
+  that prints `Ev::Error`. Keep each wait short and write output to a file: a run must finish in
+  under two minutes. Remove `src/probe.rs` and the `// TMP-PROBE` lines in `main.rs` afterwards.
 
 ## Releases
 
@@ -165,7 +189,31 @@ Flatpak bundle (`packaging/flatpak`), attached to the GitHub release. Bump `vers
 
 ## Security
 
-- Session, credential and settings files — owner-only (`make_private`).
+Everything that comes from the network is untrusted: message texts and links, file names, bot
+answers and buttons, and above all mini app pages (any website can be one).
+
+- **Links** only through `platform::open_url` / `App::open_link`: https, http, mailto and tg.
+  `file:`, `smb:`, `search-ms:`, `ms-…:` and other protocol handlers can run programs or leak the
+  Windows password hash. Never pass a string from the network to `platform::open` or `Command`.
+- **Received files**: the name through `platform::safe_file_name` before it touches a path (no
+  `../`, no absolute paths, no device names); opening through `platform::open_file`, which shows
+  programs and scripts in their folder instead of running them.
+- **Mini apps** (`webview.rs`, `app/webapp.rs`): every bridge method is an API for a stranger's page.
+  Nothing that reads local data (clipboard, files, contacts) without the user's action; the window
+  only navigates to web schemes. A new bridge method needs the same review.
+- **Temporary files** (recordings, cropped photos) via `platform::temp_file` — a fresh owner-only
+  folder, not a predictable name in the shared temp dir; delete them after sending.
+- Session, credential and settings files — owner-only (`make_private`). The passcode (`lock.rs`) is
+  a salted hash and only locks the UI; it does not encrypt the session.
 - Don't log phone numbers, codes, passwords, session keys, message texts.
-- Temporary files (recordings, exports) go in `std::env::temp_dir()`, deleted after sending.
 - Wallet, payments and secret chats — only with a separate security review before merging.
+
+## Before you finish
+
+1. `cargo build --release` with **no warnings**, `cargo test --release` green.
+2. UI strings changed → `UPDATE_LOCALES=1 cargo test locales`; ROADMAP marks changed →
+   `UPDATE_PROGRESS=1 cargo test progress`.
+3. Platform code changed → `cargo check` for `x86_64-pc-windows-gnu` and `aarch64-apple-darwin`.
+4. UI changed → screenshots in both themes and both languages; `grep -c TMP src/app.rs src/main.rs` gives 0.
+5. Protocol changed → a probe on the real account (read only), counts only in the output.
+6. ROADMAP, README and README.uk updated in the same change; one commit per feature.

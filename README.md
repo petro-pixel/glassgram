@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 43%** `█████████░░░░░░░░░░░` — 65 done, 13 partial, 87 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 43%** `█████████░░░░░░░░░░░` — 66 done, 13 partial, 90 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -83,12 +83,23 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 
 | File | What it does |
 |---|---|
-| `src/backend.rs` | Tokio thread: login, dialogs, history, updates; `Cmd` / `Ev` channels to the UI |
+| `src/backend.rs` | Tokio thread: the `Cmd` / `Ev` protocol with the UI, the `Worker` (connection, dialogs, history) dispatching commands to feature handlers |
+| `src/backend/types.rs` | Data handed to the UI: chats, messages, media, folders, privacy, presence |
+| `src/backend/loader.rs`, `src/backend/convert.rs` | Background image downloads with a disk cache; Telegram objects → our types |
+| `src/backend/updates.rs`, `src/backend/upload.rs` | Live updates and QR login loops; sending files, downloads, media cache |
+| `src/backend/login.rs`, `src/backend/sessions.rs` | Signing in (code, 2FA, QR) and out; active sessions |
+| `src/backend/sending.rs`, `src/backend/scheduled.rs`, `src/backend/inline.rs` | Sending, editing, deleting, reactions, votes; scheduled messages; inline bots and buttons |
+| `src/backend/dialogs.rs`, `src/backend/folders.rs`, `src/backend/topics.rs`, `src/backend/comments.rs` | Chat list actions, folders, forum topics, channel comments |
 | `src/backend/account.rs`, `src/backend/outbox.rs` | Own profile, username and photo; one send attempt from the queue |
 | `src/cache.rs` | Local cache of dialogs, messages and the send queue (SQLite via `libsql`) |
 | `src/blur.rs`, `src/glass.wgsl` | GPU blur: background into a texture → Gaussian → glass panels with refraction |
 | `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars |
-| `src/app.rs` | Sign-in and chat screens |
+| `src/app.rs` | `App`: state, events (`push_event`), user actions (`apply`), the frame loop |
+| `src/app/history.rs`, `src/app/bubbles.rs` | The open chat: history, header, overlays; drawing bubbles, albums, media cards, reactions |
+| `src/app/composer.rs`, `src/app/recording.rs` | The message field: text, files, stickers, emoji, inline bots; voice and round video recording |
+| `src/app/media.rs`, `src/app/dialogs.rs` | Audio player, video clips, photo viewer; export, forward, schedule boxes |
+| `src/app/login.rs`, `src/app/accounts_ui.rs` | Sign-in screens and the passcode lock; the account menu |
+| `src/app/forum.rs`, `src/app/comments.rs`, `src/app/folders.rs` | Forum topics, channel comments, folder editor |
 | `src/app/chatview.rs`, `src/backend/chatview.rs` | Chat view extras: pinned bar and list, jump buttons (down / mentions / reactions), "Seen by", view counters, protected content |
 | `src/app/chatedit.rs`, `src/backend/chatedit.rs` | "Edit group / channel": photo, title, description, member permissions, slow mode |
 | `src/app/birthdays.rs`, `src/backend/birthdays.rs` | Birthdays: reminder above the chat list, birthday in user info and in My Account |
@@ -116,7 +127,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/camera.rs` | Video message recording: camera + microphone → MP4, round preview; the microphone for all recordings (`Mic`) |
 | `src/recorder.rs` | Voice recording via `ffmpeg`, level and waveform |
 | `src/export.rs` | Chat history export to HTML and JSON |
-| `src/platform.rs` | Everything that differs between Linux, Windows and macOS: folders, opening files, ffmpeg/ffplay, notifications |
+| `src/platform.rs` | Everything that differs between Linux, Windows and macOS: folders, ffmpeg/ffplay, notifications; the safe openers for links (`open_url`) and received files (`open_file`, `safe_file_name`), private temp files |
 | `src/settings.rs` | Settings and saving them |
 | `src/lock.rs` | Local passcode (salt + SHA-256) |
 | `src/tray.rs`, `src/logo.rs` | Tray icon (`ksni` on Linux, `tray-icon` on Windows and macOS) and the app logo |

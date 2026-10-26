@@ -23,9 +23,11 @@ impl Counts {
     }
 }
 
-/// Items of the roadmap itself; the time estimate at the end has no marks to count.
+/// Client features only: "Code health" tracks the code, not what the client can do, and the time
+/// estimate at the end has no marks.
 fn count(roadmap: &str) -> Counts {
     let items = roadmap.split("## Time estimate").next().unwrap_or_default();
+    let items = items.split("## 18. Code health").next().unwrap_or_default();
     let mark = |m: &str| items.lines().filter(|l| l.trim_start().starts_with(&format!("- {m}"))).count();
     Counts { done: mark("✅"), partial: mark("🟡"), todo: mark("⬜") }
 }
