@@ -843,6 +843,152 @@ fn person_row(ui: &mut Ui, c: &ChatInfo, tex: Option<&egui::TextureHandle>, mark
     resp
 }
 
+impl App {
+    pub(super) fn sidebar(&mut self, ui: &mut Ui, rect: Rect) {
+        glass::glass(ui.painter(), rect, Glass::panel(28.0));
+        let p = ui.painter().clone();
+        let inner = rect.shrink(14.0);
+
+        p.text(inner.left_top() + vec2(6.0, 2.0), Align2::LEFT_TOP, l!("Чати", "Chats"), FontId::proportional(24.0), ink());
+        if !self.me.is_empty() {
+            // The name is the accounts menu button.
+            let label = format!("{}  ▾", self.me);
+            let r = p.text(inner.left_top() + vec2(6.0, 32.0), Align2::LEFT_TOP, label, FontId::proportional(12.5), ink_dim());
+            let resp = ui.interact(r.expand(4.0), ui.scope_id().with("accounts-btn"), Sense::click());
+            if resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if resp.on_hover_text(l!("Акаунти", "Accounts")).clicked() {
+                self.accounts_open = !self.accounts_open;
+            }
+            self.accounts_anchor = r;
+        }
+        let btn = |i: f32| Rect::from_min_size(pos2(inner.right() - 36.0 - i * 44.0, inner.top() + 4.0), vec2(36.0, 36.0));
+        if glass::icon_button(ui, btn(0.0), "logout", Icon::Power, false, true).on_hover_text(l!("Вийти", "Log out")).clicked() {
+            self.close_web_apps();
+            self.send(Cmd::Logout);
+        }
+        if glass::icon_button(ui, btn(1.0), "reload", Icon::Reload, false, true).on_hover_text(l!("Оновити", "Refresh")).clicked() {
+            self.send(Cmd::ReloadDialogs);
+        }
+        let (bell, hint) = if self.settings.notifications { (Icon::Bell, l!("Вимкнути сповіщення", "Turn off notifications")) } else { (Icon::Muted, l!("Увімкнути сповіщення", "Turn on notifications")) };
+        if glass::icon_button(ui, btn(3.0), "settings", Icon::Gear, self.settings_open, true).on_hover_text(l!("Налаштування", "Settings")).clicked() {
+            self.open_settings();
+        }
+        if glass::icon_button(ui, btn(2.0), "notify", bell, false, true).on_hover_text(hint).clicked() {
+            self.settings.notifications = !self.settings.notifications;
+            self.settings.save();
+            if let Some(t) = &self.tray {
+                t.set_notifications(self.settings.notifications);
+            }
+        }
+
+        let search = Rect::from_min_size(inner.left_top() + vec2(0.0, 56.0), vec2(inner.width() - 48.0, 40.0));
+        self.new_chat_button(ui, Rect::from_min_size(pos2(search.right() + 8.0, search.top()), vec2(40.0, 40.0)));
+        let now = ui.input(|i| i.time);
+        let search_resp = glass::search_field(ui, search, &mut self.search.query, l!("Пошук", "Search"));
+        if std::mem::take(&mut self.focus_search) {
+            search_resp.request_focus();
+        }
+        if search_resp.changed() {
+            self.search.edited_at = now;
+        }
+        if let Some(query) = self.search.due(now) {
+            self.search.requested = (query.clone(), None, None);
+            self.public_hits.clear();
+            if query.chars().count() >= 3 && !self.demo {
+                self.send(Cmd::SearchPublic(query.clone()));
+            }
+            self.send(Cmd::Search { peer: None, query, kind: None, from: None });
+        }
+
+        let mut list_top = search.bottom() + 10.0;
+        if !self.settings.folders_side && self.has_folder_bar() {
+            let tabs = Rect::from_min_size(pos2(inner.left(), list_top), vec2(inner.width(), TABS_H));
+            self.folder_tabs(ui, tabs);
+            list_top = tabs.bottom() + 8.0;
+        }
+        let list_rect = Rect::from_min_max(pos2(inner.left() - 6.0, list_top), pos2(inner.right() + 6.0, inner.bottom()));
+        let query = self.search.query.trim().to_lowercase();
+        let mut clicked = None;
+        let mut jump = None;
+        let mut menu = None;
+        let mut found = None;
+        let mut dropped = None;
+        let mut drag = self.pin_drag.take();
+        let mut birthday = None;
+        let mut story = None;
+        let (rows, pinned) = self.list_rows(&query, drag.as_ref());
+        let mut child = ui.new_child(UiBuilder::new().max_rect(list_rect));
+        child.set_clip_rect(list_rect);
+        egui::ScrollArea::vertical()
+            .id_salt("chat-list")
+            .auto_shrink(false)
+            .show(&mut child, |ui| {
+                ui.spacing_mut().item_spacing.y = 4.0;
+                if query.is_empty() && self.folder.is_none() {
+                    story = self.story_strip(ui);
+                    birthday = self.birthday_banner(ui);
+                }
+                let rows_out = self.chat_rows(ui, &rows, pinned, &mut drag);
+                clicked = rows_out.clicked;
+                menu = rows_out.menu;
+                dropped = rows_out.dropped;
+                // Public chats not yet in the list.
+                let public: Vec<&ChatInfo> = self.public_hits.iter().filter(|p| !self.chats.iter().any(|c| c.id == p.id)).collect();
+                if !query.is_empty() && !public.is_empty() {
+                    section_title(ui, l!("Публічні чати", "Public chats"));
+                    for chat in public {
+                        let tex = self.textures.get(&ImgKey::Avatar(chat.id));
+                        if chat_row(ui, chat, false, tex, None, None).clicked() {
+                            found = Some(chat.clone());
+                        }
+                    }
+                }
+                if !query.is_empty() && self.search.hits_for.0.to_lowercase() == query {
+                    section_title(ui, if self.search.hits.is_empty() { l!("Повідомлень не знайдено", "No messages found") } else { l!("Повідомлення", "Messages") });
+                    for hit in &self.search.hits {
+                        if super::hit_row(ui, hit, &self.search.hits_for.0, self.textures.get(&ImgKey::Avatar(hit.msg.peer))).clicked() {
+                            jump = Some(hit.clone());
+                        }
+                    }
+                } else if query.chars().count() >= 2 && self.backend.is_some() {
+                    ui.add_space(12.0);
+                    ui.vertical_centered(|ui| ui.add(egui::Spinner::new().color(ink_dim())));
+                }
+                if self.chats.is_empty() {
+                    ui.add_space(30.0);
+                    ui.vertical_centered(|ui| ui.add(egui::Spinner::new().color(ink_dim())));
+                }
+            });
+        drop(rows);
+        self.pin_drag = drag;
+        if let Some(order) = dropped {
+            self.drop_pins(order);
+        }
+        if let Some(id) = clicked {
+            self.open_chat(id);
+        }
+        if let Some(a) = birthday {
+            self.birthday_action(a);
+        }
+        if let Some(peer) = story {
+            self.open_stories(peer);
+        }
+        if let Some(chat) = found {
+            let id = chat.id;
+            self.chats.push(chat);
+            self.open_chat(id);
+        }
+        if let Some(hit) = jump {
+            self.jump_to(&hit);
+        }
+        if let Some((peer, a)) = menu {
+            self.apply_chat(peer, a);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Reorder;
@@ -868,4 +1014,5 @@ mod tests {
         d.follow(90.0, w, 6.0);
         assert_eq!(d.order, vec![2, 1, 3]);
     }
+
 }

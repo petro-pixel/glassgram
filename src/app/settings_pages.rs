@@ -522,6 +522,197 @@ impl App {
             hint(ui, l!("Інші мови — файли перекладу в теці locales поруч із налаштуваннями.", "Other languages are translation files in the locales folder next to the settings."));
         });
     }
+
+    /// Settings window. Changes are saved immediately.
+    pub(super) fn settings_view(&mut self, ui: &mut Ui) {
+        let screen = ui.max_rect();
+        ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
+        ui.interact(screen, ui.scope_id().with("settings-bg"), Sense::click());
+        let rect = Rect::from_center_size(screen.center(), vec2(screen.width().min(460.0) - 20.0, (screen.height() - 60.0).min(640.0)));
+        glass::glass(ui.painter(), rect, Glass::panel(26.0).with_shadow());
+        let inner = rect.shrink(18.0);
+        let tab = self.settings_tab;
+        // Sections open as pages with a back button, as in Telegram Desktop.
+        let mut back = false;
+        let title_x = if tab == SettingsTab::Main {
+            inner.left() + 4.0
+        } else {
+            let b = Rect::from_min_size(pos2(inner.left() - 4.0, inner.top() - 4.0), vec2(32.0, 32.0));
+            back = glass::icon_button(ui, b, "settings-back", Icon::ChevronLeft, false, true).on_hover_text(l!("Назад", "Back")).clicked();
+            inner.left() + 38.0
+        };
+        ui.painter().text(pos2(title_x, inner.top() + 12.0), Align2::LEFT_CENTER, self.settings_title(), FontId::proportional(17.0), ink());
+        let close = Rect::from_min_size(pos2(inner.right() - 32.0, inner.top() - 4.0), vec2(32.0, 32.0));
+        let done = glass::icon_button(ui, close, "settings-close", Icon::Close, false, true).clicked();
+        let before = self.settings.clone();
+        // No "Done" button, as in Telegram Desktop: changes apply at once and ✕ closes.
+        let body = Rect::from_min_max(pos2(inner.left(), inner.top() + 40.0), inner.max);
+        let mut child = ui.new_child(UiBuilder::new().max_rect(body));
+        child.set_clip_rect(body);
+        self.settings_page(&mut child, tab);
+        if self.settings != before {
+            // Don't save an invalid proxy, so as not to break the next connection.
+            if settings::proxy_error(&self.settings.proxy).is_none() {
+                self.settings.save();
+            }
+            if self.settings.lang != before.lang {
+                crate::i18n::set(&self.settings.lang);
+                if let Some(t) = &self.tray {
+                    t.refresh();
+                }
+                self.title_unread = usize::MAX;
+            }
+            if self.settings.scale != before.scale {
+                self.ctx.set_zoom_factor(self.settings.scale);
+            }
+            if self.settings.notifications != before.notifications
+                && let Some(t) = &self.tray
+            {
+                t.set_notifications(self.settings.notifications);
+            }
+        }
+        // Esc goes back to the main page first; the folder window on top handles its own Esc.
+        let esc = self.folder_edit.is_none() && ui.input(|i| i.key_pressed(Key::Escape));
+        if back || (esc && tab != SettingsTab::Main) {
+            self.settings_tab = SettingsTab::Main;
+            self.profile_edit = None;
+        } else if done || esc {
+            self.settings_open = false;
+            self.profile_edit = None;
+        }
+    }
+
+    /// "Privacy" tab: who sees what, and the local passcode.
+    pub(super) fn privacy_tab(&mut self, ui: &mut Ui) {
+        let mut set = None;
+        let mut lock_now = false;
+        egui::ScrollArea::vertical().id_salt("privacy-body").auto_shrink(false).show(ui, |ui| {
+            // First on the page, as in Telegram Desktop.
+            self.blocked_section(ui);
+            ui.add_space(6.0);
+            for key in PrivacyKey::ALL {
+                section_title(ui, key.title());
+                let state = self.privacy.get(&key).copied();
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 6.0;
+                    let opts = [(Audience::Everybody, l!("Усі", "Everybody")), (Audience::Contacts, l!("Мої контакти", "My contacts")), (Audience::Nobody, l!("Ніхто", "Nobody"))];
+                    for (a, label) in opts {
+                        let (r, _) = ui.allocate_exact_size(vec2(122.0, 30.0), Sense::hover());
+                        let on = state.is_some_and(|s| s.audience == a);
+                        if glass::button(ui, r, ("privacy", key.title(), label), label, on, state.is_some()).clicked() && !on {
+                            set = Some((key, a));
+                        }
+                    }
+                });
+                self.privacy_exception_rows(ui, key);
+                ui.add_space(6.0);
+            }
+            ui.add_space(6.0);
+            self.global_privacy_section(ui);
+            ui.add_space(6.0);
+            section_title(ui, l!("Локальний пароль", "Local passcode"));
+            let s = &mut self.settings;
+            let [new, again, current] = &mut self.pass_fields;
+            if s.passcode.is_empty() {
+                ui.label(egui::RichText::new(l!("Блокує Glassgram на цьому комп'ютері. Сесію на диску не шифрує.", "Locks Glassgram on this computer. Does not encrypt the session on disk.")).color(ink_dim()).size(12.5));
+                for (field, hint) in [(&mut *new, l!("Новий пароль", "New passcode")), (&mut *again, l!("Повторіть пароль", "Repeat passcode"))] {
+                    let r = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
+                    glass::text_field(ui, r, field, hint, true);
+                }
+                let ok = new.chars().count() >= 4 && new == again;
+                let r = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::hover()).0;
+                let resp = glass::button(ui, r, "pass-set", l!("Увімкнути пароль", "Turn on passcode"), true, ok);
+                let resp = if ok { resp } else { resp.on_disabled_hover_text(l!("Щонайменше 4 символи, обидва поля однакові", "At least 4 characters, both fields equal")) };
+                if resp.clicked() && ok {
+                    s.passcode = crate::lock::make(new);
+                    new.clear();
+                    again.clear();
+                }
+            } else {
+                ui.label(egui::RichText::new(l!("Пароль увімкнено. Автоблокування:", "Passcode is on. Auto-lock:")).color(ink_dim()).size(12.5));
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+                    for (min, label) in lock_choices() {
+                        let w = elided(ui, label, 14.0, ink(), 300.0).size().x + 26.0;
+                        let (r, _) = ui.allocate_exact_size(vec2(w, 30.0), Sense::hover());
+                        if glass::button(ui, r, ("lock-min", min), label, s.lock_minutes == min, true).clicked() {
+                            s.lock_minutes = min;
+                        }
+                    }
+                });
+                ui.add_space(4.0);
+                let r = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::hover()).0;
+                lock_now = glass::button(ui, r, "pass-lock", l!("Заблокувати зараз", "Lock now"), false, true).clicked();
+                let r = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
+                glass::text_field(ui, r, current, l!("Поточний пароль — щоб вимкнути", "Current passcode — to turn off"), true);
+                let r = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::hover()).0;
+                let valid = crate::lock::check(&s.passcode, current);
+                if glass::button(ui, r, "pass-off", l!("Вимкнути пароль", "Turn off passcode"), false, valid).clicked() && valid {
+                    s.passcode.clear();
+                    current.clear();
+                }
+            }
+        });
+        if let Some((key, a)) = set {
+            self.set_privacy_audience(key, a);
+        }
+        if lock_now {
+            self.settings_open = false;
+            self.locked = true;
+        }
+    }
+
+    /// "Devices" tab: the account's active sessions.
+    pub(super) fn devices_tab(&mut self, ui: &mut Ui) {
+        let mut terminate = None;
+        let mut all = false;
+        egui::ScrollArea::vertical().id_salt("devices-body").auto_shrink(false).show(ui, |ui| {
+            if self.sessions.is_empty() {
+                ui.add(egui::Spinner::new().color(ink_dim()));
+                return;
+            }
+            for (i, s) in self.sessions.iter().enumerate() {
+                if i == 0 && s.current {
+                    section_title(ui, l!("Цей пристрій", "This device"));
+                } else if i == 1 || (i == 0 && !s.current) {
+                    section_title(ui, l!("Інші сеанси", "Other sessions"));
+                }
+                let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 64.0), Sense::hover());
+                let p = ui.painter();
+                p.rect_filled(row, 14.0, glass::veil(10));
+                let x = row.left() + 12.0;
+                let bold = FontId::new(14.5, egui::FontFamily::Name(format::BOLD.into()));
+                let mut job = LayoutJob::single_section(s.app.clone(), egui::TextFormat::simple(bold, ink()));
+                job.wrap = TextWrapping::truncate_at_width(row.width() - 130.0);
+                p.galley(pos2(x, row.top() + 6.0), p.layout_job(job), ink());
+                p.galley(pos2(x, row.top() + 26.0), elided(ui, &s.device, 12.5, ink_dim(), row.width() - 130.0), ink());
+                let sub = if s.place.is_empty() { s.active.clone() } else { format!("{} · {}", s.place, s.active) };
+                p.galley(pos2(x, row.top() + 43.0), elided(ui, &sub, 12.0, ink_dim(), row.width() - 24.0), ink());
+                if !s.current {
+                    let b = Rect::from_min_size(pos2(row.right() - 112.0, row.top() + 8.0), vec2(104.0, 28.0));
+                    if glass::button(ui, b, ("term", s.hash), l!("Завершити", "Terminate"), false, true).clicked() {
+                        terminate = Some(s.hash);
+                    }
+                }
+                ui.add_space(4.0);
+            }
+            if self.sessions.len() > 1 {
+                ui.add_space(6.0);
+                let r = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
+                let label = if self.confirm_terminate { l!("Точно завершити всі інші?", "Really terminate all others?") } else { l!("Завершити всі інші сеанси", "Terminate all other sessions") };
+                all = glass::button(ui, r, "term-all", label, self.confirm_terminate, true).clicked();
+            }
+        });
+        if let Some(hash) = terminate {
+            self.send(Cmd::TerminateSession(hash));
+        }
+        if all {
+            if self.confirm_terminate {
+                self.send(Cmd::TerminateOtherSessions);
+            }
+            self.confirm_terminate = !self.confirm_terminate;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -538,4 +729,5 @@ mod tests {
         assert!(username_problem("скло_грам").is_some());
         assert!(username_problem(&"a".repeat(33)).is_some());
     }
+
 }
