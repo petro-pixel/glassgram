@@ -3,6 +3,17 @@
 
 use super::*;
 
+/// Saved Messages split by source.
+#[derive(Default)]
+pub(super) struct Saved {
+    /// Where messages came from, newest first.
+    pub(super) sources: Vec<ChatInfo>,
+    /// The source picked; `None` shows all.
+    pub(super) source: Option<PeerId>,
+    /// Sources whose history is fully loaded.
+    pub(super) exhausted: HashSet<PeerId>,
+}
+
 /// Height of the strip under the chat header.
 const SAVED_BAR_H: f32 = 40.0;
 
@@ -10,19 +21,19 @@ impl App {
     /// Space the strip takes above the history; 0 outside Saved Messages or with one source.
     pub(super) fn saved_bar_h(&self, peer: PeerId) -> f32 {
         let saved = self.chats.iter().any(|c| c.id == peer && c.kind == ChatKind::Saved);
-        if saved && self.saved_sources.len() > 1 { SAVED_BAR_H + 8.0 } else { 0.0 }
+        if saved && self.saved.sources.len() > 1 { SAVED_BAR_H + 8.0 } else { 0.0 }
     }
 
     /// Called when a chat opens: Saved Messages asks for its sources and starts on "All".
     pub(super) fn saved_reset(&mut self, peer: PeerId) {
-        self.saved_source = None;
+        self.saved.source = None;
         if self.chats.iter().any(|c| c.id == peer && c.kind == ChatKind::Saved) {
             self.send(Cmd::LoadSavedDialogs);
         }
     }
 
     pub(super) fn select_saved_source(&mut self, saved: PeerId, source: Option<PeerId>) {
-        self.saved_source = source;
+        self.saved.source = source;
         if let Some(source) = source {
             self.send(Cmd::LoadSavedHistory { saved, source, before: None });
         }
@@ -35,7 +46,7 @@ impl App {
             self.loading_older = false;
         }
         if msgs.len() < backend::PAGE {
-            self.saved_exhausted.insert(source);
+            self.saved.exhausted.insert(source);
         }
         let Some(saved) = self.chats.iter().find(|c| c.kind == ChatKind::Saved).map(|c| c.id) else { return };
         let list = self.history.entry(saved).or_default();
@@ -61,18 +72,18 @@ impl App {
         egui::ScrollArea::horizontal().id_salt("saved-sources").auto_shrink(false).scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden).show(&mut child, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                if self.source_chip(ui, None, l!("Усі", "All"), self.saved_source.is_none()).clicked() {
+                if self.source_chip(ui, None, l!("Усі", "All"), self.saved.source.is_none()).clicked() {
                     picked = Some(None);
                 }
-                for c in &self.saved_sources {
+                for c in &self.saved.sources {
                     let title = self.source_title(saved, c);
-                    if self.source_chip(ui, Some(c), &title, self.saved_source == Some(c.id)).clicked() {
+                    if self.source_chip(ui, Some(c), &title, self.saved.source == Some(c.id)).clicked() {
                         picked = Some(Some(c.id));
                     }
                 }
             });
         });
-        if let Some(source) = picked.filter(|s| *s != self.saved_source) {
+        if let Some(source) = picked.filter(|s| *s != self.saved.source) {
             self.select_saved_source(saved, source);
         }
     }

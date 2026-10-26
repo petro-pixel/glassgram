@@ -4,6 +4,17 @@
 use super::*;
 use crate::backend::Birthday;
 
+/// Today's reminder and our own birthday in My Account.
+#[derive(Default)]
+pub(super) struct Birthdays {
+    /// Contacts whose birthday is today.
+    pub(super) today: Vec<(ChatInfo, Birthday)>,
+    /// The day the reminder was hidden.
+    pub(super) dismissed: Option<jiff::civil::Date>,
+    /// Our own birthday being edited.
+    pub(super) edit: Option<Birthday>,
+}
+
 pub(super) enum BirthdayAction {
     Open(ChatInfo),
     Dismiss,
@@ -40,10 +51,10 @@ impl App {
     /// The reminder row at the top of the main list; `None` when there is nothing to show.
     pub(super) fn birthday_banner(&self, ui: &mut Ui) -> Option<BirthdayAction> {
         let today = jiff::Zoned::now().date();
-        if self.birthdays.is_empty() || self.birthdays_dismissed == Some(today) {
+        if self.birthdays.today.is_empty() || self.birthdays.dismissed == Some(today) {
             return None;
         }
-        let names: Vec<&str> = self.birthdays.iter().map(|(c, _)| c.title.as_str()).collect();
+        let names: Vec<&str> = self.birthdays.today.iter().map(|(c, _)| c.title.as_str()).collect();
         let text = lf!("Сьогодні день народження: {}", "Birthday today: {}", names.join(", "));
         let w = ui.available_width();
         let (row, resp) = ui.allocate_exact_size(vec2(w, 52.0), Sense::click());
@@ -61,12 +72,12 @@ impl App {
         if glass::icon_button(ui, x, "birthday-dismiss", Icon::Close, false, true).on_hover_text(l!("Сховати до завтра", "Hide until tomorrow")).clicked() {
             return Some(BirthdayAction::Dismiss);
         }
-        resp.clicked().then(|| BirthdayAction::Open(self.birthdays[0].0.clone()))
+        resp.clicked().then(|| BirthdayAction::Open(self.birthdays.today[0].0.clone()))
     }
 
     pub(super) fn birthday_action(&mut self, a: BirthdayAction) {
         match a {
-            BirthdayAction::Dismiss => self.birthdays_dismissed = Some(jiff::Zoned::now().date()),
+            BirthdayAction::Dismiss => self.birthdays.dismissed = Some(jiff::Zoned::now().date()),
             BirthdayAction::Open(c) => {
                 let id = c.id;
                 if !self.chats.iter().any(|x| x.id == id) {

@@ -22,7 +22,7 @@ struct Pressed {
 impl App {
     /// Windows over the main screen own the keyboard: Esc and shortcuts must not reach the chat under them.
     pub(super) fn modal_open(&self) -> bool {
-        self.settings_open || self.folder_edit.is_some() || self.accounts_open || self.export_ask.is_some() || self.viewer.is_some() || self.story_view.is_some() || self.topic_edit.is_some()
+        self.settings_open || self.folder_edit.is_some() || self.accounts_open || self.export_ask.is_some() || self.viewer.is_some() || self.stories.view.is_some() || self.forum.edit.is_some()
     }
 
     pub(super) fn hotkeys(&mut self, ctx: &egui::Context) {
@@ -45,7 +45,7 @@ impl App {
                 esc: i.key_pressed(Key::Escape),
             }
         });
-        let forum_list = self.selected.and_then(|p| self.chats.iter().find(|c| c.id == p)).is_some_and(|c| c.forum && self.topic.is_none());
+        let forum_list = self.selected.and_then(|p| self.chats.iter().find(|c| c.id == p)).is_some_and(|c| c.forum && self.forum.open.is_none());
         let in_chat = self.selected.is_some() && !forum_list;
         if k.search_chat && in_chat {
             // An empty search panel focuses its own field.
@@ -84,7 +84,7 @@ impl App {
     fn close_chat(&mut self) {
         self.leave_chat();
         self.selected = None;
-        self.topic = None;
+        self.forum.open = None;
         self.chat_search = None;
         self.picked.clear();
         self.sticker_panel = false;
@@ -93,7 +93,7 @@ impl App {
     /// Ctrl+E or ↑ in an empty composer: edit the last own text message.
     pub(super) fn edit_last(&mut self) {
         let Some(peer) = self.selected else { return };
-        let topic = self.topic;
+        let topic = self.forum.open;
         let last = self.history.get(&peer).and_then(|list| {
             list.iter()
                 .rev()

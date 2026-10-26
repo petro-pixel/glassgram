@@ -478,10 +478,8 @@ pub struct App {
     demo: bool,
     /// Input field height in the last frame; space is reserved for it at the bottom of the history.
     composer_h: f32,
-    /// Forum topics and the open topic in the current chat (`None` means the topic list).
-    topics: HashMap<PeerId, Vec<Topic>>,
-    topic: Option<i32>,
-    topic_exhausted: HashSet<(PeerId, i32)>,
+    /// Forum topics, the open topic and the topic editor.
+    forum: forum::Forum,
     comments: Option<CommentsView>,
     /// Public chats from the global search by name.
     public_hits: Vec<ChatInfo>,
@@ -489,8 +487,6 @@ pub struct App {
     export_ask: Option<(PeerId, bool)>,
     /// Chats being exported right now.
     exporting: HashSet<PeerId>,
-    /// New topic or rename window: (chat, topic or `None` for a new one, name, color).
-    topic_edit: Option<(PeerId, Option<i32>, String, u32)>,
     settings_tab: SettingsTab,
     /// Cameras for settings (looked up when the tab is opened).
     cameras: Option<Vec<camera::Camera>>,
@@ -559,19 +555,14 @@ pub struct App {
     /// Profile photo picked in the system dialog.
     photo_tx: mpsc::Sender<PathBuf>,
     photo_rx: mpsc::Receiver<PathBuf>,
-    /// Contacts with a birthday today, whether they were asked for, the day the reminder was hidden,
-    /// and our own birthday being edited in My Account.
-    birthdays: Vec<(ChatInfo, backend::Birthday)>,
-    birthdays_requested: bool,
-    birthdays_dismissed: Option<jiff::civil::Date>,
-    birthday_edit: Option<backend::Birthday>,
-    /// Saved Messages: where messages came from, the source picked (`None` — all), sources fully loaded.
-    saved_sources: Vec<ChatInfo>,
-    saved_source: Option<PeerId>,
-    saved_exhausted: HashSet<PeerId>,
-    /// People and channels with active stories, and the story being watched.
-    stories: Vec<backend::StoryPeer>,
-    story_view: Option<stories::StoryView>,
+    /// Once-per-session requests (birthdays, stories) were sent after the chat list arrived.
+    session_extras: bool,
+    /// Today's birthdays reminder and our own birthday being edited.
+    birthdays: birthdays::Birthdays,
+    /// Saved Messages split by source.
+    saved: saved::Saved,
+    /// The story strip and the story being watched.
+    stories: stories::Stories,
     /// Start parameters from `t.me/<bot>?start=` links, until Start is pressed in that bot chat.
     bot_start: HashMap<PeerId, String>,
     /// "Edit group / channel" box and the photos picked in it.
@@ -619,7 +610,7 @@ impl App {
                 app.push_event(Ev::Image { key, image });
             }
             app.push_event(Ev::Outbox(demo::outbox()));
-            app.birthdays_requested = true;
+            app.session_extras = true;
             app.send(Cmd::LoadBirthdays);
             app.send(Cmd::LoadStories);
             app.screen = Screen::Main;
@@ -735,14 +726,11 @@ impl App {
             accounts_anchor: Rect::NOTHING,
             demo: false,
             composer_h: COMPOSER_H,
-            topics: HashMap::new(),
-            topic: None,
-            topic_exhausted: HashSet::new(),
+            forum: forum::Forum::default(),
             comments: None,
             public_hits: Vec::new(),
             export_ask: None,
             exporting: HashSet::new(),
-            topic_edit: None,
             settings_tab: SettingsTab::Main,
             cameras: None,
             sessions: Vec::new(),
@@ -784,16 +772,11 @@ impl App {
             photo_tx,
             photo_rx,
             chat_edit: None,
-            birthdays: Vec::new(),
-            birthdays_requested: false,
-            birthdays_dismissed: None,
-            birthday_edit: None,
+            session_extras: false,
+            birthdays: birthdays::Birthdays::default(),
             bot_start: HashMap::new(),
-            stories: Vec::new(),
-            story_view: None,
-            saved_sources: Vec::new(),
-            saved_source: None,
-            saved_exhausted: HashSet::new(),
+            stories: stories::Stories::default(),
+            saved: saved::Saved::default(),
             chat_photo_tx,
             chat_photo_rx,
             outbox: Vec::new(),
@@ -857,14 +840,14 @@ impl App {
             Ev::Dialogs(chats) => {
                 self.chats = chats;
                 // Once per session, when the account's chats are in.
-                if !self.birthdays_requested {
-                    self.birthdays_requested = true;
+                if !self.session_extras {
+                    self.session_extras = true;
                     self.send(Cmd::LoadBirthdays);
                     self.send(Cmd::LoadStories);
                 }
             }
-            Ev::Birthdays(list) => self.birthdays = list,
-            Ev::SavedDialogs(list) => self.saved_sources = list,
+            Ev::Birthdays(list) => self.birthdays.today = list,
+            Ev::SavedDialogs(list) => self.saved.sources = list,
             Ev::Stories(list) => self.on_stories(list),
             Ev::PeerStories { peer, stories, max_read } => self.on_peer_stories(peer, stories, max_read),
             Ev::SavedHistory { source, msgs, older } => self.on_saved_history(source, msgs, older),
@@ -1059,7 +1042,7 @@ impl App {
                 }
             }
             Ev::Topics { peer, topics } => {
-                self.topics.insert(peer, topics);
+                self.forum.topics.insert(peer, topics);
             }
             Ev::TopicHistory { peer, topic, msgs, older } => {
                 if older {
@@ -1067,7 +1050,7 @@ impl App {
                 }
                 // Incomplete page: there are no earlier messages in the topic.
                 if msgs.len() < backend::PAGE {
-                    self.topic_exhausted.insert((peer, topic));
+                    self.forum.exhausted.insert((peer, topic));
                 }
                 let last = msgs.last().map(|m| m.id);
                 // Topics share the chat history: merge without duplicates and keep order by id.
@@ -1080,7 +1063,7 @@ impl App {
                 list.sort_by_key(|m| m.id);
                 if !older
                     && let Some(max_id) = last
-                    && let Some(t) = self.topics.get_mut(&peer).and_then(|ts| ts.iter_mut().find(|t| t.id == topic))
+                    && let Some(t) = self.forum.topics.get_mut(&peer).and_then(|ts| ts.iter_mut().find(|t| t.id == topic))
                     && t.unread > 0
                 {
                     t.unread = 0;
@@ -1231,7 +1214,7 @@ impl App {
         self.draft_synced = self.draft.clone();
         self.send(Cmd::OpenChat(id));
         self.open_chat_view(id);
-        self.topic = None;
+        self.forum.open = None;
         self.saved_reset(id);
         if self.chats.iter().any(|c| c.id == id && c.forum) {
             self.send(Cmd::LoadTopics(id));
@@ -1465,7 +1448,7 @@ impl App {
                     ButtonAction::Callback(data) => self.send(Cmd::PressButton { peer, id, data }),
                     ButtonAction::Url(url) => self.open_link(&url),
                     ButtonAction::Text => {
-                        let reply_to = self.topic.filter(|t| *t != GENERAL_TOPIC);
+                        let reply_to = self.forum.open.filter(|t| *t != GENERAL_TOPIC);
                         self.send(Cmd::Send { peer, text: b.text, reply_to, opts: SendOpts::default() });
                     }
                     ButtonAction::Copy(text) => {
@@ -1722,7 +1705,7 @@ impl eframe::App for App {
         if self.viewer.is_some() {
             self.viewer_view(ui);
         }
-        if self.story_view.is_some() {
+        if self.stories.view.is_some() {
             self.story_viewer(ui);
         }
         self.chatlist_overlays(ui);

@@ -2,9 +2,22 @@
 
 use super::*;
 
+/// Forum state of the open chat.
+#[derive(Default)]
+pub(super) struct Forum {
+    /// Topics of each forum chat.
+    pub(super) topics: HashMap<PeerId, Vec<Topic>>,
+    /// The open topic; `None` shows the topic list.
+    pub(super) open: Option<i32>,
+    /// Topics whose history is fully loaded.
+    pub(super) exhausted: HashSet<(PeerId, i32)>,
+    /// New topic or rename box: (chat, topic or `None` for a new one, name, colour).
+    pub(super) edit: Option<(PeerId, Option<i32>, String, u32)>,
+}
+
 impl App {
     pub(super) fn open_topic(&mut self, peer: PeerId, topic: i32) {
-        self.topic = Some(topic);
+        self.forum.open = Some(topic);
         self.compose = Compose::New;
         self.picked.clear();
         self.send(Cmd::OpenTopic { peer, topic, before: None });
@@ -20,7 +33,7 @@ impl App {
         let mut child = ui.new_child(UiBuilder::new().max_rect(list.shrink2(vec2(8.0, 10.0))));
         child.set_clip_rect(list.shrink(4.0));
         egui::ScrollArea::vertical().id_salt(("topics", peer)).auto_shrink(false).show(&mut child, |ui| {
-            let Some(topics) = self.topics.get(&peer) else {
+            let Some(topics) = self.forum.topics.get(&peer) else {
                 ui.add_space(30.0);
                 ui.vertical_centered(|ui| ui.add(egui::Spinner::new().color(ink())));
                 return;
@@ -50,11 +63,11 @@ impl App {
         glass::avatar(p, pos2(header.left() + 34.0, header.center().y), 21.0, &chat.title, peer.bot_api_dialog_id_unchecked(), kind_icon(chat.kind), tex);
         let text_x = header.left() + 66.0;
         p.galley(pos2(text_x, header.center().y - 20.0), elided(ui, &chat.title, 16.5, ink(), header.right() - text_x - 20.0), ink());
-        let n = self.topics.get(&peer).map_or(0, Vec::len);
+        let n = self.forum.topics.get(&peer).map_or(0, Vec::len);
         p.text(pos2(text_x, header.center().y + 11.0), Align2::LEFT_CENTER, lf!("форум · тем: {n}", "forum · topics: {n}"), FontId::proportional(12.5), ink_dim());
         let add = Rect::from_center_size(pos2(header.right() - 32.0, header.center().y), vec2(38.0, 38.0));
         if glass::icon_button(ui, add, "topic-new", Icon::Plus, false, true).on_hover_text(l!("Нова тема", "New topic")).clicked() {
-            self.topic_edit = Some((peer, None, String::new(), TOPIC_COLORS[0]));
+            self.forum.edit = Some((peer, None, String::new(), TOPIC_COLORS[0]));
         }
         if let Some(t) = chosen {
             self.open_topic(peer, t);
@@ -62,20 +75,20 @@ impl App {
         match edit {
             // Renaming opens the window with the current name.
             Some(Cmd::EditTopic { id, title: None, closed: None, .. }) => {
-                let t = self.topics.get(&peer).and_then(|ts| ts.iter().find(|t| t.id == id));
-                self.topic_edit = t.map(|t| (peer, Some(id), t.title.clone(), t.color));
+                let t = self.forum.topics.get(&peer).and_then(|ts| ts.iter().find(|t| t.id == id));
+                self.forum.edit = t.map(|t| (peer, Some(id), t.title.clone(), t.color));
             }
             Some(cmd) => self.send(cmd),
             None => {}
         }
-        if self.topic_edit.is_some() {
+        if self.forum.edit.is_some() {
             self.topic_editor(ui);
         }
     }
 
     /// New topic or rename window: name and icon color.
     pub(super) fn topic_editor(&mut self, ui: &mut Ui) {
-        let Some((peer, id, title, color)) = &mut self.topic_edit else { return };
+        let Some((peer, id, title, color)) = &mut self.forum.edit else { return };
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
         ui.interact(screen, ui.scope_id().with("topic-bg"), Sense::click());
@@ -118,10 +131,10 @@ impl App {
                 Some(id) => Cmd::EditTopic { peer, id: *id, title: Some(title), closed: None },
                 None => Cmd::CreateTopic { peer, title, color },
             };
-            self.topic_edit = None;
+            self.forum.edit = None;
             self.send(cmd);
         } else if cancel || ui.input(|i| i.key_pressed(Key::Escape)) {
-            self.topic_edit = None;
+            self.forum.edit = None;
         }
     }
 }

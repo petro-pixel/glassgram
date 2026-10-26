@@ -11,12 +11,12 @@ impl App {
             return;
         };
         let Some(chat) = self.chats.iter().find(|c| c.id == peer).cloned() else { return };
-        if chat.forum && self.topic.is_none() {
+        if chat.forum && self.forum.open.is_none() {
             self.forum_view(ui, peer, &chat, rect);
             return;
         }
-        let topic = self.topic.filter(|_| chat.forum);
-        let source = self.saved_source.filter(|_| chat.kind == ChatKind::Saved);
+        let topic = self.forum.open.filter(|_| chat.forum);
+        let source = self.saved.source.filter(|_| chat.kind == ChatKind::Saved);
         let group = matches!(chat.kind, ChatKind::Group);
         // In channels views replace ticks; in "Saved Messages" there is nobody to read.
         let ticks = |m: &Msg| (m.out && !matches!(chat.kind, ChatKind::Channel | ChatKind::Saved)).then_some(m.id <= chat.read_out);
@@ -51,8 +51,8 @@ impl App {
                         // Saved Messages likewise show only the picked source.
                         let msgs: Vec<&Msg> = all.iter().filter(|m| topic.is_none_or(|t| m.topic_id() == t) && source.is_none_or(|s| m.saved_from == Some(s))).collect();
                         let exhausted = match (topic, source) {
-                            (Some(t), _) => self.topic_exhausted.contains(&(peer, t)),
-                            (_, Some(s)) => self.saved_exhausted.contains(&s),
+                            (Some(t), _) => self.forum.exhausted.contains(&(peer, t)),
+                            (_, Some(s)) => self.saved.exhausted.contains(&s),
                             _ => self.exhausted.get(&peer).copied().unwrap_or(false),
                         };
                         if !msgs.is_empty() && !exhausted {
@@ -219,12 +219,12 @@ impl App {
         let header = Rect::from_min_size(rect.min, vec2(rect.width(), HEADER_H));
         glass::glass(ui.painter(), header, Glass::tinted(HEADER_H / 2.0, glass::chrome(), 110).with_shadow().frosted(0.96));
         let p = ui.painter().clone();
-        let open_topic = topic.and_then(|t| self.topics.get(&peer)?.iter().find(|x| x.id == t).cloned());
+        let open_topic = topic.and_then(|t| self.forum.topics.get(&peer)?.iter().find(|x| x.id == t).cloned());
         if topic.is_some() {
             // In a topic, a back-to-topic-list button replaces the avatar.
             let back = Rect::from_center_size(pos2(header.left() + 34.0, header.center().y), vec2(40.0, 40.0));
             if glass::icon_button(ui, back, "topic-back", Icon::ChevronLeft, false, true).on_hover_text(l!("До списку тем", "Back to topics")).clicked() {
-                self.topic = None;
+                self.forum.open = None;
                 self.compose = Compose::New;
             }
         } else {
@@ -558,8 +558,8 @@ impl App {
             if i.confirm.take().is_none() {
                 self.info = None;
             }
-        } else if self.topic.is_some() {
-            self.topic = None;
+        } else if self.forum.open.is_some() {
+            self.forum.open = None;
         } else {
             self.esc_fallback();
         }

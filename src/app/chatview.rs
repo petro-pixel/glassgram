@@ -319,7 +319,7 @@ impl App {
     pub(super) fn chat_view_overlays(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect, header: Rect, above: f32) {
         let Some(chat) = self.chats.iter().find(|c| c.id == peer).cloned() else { return };
         // Forum topics have their own pins; the chat-wide bar would be misleading there.
-        let in_topic = chat.forum && self.topic.is_some();
+        let in_topic = chat.forum && self.forum.open.is_some();
         if self.pin_bar_h(peer) > 0.0 && !in_topic {
             let bar = Rect::from_min_size(pos2(rect.left(), header.bottom() + 8.0), vec2(rect.width(), PIN_BAR_H));
             self.pinned_bar(ui, peer, &chat, bar);

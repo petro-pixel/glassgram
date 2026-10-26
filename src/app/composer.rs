@@ -60,7 +60,7 @@ impl App {
     pub(super) fn reply_target(&self) -> Option<i32> {
         match self.compose {
             Compose::Reply(id) => Some(id),
-            _ => self.topic.filter(|t| *t != GENERAL_TOPIC),
+            _ => self.forum.open.filter(|t| *t != GENERAL_TOPIC),
         }
     }
 

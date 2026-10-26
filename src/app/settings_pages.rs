@@ -153,7 +153,7 @@ impl App {
             SettingsTab::Notifications => self.load_notify_exceptions(),
             SettingsTab::Account => {
                 self.profile_edit = Some(ProfileEdit::from(&self.profile));
-                self.birthday_edit = None;
+                self.birthdays.edit = None;
                 self.send(Cmd::LoadProfile);
             }
             _ => {}
@@ -250,8 +250,8 @@ impl App {
                 }
             }
         }
-        if self.birthday_edit.is_some() && self.birthday_edit == Some(super::birthdays::shown(self.profile.birthday)) {
-            self.birthday_edit = None;
+        if self.birthdays.edit.is_some() && self.birthdays.edit == Some(super::birthdays::shown(self.profile.birthday)) {
+            self.birthdays.edit = None;
         }
         let name = format!("{} {}", p.first, p.last).trim().to_owned();
         if !name.is_empty() && name != self.me {
@@ -366,7 +366,7 @@ impl App {
                 save_username = Some(Ok(name));
             }
 
-            bday_cmd = super::birthdays::birthday_section(ui, &mut self.birthday_edit, p.birthday);
+            bday_cmd = super::birthdays::birthday_section(ui, &mut self.birthdays.edit, p.birthday);
             if !p.phone.is_empty() {
                 section_title(ui, l!("Телефон", "Phone number"));
                 ui.label(egui::RichText::new(&p.phone).color(ink()).size(14.5));

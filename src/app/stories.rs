@@ -8,6 +8,15 @@ use crate::backend::{Story, StoryPeer};
 const STORY_SECS: f64 = 6.0;
 const STRIP_H: f32 = 84.0;
 
+/// The strip and the viewer.
+#[derive(Default)]
+pub(super) struct Stories {
+    /// People and channels with active stories, in the server's order.
+    pub(super) peers: Vec<StoryPeer>,
+    /// The story being watched.
+    pub(super) view: Option<StoryView>,
+}
+
 pub(super) struct StoryView {
     peer: PeerId,
     index: usize,
@@ -33,28 +42,28 @@ fn story_time(ts: i64) -> String {
 impl App {
     /// Story ids of a peer in the strip (for the demo's answers).
     pub fn stories_ids(&self, peer: PeerId) -> Vec<i32> {
-        self.stories.iter().find(|p| p.chat.id == peer).map(|p| p.ids.clone()).unwrap_or_default()
+        self.stories.peers.iter().find(|p| p.chat.id == peer).map(|p| p.ids.clone()).unwrap_or_default()
     }
 
     pub(super) fn on_stories(&mut self, mut list: Vec<StoryPeer>) {
         // Keep stories already loaded for the viewer.
         for p in &mut list {
-            if let Some(old) = self.stories.iter().find(|o| o.chat.id == p.chat.id) {
+            if let Some(old) = self.stories.peers.iter().find(|o| o.chat.id == p.chat.id) {
                 p.stories = old.stories.clone();
             }
         }
-        self.stories = list;
+        self.stories.peers = list;
     }
 
     pub(super) fn on_peer_stories(&mut self, peer: PeerId, stories: Vec<Story>, max_read: i32) {
-        if let Some(p) = self.stories.iter_mut().find(|p| p.chat.id == peer) {
+        if let Some(p) = self.stories.peers.iter_mut().find(|p| p.chat.id == peer) {
             p.ids = stories.iter().map(|s| s.id).collect();
             p.stories = stories;
             p.max_read = p.max_read.max(max_read);
         }
         // Opened before the list came: start at the first unseen one.
-        if let Some(v) = self.story_view.as_mut().filter(|v| v.peer == peer && v.index == usize::MAX) {
-            let p = self.stories.iter().find(|p| p.chat.id == peer);
+        if let Some(v) = self.stories.view.as_mut().filter(|v| v.peer == peer && v.index == usize::MAX) {
+            let p = self.stories.peers.iter().find(|p| p.chat.id == peer);
             v.index = p.and_then(|p| p.stories.iter().position(|s| s.id > p.max_read)).unwrap_or(0);
             v.started = self.ctx.input(|i| i.time);
         }
@@ -62,11 +71,11 @@ impl App {
 
     pub(super) fn open_stories(&mut self, peer: PeerId) {
         let now = self.ctx.input(|i| i.time);
-        self.story_view = Some(StoryView { peer, index: usize::MAX, started: now, paused_at: None });
-        match self.stories.iter().find(|p| p.chat.id == peer).filter(|p| !p.stories.is_empty()) {
+        self.stories.view = Some(StoryView { peer, index: usize::MAX, started: now, paused_at: None });
+        match self.stories.peers.iter().find(|p| p.chat.id == peer).filter(|p| !p.stories.is_empty()) {
             Some(p) => {
                 let first = p.stories.iter().position(|s| s.id > p.max_read).unwrap_or(0);
-                if let Some(v) = &mut self.story_view {
+                if let Some(v) = &mut self.stories.view {
                     v.index = first;
                 }
             }
@@ -76,7 +85,7 @@ impl App {
 
     /// Round avatars of everyone with active stories; `None` when there are none.
     pub(super) fn story_strip(&self, ui: &mut Ui) -> Option<PeerId> {
-        if self.stories.is_empty() {
+        if self.stories.peers.is_empty() {
             return None;
         }
         let mut open = None;
@@ -84,7 +93,7 @@ impl App {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 ui.add_space(4.0);
-                for p in &self.stories {
+                for p in &self.stories.peers {
                     let (r, resp) = ui.allocate_exact_size(vec2(64.0, STRIP_H), Sense::click());
                     let c = pos2(r.center().x, r.top() + 30.0);
                     let painter = ui.painter();
@@ -109,10 +118,10 @@ impl App {
 
     /// The viewer over the whole window.
     pub(super) fn story_viewer(&mut self, ui: &mut Ui) {
-        let Some(v) = &self.story_view else { return };
+        let Some(v) = &self.stories.view else { return };
         let now = ui.input(|i| i.time);
-        let Some(pi) = self.stories.iter().position(|p| p.chat.id == v.peer) else {
-            self.story_view = None;
+        let Some(pi) = self.stories.peers.iter().position(|p| p.chat.id == v.peer) else {
+            self.stories.view = None;
             return;
         };
         let screen = ui.max_rect();
@@ -139,7 +148,7 @@ impl App {
         // A 9:16 card, as tall as the window allows.
         let h = (screen.height() - 48.0).min(820.0);
         let card = Rect::from_center_size(screen.center(), vec2(h * 9.0 / 16.0, h));
-        let sp = &self.stories[pi];
+        let sp = &self.stories.peers[pi];
         let chat = sp.chat.clone();
         painter.rect_filled(card, 18.0, Color32::from_gray(18));
         let story = sp.stories.get(v.index).cloned();
@@ -217,9 +226,9 @@ impl App {
         }
         // Seen: the owner gets us in the viewers list, as with any client.
         if let Some(s) = &story
-            && s.id > self.stories[pi].max_read
+            && s.id > self.stories.peers[pi].max_read
         {
-            self.stories[pi].max_read = s.id;
+            self.stories.peers[pi].max_read = s.id;
             self.send(Cmd::ReadStories { peer: chat.id, max_id: s.id });
         }
         if let Some(step) = step {
@@ -228,10 +237,10 @@ impl App {
     }
 
     fn story_step(&mut self, step: Step, pi: usize, now: f64) {
-        let Some(v) = &mut self.story_view else { return };
-        let count = self.stories[pi].stories.len();
+        let Some(v) = &mut self.stories.view else { return };
+        let count = self.stories.peers[pi].stories.len();
         match step {
-            Step::Close => self.story_view = None,
+            Step::Close => self.stories.view = None,
             Step::TogglePause => match v.paused_at.take() {
                 Some(at) => v.started += now - at,
                 None => v.paused_at = Some(now),
@@ -243,7 +252,7 @@ impl App {
             }
             Step::Prev => match pi.checked_sub(1) {
                 Some(prev) => {
-                    let peer = self.stories[prev].chat.id;
+                    let peer = self.stories.peers[prev].chat.id;
                     self.open_stories(peer);
                 }
                 None => v.started = now,
@@ -253,9 +262,9 @@ impl App {
                 v.started = now;
                 v.paused_at = None;
             }
-            Step::Next => match self.stories.get(pi + 1).map(|p| p.chat.id) {
+            Step::Next => match self.stories.peers.get(pi + 1).map(|p| p.chat.id) {
                 Some(next) => self.open_stories(next),
-                None => self.story_view = None,
+                None => self.stories.view = None,
             },
         }
     }

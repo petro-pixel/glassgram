@@ -182,7 +182,7 @@ impl App {
     pub(super) fn start_bot_bar(&mut self, ui: &mut Ui, peer: PeerId, kind: ChatKind, rect: Rect) -> bool {
         let empty = self.history.get(&peer).is_some_and(Vec::is_empty);
         let linked = self.pending_bot_start(peer).is_some();
-        if kind != ChatKind::Bot || !(empty || linked) || !self.draft.is_empty() || self.topic.is_some() {
+        if kind != ChatKind::Bot || !(empty || linked) || !self.draft.is_empty() || self.forum.open.is_some() {
             return false;
         }
         let bar = Rect::from_min_max(pos2(rect.left(), rect.bottom() - COMPOSER_H), rect.max);
