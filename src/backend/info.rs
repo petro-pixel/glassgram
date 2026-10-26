@@ -38,7 +38,7 @@ impl SharedKind {
         }
     }
 
-    fn filter(self) -> tl::enums::MessagesFilter {
+    pub(super) fn filter(self) -> tl::enums::MessagesFilter {
         use tl::enums::MessagesFilter as F;
         match self {
             Self::Media => F::InputMessagesFilterPhotoVideo,

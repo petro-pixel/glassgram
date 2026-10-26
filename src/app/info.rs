@@ -819,7 +819,7 @@ fn action_row(ui: &mut Ui, label: &str, color: Color32) -> egui::Response {
 }
 
 /// Capsule toggle (radius = height / 2).
-fn chip(ui: &mut Ui, label: &str, selected: bool) -> egui::Response {
+pub(super) fn chip(ui: &mut Ui, label: &str, selected: bool) -> egui::Response {
     let g = ui.painter().layout_no_wrap(label.to_owned(), FontId::proportional(13.0), ink());
     let (rect, resp) = ui.allocate_exact_size(vec2(g.size().x + 24.0, 32.0), Sense::click());
     let hover = ui.ctx().animate_bool(resp.id, resp.hovered());

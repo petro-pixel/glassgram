@@ -432,16 +432,21 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::Delete { peer, ids } => app.push_event(Ev::Deleted { ids, peer: Some(peer) }),
         Cmd::LoadOlder { peer, .. } => app.push_event(Ev::History { peer, msgs: vec![], older: true }),
         Cmd::Logout => app.push_event(Ev::Error("У демо-режимі вихід недоступний".into())),
-        Cmd::Search { peer, query } => {
+        Cmd::Search { peer, query, kind } => {
             let q = query.to_lowercase();
-            let hits = app
+            let mut hits: Vec<SearchHit> = app
                 .demo_history()
                 .filter(|(p, _, _)| peer.is_none_or(|x| x == *p))
                 .flat_map(|(_, chat, msgs)| msgs.iter().map(move |m| (chat, m)))
-                .filter(|(_, m)| m.text.to_lowercase().contains(&q))
+                .filter(|(_, m)| kind.is_none() && m.text.to_lowercase().contains(&q))
                 .map(|((title, kind), m)| SearchHit { chat: title.to_owned(), kind, msg: m.clone() })
                 .collect();
-            app.push_event(Ev::SearchResults { peer, query, hits });
+            // A type filter answers with the same messages as the profile's shared media tab.
+            if let (Some(k), Some(p)) = (kind, peer) {
+                let title = app.demo_chat(p).map(|c| (c.title.clone(), c.kind)).unwrap_or((String::new(), ChatKind::User));
+                hits = demo_shared(app, p, k).into_iter().filter(|m| m.text.to_lowercase().contains(&q)).map(|m| SearchHit { chat: title.0.clone(), kind: title.1, msg: m }).collect();
+            }
+            app.push_event(Ev::SearchResults { peer, query, kind, hits });
         }
         Cmd::LoadPinned(peer) => {
             let msgs = app.demo_history().find(|(p, _, _)| *p == peer).map(|(_, _, msgs)| msgs.iter().filter(|m| m.pinned).cloned().collect()).unwrap_or_default();
