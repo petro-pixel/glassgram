@@ -3,6 +3,7 @@
 
 use std::time::Duration;
 
+use grammers_client::session::types::PeerId;
 use grammers_client::{InvocationError, tl};
 
 use super::{Cmd, Ev, Queued, SendOpts, Worker};
@@ -35,6 +36,23 @@ fn sent_id(updates: &tl::enums::Updates, random_id: i64) -> Option<i32> {
 }
 
 impl Worker {
+    /// `[name](tg://user?id=N)` from the @mention popup becomes a real mention of that user:
+    /// the server needs the user's access hash for it, which only we have.
+    fn with_mentions(&self, ents: Vec<tl::enums::MessageEntity>) -> Vec<tl::enums::MessageEntity> {
+        ents.into_iter()
+            .map(|e| match &e {
+                tl::enums::MessageEntity::TextUrl(u) => {
+                    let user = u.url.strip_prefix("tg://user?id=").and_then(|id| id.parse::<i64>().ok());
+                    match user.and_then(|id| self.peer_ref(PeerId::user_unchecked(id)).ok()) {
+                        Some(r) => tl::types::InputMessageEntityMentionName { offset: u.offset, length: u.length, user_id: r.into() }.into(),
+                        None => e,
+                    }
+                }
+                _ => e,
+            })
+            .collect()
+    }
+
     pub(super) async fn send_queued(&mut self, q: Queued) -> Result<(), String> {
         if let Some(c) = &self.out.cache {
             c.queue_put(&q);
@@ -51,6 +69,7 @@ impl Worker {
         };
         let opts = SendOpts { silent: q.silent, schedule: None, no_webpage: q.no_webpage };
         let (plain, ents) = format::parse(&q.text);
+        let ents = self.with_mentions(ents);
         // The queue key is the request's random_id on every attempt: if an earlier attempt reached
         // the server but its answer was lost, the server refuses the copy instead of posting it twice.
         let req = tl::functions::messages::SendMessage {

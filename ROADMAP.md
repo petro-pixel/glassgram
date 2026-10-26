@@ -81,7 +81,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Multi-line field, markup (`**`, `__`, `~~`, `||`, `` ` ``, links), reply, edit
 - ✅ Files, clipboard paste, drag and drop, photo compression, albums, silent and scheduled sending
 - ✅ Voice and round video messages with review; stickers, emoji, inline bots
-- 🟡 @mention autocomplete (`channels.getParticipants` search / basic group members) and bot commands via `/` (`bot_info` from `users.getFullUser` / `messages.getFullChat` / `channels.getFullChannel`): glass popup, ↑/↓/Enter/Tab, click. Left: users without a username are inserted as plain name, not a `mentionName` entity
+- ✅ @mention autocomplete (`channels.getParticipants` search / basic group members) and bot commands via `/` (`bot_info` from `users.getFullUser` / `messages.getFullChat` / `channels.getFullChannel`): glass popup, ↑/↓/Enter/Tab, click. Users without a username are inserted as `[name](tg://user?id=…)` and sent as a real mention (`inputMessageEntityMentionName`); a click on such a mention opens the chat with that person
 - ✅ Link preview while typing (`messages.getWebPagePreview`, debounced) above the field; ✕ sends with `no_webpage`
 - ⬜ **P1** Visual rich text editor (2026): formatting bar above the selection, custom shareable styles
 - ✅ Emoji suggestions by keyword: typing `:word` offers emoji from Telegram's English and interface-language keyword lists (`getEmojiKeywords`); ↑/↓, Enter, Tab or a click puts the emoji in place of the word

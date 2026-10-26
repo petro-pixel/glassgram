@@ -288,7 +288,8 @@ impl App {
         self.suggest.selected = 0;
         match item {
             Item::Member(m) => {
-                let mention = if m.username.is_empty() { m.name.clone() } else { format!("@{}", m.username) };
+                // Without a username the name links to the user; Telegram makes it a real mention.
+                let mention = if m.username.is_empty() { format!("[{}](tg://user?id={})", m.name, m.id.bare_id_unchecked()) } else { format!("@{}", m.username) };
                 replace_token(&mut self.draft, &format!("{mention} "));
                 focus_end(ui, &self.draft);
             }

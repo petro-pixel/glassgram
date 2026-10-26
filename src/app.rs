@@ -1274,6 +1274,14 @@ impl App {
                 }
             }
             Action::OpenHidden(url) => self.opening = Some(confirm::Opening::Link(url)),
+            Action::Open(target) if target.starts_with("tg://user?id=") => {
+                // A mention by id opens the chat with that person if we have it.
+                let id = target["tg://user?id=".len()..].parse::<i64>().ok().map(PeerId::user_unchecked);
+                match id.filter(|p| self.chats.iter().any(|c| c.id == *p)) {
+                    Some(p) => self.open_chat(p),
+                    None => self.toast = Some((l!("Цього користувача немає у ваших чатах", "This user is not in your chats").into(), 0.0, false)),
+                }
+            }
             Action::Open(target) => match target.chars().next() {
                 // A hashtag is searched in this chat, a bot command is sent.
                 Some('#' | '$') => {

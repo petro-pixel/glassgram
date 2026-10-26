@@ -70,7 +70,8 @@ pub fn from_entities(text: &str, entities: &[tl::enums::MessageEntity], shift: u
                 E::Url(x) => (x.offset, x.length, Style::Link, Some(String::new())),
                 E::Email(x) => (x.offset, x.length, Style::Link, Some("mailto:".into())),
                 E::Mention(x) => (x.offset, x.length, Style::Link, Some(String::new())),
-                E::MentionName(x) => (x.offset, x.length, Style::Link, None),
+                // A mention of someone without a username: its target names the user.
+                E::MentionName(x) => (x.offset, x.length, Style::Link, Some(format!("tg://user?id={}", x.user_id))),
                 E::Hashtag(x) => (x.offset, x.length, Style::Link, Some(String::new())),
                 E::Cashtag(x) => (x.offset, x.length, Style::Link, Some(String::new())),
                 E::BotCommand(x) => (x.offset, x.length, Style::Link, Some(String::new())),
@@ -273,8 +274,8 @@ pub fn hidden_link(text: &str, url: &str) -> bool {
         let s = s.strip_prefix("www.").map(str::to_owned).unwrap_or(s);
         s.trim_end_matches('/').to_owned()
     };
-    // Mentions, hashtags and bot commands are not web links.
-    !url.starts_with(['@', '#', '$', '/']) && bare(text) != bare(url)
+    // Mentions (by username or by id), hashtags and bot commands are not web links.
+    !url.starts_with(['@', '#', '$', '/']) && !url.starts_with("tg://user?id=") && bare(text) != bare(url)
 }
 
 pub fn span_at(spans: &[Span], byte: usize) -> Option<&Span> {
@@ -391,6 +392,10 @@ mod tests {
         assert!(super::hidden_link("https://bank.com", "https://bank.com.evil.example"));
         assert!(!super::hidden_link("@durov", "@durov"));
         assert!(!super::hidden_link("#rust", "#rust"));
+        assert!(!super::hidden_link("Олена", "tg://user?id=42"));
+        let (text, ents) = super::parse("[Олена](tg://user?id=42) привіт");
+        assert_eq!(text, "Олена привіт");
+        assert!(matches!(&ents[0], tl::enums::MessageEntity::TextUrl(u) if u.url == "tg://user?id=42" && u.length == 5));
     }
 }
 
