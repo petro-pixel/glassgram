@@ -292,6 +292,7 @@ pub(super) fn found_chat(peer: &Peer, last_text: String) -> ChatInfo {
         joined: matches!(peer, Peer::User(_)),
         can_post: can_post(peer),
         read_out: 0,
+        read_in: 0,
         unread_mentions: 0,
         unread_reactions: 0,
         noforwards: noforwards(peer),

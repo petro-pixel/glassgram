@@ -97,6 +97,9 @@ pub struct ChatInfo {
     /// The peer has read our messages up to this id (✓✓).
     #[serde(default)]
     pub read_out: i32,
+    /// We have read incoming messages up to this id: a chat with unread ones opens after it.
+    #[serde(default)]
+    pub read_in: i32,
     /// Unread mentions and reactions to our messages — the "@" and "❤" buttons above the composer.
     #[serde(default)]
     pub unread_mentions: i32,

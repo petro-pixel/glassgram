@@ -1116,15 +1116,15 @@ impl Worker {
             };
             let peer = d.peer();
             self.refs.lock().unwrap().insert(peer.id(), d.peer_ref());
-            let (unread, pinned, muted, archived, unread_mark, draft, read_out) = match &d.raw {
+            let (unread, pinned, muted, archived, unread_mark, draft, (read_out, read_in)) = match &d.raw {
                 tl::enums::Dialog::Dialog(x) => {
                     let mut notifs = self.notifs.lock().unwrap();
                     notifs.remember(peer);
                     let muted = notifs.resolve(peer.id(), NotifyState::from_raw(&x.notify_settings)).muted();
                     drop(notifs);
-                    (x.unread_count, x.pinned, muted, x.folder_id == Some(1), x.unread_mark, draft_text(&x.draft), x.read_outbox_max_id)
+                    (x.unread_count, x.pinned, muted, x.folder_id == Some(1), x.unread_mark, draft_text(&x.draft), (x.read_outbox_max_id, x.read_inbox_max_id))
                 }
-                _ => (0, false, false, false, false, String::new(), 0),
+                _ => (0, false, false, false, false, String::new(), (0, 0)),
             };
             let (unread_mentions, unread_reactions) = match &d.raw {
                 tl::enums::Dialog::Dialog(x) => (x.unread_mentions_count, x.unread_reactions_count),
@@ -1167,6 +1167,7 @@ impl Worker {
                 joined: true,
                 can_post: can_post(peer),
                 read_out,
+                read_in,
                 unread_mentions,
                 unread_reactions,
                 noforwards: noforwards(peer),

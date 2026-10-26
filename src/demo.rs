@@ -120,6 +120,8 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
             can_post: kind != ChatKind::Channel,
             // Olena hasn't read our last messages yet: a single check mark is visible.
             read_out: if id == 1 { 4 } else { i32::MAX },
+            // "Команда Rust" was read up to the second message: it opens at the third, under "Unread messages".
+            read_in: if id == 2 { 2 } else { 0 },
             // "Команда Rust" has two mentions and a reaction for us — shows the "@" and "❤" buttons.
             unread_mentions: if id == 2 { 2 } else { 0 },
             unread_reactions: if id == 2 { 1 } else { 0 },
@@ -766,6 +768,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::OpenChat(peer) if !app.demo_history().any(|(p, ..)| p == peer) => {
             app.push_event(Ev::History { peer, msgs: Vec::new(), older: false });
         }
+        // Like the server: opening a chat answers with its history page.
+        Cmd::OpenChat(peer) => {
+            let msgs = app.demo_history().find(|(p, ..)| *p == peer).map(|(_, _, m)| m.clone()).unwrap_or_default();
+            app.push_event(Ev::History { peer, msgs, older: false });
+        }
         Cmd::Typing(peer) if peer == PeerId::user_unchecked(1) => {
             // Olena "replies" when text is typed.
             app.push_event(Ev::Typing { peer, who: "Олена".into(), active: true });
@@ -802,6 +809,7 @@ fn person(id: i64, name: &str, status: &str, presence: Presence) -> ChatInfo {
         joined: true,
         can_post: true,
         read_out: 0,
+        read_in: 0,
         unread_mentions: 0,
         unread_reactions: 0,
         noforwards: false,
@@ -889,6 +897,7 @@ fn helper_bot() -> ChatInfo {
         joined: true,
         can_post: true,
         read_out: i32::MAX,
+        read_in: 0,
         unread_mentions: 0,
         unread_reactions: 0,
         noforwards: false,
@@ -972,6 +981,7 @@ fn forum_chat() -> (ChatInfo, Vec<Msg>) {
         joined: true,
         can_post: true,
         read_out: i32::MAX,
+        read_in: 0,
         unread_mentions: 0,
         unread_reactions: 0,
         noforwards: false,
@@ -1314,6 +1324,7 @@ fn demo_members() -> Vec<Member> {
                 joined: true,
                 can_post: true,
                 read_out: 0,
+                read_in: 0,
                 unread_mentions: 0,
                 unread_reactions: 0,
                 noforwards: false,

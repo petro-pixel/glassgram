@@ -14,6 +14,18 @@ pub(super) struct Scroll {
     pub(super) unseen_below: usize,
     /// (chat, message, when the jump started)
     pub(super) jump: Option<(PeerId, i32, f64)>,
+    /// The open chat had unread messages: where reading stopped and, once found, the first unread one.
+    pub(super) unread: Option<Unread>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct Unread {
+    peer: PeerId,
+    read_in: i32,
+    /// The first unread message: the "Unread messages" divider goes above it.
+    first: Option<i32>,
+    /// The older page that reaches it was asked for.
+    asked: bool,
 }
 
 /// Where the parts of the bottom row are this frame.
@@ -29,6 +41,35 @@ struct Bottom {
 }
 
 impl App {
+    /// Opening a chat with unread messages starts at the first of them, as in Telegram Desktop.
+    pub(super) fn unread_on_open(&mut self, peer: PeerId) {
+        let read_in = self.chats.iter().find(|c| c.id == peer).filter(|c| c.unread > 0 && c.read_in > 0).map(|c| c.read_in);
+        self.scroll.unread = read_in.map(|read_in| Unread { peer, read_in, first: None, asked: false });
+    }
+
+    /// A history page came: jump to the first unread message, or ask for the page that has it.
+    pub(super) fn unread_after_history(&mut self, peer: PeerId) {
+        let Some(u) = self.scroll.unread.filter(|u| u.peer == peer && u.first.is_none()) else { return };
+        let Some(list) = self.history.get(&peer) else { return };
+        match list.iter().find(|m| !m.out && m.id > u.read_in).map(|m| m.id) {
+            // Seen only if the page goes back far enough: otherwise an older unread one may be missing.
+            Some(id) if list.first().is_some_and(|m| m.id <= u.read_in) || u.asked => {
+                self.scroll.unread = Some(Unread { first: Some(id), ..u });
+                self.jump_in_chat(peer, id);
+            }
+            _ if !u.asked && list.first().is_some_and(|m| m.id > u.read_in) => {
+                self.scroll.unread = Some(Unread { asked: true, ..u });
+                self.send(Cmd::OpenAt { peer, id: u.read_in });
+            }
+            _ => {}
+        }
+    }
+
+    /// The first unread message of this chat, for the divider.
+    fn unread_divider(&self, peer: PeerId) -> Option<i32> {
+        self.scroll.unread.filter(|u| u.peer == peer).and_then(|u| u.first)
+    }
+
     pub(super) fn chat_area(&mut self, ui: &mut Ui, rect: Rect) {
         let Some(peer) = self.selected else {
             let pill = Rect::from_center_size(rect.center(), vec2(230.0, 44.0));
@@ -99,6 +140,7 @@ impl App {
                             }
                         }
                         let mut last_day = "";
+                        let unread_from = self.unread_divider(peer);
                         let jump = self.scroll.jump.filter(|j| j.0 == peer);
                         let mut heights = self.scroll.row_h.borrow_mut();
                         let spacing = ui.spacing().item_spacing.y;
@@ -129,6 +171,9 @@ impl App {
                             }
                             if new_day && day_chip(ui, &m.day).clicked() {
                                 open_calendar = Some(m.ts);
+                            }
+                            if unread_from == Some(m.id) {
+                                unread_bar(ui);
                             }
                             if album.len() > 1 {
                                 let ids: Vec<i32> = album.iter().map(|m| m.id).collect();
@@ -676,4 +721,13 @@ impl App {
             self.send(Cmd::Delete { peer, ids });
         }
     }
+}
+
+/// "Unread messages" across the history, above the first message that came while we were away.
+fn unread_bar(ui: &mut Ui) {
+    let w = ui.available_width();
+    let (r, _) = ui.allocate_exact_size(vec2(w, 30.0), Sense::hover());
+    let band = Rect::from_center_size(r.center(), vec2(w, 24.0));
+    ui.painter().rect_filled(band, 0.0, glass::veil(16));
+    ui.painter().text(band.center(), Align2::CENTER_CENTER, l!("Непрочитані повідомлення", "Unread messages"), FontId::proportional(12.5), ink_dim());
 }

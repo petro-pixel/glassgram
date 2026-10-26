@@ -644,6 +644,7 @@ impl App {
                 to_bottom: false,
                 unseen_below: 0,
                 jump: None,
+                unread: None,
             },
             revealed: HashSet::new(),
             compose: Compose::New,
@@ -830,6 +831,7 @@ impl App {
                 } else {
                     self.history.insert(peer, msgs);
                 }
+                self.unread_after_history(peer);
             }
             Ev::NewMsg(m) => self.on_new_message(m),
             Ev::Edited(m) => {
@@ -1011,6 +1013,7 @@ impl App {
         self.inline = None;
         self.suggest_reset();
         self.send(Cmd::LoadScheduled(id));
+        self.unread_on_open(id);
         if let Some(c) = self.chat_mut(id) {
             c.unread = 0;
             c.unread_mark = false;
@@ -1075,6 +1078,7 @@ impl App {
                 joined: true,
                 can_post: true,
                 read_out: 0,
+                read_in: 0,
                 unread_mentions: 0,
                 unread_reactions: 0,
                 noforwards: false,
