@@ -5,7 +5,7 @@
 Десктопний клієнт Telegram на Rust з інтерфейсом у стилі **Liquid Glass**.
 
 <!-- progress -->
-**Готовність за дорожньою картою: 42%** `████████░░░░░░░░░░░░` — 63 готово, 12 частково, 89 попереду ([ROADMAP.md](ROADMAP.md))
+**Готовність за дорожньою картою: 42%** `████████░░░░░░░░░░░░` — 64 готово, 12 частково, 89 попереду ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -94,6 +94,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/app/birthdays.rs`, `src/backend/birthdays.rs` | Дні народження: нагадування над списком чатів, дата в інформації про користувача і в «Мій акаунт» |
 | `src/app/botstart.rs`, `src/backend/botstart.rs` | Діплінки ботів `t.me/<bot>?start=…`: смуга «Почати» з параметром |
 | `src/app/similar.rs`, `src/backend/similar.rs` | Вкладка «Схожі канали» в інформації про канал |
+| `src/app/saved.rs`, `src/backend/saved.rs` | «Збережене» за джерелами: «Усі» і вкладка на кожен чат |
 | `src/app/privacy.rs`, `src/backend/privacy.rs` | Винятки правил приватності (завжди / ніколи не дозволяти) і глобальні перемикачі: нові чати не з контактів, час прочитання, хто може писати |
 | `src/app/polls.rs`, `src/backend/polls.rs` | Вікно «Нове опитування»: опитування й вікторини |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Міні-застосунки: запити до сервера, процес вікна WebView (`glassgram --webview`) і його міст |

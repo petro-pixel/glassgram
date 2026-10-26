@@ -78,6 +78,7 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
                 views: (id == 4).then_some(12_400),
                 noforwards: false,
                 webpage: None,
+                saved_from: None,
                 time: format!("{}:{:02}", 9 + i, (id * 7 + i as i64 * 13) % 60),
                 ts: 0,
                 day: "Сьогодні".into(),
@@ -178,6 +179,7 @@ fn outgoing(peer: PeerId, markup: String, reply_to: Option<i32>) -> Msg {
         views: None,
         noforwards: false,
         webpage: None,
+        saved_from: None,
         id: 10_000 + rand_ish(),
         peer,
         out: true,
@@ -524,6 +526,27 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let q = query.to_lowercase();
             let list = demo_members().into_iter().filter(|m| (!admins || m.role != MemberRole::Member) && m.chat.title.to_lowercase().contains(&q)).collect();
             app.push_event(Ev::Members { peer, query, admins, list });
+        }
+        Cmd::LoadSavedDialogs => {
+            // Saved Messages (id 3) hold our own note, a channel post and a photo from Олена.
+            let list = [3, 4, 1].into_iter().filter_map(|id| app.demo_chat(PeerId::user_unchecked(id)).cloned()).collect();
+            app.push_event(Ev::SavedDialogs(list));
+        }
+        Cmd::LoadSavedHistory { saved, source, .. } => {
+            let mut msgs: Vec<Msg> = app.demo_history().find(|(p, _, _)| *p == saved).map(|(_, _, m)| m.clone()).unwrap_or_default();
+            // Message 1 is our note, 2 the channel post.
+            for m in &mut msgs {
+                m.saved_from = Some(PeerId::user_unchecked(if m.id == 1 { 3 } else { 4 }));
+            }
+            msgs.push(Msg {
+                id: 900,
+                out: true,
+                forwarded: Some("Олена Коваль".into()),
+                saved_from: Some(PeerId::user_unchecked(1)),
+                ..outgoing(saved, "Макет нового екрана налаштувань — глянь увечері".into(), None)
+            });
+            msgs.retain(|m| m.saved_from == Some(source));
+            app.push_event(Ev::SavedHistory { source, msgs, older: false });
         }
         Cmd::LoadSimilarChannels(peer) => {
             let chats = [(61, "Rust Weekly", "12 480"), (62, "Дизайн щодня", "8 115"), (63, "Open Source UA", "3 902")]

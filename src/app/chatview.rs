@@ -329,6 +329,11 @@ impl App {
                 self.pins_list_view(ui, peer, &chat, panel);
             }
         }
+        let saved_h = self.saved_bar_h(peer);
+        if saved_h > 0.0 {
+            let bar = Rect::from_min_size(pos2(rect.left(), header.bottom() + 8.0 + self.pin_bar_h(peer)), vec2(rect.width(), saved_h - 8.0));
+            self.saved_bar(ui, peer, bar);
+        }
         self.jump_buttons(ui, peer, &chat, rect, above);
         if self.read_by.as_ref().is_some_and(|r| r.0 != peer) {
             self.read_by = None;

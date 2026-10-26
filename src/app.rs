@@ -49,6 +49,7 @@ mod chatedit;
 mod birthdays;
 mod botstart;
 mod similar;
+mod saved;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -524,6 +525,10 @@ pub struct App {
     birthdays_requested: bool,
     birthdays_dismissed: Option<jiff::civil::Date>,
     birthday_edit: Option<backend::Birthday>,
+    /// Saved Messages: where messages came from, the source picked (`None` — all), sources fully loaded.
+    saved_sources: Vec<ChatInfo>,
+    saved_source: Option<PeerId>,
+    saved_exhausted: HashSet<PeerId>,
     /// Start parameters from `t.me/<bot>?start=` links, until Start is pressed in that bot chat.
     bot_start: HashMap<PeerId, String>,
     /// "Edit group / channel" box and the photos picked in it.
@@ -813,6 +818,9 @@ impl App {
             birthdays_dismissed: None,
             birthday_edit: None,
             bot_start: HashMap::new(),
+            saved_sources: Vec::new(),
+            saved_source: None,
+            saved_exhausted: HashSet::new(),
             chat_photo_tx,
             chat_photo_rx,
             outbox: Vec::new(),
@@ -882,6 +890,8 @@ impl App {
                 }
             }
             Ev::Birthdays(list) => self.birthdays = list,
+            Ev::SavedDialogs(list) => self.saved_sources = list,
+            Ev::SavedHistory { source, msgs, older } => self.on_saved_history(source, msgs, older),
             Ev::BotStart { peer, param } => {
                 self.bot_start.insert(peer, param);
             }
@@ -1245,6 +1255,7 @@ impl App {
         self.send(Cmd::OpenChat(id));
         self.open_chat_view(id);
         self.topic = None;
+        self.saved_reset(id);
         if self.chats.iter().any(|c| c.id == id && c.forum) {
             self.send(Cmd::LoadTopics(id));
         }
@@ -2936,6 +2947,7 @@ impl App {
             return;
         }
         let topic = self.topic.filter(|_| chat.forum);
+        let source = self.saved_source.filter(|_| chat.kind == ChatKind::Saved);
         let group = matches!(chat.kind, ChatKind::Group);
         // In channels views replace ticks; in "Saved Messages" there is nobody to read.
         let ticks = |m: &Msg| (m.out && !matches!(chat.kind, ChatKind::Channel | ChatKind::Saved)).then_some(m.id <= chat.read_out);
@@ -2952,7 +2964,7 @@ impl App {
         let mut open_calendar = None;
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect);
-        let pin_h = self.pin_bar_h(peer);
+        let pin_h = self.pin_bar_h(peer) + self.saved_bar_h(peer);
         let scroll_bottom = std::mem::take(&mut self.scroll_bottom);
         let scrolled = egui::ScrollArea::vertical()
             .id_salt(("history", peer))
@@ -2967,10 +2979,12 @@ impl App {
                     }
                     Some(all) => {
                         // In a forum, show only the open topic.
-                        let msgs: Vec<&Msg> = all.iter().filter(|m| topic.is_none_or(|t| m.topic_id() == t)).collect();
-                        let exhausted = match topic {
-                            Some(t) => self.topic_exhausted.contains(&(peer, t)),
-                            None => self.exhausted.get(&peer).copied().unwrap_or(false),
+                        // Saved Messages likewise show only the picked source.
+                        let msgs: Vec<&Msg> = all.iter().filter(|m| topic.is_none_or(|t| m.topic_id() == t) && source.is_none_or(|s| m.saved_from == Some(s))).collect();
+                        let exhausted = match (topic, source) {
+                            (Some(t), _) => self.topic_exhausted.contains(&(peer, t)),
+                            (_, Some(s)) => self.saved_exhausted.contains(&s),
+                            _ => self.exhausted.get(&peer).copied().unwrap_or(false),
                         };
                         if !msgs.is_empty() && !exhausted {
                             let w = ui.available_width();
@@ -3113,9 +3127,10 @@ impl App {
         self.track_bottom(&scrolled);
         if let Some(before) = load_older {
             self.loading_older = true;
-            match topic {
-                Some(t) => self.send(Cmd::OpenTopic { peer, topic: t, before: Some(before) }),
-                None => self.send(Cmd::LoadOlder { peer, before }),
+            match (topic, source) {
+                (Some(t), _) => self.send(Cmd::OpenTopic { peer, topic: t, before: Some(before) }),
+                (_, Some(s)) => self.send(Cmd::LoadSavedHistory { saved: peer, source: s, before: Some(before) }),
+                _ => self.send(Cmd::LoadOlder { peer, before }),
             }
         }
         if let Some(a) = action {

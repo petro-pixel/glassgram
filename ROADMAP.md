@@ -44,7 +44,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Drag to reorder pinned chats (main list, archive, inside a folder) and folders in the column or tabs (`reorderPinnedDialogs`, `updateDialogFiltersOrder`)
 - 🟡 New chat (pencil next to search): contacts with search (`contacts.getContacts`, `contacts.search`), new group (`createChat`), new channel (`channels.createChannel`); still missing: group/channel photo, public link and channel type step, adding subscribers to a new channel
 - ✅ Contacts: list with search (pencil → Contacts), "New contact" by name and phone (`importContacts`), "Add to contacts" / "Delete contact" in user info (`addContact`, `deleteContacts`), block / unblock and stop / restart bots (`contacts.block`, `unblock`), blocked list at the top of Privacy and Security (`getBlocked`)
-- ⬜ **P1** Saved Messages as separate dialogs by source and reaction tags (`getSavedDialogs`, `savedReactionTags`)
+- ✅ Saved Messages by source: a strip of "All" and the chats messages were saved from, each with its own history (`getSavedDialogs`, `getSavedHistory`)
+- ⬜ **P1** Saved Messages reaction tags (`savedReactionTags`)
 - ⬜ **P1** Folder tags in the chat list (`toggleDialogFilterTags`), suggested folders
 - ✅ Contact birthday reminders (`contacts.getBirthdays`): a card above the main list opens the chat, hidden until tomorrow with ×
 - ⬜ **P2** Shared folders by link: join, update, leave (`chatlists.*`)

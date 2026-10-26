@@ -47,6 +47,7 @@ mod chatedit;
 mod birthdays;
 mod botstart;
 mod similar;
+mod saved;
 pub use birthdays::Birthday;
 pub use chatedit::ChatRights;
 pub use privacy::{GlobalPrivacy, PrivacyExceptions};
@@ -198,6 +199,10 @@ pub enum Cmd {
     SetChatRights { peer: PeerId, rights: ChatRights },
     /// Slow mode of a supergroup, in seconds (0 — off).
     SetSlowMode { peer: PeerId, seconds: i32 },
+    /// Where the messages in Saved Messages came from.
+    LoadSavedDialogs,
+    /// Saved Messages from one source; `saved` is the Saved Messages chat itself.
+    LoadSavedHistory { saved: PeerId, source: PeerId, before: Option<i32> },
     /// Channels similar to this one, for its profile.
     LoadSimilarChannels(PeerId),
     /// `t.me/<bot>?start=<param>`: open the bot chat ready to start with the parameter.
@@ -363,6 +368,10 @@ pub enum Ev {
     WebAppMethodResult { bot: PeerId, req_id: String, result: Result<String, String> },
     /// Contacts whose birthday is today.
     Birthdays(Vec<(ChatInfo, Birthday)>),
+    /// Sources of Saved Messages, newest first.
+    SavedDialogs(Vec<ChatInfo>),
+    /// A page of Saved Messages from one source.
+    SavedHistory { source: PeerId, msgs: Vec<Msg>, older: bool },
     /// Recommended channels for a channel's profile; `total` counts those shown only with Premium.
     SimilarChannels { peer: PeerId, chats: Vec<ChatInfo>, total: i32 },
     /// The bot chat was opened from a start link: the Start bar carries `param`.
@@ -916,6 +925,9 @@ pub struct Msg {
     /// Link preview under the text.
     #[serde(default)]
     pub webpage: Option<WebPageInfo>,
+    /// In Saved Messages: the chat it was saved from. Not cached: source tabs load their own pages.
+    #[serde(skip)]
+    pub saved_from: Option<PeerId>,
 }
 
 impl Msg {
@@ -952,6 +964,7 @@ impl Msg {
             views: None,
             noforwards: false,
             webpage: None,
+            saved_from: None,
         }
     }
 
@@ -2272,6 +2285,7 @@ impl Worker {
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
+            cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. }) => self.saved_cmd(cmd).await,
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
@@ -3462,6 +3476,7 @@ fn convert(m: &Message, names: &Names) -> Msg {
         views: m.view_count(),
         noforwards: matches!(&m.raw, tl::enums::Message::Message(x) if x.noforwards),
         webpage: suggest::message_web_page(m),
+        saved_from: saved::saved_from(&m.raw),
     }
 }
 
