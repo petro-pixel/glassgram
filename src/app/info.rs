@@ -313,9 +313,7 @@ impl App {
                 self.ctx.copy_text(text);
                 self.toast = Some((l!("Скопійовано", "Copied").into(), 0.0, false));
             }
-            Do::OpenUrl(url) => {
-                let _ = open::that_detached(url);
-            }
+            Do::OpenUrl(url) => self.open_link(&url),
             Do::Member(c) => {
                 let id = c.id;
                 if !self.chats.iter().any(|x| x.id == id) {

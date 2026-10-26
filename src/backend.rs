@@ -1558,8 +1558,11 @@ impl Worker {
                     let req = tl::functions::messages::GetBotCallbackAnswer { game: false, peer: r.into(), msg_id: id, data: Some(data), password: None };
                     match client.invoke(&req).await {
                         Ok(tl::enums::messages::BotCallbackAnswer::Answer(a)) => {
-                            if let Some(url) = a.url {
-                                crate::platform::open(url);
+                            // A bot decides the link: only web links, never files or protocol handlers.
+                            if let Some(url) = a.url
+                                && !crate::platform::open_url(&url)
+                            {
+                                out.send(Ev::Error(lf!("Посилання не відкрито: {url}", "Link not opened: {url}")));
                             }
                             if let Some(text) = a.message.filter(|t| !t.is_empty()) {
                                 out.send(Ev::BotAnswer { text, alert: a.alert });
@@ -3883,7 +3886,8 @@ async fn download(client: &Client, r: PeerRef, id: i32) -> Result<PathBuf, Strin
         .ok_or(l!("Повідомлення не знайдено", "Message not found"))?;
     let media = msg.media().ok_or(l!("У повідомленні немає файлу", "The message has no file"))?;
     let name = match &media {
-        Media::Document(d) => d.name().filter(|n| !n.is_empty()).map(str::to_owned),
+        // The sender chooses the name: keep it inside Downloads.
+        Media::Document(d) => d.name().filter(|n| !n.is_empty()).map(crate::platform::safe_file_name),
         _ => None,
     }
     .unwrap_or_else(|| format!("telegram_{}_{id}.jpg", r.id.bot_api_dialog_id_unchecked()));
@@ -3898,7 +3902,7 @@ async fn download(client: &Client, r: PeerRef, id: i32) -> Result<PathBuf, Strin
         n += 1;
     }
     client.download_media(&media, &path).await.map_err(|e| lf!("Завантаження: {e}", "Download: {e}"))?;
-    crate::platform::open(&path);
+    crate::platform::open_file(&path);
     Ok(path)
 }
 

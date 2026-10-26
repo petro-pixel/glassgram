@@ -42,8 +42,7 @@ impl Voice {
 
 impl Recorder {
     pub fn start() -> Result<Self, String> {
-        let dir = std::env::temp_dir();
-        let path = dir.join(format!("glassgram-voice-{}-{}.ogg", std::process::id(), jiff::Timestamp::now().as_millisecond()));
+        let path = crate::platform::temp_file("voice.ogg");
         let mut mic = crate::camera::Mic::open()?;
         let mut child = crate::platform::tool("ffmpeg")
             .args(["-loglevel", "error"])

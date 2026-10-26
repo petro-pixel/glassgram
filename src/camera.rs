@@ -213,7 +213,7 @@ pub struct Round {
 impl RoundRecorder {
     /// `camera` is an id from `list()`; empty means the first camera found.
     pub fn start(camera: &str) -> Result<Self, String> {
-        let path = std::env::temp_dir().join(format!("glassgram-round-{}-{}.mp4", std::process::id(), jiff::Timestamp::now().as_millisecond()));
+        let path = crate::platform::temp_file("round.mp4");
         let camera = match std::env::var("GLASSGRAM_CAMERA") {
             Ok(c) => c,
             Err(_) if !camera.is_empty() => camera.to_owned(),

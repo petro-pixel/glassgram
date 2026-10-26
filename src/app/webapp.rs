@@ -185,13 +185,15 @@ impl App {
                 self.send(Cmd::WebAppMethod { bot, req_id: str_of("req_id"), method: str_of("method"), params });
             }
             "web_app_open_tg_link" => {
+                // Without the leading slash `https://t.me@host/…` would point to another site.
                 let path = str_of("path_full");
-                self.apply(opened.peer, Action::Open(format!("https://t.me{path}")));
+                if path.starts_with('/') {
+                    self.apply(opened.peer, Action::Open(format!("https://t.me{path}")));
+                }
             }
-            "web_app_read_text_from_clipboard" => {
-                let text = arboard::Clipboard::new().and_then(|mut c| c.get_text()).ok();
-                reply(self, "clipboard_text_received", serde_json::json!({ "req_id": str_of("req_id"), "data": text }));
-            }
+            // The clipboard may hold passwords and codes: a page doesn't get it without asking,
+            // and `null` is the answer the API defines for "no access".
+            "web_app_read_text_from_clipboard" => reply(self, "clipboard_text_received", serde_json::json!({ "req_id": str_of("req_id"), "data": null })),
             // Payments are not supported yet: tell the page right away.
             "web_app_open_invoice" => reply(self, "invoice_closed", serde_json::json!({ "slug": str_of("slug"), "status": "failed" })),
             _ => {}

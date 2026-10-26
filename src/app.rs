@@ -1101,7 +1101,7 @@ impl App {
                 self.exporting.remove(&peer);
                 self.toast = Some((lf!("Експортовано {count} повідомлень", "Exported {count} messages"), 0.0, false));
                 if count > 0 {
-                    let _ = open::that_detached(&dir);
+                    crate::platform::open(&dir);
                 }
             }
             Ev::Comments { peer, post, discussion, root, msgs, older } => {
@@ -1767,7 +1767,7 @@ impl App {
             Action::View(id) => self.open_viewer(peer, id),
             Action::OpenMap(lat, lon) => {
                 let url = format!("https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=16/{lat}/{lon}");
-                self.ctx.open_url(egui::OpenUrl::new_tab(url));
+                self.open_link(&url);
             }
             Action::React(id, emoji) => {
                 let Some(m) = self.find_mut(peer, id) else { return };
@@ -1808,7 +1808,7 @@ impl App {
                 let Some(b) = self.find(peer, id).and_then(|m| m.buttons.get(row)?.get(col)).cloned() else { return };
                 match b.action {
                     ButtonAction::Callback(data) => self.send(Cmd::PressButton { peer, id, data }),
-                    ButtonAction::Url(url) => self.ctx.open_url(egui::OpenUrl::new_tab(url)),
+                    ButtonAction::Url(url) => self.open_link(&url),
                     ButtonAction::Text => {
                         let reply_to = self.topic.filter(|t| *t != GENERAL_TOPIC);
                         self.send(Cmd::Send { peer, text: b.text, reply_to, opts: SendOpts::default() });
@@ -1836,7 +1836,7 @@ impl App {
                 Some('/') => self.send(Cmd::Send { peer, text: target, reply_to: self.reply_target(), opts: SendOpts::default() }),
                 // A mention opens the chat in the client (a public one without joining).
                 Some('@') if !self.demo => self.send(Cmd::ResolveUsername(target[1..].to_owned())),
-                Some('@') => self.ctx.open_url(egui::OpenUrl::new_tab(format!("https://t.me/{}", &target[1..]))),
+                Some('@') => self.open_link(&format!("https://t.me/{}", &target[1..])),
                 _ if botstart::tme_bot_start(&target).is_some() => {
                     if let Some((username, param)) = botstart::tme_bot_start(&target) {
                         self.open_bot_start(username, param);
@@ -1853,11 +1853,20 @@ impl App {
                 }
                 _ => {
                     let url = if target.contains("://") || target.starts_with("mailto:") { target } else { format!("https://{target}") };
-                    self.ctx.open_url(egui::OpenUrl::new_tab(url));
+                    self.open_link(&url);
                 }
             },
             // Handled by `chat_view_action`.
             Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) => {}
+        }
+    }
+
+    /// Every link from a message, button or profile goes through here: unsafe schemes are refused.
+    pub(super) fn open_link(&mut self, url: &str) {
+        // Bare "example.com" or "t.me/x" from text is a web link.
+        let full = if url.contains("://") || url.starts_with("mailto:") { url.to_owned() } else { format!("https://{url}") };
+        if !crate::platform::open_url(&full) {
+            self.toast = Some((lf!("Посилання не відкрито: непідтримуваний протокол ({url})", "Link not opened: unsupported protocol ({url})"), 0.0, true));
         }
     }
 
@@ -4841,9 +4850,9 @@ fn seek_area(ui: &mut Ui, id: i32, r: Rect, play: PlayView) -> Option<Action> {
     (resp.clicked() || resp.drag_stopped()).then(|| Action::Seek(id, (pos.x - r.left()) / r.width()))
 }
 
-/// Open a file in the default application.
+/// Open a received file in the default application; programs and scripts are only shown in their folder.
 fn open_external(path: &std::path::Path) {
-    crate::platform::open(path);
+    crate::platform::open_file(path);
 }
 
 /// Album layout: how many photos in each row.

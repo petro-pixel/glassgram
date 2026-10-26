@@ -51,7 +51,7 @@ pub async fn run(client: &Client, r: PeerRef, title: &str, with_media: bool, dir
         if with_media && let Some(md) = &media {
             let name = match md {
                 Media::Photo(_) => Some(format!("photo_{}.jpg", m.id())),
-                Media::Document(d) => Some(format!("{}_{}", m.id(), d.name().filter(|n| !n.is_empty()).unwrap_or("file"))),
+                Media::Document(d) => Some(format!("{}_{}", m.id(), crate::platform::safe_file_name(d.name().unwrap_or_default()))),
                 _ => None,
             };
             if let Some(name) = name {

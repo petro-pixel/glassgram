@@ -86,11 +86,14 @@ pub fn run() {
     let builder = WebViewBuilder::new()
         .with_url(&open.url)
         .with_initialization_script(&init)
+        // Mini apps are web pages: never let one navigate the window to local files or app handlers.
+        .with_navigation_handler(|url| ["https:", "http:", "about:", "blob:", "data:"].iter().any(|s| url.starts_with(s)))
         .with_ipc_handler(|req| {
             let Ok(call) = serde_json::from_str::<FromView>(req.body()) else { return };
             if local(&call) {
-                if let Some(url) = call.data.get("url").and_then(|u| u.as_str()) {
-                    crate::platform::open(url);
+                // The page chooses the link: web links only, as Telegram's `openLink` allows.
+                if let Some(url) = call.data.get("url").and_then(|u| u.as_str()).filter(|u| u.starts_with("https://") || u.starts_with("http://")) {
+                    crate::platform::open_url(url);
                 }
                 return;
             }

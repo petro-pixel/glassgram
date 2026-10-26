@@ -151,7 +151,7 @@ pub(super) fn square_photo(path: &Path) -> Result<PathBuf, String> {
     let side = img.width().min(img.height());
     let img = img.crop_imm((img.width() - side) / 2, (img.height() - side) / 2, side, side);
     let img = if side > PHOTO_PX { img.resize_exact(PHOTO_PX, PHOTO_PX, image::imageops::FilterType::Lanczos3) } else { img };
-    let out = std::env::temp_dir().join(format!("glassgram-avatar-{}.jpg", jiff::Timestamp::now().as_millisecond()));
+    let out = crate::platform::temp_file("avatar.jpg");
     let file = std::fs::File::create(&out).map_err(|e| e.to_string())?;
     image::codecs::jpeg::JpegEncoder::new_with_quality(std::io::BufWriter::new(file), 90)
         .encode_image(&img.to_rgb8())
