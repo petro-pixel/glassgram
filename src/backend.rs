@@ -45,6 +45,7 @@ mod polls;
 mod privacy;
 mod chatedit;
 mod birthdays;
+mod botstart;
 pub use birthdays::Birthday;
 pub use chatedit::ChatRights;
 pub use privacy::{GlobalPrivacy, PrivacyExceptions};
@@ -196,6 +197,10 @@ pub enum Cmd {
     SetChatRights { peer: PeerId, rights: ChatRights },
     /// Slow mode of a supergroup, in seconds (0 — off).
     SetSlowMode { peer: PeerId, seconds: i32 },
+    /// `t.me/<bot>?start=<param>`: open the bot chat ready to start with the parameter.
+    OpenBotStart { username: String, param: String },
+    /// Start a bot with a deep-link parameter (`messages.startBot`).
+    StartBot { peer: PeerId, param: String },
     /// Our birthday (`None` removes it).
     SetBirthday(Option<Birthday>),
     /// Contacts' birthdays today, for the reminder above the chat list.
@@ -353,7 +358,10 @@ pub enum Ev {
     BotMenuApp { peer: PeerId, text: String, url: String },
     /// Answer to `WebAppMethod`: the result JSON or an error.
     WebAppMethodResult { bot: PeerId, req_id: String, result: Result<String, String> },
+    /// Contacts whose birthday is today.
     Birthdays(Vec<(ChatInfo, Birthday)>),
+    /// The bot chat was opened from a start link: the Start bar carries `param`.
+    BotStart { peer: PeerId, param: String },
     /// A group or channel got a new title.
     ChatTitle { peer: PeerId, title: String },
     /// A contact was added or renamed.
@@ -2259,6 +2267,7 @@ impl Worker {
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
+            cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
             cmd @ (Cmd::EditChat { .. } | Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. }) => self.chat_edit_cmd(cmd).await,
             cmd @ (Cmd::LoadGlobalPrivacy | Cmd::SetGlobalPrivacy(_)) => self.global_privacy_cmd(cmd).await,

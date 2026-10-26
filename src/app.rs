@@ -47,6 +47,7 @@ mod polls;
 mod privacy;
 mod chatedit;
 mod birthdays;
+mod botstart;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -522,6 +523,8 @@ pub struct App {
     birthdays_requested: bool,
     birthdays_dismissed: Option<jiff::civil::Date>,
     birthday_edit: Option<backend::Birthday>,
+    /// Start parameters from `t.me/<bot>?start=` links, until Start is pressed in that bot chat.
+    bot_start: HashMap<PeerId, String>,
     /// "Edit group / channel" box and the photos picked in it.
     chat_edit: Option<chatedit::ChatEdit>,
     chat_photo_tx: mpsc::Sender<(PeerId, PathBuf)>,
@@ -808,6 +811,7 @@ impl App {
             birthdays_requested: false,
             birthdays_dismissed: None,
             birthday_edit: None,
+            bot_start: HashMap::new(),
             chat_photo_tx,
             chat_photo_rx,
             outbox: Vec::new(),
@@ -877,6 +881,9 @@ impl App {
                 }
             }
             Ev::Birthdays(list) => self.birthdays = list,
+            Ev::BotStart { peer, param } => {
+                self.bot_start.insert(peer, param);
+            }
             Ev::History { peer, msgs, older } => {
                 if older {
                     self.loading_older = false;
@@ -1780,6 +1787,11 @@ impl App {
                 // A mention opens the chat in the client (a public one without joining).
                 Some('@') if !self.demo => self.send(Cmd::ResolveUsername(target[1..].to_owned())),
                 Some('@') => self.ctx.open_url(egui::OpenUrl::new_tab(format!("https://t.me/{}", &target[1..]))),
+                _ if botstart::tme_bot_start(&target).is_some() => {
+                    if let Some((username, param)) = botstart::tme_bot_start(&target) {
+                        self.open_bot_start(username, param);
+                    }
+                }
                 _ if tme_web_app(&target).is_some() => {
                     if let Some((username, app, start_param)) = tme_web_app(&target) {
                         self.open_web_app_link(username, app, start_param);

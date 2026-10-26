@@ -116,7 +116,7 @@ Time estimate — [at the end of the file](#time-estimate).
 
 ## 7. Bots and mini apps
 - ✅ Inline mode, callback and URL buttons, regular bot keyboard
-- 🟡 Bot command menu button next to the field and the "Start" bar in an empty bot chat (sends `/start`). Left: deep-link start parameters (`messages.startBot` with `start_param`)
+- ✅ Bot command menu button next to the field and the "Start" bar in an empty bot chat (sends `/start`); `t.me/<bot>?start=<param>` links open the bot with a Start bar that passes the parameter (`messages.startBot`)
 - 🟡 **Mini apps (Web Apps)**: a separate window process (`glassgram --webview`) with the system WebView through `wry`
       (WebView2 / WebKitGTK / WKWebView); opened from inline and keyboard buttons, the bot's menu button and `t.me/bot/app`,
       `t.me/bot?startapp` links (`requestWebView`, `requestSimpleWebView`, `requestMainWebView`, `requestAppWebView`, `prolongWebView`);

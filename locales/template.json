@@ -525,6 +525,7 @@
   "Could not open the image: {e}": "",
   "Birthday not saved: {e}": "",
   "Birthdays: {e}": "",
+  "Bot not started: {e}": "",
   "Could not edit the chat: {e}": "",
   "Changes saved": "",
   "Chat photo updated": "",

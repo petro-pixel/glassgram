@@ -177,17 +177,17 @@ impl App {
         }
     }
 
-    /// "Start" instead of the composer in a bot chat without messages.
+    /// "Start" instead of the composer in a bot chat without messages, or opened from a start link.
     /// Returns `true` when the bar replaced the composer.
     pub(super) fn start_bot_bar(&mut self, ui: &mut Ui, peer: PeerId, kind: ChatKind, rect: Rect) -> bool {
         let empty = self.history.get(&peer).is_some_and(Vec::is_empty);
-        if kind != ChatKind::Bot || !empty || !self.draft.is_empty() || self.topic.is_some() {
+        let linked = self.pending_bot_start(peer).is_some();
+        if kind != ChatKind::Bot || !(empty || linked) || !self.draft.is_empty() || self.topic.is_some() {
             return false;
         }
         let bar = Rect::from_min_max(pos2(rect.left(), rect.bottom() - COMPOSER_H), rect.max);
         if glass::button(ui, bar, ("start-bot", peer), l!("Почати", "Start"), true, true).clicked() {
-            // Without a start parameter Telegram Desktop also just sends /start.
-            self.send(Cmd::Send { peer, text: "/start".into(), reply_to: None, opts: Default::default() });
+            self.start_bot(peer);
         }
         true
     }

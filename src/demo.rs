@@ -43,7 +43,7 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
         &[(false, "Андрій", "Завтра о 10:00 зідзвон?"), (true, "", "Так, домовились 👍")],
         &[(true, "", "/weather Київ"), (false, "WeatherBot", "☀ Київ: +18°, ясно, вітер 3 м/с")],
         &[(false, "Софія", "Скинула макети у Figma"), (false, "Софія", "📄"), (false, "Максим", "🐱"), (false, "Максим", "Супер, гляну")],
-        &[(false, "Марія", "Дякую за допомогу!")],
+        &[(false, "Марія", "Дякую за допомогу!"), (false, "Марія", "Ось бот, про якого казала: [t.me/GlassHelperBot?start=from_maria](https://t.me/GlassHelperBot?start=from_maria)")],
         &[(false, "Олег", "Архівний чат: тут давно нічого не відбувається")],
     ];
 
@@ -584,6 +584,15 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 WebAppKind::Main { .. } | WebAppKind::Named { .. } => "https://example.org/app".into(),
             };
             app.push_event(Ev::WebAppOpened(WebAppOpened { peer, bot, kind, url, query_id: None }));
+        }
+        Cmd::OpenBotStart { param, .. } => {
+            app.push_event(Ev::ChatFound(helper_bot()));
+            app.push_event(Ev::BotStart { peer: PeerId::user_unchecked(HELPER_BOT), param });
+        }
+        Cmd::StartBot { peer, param } => {
+            app.push_event(Ev::NewMsg(outgoing(peer, "/start".into(), None)));
+            let answer = format!("Привіт! Ви прийшли за посиланням з параметром «{param}».");
+            app.push_event(Ev::NewMsg(Msg { out: false, sender: "GlassHelperBot".into(), id: 20_000 + rand_ish(), ..outgoing(peer, answer, None) }));
         }
         Cmd::OpenWebAppLink { username, .. } => app.push_event(Ev::Notice(format!("t.me/{username}"))),
         Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } => {}
