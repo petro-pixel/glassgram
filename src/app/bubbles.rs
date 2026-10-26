@@ -404,10 +404,6 @@ pub(super) fn seek_area(ui: &mut Ui, id: i32, r: Rect, play: PlayView) -> Option
     (resp.clicked() || resp.drag_stopped()).then(|| Action::Seek(id, (pos.x - r.left()) / r.width()))
 }
 
-/// Open a received file in the default application; programs and scripts are only shown in their folder.
-pub(super) fn open_external(path: &std::path::Path) {
-    crate::platform::open_file(path);
-}
 
 /// Album layout: how many photos in each row.
 pub(super) fn album_rows(n: usize) -> Vec<usize> {
@@ -787,8 +783,15 @@ pub(super) fn bubble(
             }
             Some(span) if span.style == Style::Link && span.target.is_some() => {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                let target = span.target.clone().unwrap_or_default();
+                let text = m.text.get(span.start..span.end).unwrap_or_default();
+                let hidden = format::hidden_link(text, &target);
+                // The real address under the pointer, as in a browser's status bar.
+                if hidden {
+                    egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), ui.scope_id().with(("link-target", m.id)), egui::PopupAnchor::Pointer).show(|ui| ui.label(&target));
+                }
                 if resp.clicked() {
-                    return span.target.clone().map(Action::Open);
+                    return Some(if hidden { Action::OpenHidden(target) } else { Action::Open(target) });
                 }
             }
             _ => {}

@@ -78,13 +78,23 @@ pub fn runnable(path: &std::path::Path) -> bool {
 /// Returns `false` when only the folder was opened.
 pub fn open_file(path: &std::path::Path) -> bool {
     if runnable(path) {
-        if let Some(dir) = path.parent() {
-            let _ = open::that_detached(dir);
-        }
+        reveal(path);
         return false;
     }
     let _ = open::that_detached(path);
     true
+}
+
+/// Shows the folder a file is in.
+pub fn reveal(path: &std::path::Path) {
+    if let Some(dir) = path.parent() {
+        let _ = open::that_detached(dir);
+    }
+}
+
+/// Opens a received file even if it is a program: only after the user said so.
+pub fn run_file(path: &std::path::Path) {
+    let _ = open::that_detached(path);
 }
 
 /// A file name from the network made safe to save: only the last path component, no characters

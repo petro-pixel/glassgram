@@ -60,7 +60,7 @@ impl Worker {
                 tokio::spawn(async move {
                     let res = download(&client, r, id).await;
                     out.send(match res {
-                        Ok(path) => Ev::Notice(lf!("Збережено: {}", "Saved: {}", path.display())),
+                        Ok(path) => Ev::Downloaded(path),
                         Err(e) => Ev::Error(e),
                     });
                 });

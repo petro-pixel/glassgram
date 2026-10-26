@@ -62,6 +62,7 @@ mod recording;
 mod media;
 mod folders;
 mod history;
+mod confirm;
 mod bubbles;
 use bubbles::*;
 use chatlist::{NewChat, Reorder, sort_chats};
@@ -121,6 +122,8 @@ enum Action {
     Download(i32),
     /// Click on a link, mention, hashtag or bot command.
     Open(String),
+    /// A link whose text differs from its address: asks before opening.
+    OpenHidden(String),
     RevealSpoiler(i32),
     /// Enable selection with this message or toggle it in the selection.
     Pick(i32),
@@ -516,6 +519,8 @@ pub struct App {
     saved: saved::Saved,
     /// The story strip and the story being watched.
     stories: stories::Stories,
+    /// A hidden link or a received program waiting for "Open anyway".
+    opening: Option<confirm::Opening>,
     /// Start parameters from `t.me/<bot>?start=` links, until Start is pressed in that bot chat.
     bot_start: HashMap<PeerId, String>,
     /// "Edit group / channel" box and the photos picked in it.
@@ -744,6 +749,7 @@ impl App {
             session_extras: false,
             birthdays: birthdays::Birthdays::default(),
             bot_start: HashMap::new(),
+            opening: None,
             stories: stories::Stories::default(),
             saved: saved::Saved::default(),
             chat_photo_tx,
@@ -797,6 +803,10 @@ impl App {
             ev @ Ev::Comments { .. } => self.comments_event(ev),
             ev @ (Ev::Topics { .. } | Ev::TopicHistory { .. }) => self.forum_event(ev),
             ev @ (Ev::NeedPhone | Ev::NeedCode | Ev::NeedPassword(..) | Ev::Qr(..) | Ev::LoggedIn(..) | Ev::LoggedOut) => self.login_event(ev),
+            Ev::Downloaded(path) => {
+                self.toast = Some((lf!("Збережено: {}", "Saved: {}", path.display()), 0.0, false));
+                self.open_received(&path);
+            }
             Ev::Birthdays(list) => self.birthdays.today = list,
             Ev::SavedDialogs(list) => self.saved.sources = list,
             Ev::Stories(list) => self.on_stories(list),
@@ -1148,8 +1158,8 @@ impl App {
                 self.comments = Some(CommentsView { peer, post: id, discussion: None, msgs: Vec::new(), draft: String::new(), loading: true, exhausted: false });
                 self.send(Cmd::OpenComments { peer, id, before: None });
             }
-            Action::OpenExternal(id) => match self.playback.files.get(&(peer, id)) {
-                Some(path) => open_external(path),
+            Action::OpenExternal(id) => match self.playback.files.get(&(peer, id)).cloned() {
+                Some(path) => self.open_received(&path),
                 None => {
                     if self.playback.wanted.insert((peer, id), true).is_none() {
                         self.send(Cmd::LoadMedia { peer, id });
@@ -1256,6 +1266,7 @@ impl App {
                     ButtonAction::Other => self.toast = Some((l!("Цей тип кнопки ще не підтримується", "This button type is not supported yet").into(), 0.0, true)),
                 }
             }
+            Action::OpenHidden(url) => self.opening = Some(confirm::Opening::Link(url)),
             Action::Open(target) => match target.chars().next() {
                 // A hashtag is searched in this chat, a bot command is sent.
                 Some('#' | '$') => {
@@ -1515,6 +1526,7 @@ impl eframe::App for App {
             self.export_view(ui);
         }
         self.info_confirm_view(ui);
+        self.opening_view(ui);
         self.contact_form_view(ui);
         self.poll_form_view(ui);
         self.chat_edit_view(ui);

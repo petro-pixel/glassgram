@@ -264,6 +264,19 @@ pub fn layout(text: &str, spans: &[Span], size: f32, color: Color32, link: Color
 }
 
 /// The span under a byte position (for clicks on links and spoilers).
+/// A link whose visible text is not its own address (`[text](url)`): clicking it asks first.
+/// Same address written differently (scheme, `www.`, a trailing slash, case) is not hidden.
+pub fn hidden_link(text: &str, url: &str) -> bool {
+    let bare = |s: &str| {
+        let s = s.trim().to_lowercase();
+        let s = s.strip_prefix("https://").or_else(|| s.strip_prefix("http://")).map(str::to_owned).unwrap_or(s);
+        let s = s.strip_prefix("www.").map(str::to_owned).unwrap_or(s);
+        s.trim_end_matches('/').to_owned()
+    };
+    // Mentions, hashtags and bot commands are not web links.
+    !url.starts_with(['@', '#', '$', '/']) && bare(text) != bare(url)
+}
+
 pub fn span_at(spans: &[Span], byte: usize) -> Option<&Span> {
     spans
         .iter()
@@ -367,6 +380,17 @@ mod tests {
         let ents = vec![tl::types::MessageEntityBold { offset: 0, length: 6 }.into()];
         let spans = from_entities(text, &ents, shift);
         assert_eq!(&text[spans[0].start..spans[0].end], "підпис");
+    }
+
+    #[test]
+    fn hidden_links() {
+        assert!(!super::hidden_link("example.com", "https://example.com"));
+        assert!(!super::hidden_link("https://www.Example.com/", "https://example.com"));
+        assert!(!super::hidden_link("t.me/durov", "https://t.me/durov"));
+        assert!(super::hidden_link("click here", "https://evil.example"));
+        assert!(super::hidden_link("https://bank.com", "https://bank.com.evil.example"));
+        assert!(!super::hidden_link("@durov", "@durov"));
+        assert!(!super::hidden_link("#rust", "#rust"));
     }
 }
 

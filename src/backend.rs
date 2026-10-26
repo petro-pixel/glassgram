@@ -401,6 +401,8 @@ pub enum Ev {
     BotMenuApp { peer: PeerId, text: String, url: String },
     /// Answer to `WebAppMethod`: the result JSON or an error.
     WebAppMethodResult { bot: PeerId, req_id: String, result: Result<String, String> },
+    /// A file was saved to Downloads; the UI opens it (asking first for programs).
+    Downloaded(PathBuf),
     /// Contacts whose birthday is today.
     Birthdays(Vec<(ChatInfo, Birthday)>),
     /// The story strip, in the server's order (unseen first).

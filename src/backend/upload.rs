@@ -225,6 +225,5 @@ pub(super) async fn download(client: &Client, r: PeerRef, id: i32) -> Result<Pat
         n += 1;
     }
     client.download_media(&media, &path).await.map_err(|e| lf!("Завантаження: {e}", "Download: {e}"))?;
-    crate::platform::open_file(&path);
     Ok(path)
 }

@@ -39,7 +39,10 @@ impl App {
             return;
         }
         match self.playback.files.get(&(peer, id)) {
-            Some(path) if external => open_external(path),
+            Some(path) if external => {
+                let path = path.clone();
+                self.open_received(&path);
+            }
             Some(path) => {
                 let path = path.clone();
                 self.playback.player.play(peer, id, &path, info.duration);
@@ -182,7 +185,7 @@ impl App {
                 self.playback.loading.remove(&(peer, id));
                 self.playback.files.insert((peer, id), path.clone());
                 match self.playback.wanted.remove(&(peer, id)) {
-                    Some(true) => open_external(&path),
+                    Some(true) => self.open_received(&path),
                     Some(false) => {
                         let duration = self.find(peer, id).and_then(|m| m.media.as_ref()).map_or(0.0, |i| i.duration);
                         self.playback.player.play(peer, id, &path, duration);

@@ -162,8 +162,8 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ⬜ **P2** Encrypting local data with the local passcode (for now the passcode only hides the interface)
 - ⬜ **P3** Sensitive content (`setContentSettings`)
 - ✅ Hardening against untrusted content (audit 2026-10): links open only https/http/mailto/tg; sender file names can't leave Downloads; received programs and scripts are shown in their folder, not run; mini apps can't open local paths, read the clipboard or navigate to `file:`; recordings live in an owner-only temp folder
-- ⬜ **P1** Confirmation for hidden links whose text differs from the target (`[text](url)`), as in Telegram Desktop
-- ⬜ **P1** Warning before opening a received program (now it is only revealed in its folder)
+- ✅ Confirmation for hidden links whose text differs from the target (`[text](url)`): the real address in a tooltip and in the "Open this link?" box, as in Telegram Desktop
+- ✅ Warning before opening a received program or script: "Run this file?" with "Show in folder" as the safe default
 - ⬜ **P2** Mini app permissions asked from the user: clipboard, location, contact, biometry (`requestWriteAccess`, `requestContact`)
 
 ## 12. Notifications
