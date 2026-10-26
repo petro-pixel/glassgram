@@ -203,7 +203,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 ## 16. Reliability and performance
 - ✅ Local cache of dialogs and messages (SQLite, `chats.sqlite` next to the session, 0600): chats and history from the cache in ~10 ms before connecting, scrolling without a network; up to 1000 messages per chat
 - 🟡 Offline send queue for text messages: the bubble appears at once with a clock, network errors are retried with growing delays (2, 4, 8, 16 s), then a red mark with Retry / Delete in the menu (click retries); the queue lives in `chats.sqlite` and survives a restart (failed ones stay failed). **P1**: queue files and voice messages too; reuse the same `random_id` on retry so a lost reply can't produce a duplicate (needs a raw `messages.sendMessage` instead of grammers' `send_message`)
-- ⬜ **P1** LRU limit for textures and memory, unloading hidden images
+- ✅ Memory budget for pictures (192 MB): the least recently drawn ones that were off screen for 30 s are dropped and decoded again from the disk cache when they come back into view (`app/textures.rs`, `Cmd::ReloadImages`)
 - ⬜ **P1** Backend tests on recorded server replies, CI (Linux, Windows, macOS)
 - ⬜ **P2** Error log to a file and a report for the developer (no personal data)
 - ⬜ **P2** Updating the API layer together with grammers

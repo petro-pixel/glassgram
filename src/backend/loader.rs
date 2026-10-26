@@ -9,6 +9,30 @@ pub(super) struct Loader {
     pub(super) out: Emitter,
     pub(super) limit: Arc<Semaphore>,
     pub(super) requested: Arc<Mutex<HashSet<String>>>,
+    /// Cache file and size of every picture sent to the UI, so one it dropped can be decoded again.
+    pub(super) files: Arc<Mutex<HashMap<ImgKey, (String, f32)>>>,
+}
+
+impl Loader {
+    /// The UI dropped these pictures to save memory and needs them again: decode from the disk cache.
+    pub(super) fn reload(&self, keys: Vec<ImgKey>) {
+        for key in keys {
+            let Some((file, max_pt)) = self.files.lock().unwrap().get(&key).cloned() else { continue };
+            let this = self.clone();
+            tokio::spawn(async move {
+                let _permit = this.limit.acquire().await;
+                let Ok(bytes) = tokio::fs::read(data_dir().join("cache").join(&file)).await else {
+                    // Gone from the cache: the next request downloads it again.
+                    this.requested.lock().unwrap().remove(&file);
+                    return;
+                };
+                let max_px = (max_pt * this.out.ctx.pixels_per_point()).ceil() as u32;
+                if let Ok(Some(image)) = tokio::task::spawn_blocking(move || decode(&bytes, max_px)).await {
+                    this.out.send(Ev::Image { key, image });
+                }
+            });
+        }
+    }
 }
 
 impl Loader {
@@ -19,6 +43,7 @@ impl Loader {
         if !self.requested.lock().unwrap().insert(file.clone()) {
             return;
         }
+        self.files.lock().unwrap().insert(key, (file.clone(), max_pt));
         let this = self.clone();
         tokio::spawn(async move {
             let _permit = this.limit.acquire().await;

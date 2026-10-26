@@ -225,6 +225,8 @@ pub enum Cmd {
     SetChatRights { peer: PeerId, rights: ChatRights },
     /// Slow mode of a supergroup, in seconds (0 — off).
     SetSlowMode { peer: PeerId, seconds: i32 },
+    /// Decode again pictures the UI dropped to save memory.
+    ReloadImages(Vec<ImgKey>),
     /// People and channels with active stories, for the strip above the chat list.
     LoadStories,
     /// One peer's stories for the viewer.
@@ -764,6 +766,12 @@ impl Worker {
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
+            Cmd::ReloadImages(keys) => {
+                if let Some(l) = &self.loader {
+                    l.reload(keys);
+                }
+                Ok(())
+            }
             cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. }) => self.stories_cmd(cmd).await,
             cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. }) => self.saved_cmd(cmd).await,
             cmd @ Cmd::LoadGifts(_) => self.gifts_cmd(cmd).await,
@@ -842,6 +850,7 @@ impl Worker {
             out: self.out.clone(),
             limit: Arc::new(Semaphore::new(6)),
             requested: Arc::default(),
+            files: Arc::default(),
         };
         // Defaults are per account: fetch them again for this connection.
         self.notifs = Arc::default();

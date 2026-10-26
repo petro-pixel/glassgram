@@ -537,6 +537,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let list = demo_members().into_iter().filter(|m| (!admins || m.role != MemberRole::Member) && m.chat.title.to_lowercase().contains(&q)).collect();
             app.push_event(Ev::Members { peer, query, admins, list });
         }
+        Cmd::ReloadImages(keys) => {
+            for (key, image) in images().into_iter().filter(|(k, _)| keys.contains(k)) {
+                app.push_event(Ev::Image { key, image });
+            }
+        }
         Cmd::LoadStories => {
             // Олена and the channel have unseen stories, Андрій's were watched.
             let list = [(1, vec![1, 2, 3], 0), (4, vec![7], 0), (5, vec![4, 5], 5)]

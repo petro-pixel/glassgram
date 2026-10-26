@@ -64,6 +64,7 @@ mod folders;
 mod history;
 mod confirm;
 mod gifts;
+mod textures;
 mod bubbles;
 use bubbles::*;
 use chatlist::{NewChat, Reorder, sort_chats};
@@ -394,7 +395,7 @@ pub struct App {
     selected: Option<PeerId>,
     history: HashMap<PeerId, Vec<Msg>>,
     exhausted: HashMap<PeerId, bool>,
-    textures: HashMap<ImgKey, TextureHandle>,
+    textures: textures::Textures,
     loading_older: bool,
     search: Search,
     /// Search in the open chat (`None` means the panel is closed).
@@ -626,7 +627,7 @@ impl App {
             selected: None,
             history: HashMap::new(),
             exhausted: HashMap::new(),
-            textures: HashMap::new(),
+            textures: textures::Textures::default(),
             loading_older: false,
             search: Search::default(),
             chat_search: None,
@@ -1444,6 +1445,10 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
         self.close_to_tray(ui.ctx(), frame);
+        let reload = self.textures.frame(ui.input(|i| i.time));
+        if !reload.is_empty() {
+            self.send(Cmd::ReloadImages(reload));
+        }
         let events: Vec<Ev> = self.backend.as_ref().map(|b| b.rx.try_iter().collect()).unwrap_or_default();
         let account = self.accounts.active;
         self.poll_web_apps();
