@@ -157,7 +157,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Privacy (phone number, last seen, photo, forwards, calls, voice messages, invites), local passcode
 - ✅ Exceptions in privacy rules: "Always allow" / "Never allow" lists under each rule with people and groups, added through a search picker, removed with ✕; changing the preset keeps them (`inputPrivacyValueAllow/DisallowUsers`, `…ChatParticipants`)
 - ✅ Global settings on the Privacy and Security page: archive and mute new non-contacts (keep unmuted / folder chats archived), hide read time, who can message me (`get/setGlobalPrivacySettings`; other server fields are kept)
-- 🟡 **P1** Blocking from user info ✅; still missing: reporting spam and content (`messages.report`)
+- ✅ Blocking from user info; reporting messages in groups and channels from the message menu: the server's reasons, sub-reasons and a comment step (`messages.report`)
 - ⬜ **P2** End-to-end encrypted secret chats (`requestEncryption`, MTProto 2.0 E2E)
 - ⬜ **P2** Default and per-chat message auto-delete (`setDefaultHistoryTTL`, `setHistoryTTL`)
 - ⬜ **P2** Encrypting local data with the local passcode (for now the passcode only hides the interface)

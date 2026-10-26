@@ -307,6 +307,7 @@ impl App {
                 self.send(Cmd::LoadReadBy { peer, id });
             }
             Action::Translate(id) => self.open_translate(peer, id),
+            Action::Report(id) => self.start_report(peer, vec![id]),
             a => return Some(a),
         }
         None
@@ -357,6 +358,7 @@ impl App {
         self.sponsored_overlay(ui, peer, rect);
         self.calendar_view(ui, peer, rect);
         self.translate_view(ui, peer, rect);
+        self.report_view(ui, peer, rect);
         if self.viewer.is_none() && (self.read_by.is_some() || self.pinned.open) && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
             if self.read_by.is_some() {
                 self.read_by = None;

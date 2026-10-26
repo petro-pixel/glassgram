@@ -66,6 +66,7 @@ mod confirm;
 mod gifts;
 mod textures;
 mod emojikw;
+mod report;
 mod bubbles;
 use bubbles::*;
 use chatlist::{NewChat, Reorder, sort_chats};
@@ -161,6 +162,8 @@ enum Action {
     /// Show which group members have read it.
     ReadBy(i32),
     Translate(i32),
+    /// Report a message to Telegram's moderators.
+    Report(i32),
     /// Queued message: send again / drop without sending.
     Retry(i32),
     Discard(i32),
@@ -522,6 +525,8 @@ pub struct App {
     saved: saved::Saved,
     /// The story strip and the story being watched.
     stories: stories::Stories,
+    /// The "Report" box for messages.
+    report: Option<report::ReportBox>,
     /// A hidden link or a received program waiting for "Open anyway".
     opening: Option<confirm::Opening>,
     /// Start parameters from `t.me/<bot>?start=` links, until Start is pressed in that bot chat.
@@ -754,6 +759,7 @@ impl App {
             birthdays: birthdays::Birthdays::default(),
             bot_start: HashMap::new(),
             opening: None,
+            report: None,
             stories: stories::Stories::default(),
             saved: saved::Saved::default(),
             chat_photo_tx,
@@ -807,6 +813,7 @@ impl App {
             ev @ Ev::Comments { .. } => self.comments_event(ev),
             ev @ (Ev::Topics { .. } | Ev::TopicHistory { .. }) => self.forum_event(ev),
             ev @ (Ev::NeedPhone | Ev::NeedCode | Ev::NeedPassword(..) | Ev::Qr(..) | Ev::LoggedIn(..) | Ev::LoggedOut) => self.login_event(ev),
+            Ev::ReportStep { peer, ids, step } => self.on_report_step(peer, ids, step),
             Ev::Downloaded(path) => {
                 self.toast = Some((lf!("Збережено: {}", "Saved: {}", path.display()), 0.0, false));
                 self.open_received(&path);
@@ -1313,7 +1320,7 @@ impl App {
                 }
             },
             // Handled by `chat_view_action`.
-            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) => {}
+            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Report(_) => {}
         }
     }
 

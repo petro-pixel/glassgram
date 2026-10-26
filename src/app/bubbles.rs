@@ -67,6 +67,11 @@ pub(super) fn message_menu(ui: &mut Ui, m: &Msg, chat: Option<&ChatInfo>, action
     if m.out && glass::menu_button(ui, Icon::Trash, l!("Видалити", "Delete")).clicked() {
         *action = Some(Action::Delete(m.id));
     }
+    // Other people's messages in groups and channels, as in Telegram Desktop.
+    let public = chat.is_some_and(|c| matches!(c.kind, ChatKind::Group | ChatKind::Channel));
+    if !m.out && m.id > 0 && public && glass::menu_button(ui, Icon::Flag, l!("Поскаржитися", "Report")).clicked() {
+        *action = Some(Action::Report(m.id));
+    }
 }
 
 /// Selection mark next to a message and row highlight.

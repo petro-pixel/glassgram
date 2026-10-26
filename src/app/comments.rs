@@ -77,7 +77,7 @@ impl App {
             && let Some((disc, _)) = self.comments.as_ref().and_then(|c| c.discussion)
         {
             match a {
-                Action::Reply(_) | Action::Edit(_) | Action::Pick(_) | Action::Forward(_) | Action::Delete(_) | Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) => {}
+                Action::Reply(_) | Action::Edit(_) | Action::Pick(_) | Action::Forward(_) | Action::Delete(_) | Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Report(_) => {}
                 a => self.apply(disc, a),
             }
         }

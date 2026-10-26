@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -593,6 +593,18 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             });
             msgs.retain(|m| m.saved_from == Some(source));
             app.push_event(Ev::SavedHistory { source, msgs, older: false });
+        }
+        // Reasons first, then a comment for "Other", like the server.
+        Cmd::Report { peer, ids, option, .. } => {
+            let step = match option.as_slice() {
+                [] => ReportStep::Choose {
+                    title: String::new(),
+                    options: [("Спам", b"s"), ("Насильство", b"v"), ("Шахрайство", b"f"), ("Інше", b"o")].into_iter().map(|(t, o)| (t.to_owned(), o.to_vec())).collect(),
+                },
+                b"o" => ReportStep::Comment { option: b"o2".to_vec(), optional: false },
+                _ => ReportStep::Done,
+            };
+            app.push_event(Ev::ReportStep { peer, ids, step });
         }
         Cmd::LoadEmojiKeywords(lang) => {
             let w = |k: &str, e: &[&str]| (k.to_owned(), e.iter().map(|x| x.to_string()).collect());
