@@ -3,9 +3,9 @@
 
 use std::time::Duration;
 
-use grammers_client::InvocationError;
+use grammers_client::{InvocationError, tl};
 
-use super::{Cmd, Ev, Queued, SendOpts, Worker, rich};
+use super::{Cmd, Ev, Queued, SendOpts, Worker};
 use crate::format;
 use crate::i18n::lf;
 
@@ -18,6 +18,20 @@ fn retryable(e: &InvocationError) -> bool {
         InvocationError::Rpc(r) => r.code >= 500 || r.code == 420 || r.name == "FLOOD_WAIT",
         _ => true,
     }
+}
+
+/// Id of the message a send request created, found by its random_id.
+fn sent_id(updates: &tl::enums::Updates, random_id: i64) -> Option<i32> {
+    let list = match updates {
+        tl::enums::Updates::UpdateShortSentMessage(u) => return Some(u.id),
+        tl::enums::Updates::Updates(u) => &u.updates,
+        tl::enums::Updates::Combined(u) => &u.updates,
+        _ => return None,
+    };
+    list.iter().find_map(|u| match u {
+        tl::enums::Update::MessageId(m) if m.random_id == random_id => Some(m.id),
+        _ => None,
+    })
 }
 
 impl Worker {
@@ -36,16 +50,54 @@ impl Worker {
             }
         };
         let opts = SendOpts { silent: q.silent, schedule: None, no_webpage: q.no_webpage };
-        let sent = tokio::time::timeout(SEND_TIMEOUT, client.send_message(r, opts.apply(rich(&q.text).reply_to(q.reply_to)))).await;
-        match sent {
-            Ok(Ok(m)) => {
-                let (plain, ents) = format::parse(&q.text);
-                self.sent().emit_with(peer, &m, q.reply_to, opts, Some((&plain, &ents)));
-                if let Some(c) = &self.out.cache {
-                    c.queue_drop(key);
-                }
-                self.out.send(Ev::QueueSent { key, peer });
+        let (plain, ents) = format::parse(&q.text);
+        // The queue key is the request's random_id on every attempt: if an earlier attempt reached
+        // the server but its answer was lost, the server refuses the copy instead of posting it twice.
+        let req = tl::functions::messages::SendMessage {
+            no_webpage: q.no_webpage,
+            silent: q.silent,
+            background: false,
+            clear_draft: true,
+            noforwards: false,
+            update_stickersets_order: false,
+            invert_media: false,
+            allow_paid_floodskip: false,
+            peer: r.into(),
+            reply_to: q.reply_to.map(|id| {
+                tl::types::InputReplyToMessage { reply_to_msg_id: id, top_msg_id: None, reply_to_peer_id: None, quote_text: None, quote_entities: None, quote_offset: None, monoforum_peer_id: None, todo_item_id: None, poll_option: None }.into()
+            }),
+            message: plain.clone(),
+            random_id: key,
+            reply_markup: None,
+            entities: (!ents.is_empty()).then(|| ents.clone()),
+            schedule_date: None,
+            schedule_repeat_period: None,
+            send_as: None,
+            quick_reply_shortcut: None,
+            effect: None,
+            allow_paid_stars: None,
+            suggested_post: None,
+            rich_message: None,
+        };
+        let sent = tokio::time::timeout(SEND_TIMEOUT, client.invoke(&req)).await;
+        let done = |w: &Worker| {
+            if let Some(c) = &w.out.cache {
+                c.queue_drop(key);
             }
+            w.out.send(Ev::QueueSent { key, peer });
+        };
+        match sent {
+            Ok(Ok(updates)) => {
+                // The answer has only the new id: fetch the message itself to show it like any other.
+                if let Some(id) = sent_id(&updates, key)
+                    && let Ok(Some(m)) = client.get_messages_by_id(r, &[id]).await.map(|l| l.into_iter().flatten().next())
+                {
+                    self.sent().emit_with(peer, &m, q.reply_to, opts, Some((&plain, &ents)));
+                }
+                done(self);
+            }
+            // An earlier attempt got through after all.
+            Ok(Err(InvocationError::Rpc(e))) if e.name == "RANDOM_ID_DUPLICATE" => done(self),
             Ok(Err(e)) => self.out.send(fail(lf!("Не надіслано: {e}", "Not sent: {e}"), retryable(&e))),
             Err(_) => self.out.send(fail(lf!("Не надіслано: немає відповіді за {} с", "Not sent: no response in {} s", SEND_TIMEOUT.as_secs()), true)),
         }

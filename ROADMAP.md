@@ -124,7 +124,7 @@ Time estimate — [at the end of the file](#time-estimate).
       (WebView2 / WebKitGTK / WKWebView); opened from inline and keyboard buttons, the bot's menu button and `t.me/bot/app`,
       `t.me/bot?startapp` links (`requestWebView`, `requestSimpleWebView`, `requestMainWebView`, `requestAppWebView`, `prolongWebView`);
       bridge: theme, viewport, main / secondary / back buttons, popups, `sendData`, cloud storage and other custom methods
-      (`invokeWebViewCustomMethod`), links, clipboard. Left: payments (`openInvoice`), phone and write-access requests,
+      (`invokeWebViewCustomMethod`), links (web only); reading the clipboard is refused. Left: payments (`openInvoice`), phone and write-access requests,
       location, fullscreen, QR scanner, biometry
 - ⬜ **P2** Bots in the attachment menu (`getAttachMenuBots`), logging in to websites via Telegram (`requestUrlAuth`)
 - ⬜ **P2** Payments in bots: invoices, payment form, Stars (`payments.getPaymentForm`, `sendStarsForm`)
@@ -203,7 +203,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 
 ## 16. Reliability and performance
 - ✅ Local cache of dialogs and messages (SQLite, `chats.sqlite` next to the session, 0600): chats and history from the cache in ~10 ms before connecting, scrolling without a network; up to 1000 messages per chat
-- 🟡 Offline send queue for text messages: the bubble appears at once with a clock, network errors are retried with growing delays (2, 4, 8, 16 s), then a red mark with Retry / Delete in the menu (click retries); the queue lives in `chats.sqlite` and survives a restart (failed ones stay failed). **P1**: queue files and voice messages too; reuse the same `random_id` on retry so a lost reply can't produce a duplicate (needs a raw `messages.sendMessage` instead of grammers' `send_message`)
+- 🟡 Offline send queue for text messages: the bubble appears at once with a clock, network errors are retried with growing delays (2, 4, 8, 16 s), then a red mark with Retry / Delete in the menu (click retries); the queue lives in `chats.sqlite` and survives a restart (failed ones stay failed). Retries reuse the queue key as `random_id` (raw `messages.sendMessage`), so a lost reply can't post a message twice; the server's `RANDOM_ID_DUPLICATE` counts as sent. **P1** left: files and voice messages in the queue
 - ✅ Memory budget for pictures (192 MB): the least recently drawn ones that were off screen for 30 s are dropped and decoded again from the disk cache when they come back into view (`app/textures.rs`, `Cmd::ReloadImages`)
 - ⬜ **P1** Backend tests on recorded server replies, CI (Linux, Windows, macOS)
 - ⬜ **P2** Error log to a file and a report for the developer (no personal data)
