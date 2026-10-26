@@ -45,6 +45,9 @@ mod login;
 mod sending;
 mod scheduled;
 mod dialogs;
+mod history;
+mod media;
+mod search;
 mod outbox;
 use crate::format::{self, Span};
 use crate::i18n::{l, lf};
@@ -718,6 +721,12 @@ impl Worker {
 
     async fn handle(&mut self, cmd: Cmd) -> Result<(), String> {
         match cmd {
+            cmd @ Cmd::ExportChat { .. } => self.export_cmd(cmd).await,
+            cmd @ (Cmd::StoreQueued(..) | Cmd::DropQueued(..)) => self.queue_cmd(cmd).await,
+            cmd @ (Cmd::LoadPrivacy | Cmd::SetPrivacy { .. }) => self.privacy_rules_cmd(cmd).await,
+            cmd @ (Cmd::SearchPublic(..) | Cmd::ResolveUsername(..)) => self.search_cmd(cmd).await,
+            cmd @ (Cmd::LoadFullPhoto { .. } | Cmd::Download { .. } | Cmd::LoadMedia { .. } | Cmd::MarkListened { .. } | Cmd::LoadStickerThumbs(..)) => self.media_cmd(cmd).await,
+            cmd @ (Cmd::OpenChat(..) | Cmd::OpenAt { .. } | Cmd::LoadOlder { .. } | Cmd::Typing(..)) => self.history_cmd(cmd).await,
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
             cmd @ (Cmd::Reschedule { .. } | Cmd::SendScheduledNow { .. } | Cmd::DeleteScheduled { .. }) => self.scheduled_cmd(cmd).await,
             cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::SendFiles { .. } | Cmd::SendVoice { .. } | Cmd::SendRound { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,
@@ -735,214 +744,12 @@ impl Worker {
                 Ok(())
             }
             Cmd::ReloadDialogs => self.load_dialogs().await,
-            Cmd::OpenChat(peer) => {
-                // Cache first: the chat opens instantly and offline; the server replaces the page later.
-                if let Some(c) = &self.out.cache {
-                    let msgs = c.history(peer, None, PAGE).await;
-                    if !msgs.is_empty() {
-                        self.out.replay(Ev::History { peer, msgs, older: false });
-                    }
-                }
-                let client = self.client()?;
-                let r = self.peer_ref(peer)?;
-                let msgs = self.fetch_history(&client, r, None).await?;
-                self.out.send(Ev::History { peer, msgs, older: false });
-                let _ = client.mark_as_read(r).await;
-                Ok(())
-            }
-            Cmd::LoadOlder { peer, before } => {
-                let fetched = match (self.client(), self.peer_ref(peer)) {
-                    (Ok(client), Ok(r)) => self.fetch_history(&client, r, Some(before)).await,
-                    (Err(e), _) | (_, Err(e)) => Err(e),
-                };
-                match fetched {
-                    Ok(msgs) => self.out.send(Ev::History { peer, msgs, older: true }),
-                    // Offline, we scroll through what is in the cache.
-                    Err(e) => {
-                        let cached = match &self.out.cache {
-                            Some(c) => c.history(peer, Some(before), PAGE).await,
-                            None => Vec::new(),
-                        };
-                        if cached.is_empty() {
-                            self.out.send(Ev::History { peer, msgs: Vec::new(), older: true });
-                            return Err(e);
-                        }
-                        self.out.replay(Ev::History { peer, msgs: cached, older: true });
-                    }
-                }
-                Ok(())
-            }
             Cmd::CacheDialogs(chats) => {
                 self.cache_dialogs(chats);
                 Ok(())
             }
-            Cmd::ExportChat { peer, title, media } => {
-                let client = self.client()?;
-                let r = self.peer_ref(peer)?;
-                let out = self.out.clone();
-                // A large history takes long to load: do it in the background so other commands aren't blocked.
-                tokio::spawn(async move {
-                    let dir = crate::export::target_dir(&title);
-                    let progress = |done| out.send(Ev::ExportProgress { peer, done });
-                    match crate::export::run(&client, r, &title, media, &dir, progress).await {
-                        Ok(count) => out.send(Ev::Exported { peer, dir, count }),
-                        Err(e) => out.send(Ev::Error(e)),
-                    }
-                });
-                Ok(())
-            }
-            Cmd::ResolveUsername(name) => {
-                let name = name.trim_start_matches('@').to_owned();
-                let peer = self.resolve_peer(&name).await?;
-                self.out.send(Ev::ChatFound(found_chat(&peer, format!("@{name}"))));
-                Ok(())
-            }
-            Cmd::SearchPublic(query) => {
-                let client = self.client()?;
-                let req = tl::functions::contacts::Search { broadcasts: false, bots: false, q: query.clone(), limit: 20 };
-                let tl::enums::contacts::Found::Found(res) = client.invoke(&req).await.map_err(|e| lf!("Пошук: {e}", "Search: {e}"))?;
-                // Global results only; our own chats are already in the list.
-                let wanted: Vec<PeerId> = res.results.iter().map(PeerId::from).collect();
-                let mut chats = Vec::new();
-                for raw in res.chats {
-                    let peer = Peer::from_raw(&client, raw);
-                    if !wanted.contains(&peer.id()) {
-                        continue;
-                    }
-                    let Ok(Some(r)) = peer.to_ref().await else { continue };
-                    self.refs.lock().unwrap().insert(peer.id(), r);
-                    self.names.lock().unwrap().insert(peer.id(), peer_title(&peer));
-                    if let Some(loader) = &self.loader {
-                        loader.avatar(&peer);
-                    }
-                    let members = match &peer {
-                        Peer::Channel(c) => c.raw.participants_count,
-                        Peer::Group(g) => match &g.raw {
-                            tl::enums::Chat::Channel(c) => c.participants_count,
-                            tl::enums::Chat::Chat(c) => Some(c.participants_count),
-                            _ => None,
-                        },
-                        _ => None,
-                    };
-                    let user = peer.username().map(|u| format!("@{u}")).unwrap_or_default();
-                    let label = match members {
-                        Some(n) => lf!("{user} · учасників: {n}", "{user} · members: {n}"),
-                        None => user,
-                    };
-                    chats.push(found_chat(&peer, label.trim_start_matches(" · ").to_owned()));
-                }
-                self.out.send(Ev::PublicResults { query, chats });
-                Ok(())
-            }
-            Cmd::LoadPrivacy => {
-                let client = self.client()?;
-                for key in PrivacyKey::ALL {
-                    match client.invoke(&tl::functions::account::GetPrivacy { key: key.input() }).await {
-                        Ok(tl::enums::account::PrivacyRules::Rules(r)) => {
-                            self.out.send(Ev::Privacy(key, PrivacyState::from_rules(&r.rules)));
-                            let ex = self.privacy_exceptions(&r).await;
-                            self.out.send(Ev::PrivacyExceptions(key, ex));
-                        }
-                        Err(e) => log_error(&lf!("Приватність: {e}", "Privacy: {e}")),
-                    }
-                }
-                Ok(())
-            }
-            Cmd::SetPrivacy { key, audience, allow, deny } => {
-                let client = self.client()?;
-                let req = tl::functions::account::SetPrivacy { key: key.input(), rules: self.privacy_input(audience, &allow, &deny)? };
-                let tl::enums::account::PrivacyRules::Rules(r) = client.invoke(&req).await.map_err(|e| lf!("Приватність: {e}", "Privacy: {e}"))?;
-                self.out.send(Ev::Privacy(key, PrivacyState::from_rules(&r.rules)));
-                let ex = self.privacy_exceptions(&r).await;
-                self.out.send(Ev::PrivacyExceptions(key, ex));
-                Ok(())
-            }
-            Cmd::MarkListened { peer, id } => {
-                let client = self.client()?;
-                let r = self.peer_ref(peer)?;
-                let res = if peer.kind() == grammers_client::session::types::PeerKind::Channel {
-                    client.invoke(&tl::functions::channels::ReadMessageContents { channel: r.into(), id: vec![id] }).await.map(drop)
-                } else {
-                    client.invoke(&tl::functions::messages::ReadMessageContents { id: vec![id] }).await.map(drop)
-                };
-                res.map_err(|e| lf!("Не вдалося позначити прослуханим: {e}", "Could not mark as listened: {e}"))
-            }
             Cmd::LoadStickers => self.load_stickers().await,
-            Cmd::LoadStickerThumbs(ids) => {
-                if let Some(loader) = &self.loader {
-                    for id in ids {
-                        if let Some(d) = self.docs.get(&id) {
-                            loader.sticker(d);
-                        }
-                    }
-                }
-                Ok(())
-            }
-            Cmd::LoadFullPhoto { peer, id } => {
-                let client = self.client()?;
-                let r = self.peer_ref(peer)?;
-                let loader = self.loader.clone().ok_or(l!("Немає з'єднання", "No connection"))?;
-                tokio::spawn(async move {
-                    if let Ok(msgs) = client.get_messages_by_id(r, &[id]).await
-                        && let Some(Some(m)) = msgs.into_iter().next()
-                        && let Some(Media::Photo(photo)) = m.media()
-                    {
-                        let file = format!("f{}_{id}.jpg", peer.bot_api_dialog_id_unchecked());
-                        loader.fetch(ImgKey::Full(peer, id), file, FULL_PT, photo);
-                    }
-                });
-                Ok(())
-            }
             Cmd::LoadScheduled(peer) => self.load_scheduled(peer).await,
-            Cmd::LoadMedia { peer, id } => {
-                let client = self.client()?;
-                let r = self.peer_ref(peer)?;
-                let out = self.out.clone();
-                tokio::spawn(async move {
-                    match cache_media(&client, r, id).await {
-                        Ok(path) => out.send(Ev::MediaReady { peer, id, path }),
-                        Err(e) => out.send(Ev::Error(e)),
-                    }
-                });
-                Ok(())
-            }
-            Cmd::Download { peer, id } => {
-                let client = self.client()?;
-                let r = self.peer_ref(peer)?;
-                let out = self.out.clone();
-                tokio::spawn(async move {
-                    let res = download(&client, r, id).await;
-                    out.send(match res {
-                        Ok(path) => Ev::Notice(lf!("Збережено: {}", "Saved: {}", path.display())),
-                        Err(e) => Ev::Error(e),
-                    });
-                });
-                Ok(())
-            }
-            Cmd::OpenAt { peer, id } => {
-                let client = self.client()?;
-                let r = self.peer_ref(peer)?;
-                let mut iter = client.iter_messages(r).limit(JUMP_LIMIT);
-                let mut msgs = Vec::new();
-                while let Some(m) = iter.next().await.map_err(|e| lf!("Історія: {e}", "History: {e}"))? {
-                    let reached = m.id() <= id;
-                    msgs.push(self.convert_loaded(r.id, &m));
-                    if reached && msgs.len() >= PAGE {
-                        break;
-                    }
-                }
-                msgs.reverse();
-                self.out.send(Ev::History { peer, msgs, older: false });
-                Ok(())
-            }
-            Cmd::Typing(peer) => {
-                let client = self.client()?;
-                let r = self.peer_ref(peer)?;
-                tokio::spawn(async move {
-                    let _ = client.action(r).oneshot(tl::types::SendMessageTypingAction {}).await;
-                });
-                Ok(())
-            }
             Cmd::Search { peer, query, kind, from } => self.search(peer, query, kind, from).await,
             cmd @ (Cmd::LoadPinned(_) | Cmd::PinMessage { .. } | Cmd::UnpinAll(_) | Cmd::LoadUnreadMarks { .. } | Cmd::ReadMarks { .. } | Cmd::LoadReadBy { .. } | Cmd::JumpToDate { .. } | Cmd::LoadMediaDays { .. }) => {
                 self.chat_view_cmd(cmd).await
@@ -977,18 +784,6 @@ impl Worker {
             Cmd::SetUsername(name) => self.set_username(name).await,
             Cmd::SetProfilePhoto(path) => self.set_profile_photo(path),
             Cmd::SendQueued(q) => self.send_queued(q).await,
-            Cmd::StoreQueued(q) => {
-                if let Some(c) = &self.out.cache {
-                    c.queue_put(&q);
-                }
-                Ok(())
-            }
-            Cmd::DropQueued(key) => {
-                if let Some(c) = &self.out.cache {
-                    c.queue_drop(key);
-                }
-                Ok(())
-            }
             Cmd::LoadContacts => self.load_contacts().await,
             Cmd::SearchContacts(query) => self.search_contacts(query).await,
             Cmd::CreateGroup { title, users } => self.create_group(title, users).await,

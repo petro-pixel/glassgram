@@ -6,7 +6,7 @@ use grammers_client::peer::{Peer, User};
 use grammers_client::session::types::{PeerId, PeerKind};
 use grammers_client::tl;
 
-use super::{Audience, ChatInfo, Cmd, Ev, Worker, person};
+use super::{Audience, ChatInfo, Cmd, Ev, PrivacyKey, PrivacyState, Worker, log_error, person};
 use crate::i18n::lf;
 
 /// The switches the Privacy and Security page shows; other server fields are kept as they are.
@@ -144,5 +144,37 @@ impl Worker {
             Audience::Nobody => rules.push(R::InputPrivacyValueDisallowAll),
         }
         Ok(rules)
+    }
+}
+
+impl Worker {
+    /// Privacy rules: loading all of them and changing one.
+    pub(super) async fn privacy_rules_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
+        match cmd {
+            Cmd::LoadPrivacy => {
+                let client = self.client()?;
+                for key in PrivacyKey::ALL {
+                    match client.invoke(&tl::functions::account::GetPrivacy { key: key.input() }).await {
+                        Ok(tl::enums::account::PrivacyRules::Rules(r)) => {
+                            self.out.send(Ev::Privacy(key, PrivacyState::from_rules(&r.rules)));
+                            let ex = self.privacy_exceptions(&r).await;
+                            self.out.send(Ev::PrivacyExceptions(key, ex));
+                        }
+                        Err(e) => log_error(&lf!("Приватність: {e}", "Privacy: {e}")),
+                    }
+                }
+                Ok(())
+            }
+            Cmd::SetPrivacy { key, audience, allow, deny } => {
+                let client = self.client()?;
+                let req = tl::functions::account::SetPrivacy { key: key.input(), rules: self.privacy_input(audience, &allow, &deny)? };
+                let tl::enums::account::PrivacyRules::Rules(r) = client.invoke(&req).await.map_err(|e| lf!("Приватність: {e}", "Privacy: {e}"))?;
+                self.out.send(Ev::Privacy(key, PrivacyState::from_rules(&r.rules)));
+                let ex = self.privacy_exceptions(&r).await;
+                self.out.send(Ev::PrivacyExceptions(key, ex));
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 }

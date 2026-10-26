@@ -84,3 +84,27 @@ impl Worker {
         }
     }
 }
+
+impl Worker {
+    /// Exporting a chat's history to HTML and JSON.
+    pub(super) async fn export_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
+        match cmd {
+            Cmd::ExportChat { peer, title, media } => {
+                let client = self.client()?;
+                let r = self.peer_ref(peer)?;
+                let out = self.out.clone();
+                // A large history takes long to load: do it in the background so other commands aren't blocked.
+                tokio::spawn(async move {
+                    let dir = crate::export::target_dir(&title);
+                    let progress = |done| out.send(Ev::ExportProgress { peer, done });
+                    match crate::export::run(&client, r, &title, media, &dir, progress).await {
+                        Ok(count) => out.send(Ev::Exported { peer, dir, count }),
+                        Err(e) => out.send(Ev::Error(e)),
+                    }
+                });
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+}

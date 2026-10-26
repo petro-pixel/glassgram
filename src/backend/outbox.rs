@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use grammers_client::InvocationError;
 
-use super::{Ev, Queued, SendOpts, Worker, rich};
+use super::{Cmd, Ev, Queued, SendOpts, Worker, rich};
 use crate::format;
 use crate::i18n::lf;
 
@@ -50,5 +50,26 @@ impl Worker {
             Err(_) => self.out.send(fail(lf!("Не надіслано: немає відповіді за {} с", "Not sent: no response in {} s", SEND_TIMEOUT.as_secs()), true)),
         }
         Ok(())
+    }
+}
+
+impl Worker {
+    /// Keeping the send queue in the cache.
+    pub(super) async fn queue_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
+        match cmd {
+            Cmd::StoreQueued(q) => {
+                if let Some(c) = &self.out.cache {
+                    c.queue_put(&q);
+                }
+                Ok(())
+            }
+            Cmd::DropQueued(key) => {
+                if let Some(c) = &self.out.cache {
+                    c.queue_drop(key);
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 }
