@@ -28,6 +28,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.5.0" date="2026-10-26">
+      <description>
+        <p>Security hardening: safe links, safe file names, asking before hidden links and received programs. Saved Messages by source, search filters by type and sender, days with media in the calendar, stories, gifts and personal channels in profiles, emoji suggestions, reporting messages, opening chats at the first unread message, a send queue without duplicates, a memory budget for pictures. Large internal refactor.</p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-10-26">
       <description>
         <p>Mini apps, sponsored messages, notifications for chats, contacts, translation, jump to date, polls and quizzes, privacy exceptions, group and channel editing, birthdays, bot start links, similar channels.</p>
