@@ -2,6 +2,18 @@
 
 use super::*;
 
+/// Where the parts of the bottom row are this frame.
+#[derive(Clone, Copy)]
+struct Bottom {
+    attach: Rect,
+    sticker: Rect,
+    scheduled: Rect,
+    send: Rect,
+    input: Rect,
+    /// Top of the field and the bars above it: panels open upwards from here.
+    above: f32,
+}
+
 impl App {
     pub(super) fn chat_area(&mut self, ui: &mut Ui, rect: Rect) {
         let Some(peer) = self.selected else {
@@ -18,14 +30,22 @@ impl App {
         let topic = self.forum.open.filter(|_| chat.forum);
         let source = self.saved.source.filter(|_| chat.kind == ChatKind::Saved);
         let group = matches!(chat.kind, ChatKind::Group);
-        // In channels views replace ticks; in "Saved Messages" there is nobody to read.
-        let ticks = |m: &Msg| (m.out && !matches!(chat.kind, ChatKind::Channel | ChatKind::Saved)).then_some(m.id <= chat.read_out);
-        let bar = if self.compose == Compose::New { 0.0 } else { COMPOSE_BAR_H + 8.0 };
 
         let now = ui.input(|i| i.time);
         if self.jump.is_some_and(|(p, _, start)| p != peer || now - start > JUMP_FLASH) {
             self.jump = None;
         }
+        self.chat_history(ui, peer, &chat, rect, topic, source, group, now);
+        let header = self.chat_header(ui, peer, &chat, rect, topic, group, now);
+        self.chat_bottom(ui, peer, &chat, rect, header, now);
+    }
+
+    /// The message list, scrolling under the floating header and field.
+    #[allow(clippy::too_many_arguments)]
+    fn chat_history(&mut self, ui: &mut Ui, peer: PeerId, chat: &ChatInfo, rect: Rect, topic: Option<i32>, source: Option<PeerId>, group: bool, now: f64) {
+        // In channels views replace ticks; in "Saved Messages" there is nobody to read.
+        let ticks = |m: &Msg| (m.out && !matches!(chat.kind, ChatKind::Channel | ChatKind::Saved)).then_some(m.id <= chat.read_out);
+        let bar = if self.compose == Compose::New { 0.0 } else { COMPOSE_BAR_H + 8.0 };
         // Messages scroll under the floating glass header and input field.
         let mut load_older = None;
         let mut action = None;
@@ -106,7 +126,7 @@ impl App {
                                     picked: ids.iter().all(|id| self.picked.contains(id)),
                                     play: PlayView::default(),
                                     ticks: ticks(m),
-                                    chat: Some(&chat),
+                                    chat: Some(chat),
                                     pending: None,
                                 };
                                 let texs: Vec<_> = album.iter().map(|m| self.textures.get(&ImgKey::Photo(peer, m.id))).collect();
@@ -116,57 +136,8 @@ impl App {
                                 heights.insert((peer, m.id), ui.cursor().top() - top);
                                 continue;
                             }
-                            // In a forum, a "reply" to the topic root is just a message in the topic, no quote.
-                            let reply = m.reply_to.filter(|r| topic.is_none_or(|t| *r != t)).map(|id| match msgs.iter().find(|x| x.id == id) {
-                                Some(r) => (author(r, &self.me), quote(r)),
-                                None => (l!("Відповідь", "Reply").to_owned(), l!("Повідомлення", "Message").to_owned()),
-                            });
-                            let kind = m.media.as_ref().map(|i| i.kind);
-                            let animated = self.settings.autoplay && m.video_sticker
-                                || matches!(kind, Some(MediaKind::Gif | MediaKind::Round))
-                                || (kind == Some(MediaKind::Video) && self.player.is(peer, m.id));
-                            let clip = self.clips.get(&(peer, m.id)).and_then(|c| c.tex.as_ref());
-                            let photo = clip.or(self.textures.get(&ImgKey::Photo(peer, m.id)));
-                            let sticker = clip.or(m.sticker.as_ref().and_then(|s| self.textures.get(&ImgKey::Sticker(s.0))));
-                            let revealed = self.revealed.contains(&(peer, m.id));
-                            let bubble_top = ui.cursor().top();
-                            let chosen = self.multi_vote.get(&(peer, m.id)).map_or(&[][..], |v| v.as_slice());
-                            let look = Look {
-                                chosen,
-                                group,
-                                revealed,
-                                picking: !self.picked.is_empty(),
-                                picked: self.picked.contains(&m.id),
-                                play: if m.media.is_some() { self.play_view(peer, m.id) } else { PlayView::default() },
-                                ticks: ticks(m).filter(|_| m.id > 0),
-                                chat: Some(&chat),
-                                pending: self.pending_state(m.id),
-                            };
-                            if let Some(a) = bubble(ui, m, look, reply, photo, sticker) {
+                            if let Some(a) = self.message_row(ui, peer, chat, &msgs, m, topic, group, jump, now) {
                                 action = Some(a);
-                            }
-                            if let Some(n) = m.comments {
-                                let w = (ui.available_width() * 0.72).min(340.0);
-                                let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
-                                let b = Rect::from_min_size(pos2(row.left() + 10.0, row.top() + 2.0), vec2(w, 32.0));
-                                if glass::button(ui, b, ("comments", m.id), &format!("💬  {}", comments_label(n)), false, true).clicked() {
-                                    action = Some(Action::Comments(m.id));
-                                }
-                            }
-                            if animated && ui.is_rect_visible(Rect::from_x_y_ranges(ui.max_rect().x_range(), bubble_top..=ui.cursor().top())) {
-                                self.clip_wanted.borrow_mut().push((peer, m.id));
-                            }
-                            if let Some((_, id, start)) = jump
-                                && id == m.id
-                            {
-                                let row = Rect::from_x_y_ranges(ui.max_rect().x_range(), bubble_top..=ui.cursor().top());
-                                let age = now - start;
-                                // Several frames in a row: content height may change while photos load.
-                                if age < 0.3 {
-                                    ui.scroll_to_rect(row, Some(Align::Center));
-                                }
-                                let a = (1.0 - age / JUMP_FLASH).clamp(0.0, 1.0) as f32;
-                                ui.painter().rect_filled(row.shrink2(vec2(4.0, 0.0)), 14.0, rgba(ACCENT, (a * 70.0) as u8));
                             }
                             heights.insert((peer, m.id), ui.cursor().top() - top);
                         }
@@ -215,6 +186,72 @@ impl App {
             self.ad_action(peer, a);
         }
 
+    }
+
+    /// One message (not an album) with its reply quote, comments button and the jump highlight.
+    #[allow(clippy::too_many_arguments)]
+    fn message_row(&self, ui: &mut Ui, peer: PeerId, chat: &ChatInfo, msgs: &[&Msg], m: &Msg, topic: Option<i32>, group: bool, jump: Option<(PeerId, i32, f64)>, now: f64) -> Option<Action> {
+        // In channels views replace ticks; in "Saved Messages" there is nobody to read.
+        let ticks = |m: &Msg| (m.out && !matches!(chat.kind, ChatKind::Channel | ChatKind::Saved)).then_some(m.id <= chat.read_out);
+        let mut action = None;
+        // In a forum, a "reply" to the topic root is just a message in the topic, no quote.
+        let reply = m.reply_to.filter(|r| topic.is_none_or(|t| *r != t)).map(|id| match msgs.iter().find(|x| x.id == id) {
+            Some(r) => (author(r, &self.me), quote(r)),
+            None => (l!("Відповідь", "Reply").to_owned(), l!("Повідомлення", "Message").to_owned()),
+        });
+        let kind = m.media.as_ref().map(|i| i.kind);
+        let animated = self.settings.autoplay && m.video_sticker
+            || matches!(kind, Some(MediaKind::Gif | MediaKind::Round))
+            || (kind == Some(MediaKind::Video) && self.player.is(peer, m.id));
+        let clip = self.clips.get(&(peer, m.id)).and_then(|c| c.tex.as_ref());
+        let photo = clip.or(self.textures.get(&ImgKey::Photo(peer, m.id)));
+        let sticker = clip.or(m.sticker.as_ref().and_then(|s| self.textures.get(&ImgKey::Sticker(s.0))));
+        let revealed = self.revealed.contains(&(peer, m.id));
+        let bubble_top = ui.cursor().top();
+        let chosen = self.multi_vote.get(&(peer, m.id)).map_or(&[][..], |v| v.as_slice());
+        let look = Look {
+            chosen,
+            group,
+            revealed,
+            picking: !self.picked.is_empty(),
+            picked: self.picked.contains(&m.id),
+            play: if m.media.is_some() { self.play_view(peer, m.id) } else { PlayView::default() },
+            ticks: ticks(m).filter(|_| m.id > 0),
+            chat: Some(chat),
+            pending: self.pending_state(m.id),
+        };
+        if let Some(a) = bubble(ui, m, look, reply, photo, sticker) {
+            action = Some(a);
+        }
+        if let Some(n) = m.comments {
+            let w = (ui.available_width() * 0.72).min(340.0);
+            let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
+            let b = Rect::from_min_size(pos2(row.left() + 10.0, row.top() + 2.0), vec2(w, 32.0));
+            if glass::button(ui, b, ("comments", m.id), &format!("💬  {}", comments_label(n)), false, true).clicked() {
+                action = Some(Action::Comments(m.id));
+            }
+        }
+        if animated && ui.is_rect_visible(Rect::from_x_y_ranges(ui.max_rect().x_range(), bubble_top..=ui.cursor().top())) {
+            self.clip_wanted.borrow_mut().push((peer, m.id));
+        }
+        if let Some((_, id, start)) = jump
+            && id == m.id
+        {
+            let row = Rect::from_x_y_ranges(ui.max_rect().x_range(), bubble_top..=ui.cursor().top());
+            let age = now - start;
+            // Several frames in a row: content height may change while photos load.
+            if age < 0.3 {
+                ui.scroll_to_rect(row, Some(Align::Center));
+            }
+            let a = (1.0 - age / JUMP_FLASH).clamp(0.0, 1.0) as f32;
+            ui.painter().rect_filled(row.shrink2(vec2(4.0, 0.0)), 14.0, rgba(ACCENT, (a * 70.0) as u8));
+        }
+        action
+    }
+
+    /// The glass header: avatar or back arrow, title and status, search and calendar. Returns its rect.
+    #[allow(clippy::too_many_arguments)]
+    fn chat_header(&mut self, ui: &mut Ui, peer: PeerId, chat: &ChatInfo, rect: Rect, topic: Option<i32>, group: bool, now: f64) -> Rect {
         // Header.
         let header = Rect::from_min_size(rect.min, vec2(rect.width(), HEADER_H));
         glass::glass(ui.painter(), header, Glass::tinted(HEADER_H / 2.0, glass::chrome(), 110).with_shadow().frosted(0.96));
@@ -299,6 +336,11 @@ impl App {
             p.text(pos2(text_x, header.center().y + 11.0), Align2::LEFT_CENTER, sub, FontId::proportional(12.5), color);
         }
 
+        header
+    }
+
+    /// The bottom: join / mute bar, Start for bots, or the field with its buttons; then the overlays.
+    fn chat_bottom(&mut self, ui: &mut Ui, peer: PeerId, chat: &ChatInfo, rect: Rect, header: Rect, now: f64) {
         // Not a member of a public chat: "Join"; a channel subscriber gets only the notifications toggle.
         if !chat.joined || !chat.can_post {
             let bar = Rect::from_min_max(pos2(rect.left(), rect.bottom() - COMPOSER_H), rect.max);
@@ -357,75 +399,9 @@ impl App {
             ui.painter().text(pos2(rect.left() + 14.0, above - 8.0), Align2::LEFT_CENTER, more, FontId::proportional(12.5), ink_dim());
             above -= 20.0;
         }
-        let attach = glass::icon_button(ui, attach_btn, "attach", Icon::Attach, false, true).on_hover_text(l!("Надіслати файл", "Send file"));
-        if attach.clicked() {
-            self.pick_files(peer, false);
-        }
-        let can_poll = self.chats.iter().any(|c| c.id == peer && matches!(c.kind, ChatKind::Group | ChatKind::Channel | ChatKind::Bot | ChatKind::Saved));
-        attach.context_menu(|ui| {
-            if glass::menu_button(ui, Icon::File, l!("Надіслати без стиснення", "Send without compression")).clicked() {
-                self.pick_files(peer, true);
-            }
-            // Polls go to groups, channels, bots and Saved Messages, as in Telegram.
-            if can_poll && glass::menu_button(ui, Icon::Poll, l!("Опитування", "Poll")).clicked() {
-                self.open_poll_form(peer);
-            }
-        });
-        if glass::icon_button(ui, sticker_btn, "stickers", Icon::Smile, self.sticker_panel, true).on_hover_text(l!("Стікери", "Stickers")).clicked() {
-            self.sticker_panel = !self.sticker_panel;
-            if self.sticker_panel && !self.stickers_requested {
-                self.stickers_requested = true;
-                self.send(Cmd::LoadStickers);
-            }
-        }
-        if n_scheduled > 0 {
-            let hint = lf!("Заплановані: {n_scheduled}", "Scheduled: {n_scheduled}");
-            if glass::icon_button(ui, sched_btn, "scheduled", Icon::Clock, self.scheduled_open, true).on_hover_text(hint).clicked() {
-                self.scheduled_open = !self.scheduled_open;
-            }
-        }
-        if self.sticker_panel {
-            let panel = Rect::from_min_max(pos2((send_btn.right() - 380.0).max(rect.left()), above - 340.0), pos2(send_btn.right(), above));
-            self.sticker_view(ui, peer, panel);
-        }
-        if self.scheduled_open && n_scheduled > 0 {
-            let panel = Rect::from_min_max(pos2(rect.left(), (above - 360.0).max(header.bottom() + 8.0)), pos2(rect.right(), above));
-            self.scheduled_view(ui, peer, panel);
-        }
-        if !self.picked.is_empty() {
-            let bar = Rect::from_min_max(pos2(rect.left(), send_btn.top()), send_btn.max);
-            self.selection_bar(ui, peer, bar);
-            self.chat_overlays(ui, peer, rect, header, above);
-            return;
-        }
-        if self.recorder.as_ref().is_some_and(|(p, _)| *p != peer) {
-            self.cancel_recording();
-        }
-        if self.voice_draft.as_ref().is_some_and(|(p, _)| *p != peer) || self.round_rec.as_ref().is_some_and(|(p, _)| *p != peer) {
-            self.cancel_recording();
-        }
-        if self.round_rec.is_some() {
-            self.round_bar(ui, input, rect, now);
-            if glass::icon_button(ui, send_btn, "send", Icon::Send, true, true).on_hover_text(l!("Надіслати відеоповідомлення", "Send video message")).clicked() {
-                self.send_round();
-            }
-            self.chat_overlays(ui, peer, rect, header, above);
-            return;
-        }
-        if self.voice_draft.is_some() {
-            self.voice_draft_bar(ui, input);
-            if glass::icon_button(ui, send_btn, "send", Icon::Send, true, true).on_hover_text(l!("Надіслати голосове", "Send voice message")).clicked() {
-                self.send_recording();
-            }
-            self.chat_overlays(ui, peer, rect, header, above);
-            return;
-        }
-        if self.recorder.is_some() {
-            self.recording_bar(ui, input, now);
-            if glass::icon_button(ui, send_btn, "send", Icon::Send, true, true).on_hover_text(l!("Надіслати голосове", "Send voice message")).clicked() {
-                self.send_recording();
-            }
-            self.chat_overlays(ui, peer, rect, header, above);
+        let b = Bottom { attach: attach_btn, sticker: sticker_btn, scheduled: sched_btn, send: send_btn, input, above };
+        self.composer_buttons(ui, peer, rect, header, &b, n_scheduled);
+        if self.replacement_bars(ui, peer, rect, header, &b, now) {
             return;
         }
         self.paste_files(ui, peer);
@@ -505,6 +481,89 @@ impl App {
             self.schedule_view(ui, panel);
         }
         self.chat_overlays(ui, peer, rect, header, above);
+    }
+
+    /// Attach (with its menu), stickers and the scheduled list, and their panels.
+    fn composer_buttons(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect, header: Rect, b: &Bottom, n_scheduled: usize) {
+        let Bottom { attach: attach_btn, sticker: sticker_btn, scheduled: sched_btn, send: send_btn, above, .. } = *b;
+        let attach = glass::icon_button(ui, attach_btn, "attach", Icon::Attach, false, true).on_hover_text(l!("Надіслати файл", "Send file"));
+        if attach.clicked() {
+            self.pick_files(peer, false);
+        }
+        let can_poll = self.chats.iter().any(|c| c.id == peer && matches!(c.kind, ChatKind::Group | ChatKind::Channel | ChatKind::Bot | ChatKind::Saved));
+        attach.context_menu(|ui| {
+            if glass::menu_button(ui, Icon::File, l!("Надіслати без стиснення", "Send without compression")).clicked() {
+                self.pick_files(peer, true);
+            }
+            // Polls go to groups, channels, bots and Saved Messages, as in Telegram.
+            if can_poll && glass::menu_button(ui, Icon::Poll, l!("Опитування", "Poll")).clicked() {
+                self.open_poll_form(peer);
+            }
+        });
+        if glass::icon_button(ui, sticker_btn, "stickers", Icon::Smile, self.sticker_panel, true).on_hover_text(l!("Стікери", "Stickers")).clicked() {
+            self.sticker_panel = !self.sticker_panel;
+            if self.sticker_panel && !self.stickers_requested {
+                self.stickers_requested = true;
+                self.send(Cmd::LoadStickers);
+            }
+        }
+        if n_scheduled > 0 {
+            let hint = lf!("Заплановані: {n_scheduled}", "Scheduled: {n_scheduled}");
+            if glass::icon_button(ui, sched_btn, "scheduled", Icon::Clock, self.scheduled_open, true).on_hover_text(hint).clicked() {
+                self.scheduled_open = !self.scheduled_open;
+            }
+        }
+        if self.sticker_panel {
+            let panel = Rect::from_min_max(pos2((send_btn.right() - 380.0).max(rect.left()), above - 340.0), pos2(send_btn.right(), above));
+            self.sticker_view(ui, peer, panel);
+        }
+        if self.scheduled_open && n_scheduled > 0 {
+            let panel = Rect::from_min_max(pos2(rect.left(), (above - 360.0).max(header.bottom() + 8.0)), pos2(rect.right(), above));
+            self.scheduled_view(ui, peer, panel);
+        }
+    }
+
+    /// Bars that take the place of the field: selected messages, a recording, a voice draft.
+    /// Returns `true` when one was drawn (the overlays are drawn too).
+    fn replacement_bars(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect, header: Rect, b: &Bottom, now: f64) -> bool {
+        let Bottom { send: send_btn, input, above, .. } = *b;
+        if !self.picked.is_empty() {
+            let bar = Rect::from_min_max(pos2(rect.left(), send_btn.top()), send_btn.max);
+            self.selection_bar(ui, peer, bar);
+            self.chat_overlays(ui, peer, rect, header, above);
+            return true;
+        }
+        if self.recorder.as_ref().is_some_and(|(p, _)| *p != peer) {
+            self.cancel_recording();
+        }
+        if self.voice_draft.as_ref().is_some_and(|(p, _)| *p != peer) || self.round_rec.as_ref().is_some_and(|(p, _)| *p != peer) {
+            self.cancel_recording();
+        }
+        if self.round_rec.is_some() {
+            self.round_bar(ui, input, rect, now);
+            if glass::icon_button(ui, send_btn, "send", Icon::Send, true, true).on_hover_text(l!("Надіслати відеоповідомлення", "Send video message")).clicked() {
+                self.send_round();
+            }
+            self.chat_overlays(ui, peer, rect, header, above);
+            return true;
+        }
+        if self.voice_draft.is_some() {
+            self.voice_draft_bar(ui, input);
+            if glass::icon_button(ui, send_btn, "send", Icon::Send, true, true).on_hover_text(l!("Надіслати голосове", "Send voice message")).clicked() {
+                self.send_recording();
+            }
+            self.chat_overlays(ui, peer, rect, header, above);
+            return true;
+        }
+        if self.recorder.is_some() {
+            self.recording_bar(ui, input, now);
+            if glass::icon_button(ui, send_btn, "send", Icon::Send, true, true).on_hover_text(l!("Надіслати голосове", "Send voice message")).clicked() {
+                self.send_recording();
+            }
+            self.chat_overlays(ui, peer, rect, header, above);
+            return true;
+        }
+        false
     }
 
     /// Panels over the chat (search, forwarding) and Esc handling.

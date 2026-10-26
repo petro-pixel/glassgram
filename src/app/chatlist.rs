@@ -989,6 +989,62 @@ impl App {
     }
 }
 
+impl App {
+    /// The chat list, folders, found and joined chats.
+    pub(super) fn list_event(&mut self, ev: Ev) {
+        match ev {
+            Ev::Dialogs(chats) => {
+                self.chats = chats;
+                // Once per session, when the account's chats are in.
+                if !self.session_extras {
+                    self.session_extras = true;
+                    self.send(Cmd::LoadBirthdays);
+                    self.send(Cmd::LoadStories);
+                }
+            }
+            Ev::Folders(f) => {
+                if self.folder.is_some_and(|id| id != ARCHIVE && !f.iter().any(|x| x.id == id)) {
+                    self.folder = None;
+                }
+                self.folders = f;
+            }
+            Ev::SearchResults { peer: None, query, kind, from, hits } => self.search.accept((query, kind, from), hits),
+            Ev::SearchResults { peer: Some(peer), query, kind, from, hits } => {
+                if self.selected == Some(peer)
+                    && let Some(s) = &mut self.chat_search
+                {
+                    s.accept((query, kind, from), hits);
+                }
+            }
+            Ev::PublicResults { query, chats } => {
+                if query == self.search.query.trim() {
+                    self.public_hits = chats;
+                }
+            }
+            Ev::Joined(peer) => {
+                if let Some(c) = self.chat_mut(peer) {
+                    c.joined = true;
+                }
+                self.toast = Some((l!("Ви приєдналися", "You joined").into(), 0.0, false));
+            }
+            Ev::ChatFound(info) => {
+                let id = info.id;
+                if !self.chats.iter().any(|c| c.id == id) {
+                    self.chats.push(info);
+                }
+                self.open_chat(id);
+            }
+            Ev::ChatTitle { peer, title } => {
+                if let Some(c) = self.chat_mut(peer) {
+                    c.title = title;
+                }
+                self.chats_dirty = true;
+            }
+            _ => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Reorder;

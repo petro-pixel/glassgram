@@ -397,3 +397,34 @@ impl App {
         self.compose = Compose::New;
     }
 }
+
+impl App {
+    /// Inline bot results, sticker sets and upload progress for the field.
+    pub(super) fn composer_event(&mut self, ev: Ev) {
+        match ev {
+            Ev::Stickers(sets) => {
+                self.stickers = sets;
+                self.sticker_set = 0;
+                self.request_sticker_thumbs();
+            }
+            Ev::UploadProgress { id, done, total } => {
+                if let Some(u) = self.uploads.iter_mut().find(|u| u.id == id) {
+                    (u.done, u.total) = (done, total);
+                }
+            }
+            Ev::UploadDone(id) => self.uploads.retain(|u| u.id != id),
+            Ev::InlineResults { peer, bot, query, query_id, results } => {
+                if self.selected == Some(peer)
+                    && let Some(i) = &mut self.inline
+                    && i.bot == bot
+                    && i.query == query
+                {
+                    i.results = results;
+                    i.query_id = query_id;
+                    i.results_for = Some((bot, query));
+                }
+            }
+            _ => {}
+        }
+    }
+}

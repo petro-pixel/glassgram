@@ -177,3 +177,45 @@ impl App {
         self.send(cmd);
     }
 }
+
+impl App {
+    /// Sign-in steps and the account coming or going.
+    pub(super) fn login_event(&mut self, ev: Ev) {
+        match ev {
+            Ev::NeedPhone => self.screen = Screen::Login(Step::Phone),
+            Ev::NeedCode => self.screen = Screen::Login(Step::Code),
+            Ev::NeedPassword(hint) => self.screen = Screen::Login(Step::Password(hint)),
+            Ev::Qr(url) => {
+                if matches!(self.screen, Screen::Login(Step::Qr(_))) {
+                    self.screen = Screen::Login(Step::Qr(Some(url)));
+                }
+            }
+            Ev::LoggedIn(name) => {
+                self.accounts.set_name(self.accounts.active, &name);
+                self.accounts.save();
+                self.me = name;
+                self.screen = Screen::Main;
+                self.code.clear();
+                self.password.clear();
+            }
+            Ev::LoggedOut => {
+                // Other accounts remain: remove this one and move to the next.
+                if self.accounts.list.len() > 1 {
+                    let gone = self.accounts.active;
+                    self.accounts.remove(gone);
+                    let next = self.accounts.active;
+                    self.switch_account(next);
+                    return;
+                }
+                self.accounts.set_name(self.accounts.active, "");
+                self.accounts.save();
+                self.chats.clear();
+                self.history.clear();
+                self.textures.clear();
+                self.selected = None;
+                self.screen = Screen::Login(Step::Creds);
+            }
+            _ => {}
+        }
+    }
+}

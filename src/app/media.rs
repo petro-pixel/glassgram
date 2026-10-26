@@ -146,3 +146,33 @@ impl App {
         }
     }
 }
+
+impl App {
+    /// Media files downloaded for playing, voice messages listened to.
+    pub(super) fn media_event(&mut self, ev: Ev) {
+        match ev {
+            Ev::Listened { peer, ids } => {
+                use grammers_client::session::types::PeerKind;
+                for (p, msgs) in &mut self.history {
+                    // Without the chat, ids are unique within an account for everything except channels.
+                    if peer.map_or(p.kind() != PeerKind::Channel, |x| x == *p) {
+                        msgs.iter_mut().filter(|m| ids.contains(&m.id)).for_each(|m| m.media_unread = false);
+                    }
+                }
+            }
+            Ev::MediaReady { peer, id, path } => {
+                self.media_loading.remove(&(peer, id));
+                self.media.insert((peer, id), path.clone());
+                match self.media_wanted.remove(&(peer, id)) {
+                    Some(true) => open_external(&path),
+                    Some(false) => {
+                        let duration = self.find(peer, id).and_then(|m| m.media.as_ref()).map_or(0.0, |i| i.duration);
+                        self.player.play(peer, id, &path, duration);
+                    }
+                    None => {}
+                }
+            }
+            _ => {}
+        }
+    }
+}

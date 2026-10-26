@@ -138,3 +138,41 @@ impl App {
         }
     }
 }
+
+impl App {
+    /// Topic lists and pages of a topic's history.
+    pub(super) fn forum_event(&mut self, ev: Ev) {
+        match ev {
+            Ev::Topics { peer, topics } => {
+                self.forum.topics.insert(peer, topics);
+            }
+            Ev::TopicHistory { peer, topic, msgs, older } => {
+                if older {
+                    self.loading_older = false;
+                }
+                // Incomplete page: there are no earlier messages in the topic.
+                if msgs.len() < backend::PAGE {
+                    self.forum.exhausted.insert((peer, topic));
+                }
+                let last = msgs.last().map(|m| m.id);
+                // Topics share the chat history: merge without duplicates and keep order by id.
+                let list = self.history.entry(peer).or_default();
+                for m in msgs {
+                    if !list.iter().any(|x| x.id == m.id) {
+                        list.push(m);
+                    }
+                }
+                list.sort_by_key(|m| m.id);
+                if !older
+                    && let Some(max_id) = last
+                    && let Some(t) = self.forum.topics.get_mut(&peer).and_then(|ts| ts.iter_mut().find(|t| t.id == topic))
+                    && t.unread > 0
+                {
+                    t.unread = 0;
+                    self.send(Cmd::ReadTopic { peer, topic, max_id });
+                }
+            }
+            _ => {}
+        }
+    }
+}

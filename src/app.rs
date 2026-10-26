@@ -821,31 +821,13 @@ impl App {
 
     fn handle_event(&mut self, ev: Ev) {
         match ev {
-            Ev::NeedPhone => self.screen = Screen::Login(Step::Phone),
-            Ev::NeedCode => self.screen = Screen::Login(Step::Code),
-            Ev::NeedPassword(hint) => self.screen = Screen::Login(Step::Password(hint)),
-            Ev::Qr(url) => {
-                if matches!(self.screen, Screen::Login(Step::Qr(_))) {
-                    self.screen = Screen::Login(Step::Qr(Some(url)));
-                }
-            }
-            Ev::LoggedIn(name) => {
-                self.accounts.set_name(self.accounts.active, &name);
-                self.accounts.save();
-                self.me = name;
-                self.screen = Screen::Main;
-                self.code.clear();
-                self.password.clear();
-            }
-            Ev::Dialogs(chats) => {
-                self.chats = chats;
-                // Once per session, when the account's chats are in.
-                if !self.session_extras {
-                    self.session_extras = true;
-                    self.send(Cmd::LoadBirthdays);
-                    self.send(Cmd::LoadStories);
-                }
-            }
+            ev @ (Ev::Dialogs(..) | Ev::Folders(..) | Ev::PublicResults { .. } | Ev::ChatFound(..) | Ev::Joined(..) | Ev::ChatTitle { .. } | Ev::SearchResults { .. }) => self.list_event(ev),
+            ev @ (Ev::Exported { .. } | Ev::ExportProgress { .. } | Ev::Scheduled { .. }) => self.dialogs_event(ev),
+            ev @ (Ev::InlineResults { .. } | Ev::Stickers(..) | Ev::UploadProgress { .. } | Ev::UploadDone(..)) => self.composer_event(ev),
+            ev @ (Ev::MediaReady { .. } | Ev::Listened { .. }) => self.media_event(ev),
+            ev @ Ev::Comments { .. } => self.comments_event(ev),
+            ev @ (Ev::Topics { .. } | Ev::TopicHistory { .. }) => self.forum_event(ev),
+            ev @ (Ev::NeedPhone | Ev::NeedCode | Ev::NeedPassword(..) | Ev::Qr(..) | Ev::LoggedIn(..) | Ev::LoggedOut) => self.login_event(ev),
             Ev::Birthdays(list) => self.birthdays.today = list,
             Ev::SavedDialogs(list) => self.saved.sources = list,
             Ev::Stories(list) => self.on_stories(list),
@@ -895,65 +877,10 @@ impl App {
                 }
                 self.toast = Some((e, 0.0, true));
             }
-            Ev::Folders(f) => {
-                if self.folder.is_some_and(|id| id != ARCHIVE && !f.iter().any(|x| x.id == id)) {
-                    self.folder = None;
-                }
-                self.folders = f;
-            }
-            Ev::Stickers(sets) => {
-                self.stickers = sets;
-                self.sticker_set = 0;
-                self.request_sticker_thumbs();
-            }
-            Ev::UploadProgress { id, done, total } => {
-                if let Some(u) = self.uploads.iter_mut().find(|u| u.id == id) {
-                    (u.done, u.total) = (done, total);
-                }
-            }
-            Ev::UploadDone(id) => self.uploads.retain(|u| u.id != id),
             Ev::BotAnswer { text, alert } => self.toast = Some((text, 0.0, alert)),
             Ev::Reactions { peer, id, reactions } => {
                 if let Some(m) = self.find_mut(peer, id) {
                     m.reactions = reactions;
-                }
-            }
-            Ev::Listened { peer, ids } => {
-                use grammers_client::session::types::PeerKind;
-                for (p, msgs) in &mut self.history {
-                    // Without the chat, ids are unique within an account for everything except channels.
-                    if peer.map_or(p.kind() != PeerKind::Channel, |x| x == *p) {
-                        msgs.iter_mut().filter(|m| ids.contains(&m.id)).for_each(|m| m.media_unread = false);
-                    }
-                }
-            }
-            Ev::MediaReady { peer, id, path } => {
-                self.media_loading.remove(&(peer, id));
-                self.media.insert((peer, id), path.clone());
-                match self.media_wanted.remove(&(peer, id)) {
-                    Some(true) => open_external(&path),
-                    Some(false) => {
-                        let duration = self.find(peer, id).and_then(|m| m.media.as_ref()).map_or(0.0, |i| i.duration);
-                        self.player.play(peer, id, &path, duration);
-                    }
-                    None => {}
-                }
-            }
-            Ev::Scheduled { peer, msgs } => {
-                if msgs.is_empty() && self.selected == Some(peer) {
-                    self.scheduled_open = false;
-                }
-                self.scheduled.insert(peer, msgs);
-            }
-            Ev::InlineResults { peer, bot, query, query_id, results } => {
-                if self.selected == Some(peer)
-                    && let Some(i) = &mut self.inline
-                    && i.bot == bot
-                    && i.query == query
-                {
-                    i.results = results;
-                    i.query_id = query_id;
-                    i.results_for = Some((bot, query));
                 }
             }
             Ev::Typing { peer, who, active } => {
@@ -988,95 +915,8 @@ impl App {
                     c.read_out = c.read_out.max(max_id);
                 }
             }
-            Ev::SearchResults { peer: None, query, kind, from, hits } => self.search.accept((query, kind, from), hits),
-            Ev::SearchResults { peer: Some(peer), query, kind, from, hits } => {
-                if self.selected == Some(peer)
-                    && let Some(s) = &mut self.chat_search
-                {
-                    s.accept((query, kind, from), hits);
-                }
-            }
             Ev::Sessions(list) => self.sessions = list,
-            Ev::PublicResults { query, chats } => {
-                if query == self.search.query.trim() {
-                    self.public_hits = chats;
-                }
-            }
-            Ev::Joined(peer) => {
-                if let Some(c) = self.chat_mut(peer) {
-                    c.joined = true;
-                }
-                self.toast = Some((l!("Ви приєдналися", "You joined").into(), 0.0, false));
-            }
-            Ev::ChatFound(info) => {
-                let id = info.id;
-                if !self.chats.iter().any(|c| c.id == id) {
-                    self.chats.push(info);
-                }
-                self.open_chat(id);
-            }
-            Ev::ExportProgress { peer, done } => {
-                let t = self.chats.iter().find(|c| c.id == peer).map(|c| c.title.clone()).unwrap_or_default();
-                self.toast = Some((lf!("Експорт «{t}»: {done} повідомлень…", "Exporting “{t}”: {done} messages…"), 0.0, false));
-            }
-            Ev::Exported { peer, dir, count } => {
-                self.exporting.remove(&peer);
-                self.toast = Some((lf!("Експортовано {count} повідомлень", "Exported {count} messages"), 0.0, false));
-                if count > 0 {
-                    crate::platform::open(&dir);
-                }
-            }
-            Ev::Comments { peer, post, discussion, root, msgs, older } => {
-                if let Some(c) = self.comments.as_mut().filter(|c| c.peer == peer && c.post == post) {
-                    c.discussion = Some((discussion, root));
-                    c.loading = false;
-                    // Incomplete page: there are no earlier comments.
-                    c.exhausted = msgs.len() < backend::PAGE;
-                    if older {
-                        let mut merged: Vec<Msg> = msgs.into_iter().filter(|m| !c.msgs.iter().any(|x| x.id == m.id)).collect();
-                        merged.append(&mut c.msgs);
-                        c.msgs = merged;
-                    } else {
-                        c.msgs = msgs;
-                    }
-                }
-            }
-            Ev::Topics { peer, topics } => {
-                self.forum.topics.insert(peer, topics);
-            }
-            Ev::TopicHistory { peer, topic, msgs, older } => {
-                if older {
-                    self.loading_older = false;
-                }
-                // Incomplete page: there are no earlier messages in the topic.
-                if msgs.len() < backend::PAGE {
-                    self.forum.exhausted.insert((peer, topic));
-                }
-                let last = msgs.last().map(|m| m.id);
-                // Topics share the chat history: merge without duplicates and keep order by id.
-                let list = self.history.entry(peer).or_default();
-                for m in msgs {
-                    if !list.iter().any(|x| x.id == m.id) {
-                        list.push(m);
-                    }
-                }
-                list.sort_by_key(|m| m.id);
-                if !older
-                    && let Some(max_id) = last
-                    && let Some(t) = self.forum.topics.get_mut(&peer).and_then(|ts| ts.iter_mut().find(|t| t.id == topic))
-                    && t.unread > 0
-                {
-                    t.unread = 0;
-                    self.send(Cmd::ReadTopic { peer, topic, max_id });
-                }
-            }
             Ev::GlobalPrivacy(p) => self.global_privacy = Some(p),
-            Ev::ChatTitle { peer, title } => {
-                if let Some(c) = self.chat_mut(peer) {
-                    c.title = title;
-                }
-                self.chats_dirty = true;
-            }
             Ev::PrivacyExceptions(key, ex) => {
                 self.privacy_ex.insert(key, ex);
             }
@@ -1095,23 +935,6 @@ impl App {
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
             ev @ (Ev::ChatDetails { .. } | Ev::SimilarChannels { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
                 self.info_event(ev)
-            }
-            Ev::LoggedOut => {
-                // Other accounts remain: remove this one and move to the next.
-                if self.accounts.list.len() > 1 {
-                    let gone = self.accounts.active;
-                    self.accounts.remove(gone);
-                    let next = self.accounts.active;
-                    self.switch_account(next);
-                    return;
-                }
-                self.accounts.set_name(self.accounts.active, "");
-                self.accounts.save();
-                self.chats.clear();
-                self.history.clear();
-                self.textures.clear();
-                self.selected = None;
-                self.screen = Screen::Login(Step::Creds);
             }
             Ev::Profile(p) => self.on_profile(p),
             Ev::UsernameCheck { name, state } => self.on_username_check(name, state),

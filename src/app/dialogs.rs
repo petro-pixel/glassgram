@@ -175,3 +175,29 @@ impl App {
         }
     }
 }
+
+impl App {
+    /// Export progress and the scheduled list.
+    pub(super) fn dialogs_event(&mut self, ev: Ev) {
+        match ev {
+            Ev::Scheduled { peer, msgs } => {
+                if msgs.is_empty() && self.selected == Some(peer) {
+                    self.scheduled_open = false;
+                }
+                self.scheduled.insert(peer, msgs);
+            }
+            Ev::ExportProgress { peer, done } => {
+                let t = self.chats.iter().find(|c| c.id == peer).map(|c| c.title.clone()).unwrap_or_default();
+                self.toast = Some((lf!("Експорт «{t}»: {done} повідомлень…", "Exporting “{t}”: {done} messages…"), 0.0, false));
+            }
+            Ev::Exported { peer, dir, count } => {
+                self.exporting.remove(&peer);
+                self.toast = Some((lf!("Експортовано {count} повідомлень", "Exported {count} messages"), 0.0, false));
+                if count > 0 {
+                    crate::platform::open(&dir);
+                }
+            }
+            _ => {}
+        }
+    }
+}

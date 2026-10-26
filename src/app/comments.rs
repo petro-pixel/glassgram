@@ -86,3 +86,27 @@ impl App {
         }
     }
 }
+
+impl App {
+    /// A page of comments for the open post.
+    pub(super) fn comments_event(&mut self, ev: Ev) {
+        match ev {
+            Ev::Comments { peer, post, discussion, root, msgs, older } => {
+                if let Some(c) = self.comments.as_mut().filter(|c| c.peer == peer && c.post == post) {
+                    c.discussion = Some((discussion, root));
+                    c.loading = false;
+                    // Incomplete page: there are no earlier comments.
+                    c.exhausted = msgs.len() < backend::PAGE;
+                    if older {
+                        let mut merged: Vec<Msg> = msgs.into_iter().filter(|m| !c.msgs.iter().any(|x| x.id == m.id)).collect();
+                        merged.append(&mut c.msgs);
+                        c.msgs = merged;
+                    } else {
+                        c.msgs = msgs;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
