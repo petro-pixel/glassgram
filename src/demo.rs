@@ -248,7 +248,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::LoadMentions { peer, query } => {
             let q = query.to_lowercase();
-            let members = [(31, "Тарас Бойко", "taras_b", false), (32, "Ірина Ткаченко", "iryna", false), (33, "Софія", "", false), (34, "Максим Лисенко", "max_l", false), (35, "RustDocsBot", "rustdocsbot", true)]
+            let members = MENTIONABLE
                 .into_iter()
                 .map(|(id, name, username, bot)| Mentionable { id: PeerId::user_unchecked(id), name: name.into(), username: username.into(), bot })
                 .filter(|m| m.name.to_lowercase().contains(&q) || m.username.starts_with(&q))
@@ -432,7 +432,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::Delete { peer, ids } => app.push_event(Ev::Deleted { ids, peer: Some(peer) }),
         Cmd::LoadOlder { peer, .. } => app.push_event(Ev::History { peer, msgs: vec![], older: true }),
         Cmd::Logout => app.push_event(Ev::Error("У демо-режимі вихід недоступний".into())),
-        Cmd::Search { peer, query, kind } => {
+        Cmd::Search { peer, query, kind, from } => {
             let q = query.to_lowercase();
             let mut hits: Vec<SearchHit> = app
                 .demo_history()
@@ -446,7 +446,12 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 let title = app.demo_chat(p).map(|c| (c.title.clone(), c.kind)).unwrap_or((String::new(), ChatKind::User));
                 hits = demo_shared(app, p, k).into_iter().filter(|m| m.text.to_lowercase().contains(&q)).map(|m| SearchHit { chat: title.0.clone(), kind: title.1, msg: m }).collect();
             }
-            app.push_event(Ev::SearchResults { peer, query, kind, hits });
+            // Demo messages carry only the sender's name: match it against the member picked.
+            if let Some((_, name, _, _)) = from.and_then(|f| MENTIONABLE.into_iter().find(|m| PeerId::user_unchecked(m.0) == f)) {
+                let first = name.split(' ').next().unwrap_or_default();
+                hits.retain(|h| h.msg.sender == first || h.msg.sender == name);
+            }
+            app.push_event(Ev::SearchResults { peer, query, kind, from, hits });
         }
         Cmd::LoadPinned(peer) => {
             let msgs = app.demo_history().find(|(p, _, _)| *p == peer).map(|(_, _, msgs)| msgs.iter().filter(|m| m.pinned).cloned().collect()).unwrap_or_default();
@@ -803,6 +808,10 @@ fn demo_ad() -> Sponsored {
         photo: Some(DEMO_AD_PHOTO),
     }
 }
+/// Group members for @mentions and the search sender filter: (id, name, username, bot).
+const MENTIONABLE: [(i64, &str, &str, bool); 5] =
+    [(31, "Тарас Бойко", "taras_b", false), (32, "Ірина Ткаченко", "iryna", false), (33, "Софія", "", false), (34, "Максим Лисенко", "max_l", false), (35, "RustDocsBot", "rustdocsbot", true)];
+
 /// Bot chat with no messages yet: shows the "Start" bar.
 const HELPER_BOT: i64 = 11;
 

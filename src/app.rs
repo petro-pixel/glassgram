@@ -50,6 +50,7 @@ mod birthdays;
 mod botstart;
 mod similar;
 mod saved;
+mod chatsearch;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -314,34 +315,47 @@ struct Search {
     query: String,
     /// In-chat search only: one type of message (photos, files, …), which needs no query.
     kind: Option<SharedKind>,
+    /// In-chat search in groups: messages of one member (id, name).
+    from: Option<(PeerId, String)>,
+    /// The field searches members to pick `from`; the typed query waits in `stash`.
+    picking: bool,
+    stash: String,
+    /// Member search last asked for while picking.
+    members_asked: Option<String>,
     edited_at: f64,
-    requested: (String, Option<SharedKind>),
+    requested: SearchKey,
     hits: Vec<SearchHit>,
-    hits_for: (String, Option<SharedKind>),
+    hits_for: SearchKey,
 }
 
+/// What results are for: query, type filter, sender.
+type SearchKey = (String, Option<SharedKind>, Option<PeerId>);
+
 impl Search {
-    /// Whether it's time to send the request (after a pause in typing).
-    fn due(&self, now: f64) -> Option<String> {
-        let q = self.query.trim();
-        let wanted = q.chars().count() >= 2 || self.kind.is_some() && q.is_empty();
-        let key = (q.to_owned(), self.kind);
-        (wanted && key != self.requested && now - self.edited_at > SEARCH_DELAY).then(|| q.to_owned())
+    fn key(&self) -> SearchKey {
+        (self.query.trim().to_owned(), self.kind, self.from.as_ref().map(|f| f.0))
     }
 
-    /// Something to search for: results (or a spinner) are shown.
+    /// Whether it's time to send the request (after a pause in typing).
+    fn due(&self, now: f64) -> Option<String> {
+        let key = self.key();
+        (!self.picking && self.active() && key != self.requested && now - self.edited_at > SEARCH_DELAY).then_some(key.0)
+    }
+
+    /// Something to search for: results (or a spinner) are shown. Filters alone are enough.
     fn active(&self) -> bool {
-        self.query.trim().chars().count() >= 2 || self.kind.is_some() && self.query.trim().is_empty()
+        let q = self.query.trim();
+        q.chars().count() >= 2 || q.is_empty() && (self.kind.is_some() || self.from.is_some())
     }
 
     fn ready(&self) -> bool {
-        self.hits_for == (self.query.trim().to_owned(), self.kind)
+        self.hits_for == self.key()
     }
 
-    fn accept(&mut self, query: String, kind: Option<SharedKind>, hits: Vec<SearchHit>) {
-        if query == self.query.trim() && kind == self.kind {
+    fn accept(&mut self, key: SearchKey, hits: Vec<SearchHit>) {
+        if key == self.key() {
             self.hits = hits;
-            self.hits_for = (query, kind);
+            self.hits_for = key;
         }
     }
 }
@@ -1042,12 +1056,12 @@ impl App {
                     c.read_out = c.read_out.max(max_id);
                 }
             }
-            Ev::SearchResults { peer: None, query, kind, hits } => self.search.accept(query, kind, hits),
-            Ev::SearchResults { peer: Some(peer), query, kind, hits } => {
+            Ev::SearchResults { peer: None, query, kind, from, hits } => self.search.accept((query, kind, from), hits),
+            Ev::SearchResults { peer: Some(peer), query, kind, from, hits } => {
                 if self.selected == Some(peer)
                     && let Some(s) = &mut self.chat_search
                 {
-                    s.accept(query, kind, hits);
+                    s.accept((query, kind, from), hits);
                 }
             }
             Ev::Sessions(list) => self.sessions = list,
@@ -2858,12 +2872,12 @@ impl App {
             self.search.edited_at = now;
         }
         if let Some(query) = self.search.due(now) {
-            self.search.requested = (query.clone(), None);
+            self.search.requested = (query.clone(), None, None);
             self.public_hits.clear();
             if query.chars().count() >= 3 && !self.demo {
                 self.send(Cmd::SearchPublic(query.clone()));
             }
-            self.send(Cmd::Search { peer: None, query, kind: None });
+            self.send(Cmd::Search { peer: None, query, kind: None, from: None });
         }
 
         let mut list_top = search.bottom() + 10.0;
@@ -3205,7 +3219,8 @@ impl App {
         }
         if let Some(s) = &mut self.chat_search {
             let field = Rect::from_min_max(pos2(text_x - 4.0, header.top() + 11.0), pos2(search_btn.left() - 54.0, header.bottom() - 11.0));
-            let resp = glass::search_field(ui, field, &mut s.query, l!("Пошук у чаті", "Search in chat"));
+            let hint = if s.picking { l!("Ім'я учасника", "Member name") } else { l!("Пошук у чаті", "Search in chat") };
+            let resp = glass::search_field(ui, field, &mut s.query, hint);
             if !resp.has_focus() && s.query.is_empty() && s.edited_at == 0.0 {
                 resp.request_focus();
                 s.edited_at = now;
@@ -3214,10 +3229,11 @@ impl App {
                 s.edited_at = now;
             }
             if let Some(query) = s.due(now) {
-                s.requested = (query.clone(), s.kind);
-                let kind = s.kind;
-                self.send(Cmd::Search { peer: Some(peer), query, kind });
+                s.requested = s.key();
+                let (kind, from) = (s.kind, s.from.as_ref().map(|f| f.0));
+                self.send(Cmd::Search { peer: Some(peer), query, kind, from });
             }
+            self.search_members_due(peer, now);
         } else {
             let title_w = search_btn.left() - text_x - 12.0;
             let title = open_topic.as_ref().map_or(chat.title.as_str(), |t| t.title.as_str());
@@ -3975,69 +3991,6 @@ impl App {
             self.draft = std::mem::take(&mut self.edit_stash);
         }
         self.compose = Compose::New;
-    }
-
-    /// In-chat search results: a glass panel under the header.
-    fn chat_search_view(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
-        let Some(s) = &self.chat_search else { return };
-        const FILTERS_H: f32 = 44.0;
-        let active = s.active();
-        let ready = s.ready();
-        let rows = if !active { 0 } else if ready { s.hits.len().max(1) } else { 1 };
-        let body_h = if rows == 0 { 0.0 } else { rows as f32 * 58.0 + 12.0 };
-        let full = Rect::from_min_size(rect.min, vec2(rect.width(), (FILTERS_H + body_h + 8.0).min(rect.height())));
-        glass::glass(ui.painter(), full, Glass::tinted(22.0, glass::chrome(), 150).frosted(1.0).with_shadow());
-        ui.interact(full, ui.scope_id().with("chat-search-bg"), Sense::click());
-        // Type filters, as in the profile's shared media; a second click clears.
-        let strip = Rect::from_min_size(full.min + vec2(10.0, 8.0), vec2(full.width() - 20.0, 32.0));
-        let mut kind = s.kind;
-        ui.scope_builder(UiBuilder::new().max_rect(strip), |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 6.0;
-                for k in SharedKind::ALL {
-                    if info::chip(ui, k.title(), kind == Some(k)).clicked() {
-                        kind = if kind == Some(k) { None } else { Some(k) };
-                    }
-                }
-            });
-        });
-        if let Some(s) = self.chat_search.as_mut().filter(|s| s.kind != kind) {
-            s.kind = kind;
-            s.edited_at = 0.0;
-        }
-        let Some(s) = &self.chat_search else { return };
-        if rows == 0 {
-            return;
-        }
-        let rect = Rect::from_min_max(pos2(full.left(), strip.bottom() + 4.0), full.max);
-        if !ready {
-            ui.put(Rect::from_center_size(rect.center(), vec2(22.0, 22.0)), egui::Spinner::new().size(22.0).color(ink()));
-            return;
-        }
-        if s.hits.is_empty() {
-            ui.painter().text(rect.center(), Align2::CENTER_CENTER, l!("Нічого не знайдено", "Nothing found"), FontId::proportional(14.0), ink_dim());
-            return;
-        }
-        let inner = rect.shrink2(vec2(8.0, 10.0));
-        let mut chosen = None;
-        let mut child = ui.new_child(UiBuilder::new().max_rect(inner));
-        child.set_clip_rect(inner);
-        egui::ScrollArea::vertical()
-            .id_salt(("chat-search", peer))
-            .auto_shrink(false)
-            .show(&mut child, |ui| {
-                ui.spacing_mut().item_spacing.y = 2.0;
-                for hit in &s.hits {
-                    let who = author(&hit.msg, &self.me);
-                    let hit = SearchHit { chat: who, ..hit.clone() };
-                    if hit_row(ui, &hit, &s.hits_for.0, None).clicked() {
-                        chosen = Some(hit);
-                    }
-                }
-            });
-        if let Some(hit) = chosen {
-            self.jump_to(&hit);
-        }
     }
 
     /// Unread counter in the window title (like a taskbar badge).

@@ -95,6 +95,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/app/botstart.rs`, `src/backend/botstart.rs` | Діплінки ботів `t.me/<bot>?start=…`: смуга «Почати» з параметром |
 | `src/app/similar.rs`, `src/backend/similar.rs` | Вкладка «Схожі канали» в інформації про канал |
 | `src/app/saved.rs`, `src/backend/saved.rs` | «Збережене» за джерелами: «Усі» і вкладка на кожен чат |
+| `src/app/chatsearch.rs` | Панель пошуку в чаті: фільтри за типом і відправником, результати |
 | `src/app/privacy.rs`, `src/backend/privacy.rs` | Винятки правил приватності (завжди / ніколи не дозволяти) і глобальні перемикачі: нові чати не з контактів, час прочитання, хто може писати |
 | `src/app/polls.rs`, `src/backend/polls.rs` | Вікно «Нове опитування»: опитування й вікторини |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Міні-застосунки: запити до сервера, процес вікна WebView (`glassgram --webview`) і його міст |

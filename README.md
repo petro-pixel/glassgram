@@ -95,6 +95,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/botstart.rs`, `src/backend/botstart.rs` | Bot deep links `t.me/<bot>?start=…`: Start bar with the parameter |
 | `src/app/similar.rs`, `src/backend/similar.rs` | "Similar channels" tab in a channel's info |
 | `src/app/saved.rs`, `src/backend/saved.rs` | Saved Messages split by source: "All" and one tab per chat |
+| `src/app/chatsearch.rs` | In-chat search panel: type and sender filters, results |
 | `src/app/privacy.rs`, `src/backend/privacy.rs` | Privacy rule exceptions (always / never allow) and global switches: new non-contact chats, read time, who can message me |
 | `src/app/polls.rs`, `src/backend/polls.rs` | "New poll" box: polls and quizzes |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Mini apps: server requests, the WebView window process (`glassgram --webview`) and its bridge |

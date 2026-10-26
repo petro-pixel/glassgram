@@ -123,7 +123,7 @@ impl Worker {
     pub(super) fn load_members(&self, peer: PeerId, query: String) -> Result<(), String> {
         let client = self.client()?;
         let r = self.peer_ref(peer)?;
-        let (out, loader) = (self.out.clone(), self.loader.clone());
+        let (out, loader, refs) = (self.out.clone(), self.loader.clone(), self.refs.clone());
         tokio::spawn(async move {
             // A basic group returns everyone at once, so we filter locally; supergroups search server-side.
             let filter = tl::types::ChannelParticipantsSearch { q: query.clone() }.into();
@@ -139,8 +139,13 @@ impl Worker {
                             continue;
                         }
                         members.push(Mentionable { id: u.id(), name, username, bot: u.is_bot() });
+                        let peer = Peer::User(u);
+                        // Access for later requests about this member (search by sender).
+                        if let Ok(Some(r)) = peer.to_ref().await {
+                            refs.lock().unwrap().insert(r.id, r);
+                        }
                         if let Some(l) = &loader {
-                            l.avatar(&Peer::User(u));
+                            l.avatar(&peer);
                         }
                         if members.len() >= MEMBERS_LIMIT {
                             break;

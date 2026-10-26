@@ -33,7 +33,7 @@ pub(super) struct Suggest {
     /// Link whose preview was turned off with ✕.
     dismissed: Option<String>,
     /// Last members response: chat, query, members.
-    members: Option<(PeerId, String, Vec<Mentionable>)>,
+    pub(super) members: Option<(PeerId, String, Vec<Mentionable>)>,
     members_requested: Option<(PeerId, String)>,
     members_changed_at: f64,
     commands: HashMap<PeerId, Vec<BotCmd>>,

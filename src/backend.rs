@@ -159,7 +159,7 @@ pub enum Cmd {
     SaveDraft { peer: PeerId, text: String },
     Typing(PeerId),
     /// `peer: None` means a global search across all chats.
-    Search { peer: Option<PeerId>, query: String, kind: Option<SharedKind> },
+    Search { peer: Option<PeerId>, query: String, kind: Option<SharedKind>, from: Option<PeerId> },
     Logout,
     // Internal: results of the QR task.
     QrPassword(PasswordToken),
@@ -331,8 +331,8 @@ pub enum Ev {
     ReadInbox { peer: PeerId, unread: i32 },
     /// The peer read our messages up to `max_id`.
     ReadOutbox { peer: PeerId, max_id: i32 },
-    /// Search answer; `kind` limits in-chat search to one type of message.
-    SearchResults { peer: Option<PeerId>, query: String, kind: Option<SharedKind>, hits: Vec<SearchHit> },
+    /// Search answer; `kind` and `from` limit in-chat search to one type of message and one member.
+    SearchResults { peer: Option<PeerId>, query: String, kind: Option<SharedKind>, from: Option<PeerId>, hits: Vec<SearchHit> },
     Topics { peer: PeerId, topics: Vec<Topic> },
     /// A page of topic history: merged into the chat history (`older` means earlier messages).
     TopicHistory { peer: PeerId, topic: i32, msgs: Vec<Msg>, older: bool },
@@ -2280,7 +2280,7 @@ impl Worker {
                 });
                 Ok(())
             }
-            Cmd::Search { peer, query, kind } => self.search(peer, query, kind).await,
+            Cmd::Search { peer, query, kind, from } => self.search(peer, query, kind, from).await,
             cmd @ (Cmd::LoadPinned(_) | Cmd::PinMessage { .. } | Cmd::UnpinAll(_) | Cmd::LoadUnreadMarks { .. } | Cmd::ReadMarks { .. } | Cmd::LoadReadBy { .. } | Cmd::JumpToDate { .. }) => {
                 self.chat_view_cmd(cmd).await
             }
@@ -2784,11 +2784,50 @@ impl Worker {
         Ok(())
     }
 
-    async fn search(&self, peer: Option<PeerId>, query: String, kind: Option<SharedKind>) -> Result<(), String> {
+    async fn search(&self, peer: Option<PeerId>, query: String, kind: Option<SharedKind>, from: Option<PeerId>) -> Result<(), String> {
         let client = self.client()?;
         let mut hits = Vec::new();
         let err = |e| lf!("Пошук: {e}", "Search: {e}");
         match peer {
+            // grammers can only filter by our own messages: one member needs the raw request.
+            Some(peer) if from.is_some() => {
+                let r = self.peer_ref(peer)?;
+                let who = self.peer_ref(from.unwrap_or(peer))?;
+                let req = tl::functions::messages::Search {
+                    peer: r.into(),
+                    q: query.clone(),
+                    from_id: Some(who.into()),
+                    saved_peer_id: None,
+                    saved_reaction: None,
+                    top_msg_id: None,
+                    // A type filter with a sender is INPUT_FILTER_INVALID; the UI never sends both.
+                    filter: tl::enums::MessagesFilter::InputMessagesFilterEmpty,
+                    min_date: 0,
+                    max_date: 0,
+                    offset_id: 0,
+                    add_offset: 0,
+                    limit: SEARCH_LIMIT as i32,
+                    max_id: 0,
+                    min_id: 0,
+                    hash: 0,
+                };
+                let ids: Vec<i32> = match client.invoke(&req).await.map_err(err)? {
+                    tl::enums::messages::Messages::Messages(m) => m.messages,
+                    tl::enums::messages::Messages::Slice(m) => m.messages,
+                    tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
+                    tl::enums::messages::Messages::NotModified(_) => Vec::new(),
+                }
+                .iter()
+                .map(|m| m.id())
+                .collect();
+                if !ids.is_empty() {
+                    for m in client.get_messages_by_id(r, &ids).await.map_err(err)?.into_iter().flatten() {
+                        let mut msg = convert(&m, &self.names);
+                        msg.peer = peer;
+                        hits.push(SearchHit { chat: String::new(), kind: ChatKind::User, msg });
+                    }
+                }
+            }
             Some(peer) => {
                 let r = self.peer_ref(peer)?;
                 let mut iter = client.search_messages(r).query(&query).limit(SEARCH_LIMIT);
@@ -2812,7 +2851,7 @@ impl Worker {
                 }
             }
         }
-        self.out.send(Ev::SearchResults { peer, query, kind, hits });
+        self.out.send(Ev::SearchResults { peer, query, kind, from, hits });
         Ok(())
     }
 }
