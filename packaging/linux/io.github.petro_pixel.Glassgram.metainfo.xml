@@ -28,6 +28,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.4.0" date="2026-10-26">
+      <description>
+        <p>Mini apps, sponsored messages, notifications for chats, contacts, translation, jump to date, polls and quizzes, privacy exceptions, group and channel editing, birthdays, bot start links, similar channels.</p>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-10-24">
       <description>
         <p>Windows installer and Flatpak, PipeWire microphone, Lucide icons, localisation files.</p>
