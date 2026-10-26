@@ -167,6 +167,26 @@ impl Worker {
                     out.send(Ev::DateFound { peer, id });
                 });
             }
+            Cmd::LoadMediaDays { peer, before } => {
+                let r = self.peer_ref(peer)?;
+                tokio::spawn(async move {
+                    let req = tl::functions::messages::GetSearchResultsCalendar {
+                        peer: r.into(),
+                        saved_peer_id: None,
+                        filter: tl::enums::MessagesFilter::InputMessagesFilterPhotoVideo,
+                        offset_id: 0,
+                        offset_date: before,
+                    };
+                    match client.invoke(&req).await {
+                        Ok(tl::enums::messages::SearchResultsCalendar::Calendar(c)) => {
+                            let days = c.periods.into_iter().map(|tl::enums::SearchResultsCalendarPeriod::Period(p)| (p.date, p.count)).collect();
+                            out.send(Ev::MediaDays { peer, days });
+                        }
+                        // Only decoration: the calendar works without it.
+                        Err(e) => log_error(&lf!("Дні з медіа: {e}", "Days with media: {e}")),
+                    }
+                });
+            }
             _ => {}
         }
         Ok(())

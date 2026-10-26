@@ -15,6 +15,9 @@ pub(super) struct Calendar {
     peer: PeerId,
     /// First day of the shown month.
     month: Date,
+    /// Photos and videos per local day, as Telegram Desktop marks them; months already asked for.
+    media: HashMap<Date, i32>,
+    asked: HashSet<Date>,
 }
 
 fn month_name(m: i8) -> &'static str {
@@ -46,7 +49,30 @@ impl App {
     /// `ts`: a message time to start from (its month); `None` — this month.
     pub(super) fn open_calendar(&mut self, peer: PeerId, ts: Option<i64>) {
         let day = ts.and_then(|t| jiff::Timestamp::from_second(t).ok()).map_or_else(today, |t| t.to_zoned(TimeZone::system()).date());
-        self.calendar = Some(Calendar { peer, month: day.first_of_month() });
+        self.calendar = Some(Calendar { peer, month: day.first_of_month(), media: HashMap::new(), asked: HashSet::new() });
+        self.ask_media_days();
+    }
+
+    /// The server answers with the periods before a date, so ask from the end of the shown month.
+    fn ask_media_days(&mut self) {
+        let Some(c) = &mut self.calendar else { return };
+        if !c.asked.insert(c.month) {
+            return;
+        }
+        let end = c.month.checked_add(jiff::Span::new().months(1)).ok().and_then(|d| d.to_zoned(TimeZone::system()).ok());
+        if let Some(end) = end {
+            let (peer, before) = (c.peer, end.timestamp().as_second() as i32);
+            self.send(Cmd::LoadMediaDays { peer, before });
+        }
+    }
+
+    pub(super) fn media_days(&mut self, peer: PeerId, days: Vec<(i32, i32)>) {
+        let Some(c) = self.calendar.as_mut().filter(|c| c.peer == peer) else { return };
+        for (ts, n) in days {
+            if let Ok(t) = jiff::Timestamp::from_second(ts.into()) {
+                *c.media.entry(t.to_zoned(TimeZone::system()).date()).or_default() += n;
+            }
+        }
     }
 
     pub(super) fn date_found(&mut self, peer: PeerId, id: Option<i32>) {
@@ -110,6 +136,13 @@ impl App {
             }
             let color = if future { glass::rgba(ink(), 70) } else { ink() };
             p.text(r.center(), Align2::CENTER_CENTER, d.to_string(), FontId::proportional(14.0), color);
+            // A dot under days with photos or videos.
+            if let Some(n) = cal.media.get(&date) {
+                p.circle_filled(pos2(r.center().x, r.bottom() - 5.0), 2.5, ACCENT);
+                if resp.hovered() {
+                    resp.clone().on_hover_text(lf!("Фото й відео: {n}", "Photos and videos: {n}"));
+                }
+            }
             if resp.clicked() {
                 picked = Some(date);
             }
@@ -120,6 +153,7 @@ impl App {
             && let Ok(m) = c.month.checked_add(jiff::Span::new().months(shift))
         {
             c.month = m;
+            self.ask_media_days();
         }
         if let Some(date) = picked {
             self.calendar = None;

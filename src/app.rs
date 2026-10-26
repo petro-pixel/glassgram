@@ -1156,6 +1156,7 @@ impl App {
             ev @ (Ev::Pinned { .. } | Ev::PinnedChanged { .. } | Ev::UnreadMarks { .. } | Ev::ReadBy { .. } | Ev::Views { .. }) => self.chat_view_event(ev),
             ev @ (Ev::Sponsored { .. } | Ev::SponsoredReport { .. }) => self.sponsored_event(ev),
             Ev::DateFound { peer, id } => self.date_found(peer, id),
+            Ev::MediaDays { peer, days } => self.media_days(peer, days),
             Ev::Translated { peer, id, to, result } => self.translated(peer, id, to, result),
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. }) => self.web_app_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),

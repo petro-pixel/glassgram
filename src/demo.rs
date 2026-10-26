@@ -537,6 +537,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let list = demo_members().into_iter().filter(|m| (!admins || m.role != MemberRole::Member) && m.chat.title.to_lowercase().contains(&q)).collect();
             app.push_event(Ev::Members { peer, query, admins, list });
         }
+        Cmd::LoadMediaDays { peer, before } => {
+            // A few days with photos in the month before `before`.
+            let days = [9, 10, 17, 24, 30].into_iter().map(|back| (before - back * 86_400 - 3 * 3600, (back % 4 + 1) as i32)).collect();
+            app.push_event(Ev::MediaDays { peer, days });
+        }
         Cmd::LoadSavedDialogs => {
             // Saved Messages (id 3) hold our own note, a channel post and a photo from Олена.
             let list = [3, 4, 1].into_iter().filter_map(|id| app.demo_chat(PeerId::user_unchecked(id)).cloned()).collect();
