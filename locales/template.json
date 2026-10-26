@@ -324,6 +324,9 @@
   "Advertiser": "",
   "Additional info": "",
   "Learn more": "",
+  "Close (Esc)": "",
+  "paused": "",
+  "🎬 Video story — showing its cover": "",
   "Do not show link preview": "",
   "Bot command menu": "",
   "Start": "",
@@ -575,6 +578,7 @@
   "Saved Messages: {e}": "",
   "Similar channels: {e}": "",
   "Report not sent: {e}": "",
+  "Stories: {e}": "",
   "Bot commands: {e}": "",
   "The server returned no translation": "",
   "Could not translate: {e}": "",
@@ -711,6 +715,5 @@
   "Unread messages: {n}": "",
   "Open Glassgram": "",
   "Quit Glassgram": "",
-  "Close (Esc)": "",
   "{n} of {total}": ""
 }

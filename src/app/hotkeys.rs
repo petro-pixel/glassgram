@@ -22,7 +22,7 @@ struct Pressed {
 impl App {
     /// Windows over the main screen own the keyboard: Esc and shortcuts must not reach the chat under them.
     pub(super) fn modal_open(&self) -> bool {
-        self.settings_open || self.folder_edit.is_some() || self.accounts_open || self.export_ask.is_some() || self.viewer.is_some() || self.topic_edit.is_some()
+        self.settings_open || self.folder_edit.is_some() || self.accounts_open || self.export_ask.is_some() || self.viewer.is_some() || self.story_view.is_some() || self.topic_edit.is_some()
     }
 
     pub(super) fn hotkeys(&mut self, ctx: &egui::Context) {

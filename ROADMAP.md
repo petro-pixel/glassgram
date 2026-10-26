@@ -131,7 +131,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P3** Games (`setGameScore`), business bots, verification by bots, referral programs
 
 ## 8. Stories
-- ⬜ **P1** Story strip above the chat list and a viewer: swiping, pause, reply, reaction (`stories.getAllStories`, `readStories`)
+- 🟡 Story strip above the chat list (ring while unseen) and a viewer: progress segments, auto-advance, click/arrows to move between stories and people, Space pauses, seen marks (`stories.getAllStories`, `getPeerStories`, `readStories`). Left: playing video stories (the cover is shown), reply, reaction
 - ⬜ **P2** Posting a story from a photo or video, caption, privacy (`stories.sendStory`)
 - ⬜ **P2** Pinned stories and albums in the profile, archive, view statistics
 - ⬜ **P3** Anonymous viewing (Premium), live streams in stories (`stories.startLive`)

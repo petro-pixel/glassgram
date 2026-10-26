@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -537,6 +537,30 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let list = demo_members().into_iter().filter(|m| (!admins || m.role != MemberRole::Member) && m.chat.title.to_lowercase().contains(&q)).collect();
             app.push_event(Ev::Members { peer, query, admins, list });
         }
+        Cmd::LoadStories => {
+            // Олена and the channel have unseen stories, Андрій's were watched.
+            let list = [(1, vec![1, 2, 3], 0), (4, vec![7], 0), (5, vec![4, 5], 5)]
+                .into_iter()
+                .filter_map(|(id, ids, max_read)| app.demo_chat(PeerId::user_unchecked(id)).cloned().map(|chat| StoryPeer { chat, ids, stories: Vec::new(), max_read }))
+                .collect();
+            app.push_event(Ev::Stories(list));
+        }
+        Cmd::LoadPeerStories(peer) => {
+            let ids = app.stories_ids(peer);
+            let now = jiff::Timestamp::now().as_second();
+            let captions = ["Новий екран чатів у склі ✨", "", "Захід сонця з балкона 🌅", "Rust 1.95 вже тут", "", "", "Огляд тижня в техно"];
+            let stories = ids
+                .iter()
+                .enumerate()
+                .map(|(k, id)| Story { id: *id, date: now - 3600 * (ids.len() - k) as i64, video: *id == 2, caption: captions.get(*id as usize - 1).copied().unwrap_or_default().into() })
+                .collect();
+            for id in &ids {
+                app.push_event(Ev::Image { key: ImgKey::Story(peer, *id), image: story_picture(*id) });
+            }
+            let max_read = if peer == PeerId::user_unchecked(5) { 5 } else { 0 };
+            app.push_event(Ev::PeerStories { peer, stories, max_read });
+        }
+        Cmd::ReadStories { .. } => {}
         Cmd::LoadMediaDays { peer, before } => {
             // A few days with photos in the month before `before`.
             let days = [9, 10, 17, 24, 30].into_iter().map(|back| (before - back * 86_400 - 3 * 3600, (back % 4 + 1) as i32)).collect();
@@ -1130,6 +1154,24 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
         (ImgKey::Photo(PeerId::user_unchecked(2), 5), sunset(480, 250)),
         (ImgKey::Sponsored(DEMO_AD_PHOTO), sunset(112, 112)),
     ]
+}
+
+/// A tall gradient for a demo story, a different hue per story.
+fn story_picture(id: i32) -> ColorImage {
+    let (w, h) = (360, 640);
+    let mut img = ColorImage::filled([w, h], Color32::BLACK);
+    let hue = id as f32 * 0.9;
+    for y in 0..h {
+        for x in 0..w {
+            let (fx, fy) = (x as f32 / w as f32, y as f32 / h as f32);
+            let wave = ((fx * 6.0 + fy * 3.0 + hue).sin() * 0.5 + 0.5) * 0.35;
+            let r = (120.0 + 120.0 * (hue + fy * 2.0).sin().abs() + 60.0 * wave).min(255.0);
+            let g = (60.0 + 90.0 * (hue * 0.7 + fx).cos().abs() + 80.0 * wave).min(255.0);
+            let b = (150.0 + 100.0 * (1.0 - fy) + 40.0 * wave).min(255.0);
+            img.pixels[y * w + x] = Color32::from_rgb(r as u8, g as u8, b as u8);
+        }
+    }
+    img
 }
 
 /// A birthday falling on today, so the reminder always shows in the demo.

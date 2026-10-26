@@ -51,6 +51,7 @@ mod botstart;
 mod similar;
 mod saved;
 mod chatsearch;
+mod stories;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -556,6 +557,9 @@ pub struct App {
     saved_sources: Vec<ChatInfo>,
     saved_source: Option<PeerId>,
     saved_exhausted: HashSet<PeerId>,
+    /// People and channels with active stories, and the story being watched.
+    stories: Vec<backend::StoryPeer>,
+    story_view: Option<stories::StoryView>,
     /// Start parameters from `t.me/<bot>?start=` links, until Start is pressed in that bot chat.
     bot_start: HashMap<PeerId, String>,
     /// "Edit group / channel" box and the photos picked in it.
@@ -605,6 +609,7 @@ impl App {
             app.push_event(Ev::Outbox(demo::outbox()));
             app.birthdays_requested = true;
             app.send(Cmd::LoadBirthdays);
+            app.send(Cmd::LoadStories);
             app.screen = Screen::Main;
             return app;
         }
@@ -845,6 +850,8 @@ impl App {
             birthdays_dismissed: None,
             birthday_edit: None,
             bot_start: HashMap::new(),
+            stories: Vec::new(),
+            story_view: None,
             saved_sources: Vec::new(),
             saved_source: None,
             saved_exhausted: HashSet::new(),
@@ -914,10 +921,13 @@ impl App {
                 if !self.birthdays_requested {
                     self.birthdays_requested = true;
                     self.send(Cmd::LoadBirthdays);
+                    self.send(Cmd::LoadStories);
                 }
             }
             Ev::Birthdays(list) => self.birthdays = list,
             Ev::SavedDialogs(list) => self.saved_sources = list,
+            Ev::Stories(list) => self.on_stories(list),
+            Ev::PeerStories { peer, stories, max_read } => self.on_peer_stories(peer, stories, max_read),
             Ev::SavedHistory { source, msgs, older } => self.on_saved_history(source, msgs, older),
             Ev::BotStart { peer, param } => {
                 self.bot_start.insert(peer, param);
@@ -2896,6 +2906,7 @@ impl App {
         let mut dropped = None;
         let mut drag = self.pin_drag.take();
         let mut birthday = None;
+        let mut story = None;
         let (rows, pinned) = self.list_rows(&query, drag.as_ref());
         let mut child = ui.new_child(UiBuilder::new().max_rect(list_rect));
         child.set_clip_rect(list_rect);
@@ -2905,6 +2916,7 @@ impl App {
             .show(&mut child, |ui| {
                 ui.spacing_mut().item_spacing.y = 4.0;
                 if query.is_empty() && self.folder.is_none() {
+                    story = self.story_strip(ui);
                     birthday = self.birthday_banner(ui);
                 }
                 let rows_out = self.chat_rows(ui, &rows, pinned, &mut drag);
@@ -2948,6 +2960,9 @@ impl App {
         }
         if let Some(a) = birthday {
             self.birthday_action(a);
+        }
+        if let Some(peer) = story {
+            self.open_stories(peer);
         }
         if let Some(chat) = found {
             let id = chat.id;
@@ -4140,6 +4155,9 @@ impl eframe::App for App {
         }
         if self.viewer.is_some() {
             self.viewer_view(ui);
+        }
+        if self.story_view.is_some() {
+            self.story_viewer(ui);
         }
         self.chatlist_overlays(ui);
         if self.accounts_open {

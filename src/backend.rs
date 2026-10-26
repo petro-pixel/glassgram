@@ -48,6 +48,8 @@ mod birthdays;
 mod botstart;
 mod similar;
 mod saved;
+mod stories;
+pub use stories::{Story, StoryPeer};
 pub use birthdays::Birthday;
 pub use chatedit::ChatRights;
 pub use privacy::{GlobalPrivacy, PrivacyExceptions};
@@ -199,6 +201,12 @@ pub enum Cmd {
     SetChatRights { peer: PeerId, rights: ChatRights },
     /// Slow mode of a supergroup, in seconds (0 — off).
     SetSlowMode { peer: PeerId, seconds: i32 },
+    /// People and channels with active stories, for the strip above the chat list.
+    LoadStories,
+    /// One peer's stories for the viewer.
+    LoadPeerStories(PeerId),
+    /// Mark a peer's stories seen up to `max_id` (the owner sees us among the viewers).
+    ReadStories { peer: PeerId, max_id: i32 },
     /// Where the messages in Saved Messages came from.
     LoadSavedDialogs,
     /// Saved Messages from one source; `saved` is the Saved Messages chat itself.
@@ -298,6 +306,8 @@ pub enum ImgKey {
     WebPage(i64),
     /// Sponsored message picture (by photo id).
     Sponsored(i64),
+    /// A story picture or a video story's cover.
+    Story(PeerId, i32),
 }
 
 pub enum Ev {
@@ -371,6 +381,10 @@ pub enum Ev {
     WebAppMethodResult { bot: PeerId, req_id: String, result: Result<String, String> },
     /// Contacts whose birthday is today.
     Birthdays(Vec<(ChatInfo, Birthday)>),
+    /// The story strip, in the server's order (unseen first).
+    Stories(Vec<StoryPeer>),
+    /// A peer's stories in posting order and the last one we saw.
+    PeerStories { peer: PeerId, stories: Vec<Story>, max_read: i32 },
     /// Sources of Saved Messages, newest first.
     SavedDialogs(Vec<ChatInfo>),
     /// A page of Saved Messages from one source.
@@ -2290,6 +2304,7 @@ impl Worker {
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
+            cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. }) => self.stories_cmd(cmd).await,
             cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. }) => self.saved_cmd(cmd).await,
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
