@@ -525,6 +525,21 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let list = demo_members().into_iter().filter(|m| (!admins || m.role != MemberRole::Member) && m.chat.title.to_lowercase().contains(&q)).collect();
             app.push_event(Ev::Members { peer, query, admins, list });
         }
+        Cmd::LoadSimilarChannels(peer) => {
+            let chats = [(61, "Rust Weekly", "12 480"), (62, "Дизайн щодня", "8 115"), (63, "Open Source UA", "3 902")]
+                .into_iter()
+                .map(|(id, title, n)| ChatInfo {
+                    id: PeerId::channel_unchecked(id),
+                    kind: ChatKind::Channel,
+                    contact: false,
+                    joined: false,
+                    can_post: false,
+                    ..person(0, title, &crate::i18n::lf!("підписників: {n}", "{n} subscribers"), Presence::None)
+                })
+                .collect();
+            // Without Premium the server sends a few and counts the rest.
+            app.push_event(Ev::SimilarChannels { peer, chats, total: 8 });
+        }
         Cmd::ExportInvite(peer) => app.push_event(Ev::Invite { peer, link: "https://t.me/+GlassgramDemo".into() }),
         Cmd::LoadShared { peer, kind, before } => {
             let msgs = if before.is_some() { Vec::new() } else { demo_shared(app, peer, kind) };

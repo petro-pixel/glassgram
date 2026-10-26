@@ -49,7 +49,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Contact birthday reminders (`contacts.getBirthdays`): a card above the main list opens the chat, hidden until tomorrow with ×
 - ⬜ **P2** Shared folders by link: join, update, leave (`chatlists.*`)
 - ⬜ **P2** Communities (2026): linked groups, channels and bots as one structure (`communities.*`)
-- ⬜ **P2** Similar channels (`getChannelRecommendations`), list density modes
+- ✅ Similar channels in a channel's info (`channels.getChannelRecommendations`): a tab with subscriber counts, a click opens the channel without joining, the Premium-only rest is counted
+- ⬜ **P2** List density modes
 
 ## 3. Chat view
 - ✅ History, loading more, bubbles with replies, forwards, reactions, albums

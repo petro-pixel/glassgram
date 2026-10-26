@@ -23,6 +23,8 @@ pub(super) const INFO_MIN_CHAT: f32 = 420.0;
 pub(super) enum Tab {
     Members,
     Shared(SharedKind),
+    /// Recommended channels (channels only).
+    Similar,
 }
 
 /// Destructive action waiting for confirmation.
@@ -55,6 +57,8 @@ pub(super) struct InfoPanel {
     /// Last members request: (query, admins only).
     requested: (String, bool),
     shared: HashMap<SharedKind, SharedList>,
+    /// Similar channels and how many there are in all; `None` until loaded.
+    similar: Option<(Vec<ChatInfo>, i32)>,
     pub(super) notify_open: bool,
     pub(super) confirm: Option<Confirm>,
     /// "Also delete for the other side" checkbox in private chats.
@@ -104,11 +108,16 @@ impl App {
             edited_at: 0.0,
             requested: (String::new(), false),
             shared: HashMap::new(),
+            similar: None,
             notify_open: false,
             confirm: None,
             revoke: false,
         });
         self.send(Cmd::LoadChatInfo(peer));
+        // Asked up front: the tab is shown only when there is something in it.
+        if kind == ChatKind::Channel {
+            self.send(Cmd::LoadSimilarChannels(peer));
+        }
         self.select_info_tab(tab);
     }
 
@@ -139,6 +148,7 @@ impl App {
                     self.send(Cmd::LoadShared { peer, kind, before: None });
                 }
             }
+            Tab::Similar => {}
         }
     }
 
@@ -151,6 +161,11 @@ impl App {
                 }
                 if let Some(info) = self.info.as_mut().filter(|i| i.peer == peer) {
                     info.details = Some(details);
+                }
+            }
+            Ev::SimilarChannels { peer, chats, total } => {
+                if let Some(info) = self.info.as_mut().filter(|i| i.peer == peer) {
+                    info.similar = Some((chats, total));
                 }
             }
             Ev::Members { peer, query, admins, list } => {
@@ -260,6 +275,12 @@ impl App {
             match info.tab {
                 Tab::Members => self.info_members(ui, &mut info, now, &mut todo),
                 Tab::Shared(kind) => self.info_shared(ui, &info, kind, &mut todo),
+                Tab::Similar => {
+                    let (chats, total) = info.similar.as_ref().map_or((&[][..], 0), |(c, t)| (&c[..], *t));
+                    if let Some(c) = self.similar_list(ui, chats, total) {
+                        todo.push(Do::Member(c));
+                    }
+                }
             }
             ui.add_space(10.0);
             let creator = info.details.as_ref().is_some_and(|d| d.creator);
@@ -677,6 +698,11 @@ fn info_tabs(ui: &mut Ui, chat: &ChatInfo, info: &InfoPanel, todo: &mut Vec<Do>)
             };
             if chip(ui, &label, info.tab == Tab::Shared(k)).clicked() {
                 todo.push(Do::Tab(Tab::Shared(k)));
+            }
+        }
+        if let Some((_, total)) = info.similar.as_ref().filter(|(c, _)| !c.is_empty()) {
+            if chip(ui, &lf!("Схожі канали {total}", "Similar channels {total}"), info.tab == Tab::Similar).clicked() {
+                todo.push(Do::Tab(Tab::Similar));
             }
         }
     });

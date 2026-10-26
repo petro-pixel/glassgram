@@ -46,6 +46,7 @@ mod privacy;
 mod chatedit;
 mod birthdays;
 mod botstart;
+mod similar;
 pub use birthdays::Birthday;
 pub use chatedit::ChatRights;
 pub use privacy::{GlobalPrivacy, PrivacyExceptions};
@@ -197,6 +198,8 @@ pub enum Cmd {
     SetChatRights { peer: PeerId, rights: ChatRights },
     /// Slow mode of a supergroup, in seconds (0 — off).
     SetSlowMode { peer: PeerId, seconds: i32 },
+    /// Channels similar to this one, for its profile.
+    LoadSimilarChannels(PeerId),
     /// `t.me/<bot>?start=<param>`: open the bot chat ready to start with the parameter.
     OpenBotStart { username: String, param: String },
     /// Start a bot with a deep-link parameter (`messages.startBot`).
@@ -360,6 +363,8 @@ pub enum Ev {
     WebAppMethodResult { bot: PeerId, req_id: String, result: Result<String, String> },
     /// Contacts whose birthday is today.
     Birthdays(Vec<(ChatInfo, Birthday)>),
+    /// Recommended channels for a channel's profile; `total` counts those shown only with Premium.
+    SimilarChannels { peer: PeerId, chats: Vec<ChatInfo>, total: i32 },
     /// The bot chat was opened from a start link: the Start bar carries `param`.
     BotStart { peer: PeerId, param: String },
     /// A group or channel got a new title.
@@ -2267,6 +2272,7 @@ impl Worker {
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
+            Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
             cmd @ (Cmd::EditChat { .. } | Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. }) => self.chat_edit_cmd(cmd).await,
