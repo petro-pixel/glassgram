@@ -46,6 +46,7 @@ mod webapp;
 mod polls;
 mod privacy;
 mod chatedit;
+mod birthdays;
 use chatlist::{NewChat, Reorder, sort_chats};
 
 const GAP: f32 = 14.0;
@@ -515,6 +516,12 @@ pub struct App {
     /// Profile photo picked in the system dialog.
     photo_tx: mpsc::Sender<PathBuf>,
     photo_rx: mpsc::Receiver<PathBuf>,
+    /// Contacts with a birthday today, whether they were asked for, the day the reminder was hidden,
+    /// and our own birthday being edited in My Account.
+    birthdays: Vec<(ChatInfo, backend::Birthday)>,
+    birthdays_requested: bool,
+    birthdays_dismissed: Option<jiff::civil::Date>,
+    birthday_edit: Option<backend::Birthday>,
     /// "Edit group / channel" box and the photos picked in it.
     chat_edit: Option<chatedit::ChatEdit>,
     chat_photo_tx: mpsc::Sender<(PeerId, PathBuf)>,
@@ -560,6 +567,8 @@ impl App {
                 app.push_event(Ev::Image { key, image });
             }
             app.push_event(Ev::Outbox(demo::outbox()));
+            app.birthdays_requested = true;
+            app.send(Cmd::LoadBirthdays);
             app.screen = Screen::Main;
             return app;
         }
@@ -795,6 +804,10 @@ impl App {
             photo_tx,
             photo_rx,
             chat_edit: None,
+            birthdays: Vec::new(),
+            birthdays_requested: false,
+            birthdays_dismissed: None,
+            birthday_edit: None,
             chat_photo_tx,
             chat_photo_rx,
             outbox: Vec::new(),
@@ -855,7 +868,15 @@ impl App {
                 self.code.clear();
                 self.password.clear();
             }
-            Ev::Dialogs(chats) => self.chats = chats,
+            Ev::Dialogs(chats) => {
+                self.chats = chats;
+                // Once per session, when the account's chats are in.
+                if !self.birthdays_requested {
+                    self.birthdays_requested = true;
+                    self.send(Cmd::LoadBirthdays);
+                }
+            }
+            Ev::Birthdays(list) => self.birthdays = list,
             Ev::History { peer, msgs, older } => {
                 if older {
                     self.loading_older = false;
@@ -2822,6 +2843,7 @@ impl App {
         let mut found = None;
         let mut dropped = None;
         let mut drag = self.pin_drag.take();
+        let mut birthday = None;
         let (rows, pinned) = self.list_rows(&query, drag.as_ref());
         let mut child = ui.new_child(UiBuilder::new().max_rect(list_rect));
         child.set_clip_rect(list_rect);
@@ -2830,6 +2852,9 @@ impl App {
             .auto_shrink(false)
             .show(&mut child, |ui| {
                 ui.spacing_mut().item_spacing.y = 4.0;
+                if query.is_empty() && self.folder.is_none() {
+                    birthday = self.birthday_banner(ui);
+                }
                 let rows_out = self.chat_rows(ui, &rows, pinned, &mut drag);
                 clicked = rows_out.clicked;
                 menu = rows_out.menu;
@@ -2868,6 +2893,9 @@ impl App {
         }
         if let Some(id) = clicked {
             self.open_chat(id);
+        }
+        if let Some(a) = birthday {
+            self.birthday_action(a);
         }
         if let Some(chat) = found {
             let id = chat.id;

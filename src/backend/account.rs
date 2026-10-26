@@ -6,7 +6,7 @@ use grammers_client::InvocationError;
 use grammers_client::peer::{Peer, User};
 use grammers_client::tl;
 
-use super::{Cmd, Ev, Profile, UsernameState, Worker, log_error};
+use super::{Birthday, Cmd, Ev, Profile, UsernameState, Worker, log_error};
 use crate::i18n::{l, lf};
 
 /// Side of the square profile photo, as after cropping in Telegram Desktop.
@@ -38,21 +38,21 @@ impl Worker {
         let client = self.client()?;
         let me = client.get_me().await.map_err(|e| lf!("Профіль: {e}", "Profile: {e}"))?;
         let full = client.invoke(&tl::functions::users::GetFullUser { id: tl::enums::InputUser::UserSelf }).await;
-        let bio = match full {
+        let (bio, birthday) = match full {
             Ok(tl::enums::users::UserFull::Full(f)) => {
                 let tl::enums::UserFull::Full(u) = f.full_user;
-                u.about.unwrap_or_default()
+                (u.about.unwrap_or_default(), u.birthday.as_ref().map(Birthday::from_raw))
             }
             Err(e) => {
                 log_error(&lf!("Біо: {e}", "Bio: {e}"));
-                String::new()
+                (String::new(), None)
             }
         };
-        self.emit_profile(&me, bio);
+        self.emit_profile(&me, bio, birthday);
         Ok(())
     }
 
-    fn emit_profile(&self, me: &User, bio: String) {
+    fn emit_profile(&self, me: &User, bio: String, birthday: Option<Birthday>) {
         if let Some(loader) = &self.loader {
             loader.avatar(&Peer::User(me.clone()));
         }
@@ -63,6 +63,7 @@ impl Worker {
             bio,
             username: me.username().unwrap_or_default().to_owned(),
             phone: me.phone().map(|p| format!("+{p}")).unwrap_or_default(),
+            birthday,
         };
         self.out.send(Ev::Profile(profile));
     }
@@ -70,9 +71,9 @@ impl Worker {
     pub(super) async fn save_profile(&mut self, first: String, last: String, bio: String) -> Result<(), String> {
         let client = self.client()?;
         let req = tl::functions::account::UpdateProfile { first_name: Some(first), last_name: Some(last), about: Some(bio.clone()) };
-        let user = client.invoke(&req).await.map_err(|e| profile_error(&e))?;
-        let me = User::from_raw(&client, user);
-        self.emit_profile(&me, bio);
+        client.invoke(&req).await.map_err(|e| profile_error(&e))?;
+        // Read back the whole profile: the reply has no birthday.
+        self.load_profile().await?;
         self.out.send(Ev::Notice(l!("Профіль збережено", "Profile saved").into()));
         Ok(())
     }

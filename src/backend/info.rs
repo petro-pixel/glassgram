@@ -5,7 +5,7 @@ use grammers_client::peer::Peer;
 use grammers_client::session::types::{PeerKind, PeerRef};
 use grammers_client::tl;
 
-use super::{ChatInfo, ChatRights, Cmd, Ev, Worker, clock, convert, found_chat, local, peer_title, remember_name};
+use super::{Birthday, ChatInfo, ChatRights, Cmd, Ev, Worker, clock, convert, found_chat, local, peer_title, remember_name};
 use crate::i18n::{l, lf};
 
 /// How many members we show at once; beyond that, search.
@@ -113,6 +113,8 @@ pub struct ChatDetails {
     pub common: i32,
     /// We blocked this user (or stopped this bot).
     pub blocked: bool,
+    /// A user's birthday, if they share it.
+    pub birthday: Option<Birthday>,
     /// We may change the title, photo, description and permissions.
     pub can_edit: bool,
     /// Default member permissions (groups only).
@@ -367,6 +369,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<ChatDetails, String> {
             d.about = u.about.unwrap_or_default();
             d.common = u.common_chats_count;
             d.blocked = u.blocked;
+            d.birthday = u.birthday.as_ref().map(Birthday::from_raw);
             d.notify = NotifyState::from_raw(&u.notify_settings);
             if let Some(tl::enums::User::User(x)) = f.users.into_iter().find(|x| x.id() == u.id) {
                 d.username = first_username(x.username, x.usernames);

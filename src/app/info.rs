@@ -395,6 +395,11 @@ impl App {
         if !d.phone.is_empty() && info_row(ui, Icon::Phone, &d.phone, l!("Телефон", "Phone")).clicked() {
             todo.push(Do::Copy(d.phone.clone()));
         }
+        if let Some(b) = d.birthday {
+            let today = b.is_on(jiff::Zoned::now().date());
+            let text = if today { format!("🎂 {}", super::birthdays::birthday_label(b)) } else { super::birthdays::birthday_label(b) };
+            info_row(ui, Icon::Cake, &text, if today { l!("Сьогодні день народження", "Birthday today") } else { l!("День народження", "Birthday") });
+        }
         if d.username.is_empty() && !user && chat.kind != ChatKind::Saved {
             if !d.invite.is_empty() {
                 if info_row(ui, Icon::Link, &d.invite, l!("Посилання-запрошення", "Invite link")).clicked() {

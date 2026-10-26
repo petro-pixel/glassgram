@@ -44,6 +44,8 @@ mod webapp;
 mod polls;
 mod privacy;
 mod chatedit;
+mod birthdays;
+pub use birthdays::Birthday;
 pub use chatedit::ChatRights;
 pub use privacy::{GlobalPrivacy, PrivacyExceptions};
 pub use polls::NewPoll;
@@ -194,6 +196,10 @@ pub enum Cmd {
     SetChatRights { peer: PeerId, rights: ChatRights },
     /// Slow mode of a supergroup, in seconds (0 — off).
     SetSlowMode { peer: PeerId, seconds: i32 },
+    /// Our birthday (`None` removes it).
+    SetBirthday(Option<Birthday>),
+    /// Contacts' birthdays today, for the reminder above the chat list.
+    LoadBirthdays,
     /// Send a new poll or quiz.
     SendPoll { peer: PeerId, poll: NewPoll, reply_to: Option<i32> },
     /// Translate a message's text into `to` (a language code).
@@ -347,6 +353,7 @@ pub enum Ev {
     BotMenuApp { peer: PeerId, text: String, url: String },
     /// Answer to `WebAppMethod`: the result JSON or an error.
     WebAppMethodResult { bot: PeerId, req_id: String, result: Result<String, String> },
+    Birthdays(Vec<(ChatInfo, Birthday)>),
     /// A group or channel got a new title.
     ChatTitle { peer: PeerId, title: String },
     /// A contact was added or renamed.
@@ -402,6 +409,7 @@ pub struct Profile {
     pub bio: String,
     pub username: String,
     pub phone: String,
+    pub birthday: Option<Birthday>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -543,10 +551,11 @@ pub enum PrivacyKey {
     Calls,
     Invites,
     Voice,
+    Birthday,
 }
 
 impl PrivacyKey {
-    pub const ALL: [PrivacyKey; 7] = [Self::Phone, Self::LastSeen, Self::Photo, Self::Forwards, Self::Calls, Self::Voice, Self::Invites];
+    pub const ALL: [PrivacyKey; 8] = [Self::Phone, Self::LastSeen, Self::Photo, Self::Birthday, Self::Forwards, Self::Calls, Self::Voice, Self::Invites];
 
     pub fn title(self) -> &'static str {
         match self {
@@ -557,6 +566,7 @@ impl PrivacyKey {
             Self::Calls => l!("Дзвінки", "Calls"),
             Self::Voice => l!("Голосові повідомлення", "Voice messages"),
             Self::Invites => l!("Запрошення в групи", "Group invites"),
+            Self::Birthday => l!("День народження", "Date of birth"),
         }
     }
 
@@ -570,6 +580,7 @@ impl PrivacyKey {
             Self::Calls => K::PhoneCall,
             Self::Invites => K::ChatInvite,
             Self::Voice => K::VoiceMessages,
+            Self::Birthday => K::Birthday,
         }
     }
 }
@@ -2248,6 +2259,7 @@ impl Worker {
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
+            cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
             cmd @ (Cmd::EditChat { .. } | Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. }) => self.chat_edit_cmd(cmd).await,
             cmd @ (Cmd::LoadGlobalPrivacy | Cmd::SetGlobalPrivacy(_)) => self.global_privacy_cmd(cmd).await,
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. }) => self.webapp_cmd(cmd).await,

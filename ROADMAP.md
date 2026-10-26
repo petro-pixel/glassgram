@@ -25,7 +25,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Active sessions: list, terminate one or all others
 - 🟡 Multiple accounts: menu under the name, adding, switching — **P1**: notifications and counters from inactive accounts (all accounts connected at once)
 - ✅ Profile editing in Settings → My Account: first/last name and bio (`account.updateProfile`), username with a live availability check (`account.checkUsername`, `account.updateUsername`), photo from a file, center-cropped (`photos.uploadProfilePhoto`)
-- ⬜ **P1** Birthday, personal channel in the profile, multiple usernames (`reorderUsernames`), video avatar
+- ✅ Birthday: our own in My Account — day, month, optional year (`account.updateBirthday`), who sees it under Privacy; a user's birthday in their info
+- ⬜ **P1** Personal channel in the profile, multiple usernames (`reorderUsernames`), video avatar
 - ⬜ **P1** 2FA management: enable, change the password and recovery email (`account.updatePasswordSettings`)
 - ⬜ **P2** Passkeys (`account.registerPasskey`), sign-in with an email code
 - ⬜ **P2** Name colour and profile background, emoji status (`account.updateColor`, `updateEmojiStatus`; partly Premium)
@@ -45,7 +46,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Contacts: list with search (pencil → Contacts), "New contact" by name and phone (`importContacts`), "Add to contacts" / "Delete contact" in user info (`addContact`, `deleteContacts`), block / unblock and stop / restart bots (`contacts.block`, `unblock`), blocked list at the top of Privacy and Security (`getBlocked`)
 - ⬜ **P1** Saved Messages as separate dialogs by source and reaction tags (`getSavedDialogs`, `savedReactionTags`)
 - ⬜ **P1** Folder tags in the chat list (`toggleDialogFilterTags`), suggested folders
-- ⬜ **P1** Contact birthday reminders (`contacts.getBirthdays`)
+- ✅ Contact birthday reminders (`contacts.getBirthdays`): a card above the main list opens the chat, hidden until tomorrow with ×
 - ⬜ **P2** Shared folders by link: join, update, leave (`chatlists.*`)
 - ⬜ **P2** Communities (2026): linked groups, channels and bots as one structure (`communities.*`)
 - ⬜ **P2** Similar channels (`getChannelRecommendations`), list density modes

@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -606,6 +606,12 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into()));
         }
         Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. } => app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into())),
+        Cmd::SetBirthday(birthday) => app.push_event(Ev::Profile(Profile { birthday, ..app.demo_profile() })),
+        Cmd::LoadBirthdays => {
+            // Олена has her birthday today, so the reminder is always there in the demo.
+            let olena = app.demo_chats().iter().find(|c| c.id == PeerId::user_unchecked(1)).cloned();
+            app.push_event(Ev::Birthdays(olena.into_iter().map(|c| (c, today_birthday(Some(1996)))).collect()));
+        }
         Cmd::LoadContacts => app.push_event(Ev::Contacts(demo_contacts())),
         Cmd::AddContact { user, phone, first, last } => {
             let name = if last.is_empty() { first } else { format!("{first} {last}") };
@@ -785,6 +791,7 @@ fn demo_profile() -> Profile {
         bio: "Пишу клієнт Telegram на Rust 🦀".into(),
         username: "glassgram_demo".into(),
         phone: "+380 00 000 00 00".into(),
+        birthday: Some(Birthday { day: 12, month: 5, year: None }),
     }
 }
 
@@ -1059,6 +1066,12 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
     ]
 }
 
+/// A birthday falling on today, so the reminder always shows in the demo.
+fn today_birthday(year: Option<u16>) -> Birthday {
+    let d = jiff::Zoned::now().date();
+    Birthday { day: d.day() as u8, month: d.month() as u8, year }
+}
+
 /// Demo profile: bio, username and member counts by chat kind.
 fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
     let id = peer.bare_id_unchecked();
@@ -1077,6 +1090,10 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             };
             if id == 1 {
                 d.phone = "+380 50 000 00 01".into();
+                d.birthday = Some(today_birthday(Some(1996)));
+            }
+            if id == 5 {
+                d.birthday = Some(Birthday { day: 3, month: 9, year: None });
             }
             d.common = 2;
         }
