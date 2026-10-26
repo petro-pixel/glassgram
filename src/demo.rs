@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -586,6 +586,17 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             });
             msgs.retain(|m| m.saved_from == Some(source));
             app.push_event(Ev::SavedHistory { source, msgs, older: false });
+        }
+        Cmd::LoadGifts(peer) => {
+            let gift = |title: &str, stars: i64, from: &str, note: &str| Gift { title: title.into(), stars, sticker: None, from: from.into(), note: note.into(), date: 0 };
+            let gifts = vec![
+                gift("", 50, "Андрій", "З днем народження! 🎂"),
+                gift("Plush Pepe #1842", 0, "", ""),
+                gift("", 25, "Марія Шевченко", ""),
+                gift("", 100, "Команда Rust", "Дякуємо за реліз"),
+                gift("", 15, "", ""),
+            ];
+            app.push_event(Ev::Gifts { peer, gifts, total: 5 });
         }
         Cmd::LoadSimilarChannels(peer) => {
             let chats = [(61, "Rust Weekly", "12 480"), (62, "Дизайн щодня", "8 115"), (63, "Open Source UA", "3 902")]
@@ -1199,6 +1210,17 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             if id == 1 {
                 d.phone = "+380 50 000 00 01".into();
                 d.birthday = Some(today_birthday(Some(1996)));
+                d.usernames = vec!["olena_design".into()];
+                d.gifts = 5;
+                // Her channel opens like a found chat, without joining.
+                d.channel = Some(ChatInfo {
+                    id: PeerId::channel_unchecked(71),
+                    kind: ChatKind::Channel,
+                    contact: false,
+                    joined: false,
+                    can_post: false,
+                    ..person(0, "Олена про дизайн", &{ let n = "2 310"; crate::i18n::lf!("підписників: {n}", "{n} subscribers") }, Presence::None)
+                });
             }
             if id == 5 {
                 d.birthday = Some(Birthday { day: 3, month: 9, year: None });

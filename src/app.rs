@@ -63,6 +63,7 @@ mod media;
 mod folders;
 mod history;
 mod confirm;
+mod gifts;
 mod bubbles;
 use bubbles::*;
 use chatlist::{NewChat, Reorder, sort_chats};
@@ -912,7 +913,7 @@ impl App {
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. }) => self.web_app_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
-            ev @ (Ev::ChatDetails { .. } | Ev::SimilarChannels { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
+            ev @ (Ev::ChatDetails { .. } | Ev::SimilarChannels { .. } | Ev::Gifts { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
                 self.info_event(ev)
             }
             Ev::Profile(p) => self.on_profile(p),

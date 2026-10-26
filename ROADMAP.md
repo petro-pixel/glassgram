@@ -26,7 +26,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - 🟡 Multiple accounts: menu under the name, adding, switching — **P1**: notifications and counters from inactive accounts (all accounts connected at once)
 - ✅ Profile editing in Settings → My Account: first/last name and bio (`account.updateProfile`), username with a live availability check (`account.checkUsername`, `account.updateUsername`), photo from a file, center-cropped (`photos.uploadProfilePhoto`)
 - ✅ Birthday: our own in My Account — day, month, optional year (`account.updateBirthday`), who sees it under Privacy; a user's birthday in their info
-- ⬜ **P1** Personal channel in the profile, multiple usernames (`reorderUsernames`), video avatar
+- 🟡 A user's personal channel in their info (opens without joining) and their other usernames ("also @…"). Left: managing our own extra usernames (`reorderUsernames`), video avatar
 - ⬜ **P1** 2FA management: enable, change the password and recovery email (`account.updatePasswordSettings`)
 - ⬜ **P2** Passkeys (`account.registerPasskey`), sign-in with an email code
 - ⬜ **P2** Name colour and profile background, emoji status (`account.updateColor`, `updateEmojiStatus`; partly Premium)
@@ -137,7 +137,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P3** Anonymous viewing (Premium), live streams in stories (`stories.startLive`)
 
 ## 9. Gifts, Stars, Premium
-- ⬜ **P1** Gifts in profiles: showing, details, sender's note (`getSavedStarGifts`)
+- ✅ Gifts in profiles: a "Gifts" tab with the gift stickers, price or collectible number, sender and note on hover (`getSavedStarGifts`)
 - ⬜ **P2** Stars balance, transaction history, top-up via invoice (`getStarsStatus`, `getStarsTransactions`)
 - ⬜ **P2** Sending gifts (`getStarGifts`, `checkCanSendGift`), paid ⭐ reactions and paid media
 - ⬜ **P3** Unique gifts: upgrading, transferring, reselling, collections, auctions, crafting (2026)

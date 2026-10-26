@@ -71,6 +71,8 @@ mod botstart;
 mod similar;
 mod saved;
 mod stories;
+mod gifts;
+pub use gifts::Gift;
 pub use stories::{Story, StoryPeer};
 pub use birthdays::Birthday;
 pub use chatedit::ChatRights;
@@ -233,6 +235,8 @@ pub enum Cmd {
     LoadSavedDialogs,
     /// Saved Messages from one source; `saved` is the Saved Messages chat itself.
     LoadSavedHistory { saved: PeerId, source: PeerId, before: Option<i32> },
+    /// Gifts shown in a profile.
+    LoadGifts(PeerId),
     /// Channels similar to this one, for its profile.
     LoadSimilarChannels(PeerId),
     /// `t.me/<bot>?start=<param>`: open the bot chat ready to start with the parameter.
@@ -413,6 +417,8 @@ pub enum Ev {
     SavedDialogs(Vec<ChatInfo>),
     /// A page of Saved Messages from one source.
     SavedHistory { source: PeerId, msgs: Vec<Msg>, older: bool },
+    /// A profile's gifts and how many there are in all.
+    Gifts { peer: PeerId, gifts: Vec<Gift>, total: i32 },
     /// Recommended channels for a channel's profile; `total` counts those shown only with Premium.
     SimilarChannels { peer: PeerId, chats: Vec<ChatInfo>, total: i32 },
     /// The bot chat was opened from a start link: the Start bar carries `param`.
@@ -760,6 +766,7 @@ impl Worker {
             Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
             cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. }) => self.stories_cmd(cmd).await,
             cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. }) => self.saved_cmd(cmd).await,
+            cmd @ Cmd::LoadGifts(_) => self.gifts_cmd(cmd).await,
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,

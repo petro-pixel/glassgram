@@ -25,6 +25,8 @@ pub(super) enum Tab {
     Shared(SharedKind),
     /// Recommended channels (channels only).
     Similar,
+    /// Gifts in a person's profile.
+    Gifts,
 }
 
 /// Destructive action waiting for confirmation.
@@ -59,6 +61,8 @@ pub(super) struct InfoPanel {
     shared: HashMap<SharedKind, SharedList>,
     /// Similar channels and how many there are in all; `None` until loaded.
     similar: Option<(Vec<ChatInfo>, i32)>,
+    /// Gifts and how many there are in all; `None` until loaded.
+    gifts: Option<(Vec<crate::backend::Gift>, i32)>,
     pub(super) notify_open: bool,
     pub(super) confirm: Option<Confirm>,
     /// "Also delete for the other side" checkbox in private chats.
@@ -109,6 +113,7 @@ impl App {
             requested: (String::new(), false),
             shared: HashMap::new(),
             similar: None,
+            gifts: None,
             notify_open: false,
             confirm: None,
             revoke: false,
@@ -148,7 +153,7 @@ impl App {
                     self.send(Cmd::LoadShared { peer, kind, before: None });
                 }
             }
-            Tab::Similar => {}
+            Tab::Similar | Tab::Gifts => {}
         }
     }
 
@@ -159,8 +164,18 @@ impl App {
                 if let Some(c) = self.chat_mut(peer) {
                     c.muted = muted;
                 }
+                let gifts = details.gifts > 0;
                 if let Some(info) = self.info.as_mut().filter(|i| i.peer == peer) {
                     info.details = Some(details);
+                }
+                // Asked only when the profile has some, so the tab never shows empty.
+                if gifts {
+                    self.send(Cmd::LoadGifts(peer));
+                }
+            }
+            Ev::Gifts { peer, gifts, total } => {
+                if let Some(info) = self.info.as_mut().filter(|i| i.peer == peer) {
+                    info.gifts = Some((gifts, total));
                 }
             }
             Ev::SimilarChannels { peer, chats, total } => {
@@ -275,6 +290,11 @@ impl App {
             match info.tab {
                 Tab::Members => self.info_members(ui, &mut info, now, &mut todo),
                 Tab::Shared(kind) => self.info_shared(ui, &info, kind, &mut todo),
+                Tab::Gifts => {
+                    if let Some((gifts, total)) = &info.gifts {
+                        self.gift_grid(ui, gifts, *total);
+                    }
+                }
                 Tab::Similar => {
                     let (chats, total) = info.similar.as_ref().map_or((&[][..], 0), |(c, t)| (&c[..], *t));
                     if let Some(c) = self.similar_list(ui, chats, total) {
@@ -402,17 +422,27 @@ impl App {
             }
         }
         if !d.username.is_empty() {
-            let (text, caption) = if user {
-                (format!("@{}", d.username), l!("Ім'я користувача", "Username"))
+            let (text, caption) = if user && !d.usernames.is_empty() {
+                // Extra and collectible usernames, as "also @a, @b" in Telegram Desktop.
+                let also = d.usernames.iter().map(|u| format!("@{u}")).collect::<Vec<_>>().join(", ");
+                (format!("@{}", d.username), lf!("Ім'я користувача · також {also}", "Username · also {also}"))
+            } else if user {
+                (format!("@{}", d.username), l!("Ім'я користувача", "Username").to_owned())
             } else {
-                (format!("https://t.me/{}", d.username), l!("Посилання", "Link"))
+                (format!("https://t.me/{}", d.username), l!("Посилання", "Link").to_owned())
             };
-            if info_row(ui, Icon::At, &text, caption).clicked() {
+            if info_row(ui, Icon::At, &text, &caption).clicked() {
                 todo.push(Do::Copy(text));
             }
         }
         if !d.phone.is_empty() && info_row(ui, Icon::Phone, &d.phone, l!("Телефон", "Phone")).clicked() {
             todo.push(Do::Copy(d.phone.clone()));
+        }
+        if let Some(c) = &d.channel {
+            let text = if c.last_text.is_empty() { c.title.clone() } else { format!("{} · {}", c.title, c.last_text) };
+            if info_row(ui, Icon::Megaphone, &text, l!("Особистий канал", "Personal channel")).clicked() {
+                todo.push(Do::Member(c.clone()));
+            }
         }
         if let Some(b) = d.birthday {
             let today = b.is_on(jiff::Zoned::now().date());
@@ -696,6 +726,11 @@ fn info_tabs(ui: &mut Ui, chat: &ChatInfo, info: &InfoPanel, todo: &mut Vec<Do>)
             };
             if chip(ui, &label, info.tab == Tab::Shared(k)).clicked() {
                 todo.push(Do::Tab(Tab::Shared(k)));
+            }
+        }
+        if let Some((_, total)) = info.gifts.as_ref().filter(|(g, _)| !g.is_empty()) {
+            if chip(ui, &lf!("Подарунки {total}", "Gifts {total}"), info.tab == Tab::Gifts).clicked() {
+                todo.push(Do::Tab(Tab::Gifts));
             }
         }
         if let Some((_, total)) = info.similar.as_ref().filter(|(c, _)| !c.is_empty()) {

@@ -115,6 +115,12 @@ pub struct ChatDetails {
     pub blocked: bool,
     /// A user's birthday, if they share it.
     pub birthday: Option<Birthday>,
+    /// A user's other active usernames, without "@".
+    pub usernames: Vec<String>,
+    /// The channel a user shows in their profile.
+    pub channel: Option<ChatInfo>,
+    /// Gifts shown in the profile.
+    pub gifts: i32,
     /// We may change the title, photo, description and permissions.
     pub can_edit: bool,
     /// Default member permissions (groups only).
@@ -151,10 +157,26 @@ impl Worker {
             Cmd::LoadChatInfo(peer) => {
                 let r = self.peer_ref(peer)?;
                 let notifs = self.notifs.clone();
+                let (refs, names, loader) = (self.refs.clone(), self.names.clone(), self.loader.clone());
                 tokio::spawn(async move {
                     out.send(match details(&client, r).await {
-                        Ok(mut details) => {
+                        Ok((mut details, channel)) => {
                             details.notify = notifs.lock().unwrap().resolve(peer, details.notify);
+                            // The personal channel opens from the profile without joining: keep access to it.
+                            if let Some(ch) = channel
+                                && let Ok(Some(cr)) = ch.to_ref().await
+                            {
+                                refs.lock().unwrap().insert(cr.id, cr);
+                                names.lock().unwrap().insert(ch.id(), peer_title(&ch));
+                                if let Some(l) = &loader {
+                                    l.avatar(&ch);
+                                }
+                                let label = match &ch {
+                                    Peer::Channel(c) => c.raw.participants_count.map(|n| lf!("підписників: {n}", "{n} subscribers")),
+                                    _ => None,
+                                };
+                                details.channel = Some(found_chat(&ch, label.unwrap_or_default()));
+                            }
                             Ev::ChatDetails { peer, details }
                         }
                         Err(e) => Ev::Error(lf!("Інформація про чат: {e}", "Chat info: {e}")),
@@ -359,9 +381,10 @@ async fn delete_history(client: &Client, r: PeerRef, just_clear: bool, revoke: b
     }
 }
 
-/// User profile or full group/channel info.
-async fn details(client: &Client, r: PeerRef) -> Result<ChatDetails, String> {
+/// User profile or full group/channel info, and a user's personal channel.
+async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Peer>), String> {
     let mut d = ChatDetails::default();
+    let mut channel = None;
     match r.id.kind() {
         PeerKind::User => {
             let tl::enums::users::UserFull::Full(f) = client.invoke(&tl::functions::users::GetFullUser { id: r.into() }).await.map_err(|e| e.to_string())?;
@@ -370,8 +393,13 @@ async fn details(client: &Client, r: PeerRef) -> Result<ChatDetails, String> {
             d.common = u.common_chats_count;
             d.blocked = u.blocked;
             d.birthday = u.birthday.as_ref().map(Birthday::from_raw);
+            d.gifts = u.stargifts_count.unwrap_or(0);
             d.notify = NotifyState::from_raw(&u.notify_settings);
+            if let Some(id) = u.personal_channel_id {
+                channel = f.chats.iter().find(|c| c.id() == id).cloned().map(|c| Peer::from_raw(client, c));
+            }
             if let Some(tl::enums::User::User(x)) = f.users.into_iter().find(|x| x.id() == u.id) {
+                d.usernames = other_usernames(x.username.as_deref(), x.usernames.as_deref());
                 d.username = first_username(x.username, x.usernames);
                 d.phone = x.phone.map(|p| format!("+{p}")).unwrap_or_default();
             }
@@ -427,10 +455,19 @@ async fn details(client: &Client, r: PeerRef) -> Result<ChatDetails, String> {
     if let Ok(counters) = client.invoke(&req).await {
         d.counts = SharedKind::ALL.into_iter().zip(counters).map(|(k, tl::enums::messages::SearchCounter::Counter(c))| (k, c.count)).collect();
     }
-    Ok(d)
+    Ok((d, channel))
 }
 
 /// Main username, or else the first active collectible one.
+/// Active usernames besides the main one (collectible and extra ones), as listed in the profile.
+fn other_usernames(main: Option<&str>, all: Option<&[tl::enums::Username]>) -> Vec<String> {
+    let mut list: Vec<String> = all.unwrap_or_default().iter().filter_map(|tl::enums::Username::Username(u)| u.active.then(|| u.username.clone())).collect();
+    // Without a main username the first active one takes its place.
+    let first = main.map(str::to_owned).or_else(|| list.first().cloned());
+    list.retain(|u| Some(u) != first.as_ref());
+    list
+}
+
 fn first_username(main: Option<String>, all: Option<Vec<tl::enums::Username>>) -> String {
     main.or_else(|| {
         all?.into_iter().find_map(|tl::enums::Username::Username(u)| u.active.then_some(u.username))
