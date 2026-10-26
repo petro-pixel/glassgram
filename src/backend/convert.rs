@@ -205,7 +205,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         (Some(ents), Some(prefix)) if !m.text().is_empty() => format::from_entities(&text, ents, prefix.len()),
         _ => Vec::new(),
     };
-    Msg {
+    let msg = Msg {
         id: m.id(),
         peer: m.peer_id(),
         out: m.outgoing(),
@@ -252,7 +252,20 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         noforwards: matches!(&m.raw, tl::enums::Message::Message(x) if x.noforwards),
         webpage: suggest::message_web_page(m),
         saved_from: saved::saved_from(&m.raw),
+    };
+    // Hidden by Telegram for everyone (or for desktop apps): show why instead of the content.
+    match restriction(&m.raw) {
+        Some(reason) => Msg { text: reason, spans: Vec::new(), photo: false, file: None, sticker: None, media: None, poll: None, geo: None, contact: None, webpage: None, buttons: Vec::new(), video_sticker: false, ..msg },
+        None => msg,
     }
+}
+
+/// Why Telegram hides a message here: reasons for "all" platforms apply, mobile-only ones don't.
+fn restriction(raw: &tl::enums::Message) -> Option<String> {
+    let tl::enums::Message::Message(x) = raw else { return None };
+    x.restriction_reason.as_ref()?.iter().find_map(|tl::enums::RestrictionReason::Reason(r)| {
+        (!matches!(r.platform.as_str(), "ios" | "android")).then(|| if r.text.is_empty() { l!("Це повідомлення недоступне", "This message is unavailable").to_owned() } else { r.text.clone() })
+    })
 }
 
 /// Forum topic from the reply header; the message that created a topic belongs to that topic.
