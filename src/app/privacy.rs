@@ -3,9 +3,23 @@
 
 use super::*;
 
+/// Privacy and Security page: rules, their exceptions, the open rule, the people picker, global switches.
+pub(super) struct PrivacyPage {
+    /// Who may see each item.
+    pub(super) rules: HashMap<PrivacyKey, PrivacyState>,
+    /// "Always" / "never" lists of each privacy rule.
+    pub(super) exceptions: HashMap<PrivacyKey, backend::PrivacyExceptions>,
+    /// The rule and side whose exception list is unfolded.
+    pub(super) open: Option<(PrivacyKey, bool)>,
+    /// The people picker for an exception list.
+    pub(super) pick: Option<PrivacyPick>,
+    /// Global privacy switches (`None` — not loaded yet).
+    pub(super) global: Option<backend::GlobalPrivacy>,
+}
+
 impl App {
     pub(super) fn global_privacy_section(&mut self, ui: &mut Ui) {
-        let Some(before) = self.global_privacy else {
+        let Some(before) = self.privacy.global else {
             section_title(ui, l!("Повідомлення", "Messages"));
             ui.add(egui::Spinner::new().color(ink_dim()));
             return;
@@ -38,7 +52,7 @@ impl App {
         note(ui, l!("Інші не бачитимуть, коли ви прочитали їхні повідомлення, а ви — їхній час прочитання.", "Others won't see when you've read their messages, and you won't see theirs."));
 
         if p != before {
-            self.global_privacy = Some(p);
+            self.privacy.global = Some(p);
             self.send(Cmd::SetGlobalPrivacy(p));
         }
     }
@@ -53,7 +67,7 @@ pub(super) struct PrivacyPick {
 
 impl App {
     fn exceptions(&self, key: PrivacyKey) -> (Vec<PeerId>, Vec<PeerId>) {
-        self.privacy_ex.get(&key).map_or_else(Default::default, |e| (e.allow.iter().map(|c| c.id).collect(), e.deny.iter().map(|c| c.id).collect()))
+        self.privacy.exceptions.get(&key).map_or_else(Default::default, |e| (e.allow.iter().map(|c| c.id).collect(), e.deny.iter().map(|c| c.id).collect()))
     }
 
     /// A new base audience; exceptions stay (Telegram Desktop keeps them too).
@@ -63,8 +77,8 @@ impl App {
     }
 
     fn edit_exceptions(&mut self, key: PrivacyKey, allow_side: bool, add: Option<ChatInfo>, remove: Option<PeerId>) {
-        let Some(audience) = self.privacy.get(&key).map(|s| s.audience) else { return };
-        let ex = self.privacy_ex.entry(key).or_default();
+        let Some(audience) = self.privacy.rules.get(&key).map(|s| s.audience) else { return };
+        let ex = self.privacy.exceptions.entry(key).or_default();
         let (list, other) = if allow_side { (&mut ex.allow, &mut ex.deny) } else { (&mut ex.deny, &mut ex.allow) };
         if let Some(c) = add {
             // One person can't be both always and never allowed.
@@ -82,7 +96,7 @@ impl App {
 
     /// "Always allow" / "Never allow" rows under a rule; the lists unfold on click.
     pub(super) fn privacy_exception_rows(&mut self, ui: &mut Ui, key: PrivacyKey) {
-        let Some(audience) = self.privacy.get(&key).map(|s| s.audience) else { return };
+        let Some(audience) = self.privacy.rules.get(&key).map(|s| s.audience) else { return };
         let sides: &[bool] = match audience {
             Audience::Everybody => &[false],
             Audience::Contacts => &[true, false],
@@ -90,9 +104,9 @@ impl App {
         };
         let mut remove = None;
         for &allow in sides {
-            let list = self.privacy_ex.get(&key).map(|e| if allow { e.allow.clone() } else { e.deny.clone() }).unwrap_or_default();
+            let list = self.privacy.exceptions.get(&key).map(|e| if allow { e.allow.clone() } else { e.deny.clone() }).unwrap_or_default();
             let label = if allow { l!("Завжди дозволяти", "Always allow") } else { l!("Ніколи не дозволяти", "Never allow") };
-            let open = self.privacy_open == Some((key, allow));
+            let open = self.privacy.open == Some((key, allow));
             let w = ui.available_width();
             let (row, resp) = ui.allocate_exact_size(vec2(w, 34.0), Sense::click());
             let p = ui.painter();
@@ -109,7 +123,7 @@ impl App {
                 if list.is_empty() {
                     self.open_privacy_pick(key, allow);
                 } else {
-                    self.privacy_open = if open { None } else { Some((key, allow)) };
+                    self.privacy.open = if open { None } else { Some((key, allow)) };
                 }
             }
             if open {
@@ -139,12 +153,12 @@ impl App {
         if self.contacts.is_empty() {
             self.send(Cmd::LoadContacts);
         }
-        self.privacy_pick = Some(PrivacyPick { key, allow, query: String::new() });
+        self.privacy.pick = Some(PrivacyPick { key, allow, query: String::new() });
     }
 
     /// The picker over the whole window: contacts and groups, filtered by the search field.
     pub(super) fn privacy_pick_view(&mut self, ui: &mut Ui) {
-        let Some(pick) = &mut self.privacy_pick else { return };
+        let Some(pick) = &mut self.privacy.pick else { return };
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
         ui.interact(screen, ui.scope_id().with("privacy-pick-bg"), Sense::click());
@@ -161,7 +175,7 @@ impl App {
             r.request_focus();
         }
         let (key, allow, q) = (pick.key, pick.allow, pick.query.to_lowercase());
-        let taken: Vec<PeerId> = self.privacy_ex.get(&key).map(|e| if allow { &e.allow } else { &e.deny }).map_or_else(Vec::new, |l| l.iter().map(|c| c.id).collect());
+        let taken: Vec<PeerId> = self.privacy.exceptions.get(&key).map(|e| if allow { &e.allow } else { &e.deny }).map_or_else(Vec::new, |l| l.iter().map(|c| c.id).collect());
         // Groups' members can be an exception as a whole, so groups are listed after people.
         let candidates: Vec<ChatInfo> = self
             .contacts
@@ -196,11 +210,11 @@ impl App {
         });
         if let Some(c) = chosen {
             self.edit_exceptions(key, allow, Some(c), None);
-            self.privacy_open = Some((key, allow));
+            self.privacy.open = Some((key, allow));
             done = true;
         }
         if done {
-            self.privacy_pick = None;
+            self.privacy.pick = None;
         }
     }
 }

@@ -87,7 +87,7 @@ impl App {
         self.forum.open = None;
         self.chat_search = None;
         self.picked.clear();
-        self.sticker_panel = false;
+        self.stickers.open = false;
     }
 
     /// Ctrl+E or ↑ in an empty composer: edit the last own text message.

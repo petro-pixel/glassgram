@@ -38,7 +38,7 @@ never waits for the network.
   (`stories::Stories`, `saved::Saved`, `forum::Forum`, `info::InfoPanel`…) and `App` holds one field
   of it. Methods that change that state live next to it.
 - **Size limits**: a file over ~1000 lines or a function over ~150 lines is a sign to split it.
-  Known debt: `history::chat_area`, `App::handle_event`, `App` with ~140 fields (see ROADMAP §18).
+  Remaining debt is listed in ROADMAP §18.
 - **`demo.rs`** — answers the same `Cmd`s synchronously, without the network. Code must cope with
   the answer (`Ev`) arriving while still inside `send()`.
 - **`cache.rs`** — local cache of dialogs, messages and the send queue (SQLite, `chats.sqlite`).

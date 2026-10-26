@@ -14,7 +14,7 @@ impl App {
         let tray_rx = std::mem::replace(&mut self.tray_rx, mpsc::channel().1);
         let mut next = Self::fresh(self.ctx.clone(), self.settings.clone(), tray, tray_rx);
         // The passcode was already entered in this run, so don't lock the other account.
-        next.locked = false;
+        next.lock.on = false;
         next.start_backend();
         *self = next;
     }

@@ -3,6 +3,18 @@
 
 use super::*;
 
+/// Pinned messages of the open chat: the list, which one the bar shows, the list panel, chats where the bar was hidden.
+pub(super) struct Pinned {
+    /// Pinned messages per chat, oldest first.
+    pub(super) list: HashMap<PeerId, Vec<Msg>>,
+    /// Which one the bar shows in each chat.
+    pub(super) shown: HashMap<PeerId, i32>,
+    /// The list of all pinned messages is open.
+    pub(super) open: bool,
+    /// Bar hidden by users who cannot unpin — until something new is pinned.
+    pub(super) hidden: HashSet<PeerId>,
+}
+
 /// Height of the pinned-message bar under the header.
 const PIN_BAR_H: f32 = 48.0;
 /// Round jump buttons above the composer.
@@ -127,11 +139,11 @@ impl App {
 
     /// Per-chat state reset and requests made when a chat is opened.
     pub(super) fn open_chat_view(&mut self, peer: PeerId) {
-        self.pins_open = false;
+        self.pinned.open = false;
         self.read_by = None;
         self.mark_wanted = None;
-        self.at_bottom = true;
-        self.unseen_below = 0;
+        self.scroll.at_bottom = true;
+        self.scroll.unseen_below = 0;
         self.send(Cmd::LoadPinned(peer));
         self.open_sponsored(peer);
         let (mentions, reactions) = self.chats.iter().find(|c| c.id == peer).map_or((0, 0), |c| (c.unread_mentions, c.unread_reactions));
@@ -153,16 +165,16 @@ impl App {
                     }
                 }
                 // Keep the shown message unless it was unpinned; otherwise show the newest.
-                if !self.pin_shown.get(&peer).is_some_and(|id| ids.contains(id)) {
+                if !self.pinned.shown.get(&peer).is_some_and(|id| ids.contains(id)) {
                     match msgs.last() {
-                        Some(m) => self.pin_shown.insert(peer, m.id),
-                        None => self.pin_shown.remove(&peer),
+                        Some(m) => self.pinned.shown.insert(peer, m.id),
+                        None => self.pinned.shown.remove(&peer),
                     };
                 }
                 if msgs.is_empty() && self.selected == Some(peer) {
-                    self.pins_open = false;
+                    self.pinned.open = false;
                 }
-                self.pins.insert(peer, msgs);
+                self.pinned.list.insert(peer, msgs);
             }
             Ev::PinnedChanged { peer, ids, pinned } => {
                 for id in &ids {
@@ -171,7 +183,7 @@ impl App {
                     }
                 }
                 let found: Vec<Msg> = ids.iter().filter_map(|id| self.find(peer, *id).cloned()).collect();
-                let list = self.pins.entry(peer).or_default();
+                let list = self.pinned.list.entry(peer).or_default();
                 if pinned {
                     let missing = found.len() < ids.len();
                     for m in found {
@@ -181,9 +193,9 @@ impl App {
                     }
                     list.sort_by_key(|m| m.id);
                     if let Some(id) = ids.iter().copied().filter(|id| list.iter().any(|m| m.id == *id)).max() {
-                        self.pin_shown.insert(peer, id);
+                        self.pinned.shown.insert(peer, id);
                     }
-                    self.pins_hidden.remove(&peer);
+                    self.pinned.hidden.remove(&peer);
                     // The message is not in the loaded history — ask for the full list.
                     if missing && self.selected == Some(peer) {
                         self.send(Cmd::LoadPinned(peer));
@@ -191,10 +203,10 @@ impl App {
                 } else {
                     list.retain(|m| !ids.contains(&m.id));
                     let last = list.last().map(|m| m.id);
-                    if self.pin_shown.get(&peer).is_some_and(|id| ids.contains(id)) {
+                    if self.pinned.shown.get(&peer).is_some_and(|id| ids.contains(id)) {
                         match last {
-                            Some(id) => self.pin_shown.insert(peer, id),
-                            None => self.pin_shown.remove(&peer),
+                            Some(id) => self.pinned.shown.insert(peer, id),
+                            None => self.pinned.shown.remove(&peer),
                         };
                     }
                 }
@@ -267,7 +279,7 @@ impl App {
         if self.find(peer, id).is_none() {
             self.send(Cmd::OpenAt { peer, id });
         }
-        self.jump = Some((peer, id, self.ctx.input(|i| i.time)));
+        self.scroll.jump = Some((peer, id, self.ctx.input(|i| i.time)));
     }
 
     /// Chat or any of the messages has protected content (no forwarding, copying, saving).
@@ -302,16 +314,16 @@ impl App {
 
     /// Space the pinned bar takes under the header.
     pub(super) fn pin_bar_h(&self, peer: PeerId) -> f32 {
-        let shown = self.pins.get(&peer).is_some_and(|l| !l.is_empty()) && !self.pins_hidden.contains(&peer);
+        let shown = self.pinned.list.get(&peer).is_some_and(|l| !l.is_empty()) && !self.pinned.hidden.contains(&peer);
         if shown { PIN_BAR_H + 8.0 } else { 0.0 }
     }
 
     /// Remember whether history is scrolled to the end (for the "down" button).
     pub(super) fn track_bottom<R>(&mut self, out: &egui::scroll_area::ScrollAreaOutput<R>) {
         let max = (out.content_size.y - out.inner_rect.height()).max(0.0);
-        self.at_bottom = max - out.state.clamped_offset().y < BOTTOM_SLACK;
-        if self.at_bottom {
-            self.unseen_below = 0;
+        self.scroll.at_bottom = max - out.state.clamped_offset().y < BOTTOM_SLACK;
+        if self.scroll.at_bottom {
+            self.scroll.unseen_below = 0;
         }
     }
 
@@ -323,7 +335,7 @@ impl App {
         if self.pin_bar_h(peer) > 0.0 && !in_topic {
             let bar = Rect::from_min_size(pos2(rect.left(), header.bottom() + 8.0), vec2(rect.width(), PIN_BAR_H));
             self.pinned_bar(ui, peer, &chat, bar);
-            if self.pins_open {
+            if self.pinned.open {
                 let w = rect.width().min(420.0);
                 let panel = Rect::from_min_max(pos2(rect.right() - w, bar.bottom() + 8.0), pos2(rect.right(), (bar.bottom() + 420.0).min(above - 8.0)));
                 self.pins_list_view(ui, peer, &chat, panel);
@@ -345,18 +357,18 @@ impl App {
         self.sponsored_overlay(ui, peer, rect);
         self.calendar_view(ui, peer, rect);
         self.translate_view(ui, peer, rect);
-        if self.viewer.is_none() && (self.read_by.is_some() || self.pins_open) && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
+        if self.viewer.is_none() && (self.read_by.is_some() || self.pinned.open) && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
             if self.read_by.is_some() {
                 self.read_by = None;
             } else {
-                self.pins_open = false;
+                self.pinned.open = false;
             }
         }
     }
 
     fn pinned_bar(&mut self, ui: &mut Ui, peer: PeerId, chat: &ChatInfo, rect: Rect) {
-        let Some(list) = self.pins.get(&peer).filter(|l| !l.is_empty()) else { return };
-        let shown = self.pin_shown.get(&peer).copied();
+        let Some(list) = self.pinned.list.get(&peer).filter(|l| !l.is_empty()) else { return };
+        let shown = self.pinned.shown.get(&peer).copied();
         let idx = list.iter().position(|m| Some(m.id) == shown).unwrap_or(list.len() - 1);
         let m = list[idx].clone();
         let len = list.len();
@@ -395,32 +407,32 @@ impl App {
         }
         if resp.clicked() {
             let prev = list[if idx == 0 { len - 1 } else { idx - 1 }].id;
-            self.pin_shown.insert(peer, prev);
+            self.pinned.shown.insert(peer, prev);
             self.jump_in_chat(peer, m.id);
         }
-        if len > 1 && glass::icon_button(ui, list_btn, ("pin-list", peer), Icon::List, self.pins_open, true).on_hover_text(l!("Усі закріплені", "All pinned messages")).clicked() {
-            self.pins_open = !self.pins_open;
+        if len > 1 && glass::icon_button(ui, list_btn, ("pin-list", peer), Icon::List, self.pinned.open, true).on_hover_text(l!("Усі закріплені", "All pinned messages")).clicked() {
+            self.pinned.open = !self.pinned.open;
         }
         let hint = if chat.can_pin { l!("Відкріпити", "Unpin") } else { l!("Сховати", "Hide") };
         if glass::icon_button(ui, close, ("pin-close", peer), Icon::Close, false, true).on_hover_text(hint).clicked() {
             if chat.can_pin {
                 self.send(Cmd::PinMessage { peer, id: m.id, unpin: true, silent: true, one_side: false });
             } else {
-                self.pins_hidden.insert(peer);
-                self.pins_open = false;
+                self.pinned.hidden.insert(peer);
+                self.pinned.open = false;
             }
         }
     }
 
     /// List of all pinned messages, newest first.
     fn pins_list_view(&mut self, ui: &mut Ui, peer: PeerId, chat: &ChatInfo, rect: Rect) {
-        let Some(list) = self.pins.get(&peer).cloned() else { return };
+        let Some(list) = self.pinned.list.get(&peer).cloned() else { return };
         glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());
         let title = lf!("Закріплені повідомлення: {}", "Pinned messages: {}", list.len());
         ui.painter().text(pos2(rect.left() + 18.0, rect.top() + 26.0), Align2::LEFT_CENTER, title, FontId::proportional(15.0), ink());
         let close = Rect::from_center_size(pos2(rect.right() - 26.0, rect.top() + 26.0), vec2(32.0, 32.0));
         if glass::icon_button(ui, close, "pins-close", Icon::Close, false, true).clicked() {
-            self.pins_open = false;
+            self.pinned.open = false;
         }
         let footer = if chat.can_pin { 52.0 } else { 0.0 };
         let body = Rect::from_min_max(pos2(rect.left() + 8.0, rect.top() + 50.0), pos2(rect.right() - 8.0, rect.bottom() - 8.0 - footer));
@@ -446,12 +458,12 @@ impl App {
             let b = Rect::from_min_max(pos2(rect.left() + 14.0, rect.bottom() - 52.0), pos2(rect.right() - 14.0, rect.bottom() - 12.0));
             if glass::button(ui, b, ("unpin-all", peer), l!("Відкріпити всі", "Unpin all messages"), false, true).clicked() {
                 self.send(Cmd::UnpinAll(peer));
-                self.pins_open = false;
+                self.pinned.open = false;
             }
         }
         if let Some(id) = chosen {
-            self.pin_shown.insert(peer, id);
-            self.pins_open = false;
+            self.pinned.shown.insert(peer, id);
+            self.pinned.open = false;
             self.jump_in_chat(peer, id);
         }
     }
@@ -470,9 +482,9 @@ impl App {
             }
             resp
         };
-        if !self.at_bottom && btn(ui, "jump-down", Icon::ChevronDown, self.unseen_below, l!("До останніх повідомлень", "Scroll to the latest messages")).clicked() {
-            self.scroll_bottom = true;
-            self.unseen_below = 0;
+        if !self.scroll.at_bottom && btn(ui, "jump-down", Icon::ChevronDown, self.scroll.unseen_below, l!("До останніх повідомлень", "Scroll to the latest messages")).clicked() {
+            self.scroll.to_bottom = true;
+            self.scroll.unseen_below = 0;
         }
         for (reactions, n) in [(false, chat.unread_mentions), (true, chat.unread_reactions)] {
             if n <= 0 {

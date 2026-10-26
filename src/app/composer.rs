@@ -2,6 +2,22 @@
 
 use super::*;
 
+/// The sticker and emoji panel: sets, the open set, thumbnails asked for.
+pub(super) struct StickerPanel {
+    /// Installed sticker sets.
+    pub(super) sets: Vec<StickerSetInfo>,
+    /// The panel is open.
+    pub(super) open: bool,
+    /// Index of the set shown.
+    pub(super) set: usize,
+    /// Sticker previews already asked for.
+    pub(super) thumbs: HashSet<i64>,
+    /// The sets were asked for once this session.
+    pub(super) requested: bool,
+    /// Emoji tab in the sticker panel.
+    pub(super) emoji_tab: bool,
+}
+
 impl App {
     pub(super) fn send_draft(&mut self) {
         self.send_draft_with(SendOpts::default());
@@ -99,8 +115,8 @@ impl App {
     }
 
     pub(super) fn request_sticker_thumbs(&mut self) {
-        let Some(set) = self.stickers.get(self.sticker_set) else { return };
-        let ids: Vec<i64> = set.stickers.iter().map(|s| s.0).filter(|id| self.sticker_thumbs.insert(*id)).collect();
+        let Some(set) = self.stickers.sets.get(self.stickers.set) else { return };
+        let ids: Vec<i64> = set.stickers.iter().map(|s| s.0).filter(|id| self.stickers.thumbs.insert(*id)).collect();
         if !ids.is_empty() {
             self.send(Cmd::LoadStickerThumbs(ids));
         }
@@ -236,11 +252,11 @@ impl App {
                         }
                         (r, resp)
                     };
-                    let (r, resp) = tab(ui, self.emoji_tab);
+                    let (r, resp) = tab(ui, self.stickers.emoji_tab);
                     icons::draw(ui.painter(), Rect::from_center_size(r.center(), vec2(22.0, 22.0)), Icon::Smile, ink());
                     emoji_clicked = resp.on_hover_text(l!("Емодзі", "Emoji")).clicked();
-                    for (i, set) in self.stickers.iter().enumerate() {
-                        let (r, resp) = tab(ui, !self.emoji_tab && i == self.sticker_set);
+                    for (i, set) in self.stickers.sets.iter().enumerate() {
+                        let (r, resp) = tab(ui, !self.stickers.emoji_tab && i == self.stickers.set);
                         let first = set.stickers.first();
                         match first.and_then(|s| self.textures.get(&ImgKey::Sticker(s.0))) {
                             Some(t) => glass::image_contain(ui.painter(), r.shrink(5.0), t),
@@ -253,25 +269,25 @@ impl App {
                             chosen_set = Some(i);
                         }
                     }
-                    if self.stickers.is_empty() && self.stickers_requested && self.backend.is_some() {
+                    if self.stickers.sets.is_empty() && self.stickers.requested && self.backend.is_some() {
                         ui.add(egui::Spinner::new().color(ink_dim()));
                     }
                 });
             });
         if emoji_clicked {
-            self.emoji_tab = true;
+            self.stickers.emoji_tab = true;
         }
         if let Some(i) = chosen_set {
-            self.emoji_tab = false;
-            self.sticker_set = i;
+            self.stickers.emoji_tab = false;
+            self.stickers.set = i;
             self.request_sticker_thumbs();
         }
         let body = Rect::from_min_max(pos2(inner.left(), tabs.bottom() + 6.0), inner.max);
-        if self.emoji_tab {
+        if self.stickers.emoji_tab {
             return self.emoji_grid(ui, body);
         }
 
-        let Some(set) = self.stickers.get(self.sticker_set) else {
+        let Some(set) = self.stickers.sets.get(self.stickers.set) else {
             ui.painter().text(body.center(), Align2::CENTER_CENTER, l!("Немає встановлених стікерів", "No stickers installed"), FontId::proportional(14.0), ink_dim());
             return;
         };
@@ -403,8 +419,8 @@ impl App {
     pub(super) fn composer_event(&mut self, ev: Ev) {
         match ev {
             Ev::Stickers(sets) => {
-                self.stickers = sets;
-                self.sticker_set = 0;
+                self.stickers.sets = sets;
+                self.stickers.set = 0;
                 self.request_sticker_thumbs();
             }
             Ev::UploadProgress { id, done, total } => {

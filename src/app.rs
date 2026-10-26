@@ -381,11 +381,8 @@ pub struct App {
     /// The chat list changed since the last cache snapshot.
     chats_dirty: bool,
     chats_saved_at: f64,
-    api_id: String,
-    api_hash: String,
-    phone: String,
-    code: String,
-    password: String,
+    /// Sign-in form fields.
+    login: login::LoginForm,
     /// (text, time shown, is error)
     toast: Option<(String, f64, bool)>,
     me: String,
@@ -406,17 +403,14 @@ pub struct App {
     edit_stash: String,
     typing: HashMap<PeerId, (String, f64)>,
     typing_sent_at: f64,
-    /// (chat, message, when the jump started)
-    jump: Option<(PeerId, i32, f64)>,
+    /// History scrolling: measured row heights, staying at the bottom, messages that came below, the jump target.
+    scroll: history::Scroll,
     revealed: HashSet<(PeerId, i32)>,
     compose: Compose,
     folders: Vec<Folder>,
     folder: Option<i32>,
-    stickers: Vec<StickerSetInfo>,
-    sticker_panel: bool,
-    sticker_set: usize,
-    sticker_thumbs: HashSet<i64>,
-    stickers_requested: bool,
+    /// The sticker and emoji panel: sets, the open set, thumbnails asked for.
+    stickers: composer::StickerPanel,
     uploads: Vec<Upload>,
     next_upload: u64,
     /// Selected messages of the open chat.
@@ -429,8 +423,6 @@ pub struct App {
     viewer: Option<Viewer>,
     inline: Option<Inline>,
     inline_edited_at: f64,
-    /// Emoji tab in the sticker panel.
-    emoji_tab: bool,
     /// Options ticked but not yet sent in multiple-answer polls.
     multi_vote: HashMap<(PeerId, i32), Vec<Vec<u8>>>,
     settings: Settings,
@@ -439,30 +431,10 @@ pub struct App {
     /// Files from the system dialog: (chat, files, uncompressed).
     picked_tx: mpsc::Sender<(PeerId, Vec<PathBuf>, bool)>,
     picked_rx: mpsc::Receiver<(PeerId, Vec<PathBuf>, bool)>,
-    player: Player,
-    /// Whether `ffplay` is available for sound.
-    can_play: bool,
-    /// Media already downloaded to the cache.
-    media: HashMap<(PeerId, i32), PathBuf>,
-    /// Media being downloaded, and what to do afterwards: `true` means open in the system player.
-    media_wanted: HashMap<(PeerId, i32), bool>,
-    /// Media being downloaded for autoplay (GIFs, round videos, video stickers).
-    media_loading: HashSet<(PeerId, i32)>,
-    /// Video frames currently on screen.
-    clips: HashMap<(PeerId, i32), Clip>,
-    /// Messages with video visible in this frame (filled during drawing).
-    clip_wanted: RefCell<Vec<(PeerId, i32)>>,
-    /// Measured heights of history rows (keyed by the row's first message), for virtualization.
-    row_h: RefCell<HashMap<(PeerId, i32), f32>>,
-    /// Voice message recording into a chat.
-    recorder: Option<(PeerId, Recorder)>,
-    /// Recorded but not yet sent voice message (preview playback).
-    voice_draft: Option<(PeerId, Voice)>,
-    /// Video message recording: chat, process, preview texture and number of the last frame.
-    round_rec: Option<(PeerId, RoundRecorder)>,
-    round_tex: Option<TextureHandle>,
-    round_seen: u64,
-    can_record: bool,
+    /// Playing media: the audio player, downloaded files, animated clips.
+    playback: media::Playback,
+    /// Voice and round video recording: what is being recorded, a draft waiting to be sent.
+    rec: recording::Recording,
     tray: Option<tray::TrayHandle>,
     tray_rx: mpsc::Receiver<TrayEv>,
     /// "Quit" in the tray: the window really closes instead of hiding to the tray.
@@ -491,32 +463,20 @@ pub struct App {
     /// Cameras for settings (looked up when the tab is opened).
     cameras: Option<Vec<camera::Camera>>,
     sessions: Vec<Session>,
-    privacy: HashMap<PrivacyKey, PrivacyState>,
+    /// Privacy and Security page: rules, their exceptions, the open rule, the people picker, global switches.
+    privacy: privacy::PrivacyPage,
     /// A second press confirms "Terminate all other sessions".
     confirm_terminate: bool,
     /// Local passcode fields: new, repeat, current (for disabling).
     pass_fields: [String; 3],
-    /// The interface is locked by a local passcode.
-    locked: bool,
-    lock_input: String,
-    lock_error: bool,
-    last_activity: f64,
-    /// Pinned messages per chat (oldest first) and which one the bar shows.
-    pins: HashMap<PeerId, Vec<Msg>>,
-    pin_shown: HashMap<PeerId, i32>,
-    /// The list of all pinned messages is open.
-    pins_open: bool,
-    /// Bar hidden by users who cannot unpin — until something new is pinned.
-    pins_hidden: HashSet<PeerId>,
+    /// Local passcode lock: whether locked, the typed passcode, the last error, the last input.
+    lock: login::Lock,
+    /// Pinned messages of the open chat: the list, which one the bar shows, the list panel, chats where the bar was hidden.
+    pinned: chatview::Pinned,
     /// Ids of unread mentions (`false`) and reactions (`true`), oldest first.
     marks: HashMap<(PeerId, bool), Vec<i32>>,
     /// The "@"/"❤" button was pressed while the list was still loading.
     mark_wanted: Option<(PeerId, bool)>,
-    /// History is scrolled to the end (as of last frame); request to scroll down.
-    at_bottom: bool,
-    scroll_bottom: bool,
-    /// New messages that arrived while history was scrolled up.
-    unseen_below: usize,
     /// "Seen by" popup: message and readers (`None` — still loading).
     read_by: Option<(PeerId, i32, Option<Vec<(String, String)>>)>,
     /// Sponsored messages of channels and their popups.
@@ -532,13 +492,6 @@ pub struct App {
     contact_form: Option<contacts::ContactForm>,
     /// Blocked users for Privacy and Security (`None` — not loaded).
     blocked: Option<Vec<ChatInfo>>,
-    /// "Always" / "never" lists of each privacy rule.
-    privacy_ex: HashMap<PrivacyKey, backend::PrivacyExceptions>,
-    /// The rule and side whose exception list is unfolded.
-    privacy_open: Option<(PrivacyKey, bool)>,
-    privacy_pick: Option<privacy::PrivacyPick>,
-    /// Global privacy switches (`None` — not loaded yet).
-    global_privacy: Option<backend::GlobalPrivacy>,
     /// "New poll" box.
     poll_form: Option<polls::PollForm>,
     /// Open mini app windows (separate WebView processes).
@@ -625,8 +578,8 @@ impl App {
         let session = accounts::session_path(self.accounts.active);
         self.backend = Some(backend::spawn(self.ctx.clone(), session));
         if let Some((id, hash)) = backend::saved_credentials() {
-            self.api_id = id.to_string();
-            self.api_hash = hash.clone();
+            self.login.api_id = id.to_string();
+            self.login.api_hash = hash.clone();
             self.send(Cmd::Connect { api_id: id, api_hash: hash });
             self.screen = Screen::Login(Step::Connecting);
         }
@@ -654,11 +607,13 @@ impl App {
             busy: false,
             chats_dirty: false,
             chats_saved_at: 0.0,
-            api_id: String::new(),
-            api_hash: String::new(),
-            phone: String::new(),
-            code: String::new(),
-            password: String::new(),
+            login: login::LoginForm {
+                api_id: String::new(),
+                api_hash: String::new(),
+                phone: String::new(),
+                code: String::new(),
+                password: String::new(),
+            },
             toast: None,
             me: String::new(),
             chats: Vec::new(),
@@ -675,16 +630,25 @@ impl App {
             edit_stash: String::new(),
             typing: HashMap::new(),
             typing_sent_at: 0.0,
-            jump: None,
+            scroll: history::Scroll {
+                row_h: RefCell::new(HashMap::new()),
+                at_bottom: true,
+                to_bottom: false,
+                unseen_below: 0,
+                jump: None,
+            },
             revealed: HashSet::new(),
             compose: Compose::New,
             folders: Vec::new(),
             folder: None,
-            stickers: Vec::new(),
-            sticker_panel: false,
-            sticker_set: 0,
-            sticker_thumbs: HashSet::new(),
-            stickers_requested: false,
+            stickers: composer::StickerPanel {
+                sets: Vec::new(),
+                open: false,
+                set: 0,
+                thumbs: HashSet::new(),
+                requested: false,
+                emoji_tab: true,
+            },
             uploads: Vec::new(),
             next_upload: 0,
             picked: Vec::new(),
@@ -695,7 +659,6 @@ impl App {
             viewer: None,
             inline: None,
             inline_edited_at: 0.0,
-            emoji_tab: true,
             multi_vote: HashMap::new(),
             settings: settings.clone(),
             accounts: Accounts::load(),
@@ -703,20 +666,23 @@ impl App {
             title_unread: 0,
             picked_tx,
             picked_rx,
-            player: Player::new(),
-            can_play: player::available(),
-            media: HashMap::new(),
-            media_wanted: HashMap::new(),
-            media_loading: HashSet::new(),
-            clips: HashMap::new(),
-            clip_wanted: RefCell::new(Vec::new()),
-            row_h: RefCell::new(HashMap::new()),
-            recorder: None,
-            voice_draft: None,
-            round_rec: None,
-            round_tex: None,
-            round_seen: 0,
-            can_record: recorder::available(),
+            playback: media::Playback {
+                player: Player::new(),
+                available: player::available(),
+                files: HashMap::new(),
+                wanted: HashMap::new(),
+                loading: HashSet::new(),
+                clips: HashMap::new(),
+                clip_wanted: RefCell::new(Vec::new()),
+            },
+            rec: recording::Recording {
+                voice: None,
+                draft: None,
+                round: None,
+                round_tex: None,
+                round_seen: 0,
+                available: recorder::available(),
+            },
             tray,
             tray_rx,
             quitting: false,
@@ -734,22 +700,29 @@ impl App {
             settings_tab: SettingsTab::Main,
             cameras: None,
             sessions: Vec::new(),
-            privacy: HashMap::new(),
+            privacy: privacy::PrivacyPage {
+                rules: HashMap::new(),
+                exceptions: HashMap::new(),
+                open: None,
+                pick: None,
+                global: None,
+            },
             confirm_terminate: false,
             pass_fields: Default::default(),
-            locked: !settings.passcode.is_empty(),
-            lock_input: String::new(),
-            lock_error: false,
-            last_activity: 0.0,
-            pins: HashMap::new(),
-            pin_shown: HashMap::new(),
-            pins_open: false,
-            pins_hidden: HashSet::new(),
+            lock: login::Lock {
+                on: !settings.passcode.is_empty(),
+                input: String::new(),
+                error: false,
+                last_activity: 0.0,
+            },
+            pinned: chatview::Pinned {
+                list: HashMap::new(),
+                shown: HashMap::new(),
+                open: false,
+                hidden: HashSet::new(),
+            },
             marks: HashMap::new(),
             mark_wanted: None,
-            at_bottom: true,
-            scroll_bottom: false,
-            unseen_below: 0,
             read_by: None,
             ads: Default::default(),
             notify: Default::default(),
@@ -759,10 +732,6 @@ impl App {
             contact_form: None,
             blocked: None,
             poll_form: None,
-            global_privacy: None,
-            privacy_ex: HashMap::new(),
-            privacy_open: None,
-            privacy_pick: None,
             web_apps: Vec::new(),
             web_app_button: String::new(),
             suggest: Default::default(),
@@ -916,12 +885,12 @@ impl App {
                 }
             }
             Ev::Sessions(list) => self.sessions = list,
-            Ev::GlobalPrivacy(p) => self.global_privacy = Some(p),
+            Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
             Ev::PrivacyExceptions(key, ex) => {
-                self.privacy_ex.insert(key, ex);
+                self.privacy.exceptions.insert(key, ex);
             }
             Ev::Privacy(key, state) => {
-                self.privacy.insert(key, state);
+                self.privacy.rules.insert(key, state);
             }
             ev @ (Ev::WebPreview { .. } | Ev::Mentions { .. } | Ev::BotCommands { .. }) => self.suggest_event(ev),
             Ev::Notice(text) => self.toast = Some((text, 0.0, false)),
@@ -965,7 +934,7 @@ impl App {
             && let Some(chat) = self.chats.iter().find(|c| c.id == m.peer && !c.muted)
         {
             // Under a local passcode, don't show who sent what.
-            if self.locked {
+            if self.lock.on {
                 notify("Glassgram", l!("Нове повідомлення", "New message"));
             } else {
                 let body = if chat.kind == ChatKind::Group && !m.sender.is_empty() { format!("{}: {}", m.sender, quote(&m)) } else { quote(&m) };
@@ -976,8 +945,8 @@ impl App {
             && !list.iter().any(|x| x.id == m.id)
         {
             list.push(m.clone());
-            if open && !m.out && !self.at_bottom {
-                self.unseen_below += 1;
+            if open && !m.out && !self.scroll.at_bottom {
+                self.scroll.unseen_below += 1;
             }
         }
         let label = match m.media.as_ref().map(|i| i.kind) {
@@ -1107,7 +1076,7 @@ impl App {
         if self.find(peer, id).is_none() {
             self.send(Cmd::OpenAt { peer, id });
         }
-        self.jump = Some((peer, id, self.ctx.input(|i| i.time)));
+        self.scroll.jump = Some((peer, id, self.ctx.input(|i| i.time)));
     }
 
     fn apply_chat(&mut self, peer: PeerId, action: ChatAction) {
@@ -1170,19 +1139,19 @@ impl App {
             Action::Copy(text) => self.ctx.copy_text(text),
             Action::Play(id) => self.play(peer, id),
             Action::Seek(id, frac) => {
-                if self.player.is(peer, id) {
-                    self.player.seek(frac);
+                if self.playback.player.is(peer, id) {
+                    self.playback.player.seek(frac);
                 }
             }
-            Action::Speed => self.player.cycle_speed(),
+            Action::Speed => self.playback.player.cycle_speed(),
             Action::Comments(id) => {
                 self.comments = Some(CommentsView { peer, post: id, discussion: None, msgs: Vec::new(), draft: String::new(), loading: true, exhausted: false });
                 self.send(Cmd::OpenComments { peer, id, before: None });
             }
-            Action::OpenExternal(id) => match self.media.get(&(peer, id)) {
+            Action::OpenExternal(id) => match self.playback.files.get(&(peer, id)) {
                 Some(path) => open_external(path),
                 None => {
-                    if self.media_wanted.insert((peer, id), true).is_none() {
+                    if self.playback.wanted.insert((peer, id), true).is_none() {
                         self.send(Cmd::LoadMedia { peer, id });
                     }
                 }
@@ -1501,13 +1470,13 @@ impl eframe::App for App {
 
         // Auto-lock after inactivity.
         if ui.input(|i| !i.events.is_empty() || i.pointer.is_moving()) {
-            self.last_activity = now;
+            self.lock.last_activity = now;
         }
         let idle = self.settings.lock_minutes as f64 * 60.0;
-        if !self.settings.passcode.is_empty() && idle > 0.0 && now - self.last_activity > idle {
-            self.locked = true;
+        if !self.settings.passcode.is_empty() && idle > 0.0 && now - self.lock.last_activity > idle {
+            self.lock.on = true;
         }
-        if self.locked && !self.settings.passcode.is_empty() && matches!(self.screen, Screen::Main) {
+        if self.lock.on && !self.settings.passcode.is_empty() && matches!(self.screen, Screen::Main) {
             self.viewer = None;
             self.lock_view(ui);
             return;

@@ -242,11 +242,11 @@ Structure rules are in [AGENTS.md](AGENTS.md#architecture). Status of the refact
 
 - ✅ `app.rs` split by area (5.4k → 2.1k lines): history, bubbles, composer, recording, media, dialogs, login, accounts, forum, comments, folders
 - ✅ `backend.rs` split (3.9k → 1.6k lines): types, loader, convert, updates, upload; `Worker::handle` dispatches command groups to `<feature>_cmd` handlers
-- ✅ Feature state owned by its module for stories, saved, birthdays, forum topics
-- ⬜ **P1** Split `history::chat_area` (~500 lines): header, the message list and one message row as separate methods
-- ⬜ **P1** Split `App::handle_event` (~300 lines) the same way as `Worker::handle`: one arm per feature module
-- ⬜ **P1** The rest of the loose `App` fields (~140) into feature structs: composer and drafts, recording, player and clips, viewer, search, settings windows
-- ⬜ **P1** The remaining inline arms of `Worker::handle` (history, chats, media, stickers, privacy) into feature handlers
+- ✅ Feature state owned by its module: stories, saved, birthdays, forum topics, recording, sticker panel, pinned messages, playback, privacy page, history scroll, sign-in form, passcode lock (`App`: 148 → 106 fields)
+- ✅ `history::chat_area` (~500 lines) split into `chat_history`, `chat_header`, `chat_bottom` and `message_row`, none over 150 lines
+- ✅ `App::handle_event` (302 → 123 lines) and `Worker::handle` (973 → 70 lines) only dispatch to feature modules
+- ⬜ **P2** Remaining loose `App` fields: drafts and editing, uploads, forward / schedule boxes, accounts menu, folder editing and dragging, tray
+- ⬜ **P2** `App::apply` (~170 lines) and `App::fresh` (the constructor) by feature, like the event handlers
 - ⬜ **P2** Tests for `convert.rs` and `format.rs` on recorded server objects; a CI job that builds and tests on Linux, Windows and macOS
 - ⬜ **P2** `demo.rs` (1.3k lines) split by feature next to the code it answers for
 

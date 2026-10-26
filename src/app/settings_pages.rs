@@ -476,7 +476,7 @@ impl App {
     /// "Advanced": connection (proxy), camera and media tools.
     fn advanced_page(&mut self, ui: &mut Ui) {
         let cameras = self.cameras.get_or_insert_with(camera::list).clone();
-        let (can_play, can_record) = (self.can_play, self.can_record);
+        let (can_play, can_record) = (self.playback.available, self.rec.available);
         let s = &mut self.settings;
         egui::ScrollArea::vertical().id_salt("settings-advanced").auto_shrink(false).show(ui, |ui| {
             section_title(ui, l!("Проксі SOCKS5", "SOCKS5 proxy"));
@@ -592,7 +592,7 @@ impl App {
             ui.add_space(6.0);
             for key in PrivacyKey::ALL {
                 section_title(ui, key.title());
-                let state = self.privacy.get(&key).copied();
+                let state = self.privacy.rules.get(&key).copied();
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     let opts = [(Audience::Everybody, l!("Усі", "Everybody")), (Audience::Contacts, l!("Мої контакти", "My contacts")), (Audience::Nobody, l!("Ніхто", "Nobody"))];
@@ -658,7 +658,7 @@ impl App {
         }
         if lock_now {
             self.settings_open = false;
-            self.locked = true;
+            self.lock.on = true;
         }
     }
 

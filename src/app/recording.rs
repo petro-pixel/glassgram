@@ -2,54 +2,68 @@
 
 use super::*;
 
+/// Voice and round video recording: what is being recorded, a draft waiting to be sent.
+pub(super) struct Recording {
+    /// Voice message recording into a chat.
+    pub(super) voice: Option<(PeerId, Recorder)>,
+    /// Recorded but not yet sent voice message (preview playback).
+    pub(super) draft: Option<(PeerId, Voice)>,
+    /// Video message recording: chat, process, preview texture and number of the last frame.
+    pub(super) round: Option<(PeerId, RoundRecorder)>,
+    pub(super) round_tex: Option<TextureHandle>,
+    pub(super) round_seen: u64,
+    /// ffmpeg is there to record with.
+    pub(super) available: bool,
+}
+
 impl App {
     pub(super) fn start_recording(&mut self, peer: PeerId) {
-        if !self.can_record {
+        if !self.rec.available {
             self.toast = Some((l!("Для запису потрібен ffmpeg", "Recording needs ffmpeg").into(), 0.0, true));
             return;
         }
         // Your own voice in headphones is distracting, so stop playback.
-        self.player.stop();
+        self.playback.player.stop();
         match Recorder::start() {
-            Ok(r) => self.recorder = Some((peer, r)),
+            Ok(r) => self.rec.voice = Some((peer, r)),
             Err(e) => self.toast = Some((e, 0.0, true)),
         }
     }
 
     pub(super) fn cancel_recording(&mut self) {
-        if let Some((_, r)) = self.recorder.take() {
+        if let Some((_, r)) = self.rec.voice.take() {
             r.cancel();
         }
-        if let Some((_, r)) = self.round_rec.take() {
+        if let Some((_, r)) = self.rec.round.take() {
             r.cancel();
         }
-        if let Some((peer, v)) = self.voice_draft.take() {
-            if self.player.is(peer, PREVIEW_ID) {
-                self.player.stop();
+        if let Some((peer, v)) = self.rec.draft.take() {
+            if self.playback.player.is(peer, PREVIEW_ID) {
+                self.playback.player.stop();
             }
             v.discard();
         }
     }
 
     pub(super) fn start_round(&mut self, peer: PeerId) {
-        if !self.can_record {
+        if !self.rec.available {
             self.toast = Some((l!("Для запису потрібен ffmpeg", "Recording needs ffmpeg").into(), 0.0, true));
             return;
         }
-        self.player.stop();
+        self.playback.player.stop();
         match RoundRecorder::start(&self.settings.camera) {
             Ok(r) => {
-                self.round_rec = Some((peer, r));
-                self.round_tex = None;
-                self.round_seen = 0;
+                self.rec.round = Some((peer, r));
+                self.rec.round_tex = None;
+                self.rec.round_seen = 0;
             }
             Err(e) => self.toast = Some((e, 0.0, true)),
         }
     }
 
     pub(super) fn send_round(&mut self) {
-        let Some((peer, r)) = self.round_rec.take() else { return };
-        self.round_tex = None;
+        let Some((peer, r)) = self.rec.round.take() else { return };
+        self.rec.round_tex = None;
         let Some(round) = r.finish() else {
             self.toast = Some((l!("Відео закоротке або камера недоступна", "Video is too short or the camera is unavailable").into(), 0.0, true));
             return;
@@ -67,26 +81,26 @@ impl App {
 
     /// Round video recording: a round preview above the input field and a time row in the field.
     pub(super) fn round_bar(&mut self, ui: &mut Ui, input: Rect, chat: Rect, now: f64) {
-        let Some((_, rec)) = self.round_rec.as_mut() else { return };
+        let Some((_, rec)) = self.rec.round.as_mut() else { return };
         let elapsed = rec.elapsed();
         if !rec.alive() {
             // ffmpeg exits by itself at the limit, then we send; earlier means the camera failed to open.
             if elapsed >= camera::MAX_SECS - 1.0 {
                 self.send_round();
             } else {
-                if let Some((_, r)) = self.round_rec.take() {
+                if let Some((_, r)) = self.rec.round.take() {
                     r.cancel();
                 }
                 self.toast = Some((l!("Камера недоступна", "Camera unavailable").into(), 0.0, true));
             }
             return;
         }
-        if let Some((n, rgba)) = rec.frame_after(self.round_seen) {
-            self.round_seen = n;
+        if let Some((n, rgba)) = rec.frame_after(self.rec.round_seen) {
+            self.rec.round_seen = n;
             let img = egui::ColorImage::from_rgba_unmultiplied([camera::PREVIEW, camera::PREVIEW], &rgba);
-            match &mut self.round_tex {
+            match &mut self.rec.round_tex {
                 Some(t) => t.set(img, TextureOptions::LINEAR),
-                None => self.round_tex = Some(ui.ctx().load_texture("round-preview", img, TextureOptions::LINEAR)),
+                None => self.rec.round_tex = Some(ui.ctx().load_texture("round-preview", img, TextureOptions::LINEAR)),
             }
         }
         let p = ui.painter().clone();
@@ -96,7 +110,7 @@ impl App {
         let r = Rect::from_center_size(c, vec2(side, side));
         p.rect_filled(chat, 0.0, Color32::from_black_alpha(70));
         glass::glass(&p, r.expand(6.0), Glass::panel(side / 2.0 + 6.0));
-        match &self.round_tex {
+        match &self.rec.round_tex {
             Some(t) => glass::image_rounded(&p, r, side / 2.0, t.id(), t.size_vec2()),
             None => {
                 p.circle_filled(c, side / 2.0, Color32::from_black_alpha(160));
@@ -122,7 +136,7 @@ impl App {
 
     /// Stop recording; `None` means too short.
     pub(super) fn finish_recording(&mut self) -> Option<(PeerId, Voice)> {
-        let (peer, r) = self.recorder.take()?;
+        let (peer, r) = self.rec.voice.take()?;
         let voice = r.finish();
         if voice.is_none() {
             self.toast = Some((l!("Запис закороткий", "Recording is too short").into(), 0.0, true));
@@ -132,13 +146,13 @@ impl App {
 
     /// Send the recording: straight from recording mode or from preview playback.
     pub(super) fn send_recording(&mut self) {
-        let next = match self.voice_draft.take() {
+        let next = match self.rec.draft.take() {
             Some(d) => Some(d),
             None => self.finish_recording(),
         };
         let Some((peer, voice)) = next else { return };
-        if self.player.is(peer, PREVIEW_ID) {
-            self.player.stop();
+        if self.playback.player.is(peer, PREVIEW_ID) {
+            self.playback.player.stop();
         }
         let reply_to = self.reply_target();
         if reply_to.is_some() {
@@ -153,9 +167,9 @@ impl App {
 
     /// Input field while recording: red dot, time, live level and hint.
     pub(super) fn recording_bar(&mut self, ui: &mut Ui, input: Rect, now: f64) {
-        let Some((_, rec)) = self.recorder.as_mut() else { return };
+        let Some((_, rec)) = self.rec.voice.as_mut() else { return };
         if !rec.alive() {
-            self.recorder = None;
+            self.rec.voice = None;
             self.toast = Some((l!("Мікрофон недоступний", "Microphone unavailable").into(), 0.0, true));
             return;
         }
@@ -182,13 +196,13 @@ impl App {
             p.rect_filled(Rect::from_min_max(pos2(x, wave.center().y - h / 2.0), pos2(x + 2.4, wave.center().y + h / 2.0)), 1.2, rgba(ink(), 200));
         }
         if stop_clicked {
-            self.voice_draft = self.finish_recording();
+            self.rec.draft = self.finish_recording();
         }
     }
 
     /// Recording preview: delete, play, waveform with progress, duration.
     pub(super) fn voice_draft_bar(&mut self, ui: &mut Ui, input: Rect) {
-        let Some((peer, v)) = &self.voice_draft else { return };
+        let Some((peer, v)) = &self.rec.draft else { return };
         let (peer, path, duration) = (*peer, v.path.clone(), v.duration);
         let play = self.play_view(peer, PREVIEW_ID);
         let p = ui.painter().clone();
@@ -202,9 +216,9 @@ impl App {
         let icon = if play.playing { Icon::Pause } else { Icon::Play };
         if glass::icon_button(ui, btn, "rec-play", icon, true, true).clicked() {
             if play.current {
-                if play.playing { self.player.pause() } else { self.player.resume() }
+                if play.playing { self.playback.player.pause() } else { self.playback.player.resume() }
             } else {
-                self.player.play(peer, PREVIEW_ID, &path, duration);
+                self.playback.player.play(peer, PREVIEW_ID, &path, duration);
             }
         }
         let time = if play.current { player::clock(play.position) } else { player::clock(duration) };
@@ -212,11 +226,11 @@ impl App {
         let tx = input.right() - tg.size().x - 20.0;
         p.galley(pos2(tx, input.center().y - tg.size().y / 2.0), tg, ink());
         let wave = Rect::from_min_max(pos2(btn.right() + 14.0, input.top() + 13.0), pos2(tx - 16.0, input.bottom() - 13.0));
-        let levels = self.voice_draft.as_ref().map(|(_, v)| v.waveform.clone()).unwrap_or_default();
+        let levels = self.rec.draft.as_ref().map(|(_, v)| v.waveform.clone()).unwrap_or_default();
         draw_wave(&p, wave, &levels, play.current.then_some(play.progress));
         if let Some(a) = seek_area(ui, PREVIEW_ID, wave, play) {
             if let Action::Seek(_, frac) = a {
-                self.player.seek(frac);
+                self.playback.player.seek(frac);
             }
         }
     }

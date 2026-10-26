@@ -37,7 +37,7 @@ impl App {
         if let Some(source) = source {
             self.send(Cmd::LoadSavedHistory { saved, source, before: None });
         }
-        self.scroll_bottom = true;
+        self.scroll.to_bottom = true;
     }
 
     /// A page of one source goes into the Saved Messages history, like topics into a forum.

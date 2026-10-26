@@ -2,6 +2,20 @@
 
 use super::*;
 
+/// History scrolling: measured row heights, staying at the bottom, messages that came below, the jump target.
+pub(super) struct Scroll {
+    /// Measured heights of history rows (keyed by the row's first message), for virtualization.
+    pub(super) row_h: RefCell<HashMap<(PeerId, i32), f32>>,
+    /// History is scrolled to the end (as of last frame).
+    pub(super) at_bottom: bool,
+    /// Scroll down on the next frame.
+    pub(super) to_bottom: bool,
+    /// New messages that arrived while history was scrolled up.
+    pub(super) unseen_below: usize,
+    /// (chat, message, when the jump started)
+    pub(super) jump: Option<(PeerId, i32, f64)>,
+}
+
 /// Where the parts of the bottom row are this frame.
 #[derive(Clone, Copy)]
 struct Bottom {
@@ -32,8 +46,8 @@ impl App {
         let group = matches!(chat.kind, ChatKind::Group);
 
         let now = ui.input(|i| i.time);
-        if self.jump.is_some_and(|(p, _, start)| p != peer || now - start > JUMP_FLASH) {
-            self.jump = None;
+        if self.scroll.jump.is_some_and(|(p, _, start)| p != peer || now - start > JUMP_FLASH) {
+            self.scroll.jump = None;
         }
         self.chat_history(ui, peer, &chat, rect, topic, source, group, now);
         let header = self.chat_header(ui, peer, &chat, rect, topic, group, now);
@@ -54,7 +68,7 @@ impl App {
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect);
         let pin_h = self.pin_bar_h(peer) + self.saved_bar_h(peer);
-        let scroll_bottom = std::mem::take(&mut self.scroll_bottom);
+        let scroll_bottom = std::mem::take(&mut self.scroll.to_bottom);
         let scrolled = egui::ScrollArea::vertical()
             .id_salt(("history", peer))
             .auto_shrink(false)
@@ -85,8 +99,8 @@ impl App {
                             }
                         }
                         let mut last_day = "";
-                        let jump = self.jump.filter(|j| j.0 == peer);
-                        let mut heights = self.row_h.borrow_mut();
+                        let jump = self.scroll.jump.filter(|j| j.0 == peer);
+                        let mut heights = self.scroll.row_h.borrow_mut();
                         let spacing = ui.spacing().item_spacing.y;
                         let mut i = 0;
                         while i < msgs.len() {
@@ -202,8 +216,8 @@ impl App {
         let kind = m.media.as_ref().map(|i| i.kind);
         let animated = self.settings.autoplay && m.video_sticker
             || matches!(kind, Some(MediaKind::Gif | MediaKind::Round))
-            || (kind == Some(MediaKind::Video) && self.player.is(peer, m.id));
-        let clip = self.clips.get(&(peer, m.id)).and_then(|c| c.tex.as_ref());
+            || (kind == Some(MediaKind::Video) && self.playback.player.is(peer, m.id));
+        let clip = self.playback.clips.get(&(peer, m.id)).and_then(|c| c.tex.as_ref());
         let photo = clip.or(self.textures.get(&ImgKey::Photo(peer, m.id)));
         let sticker = clip.or(m.sticker.as_ref().and_then(|s| self.textures.get(&ImgKey::Sticker(s.0))));
         let revealed = self.revealed.contains(&(peer, m.id));
@@ -232,7 +246,7 @@ impl App {
             }
         }
         if animated && ui.is_rect_visible(Rect::from_x_y_ranges(ui.max_rect().x_range(), bubble_top..=ui.cursor().top())) {
-            self.clip_wanted.borrow_mut().push((peer, m.id));
+            self.playback.clip_wanted.borrow_mut().push((peer, m.id));
         }
         if let Some((_, id, start)) = jump
             && id == m.id
@@ -500,10 +514,10 @@ impl App {
                 self.open_poll_form(peer);
             }
         });
-        if glass::icon_button(ui, sticker_btn, "stickers", Icon::Smile, self.sticker_panel, true).on_hover_text(l!("Стікери", "Stickers")).clicked() {
-            self.sticker_panel = !self.sticker_panel;
-            if self.sticker_panel && !self.stickers_requested {
-                self.stickers_requested = true;
+        if glass::icon_button(ui, sticker_btn, "stickers", Icon::Smile, self.stickers.open, true).on_hover_text(l!("Стікери", "Stickers")).clicked() {
+            self.stickers.open = !self.stickers.open;
+            if self.stickers.open && !self.stickers.requested {
+                self.stickers.requested = true;
                 self.send(Cmd::LoadStickers);
             }
         }
@@ -513,7 +527,7 @@ impl App {
                 self.scheduled_open = !self.scheduled_open;
             }
         }
-        if self.sticker_panel {
+        if self.stickers.open {
             let panel = Rect::from_min_max(pos2((send_btn.right() - 380.0).max(rect.left()), above - 340.0), pos2(send_btn.right(), above));
             self.sticker_view(ui, peer, panel);
         }
@@ -533,13 +547,13 @@ impl App {
             self.chat_overlays(ui, peer, rect, header, above);
             return true;
         }
-        if self.recorder.as_ref().is_some_and(|(p, _)| *p != peer) {
+        if self.rec.voice.as_ref().is_some_and(|(p, _)| *p != peer) {
             self.cancel_recording();
         }
-        if self.voice_draft.as_ref().is_some_and(|(p, _)| *p != peer) || self.round_rec.as_ref().is_some_and(|(p, _)| *p != peer) {
+        if self.rec.draft.as_ref().is_some_and(|(p, _)| *p != peer) || self.rec.round.as_ref().is_some_and(|(p, _)| *p != peer) {
             self.cancel_recording();
         }
-        if self.round_rec.is_some() {
+        if self.rec.round.is_some() {
             self.round_bar(ui, input, rect, now);
             if glass::icon_button(ui, send_btn, "send", Icon::Send, true, true).on_hover_text(l!("Надіслати відеоповідомлення", "Send video message")).clicked() {
                 self.send_round();
@@ -547,7 +561,7 @@ impl App {
             self.chat_overlays(ui, peer, rect, header, above);
             return true;
         }
-        if self.voice_draft.is_some() {
+        if self.rec.draft.is_some() {
             self.voice_draft_bar(ui, input);
             if glass::icon_button(ui, send_btn, "send", Icon::Send, true, true).on_hover_text(l!("Надіслати голосове", "Send voice message")).clicked() {
                 self.send_recording();
@@ -555,7 +569,7 @@ impl App {
             self.chat_overlays(ui, peer, rect, header, above);
             return true;
         }
-        if self.recorder.is_some() {
+        if self.rec.voice.is_some() {
             self.recording_bar(ui, input, now);
             if glass::icon_button(ui, send_btn, "send", Icon::Send, true, true).on_hover_text(l!("Надіслати голосове", "Send voice message")).clicked() {
                 self.send_recording();
@@ -595,7 +609,7 @@ impl App {
             // Closes the viewer itself.
         } else if self.comments.is_some() {
             self.comments = None;
-        } else if self.recorder.is_some() || self.voice_draft.is_some() || self.round_rec.is_some() {
+        } else if self.rec.voice.is_some() || self.rec.draft.is_some() || self.rec.round.is_some() {
             self.cancel_recording();
         } else if self.forward.is_some() {
             self.forward = None;
@@ -605,8 +619,8 @@ impl App {
             self.scheduled_open = false;
         } else if self.schedule.is_some() {
             self.schedule = None;
-        } else if self.sticker_panel {
-            self.sticker_panel = false;
+        } else if self.stickers.open {
+            self.stickers.open = false;
         } else if self.chat_search.is_some() {
             self.chat_search = None;
         } else if !self.picked.is_empty() {

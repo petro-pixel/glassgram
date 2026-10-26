@@ -2,6 +2,27 @@
 
 use super::*;
 
+/// Local passcode lock: whether locked, the typed passcode, the last error, the last input.
+pub(super) struct Lock {
+    /// The interface is locked by a local passcode.
+    pub(super) on: bool,
+    /// The passcode being typed.
+    pub(super) input: String,
+    /// The last attempt was wrong.
+    pub(super) error: bool,
+    /// Time of the last input, for locking after inactivity.
+    pub(super) last_activity: f64,
+}
+
+/// Sign-in form fields.
+pub(super) struct LoginForm {
+    pub(super) api_id: String,
+    pub(super) api_hash: String,
+    pub(super) phone: String,
+    pub(super) code: String,
+    pub(super) password: String,
+}
+
 impl App {
     /// Lock screen: just a passcode field over the background.
     pub(super) fn lock_view(&mut self, ui: &mut Ui) {
@@ -12,25 +33,25 @@ impl App {
         glass::avatar(ui.painter(), logo, 26.0, "", 4, Some(Icon::Lock), None);
         ui.painter().text(pos2(rect.center().x, rect.top() + 88.0), Align2::CENTER_CENTER, l!("Glassgram заблоковано", "Glassgram is locked"), FontId::proportional(17.0), ink());
         let field = Rect::from_min_size(pos2(rect.left() + 24.0, rect.top() + 112.0), vec2(rect.width() - 48.0, 40.0));
-        let resp = glass::text_field(ui, field, &mut self.lock_input, l!("Локальний пароль", "Local passcode"), true);
+        let resp = glass::text_field(ui, field, &mut self.lock.input, l!("Локальний пароль", "Local passcode"), true);
         if !resp.has_focus() {
             resp.request_focus();
         }
         if resp.changed() {
-            self.lock_error = false;
+            self.lock.error = false;
         }
         let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
         let b = Rect::from_min_size(pos2(rect.left() + 24.0, rect.bottom() - 58.0), vec2(rect.width() - 48.0, 36.0));
-        if glass::button(ui, b, "unlock", l!("Розблокувати", "Unlock"), true, !self.lock_input.is_empty()).clicked() || enter {
-            if crate::lock::check(&self.settings.passcode, &self.lock_input) {
-                self.locked = false;
-                self.lock_error = false;
+        if glass::button(ui, b, "unlock", l!("Розблокувати", "Unlock"), true, !self.lock.input.is_empty()).clicked() || enter {
+            if crate::lock::check(&self.settings.passcode, &self.lock.input) {
+                self.lock.on = false;
+                self.lock.error = false;
             } else {
-                self.lock_error = true;
+                self.lock.error = true;
             }
-            self.lock_input.clear();
+            self.lock.input.clear();
         }
-        if self.lock_error {
+        if self.lock.error {
             ui.painter().text(pos2(rect.center().x, field.bottom() + 9.0), Align2::CENTER_CENTER, l!("Невірний пароль", "Wrong passcode"), FontId::proportional(12.5), Color32::from_rgb(255, 110, 120));
         }
     }
@@ -95,10 +116,10 @@ impl App {
         let field = |y: f32| Rect::from_min_size(pos2(card.left() + 32.0, y), vec2(card.width() - 64.0, 46.0));
         let mut submit = false;
         let mut fields: Vec<(&mut String, &str, bool)> = match &step {
-            Step::Creds => vec![(&mut self.api_id, "API ID", false), (&mut self.api_hash, "API hash", false)],
-            Step::Phone => vec![(&mut self.phone, "+380 00 000 00 00", false)],
-            Step::Code => vec![(&mut self.code, l!("Код", "Code"), false)],
-            Step::Password(_) => vec![(&mut self.password, l!("Пароль", "Password"), true)],
+            Step::Creds => vec![(&mut self.login.api_id, "API ID", false), (&mut self.login.api_hash, "API hash", false)],
+            Step::Phone => vec![(&mut self.login.phone, "+380 00 000 00 00", false)],
+            Step::Code => vec![(&mut self.login.code, l!("Код", "Code"), false)],
+            Step::Password(_) => vec![(&mut self.login.password, l!("Пароль", "Password"), true)],
             Step::Connecting | Step::Qr(_) => unreachable!(),
         };
         for (text, hint, pw) in fields.iter_mut() {
@@ -158,19 +179,19 @@ impl App {
 
     pub(super) fn submit_login(&mut self, step: &Step) {
         let cmd = match step {
-            Step::Creds => match self.api_id.trim().parse() {
-                Ok(api_id) if !self.api_hash.trim().is_empty() => {
+            Step::Creds => match self.login.api_id.trim().parse() {
+                Ok(api_id) if !self.login.api_hash.trim().is_empty() => {
                     self.screen = Screen::Login(Step::Connecting);
-                    Cmd::Connect { api_id, api_hash: self.api_hash.trim().to_owned() }
+                    Cmd::Connect { api_id, api_hash: self.login.api_hash.trim().to_owned() }
                 }
                 _ => {
                     self.toast = Some((l!("API ID має бути числом, API hash — непорожнім", "API ID must be a number and API hash must not be empty").into(), 0.0, true));
                     return;
                 }
             },
-            Step::Phone => Cmd::RequestCode(self.phone.clone()),
-            Step::Code => Cmd::SubmitCode(self.code.clone()),
-            Step::Password(_) => Cmd::SubmitPassword(self.password.clone()),
+            Step::Phone => Cmd::RequestCode(self.login.phone.clone()),
+            Step::Code => Cmd::SubmitCode(self.login.code.clone()),
+            Step::Password(_) => Cmd::SubmitPassword(self.login.password.clone()),
             Step::Connecting | Step::Qr(_) => return,
         };
         self.busy = true;
@@ -195,8 +216,8 @@ impl App {
                 self.accounts.save();
                 self.me = name;
                 self.screen = Screen::Main;
-                self.code.clear();
-                self.password.clear();
+                self.login.code.clear();
+                self.login.password.clear();
             }
             Ev::LoggedOut => {
                 // Other accounts remain: remove this one and move to the next.
