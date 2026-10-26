@@ -592,6 +592,15 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             msgs.retain(|m| m.saved_from == Some(source));
             app.push_event(Ev::SavedHistory { source, msgs, older: false });
         }
+        Cmd::LoadEmojiKeywords(lang) => {
+            let w = |k: &str, e: &[&str]| (k.to_owned(), e.iter().map(|x| x.to_string()).collect());
+            let words = if lang == "uk" {
+                vec![w("серце", &["❤", "💖", "💕"]), w("сміх", &["😂", "🤣", "😆"]), w("сонце", &["☀", "🌞"]), w("кіт", &["🐱", "😺"]), w("ракета", &["🚀"])]
+            } else {
+                vec![w("heart", &["❤", "💖", "💕"]), w("laugh", &["😂", "🤣"]), w("sun", &["☀", "🌞"]), w("cat", &["🐱", "😺"]), w("rocket", &["🚀"])]
+            };
+            app.push_event(Ev::EmojiKeywords { words });
+        }
         Cmd::LoadGifts(peer) => {
             let gift = |title: &str, stars: i64, from: &str, note: &str| Gift { title: title.into(), stars, sticker: None, from: from.into(), note: note.into(), date: 0 };
             let gifts = vec![

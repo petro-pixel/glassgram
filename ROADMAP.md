@@ -84,7 +84,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - 🟡 @mention autocomplete (`channels.getParticipants` search / basic group members) and bot commands via `/` (`bot_info` from `users.getFullUser` / `messages.getFullChat` / `channels.getFullChannel`): glass popup, ↑/↓/Enter/Tab, click. Left: users without a username are inserted as plain name, not a `mentionName` entity
 - ✅ Link preview while typing (`messages.getWebPagePreview`, debounced) above the field; ✕ sends with `no_webpage`
 - ⬜ **P1** Visual rich text editor (2026): formatting bar above the selection, custom shareable styles
-- ⬜ **P1** Emoji suggestions by keyword (`getEmojiKeywords`), custom emoji (showing — P1, sending — Premium P2)
+- ✅ Emoji suggestions by keyword: typing `:word` offers emoji from Telegram's English and interface-language keyword lists (`getEmojiKeywords`); ↑/↓, Enter, Tab or a click puts the emoji in place of the word
+- ⬜ **P1** Custom emoji (showing — P1, sending — Premium P2)
 - ✅ Creating polls and quizzes: "Poll" in the 📎 menu (right click) opens the "New poll" box — question, up to 10 answers, anonymous voting, multiple answers, quiz mode with the correct answer and an explanation (`messages.sendMedia` + `inputMediaPoll`)
 - ⬜ **P1** Polls with participant limits and stats (2026), checklists (`appendTodoList`)
 - ⬜ **P1** Spoiler on photos and videos, caption above media, replacing the attachment while editing

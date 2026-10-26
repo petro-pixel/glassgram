@@ -72,6 +72,7 @@ mod similar;
 mod saved;
 mod stories;
 mod gifts;
+mod emojikw;
 pub use gifts::Gift;
 pub use stories::{Story, StoryPeer};
 pub use birthdays::Birthday;
@@ -239,6 +240,8 @@ pub enum Cmd {
     LoadSavedHistory { saved: PeerId, source: PeerId, before: Option<i32> },
     /// Gifts shown in a profile.
     LoadGifts(PeerId),
+    /// Emoji keywords of a language (`en`, `uk`…) for `:word` suggestions.
+    LoadEmojiKeywords(String),
     /// Channels similar to this one, for its profile.
     LoadSimilarChannels(PeerId),
     /// `t.me/<bot>?start=<param>`: open the bot chat ready to start with the parameter.
@@ -419,6 +422,8 @@ pub enum Ev {
     SavedDialogs(Vec<ChatInfo>),
     /// A page of Saved Messages from one source.
     SavedHistory { source: PeerId, msgs: Vec<Msg>, older: bool },
+    /// Keywords of one language, each with its emoji.
+    EmojiKeywords { words: Vec<(String, Vec<String>)> },
     /// A profile's gifts and how many there are in all.
     Gifts { peer: PeerId, gifts: Vec<Gift>, total: i32 },
     /// Recommended channels for a channel's profile; `total` counts those shown only with Premium.
@@ -775,6 +780,7 @@ impl Worker {
             cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. }) => self.stories_cmd(cmd).await,
             cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. }) => self.saved_cmd(cmd).await,
             cmd @ Cmd::LoadGifts(_) => self.gifts_cmd(cmd).await,
+            cmd @ Cmd::LoadEmojiKeywords(_) => self.emoji_keywords_cmd(cmd).await,
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,

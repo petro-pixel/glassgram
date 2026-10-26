@@ -46,18 +46,23 @@ pub(super) struct Suggest {
     menu_open: bool,
     /// Bots whose menu button opens a mini app: (button text, URL).
     menu_apps: HashMap<PeerId, (String, String)>,
+    /// Keyword lists for `:word` emoji suggestions.
+    emoji: super::emojikw::EmojiKeywords,
 }
 
 /// What the popup offers.
 enum Popup {
     Mentions(String),
     Commands(String),
+    Emoji(String),
 }
 
 /// One popup row.
 enum Item {
     Member(Mentionable),
     Command(BotCmd),
+    /// (emoji, the keyword it matched)
+    Emoji(String, String),
 }
 
 impl App {
@@ -67,6 +72,7 @@ impl App {
             Ev::WebPreview { text, page } => {
                 s.pages.insert(text, page);
             }
+            Ev::EmojiKeywords { words } => s.emoji.add(words),
             Ev::Mentions { peer, query, members } => {
                 if self.selected == Some(peer) {
                     s.members = Some((peer, query, members));
@@ -199,6 +205,7 @@ impl App {
             Some(t) if self.suggest.closed_for.as_ref() == Some(&t) => None,
             Some(t) if t.starts_with('@') && kind == ChatKind::Group => Some(Popup::Mentions(t[1..].to_owned())),
             Some(t) if t.starts_with('/') && t.len() == self.draft.len() => Some(Popup::Commands(t[1..].to_owned())),
+            Some(t) if t.starts_with(':') => Some(Popup::Emoji(t[1..].to_owned())),
             _ if self.suggest.menu_open => Some(Popup::Commands(String::new())),
             _ => None,
         };
@@ -216,6 +223,15 @@ impl App {
                     self.send(Cmd::LoadBotCommands(peer));
                 }
                 self.command_items(peer, q)
+            }
+            Some(Popup::Emoji(q)) => {
+                // English always, plus the language of the interface.
+                for lang in ["en".to_owned(), self.settings.lang.shown_code()] {
+                    if self.suggest.emoji.asked.insert(lang.clone()) {
+                        self.send(Cmd::LoadEmojiKeywords(lang));
+                    }
+                }
+                self.suggest.emoji.find(q).into_iter().map(|(e, k)| Item::Emoji(e, k)).collect()
             }
         };
         if items.is_empty() {
@@ -274,6 +290,10 @@ impl App {
             Item::Member(m) => {
                 let mention = if m.username.is_empty() { m.name.clone() } else { format!("@{}", m.username) };
                 replace_token(&mut self.draft, &format!("{mention} "));
+                focus_end(ui, &self.draft);
+            }
+            Item::Emoji(e, _) => {
+                replace_token(&mut self.draft, &e);
                 focus_end(ui, &self.draft);
             }
             Item::Command(c) => {
@@ -342,7 +362,7 @@ fn item_avatar(item: &Item) -> ImgKey {
     match item {
         Item::Member(m) => ImgKey::Avatar(m.id),
         // Bot avatars are not loaded separately; the key just finds nothing.
-        Item::Command(_) => ImgKey::WebPage(0),
+        Item::Command(_) | Item::Emoji(..) => ImgKey::WebPage(0),
     }
 }
 
@@ -359,6 +379,10 @@ fn self_row(ui: &Ui, row: Rect, item: &Item, avatar: Option<&TextureHandle>) {
                 let at = pos2(row.left() + 54.0 + name_w + 8.0, row.center().y - 8.0);
                 p.galley(at, elided(ui, &format!("@{}", m.username), 13.0, ink_dim(), (w - name_w - 8.0).max(0.0)), ink_dim());
             }
+        }
+        Item::Emoji(e, keyword) => {
+            p.text(pos2(row.left() + 26.0, row.center().y), egui::Align2::CENTER_CENTER, e, FontId::proportional(24.0), ink());
+            p.galley(pos2(row.left() + 54.0, row.center().y - 8.0), elided(ui, &format!(":{keyword}"), 13.5, ink_dim(), w), ink_dim());
         }
         Item::Command(c) => {
             let badge = Rect::from_center_size(pos2(row.left() + 26.0, row.center().y), vec2(34.0, 34.0));
@@ -390,7 +414,9 @@ fn current_token(draft: &str) -> Option<String> {
     let start = draft.rfind(char::is_whitespace).map_or(0, |i| i + draft[i..].chars().next().map_or(1, char::len_utf8));
     let t = &draft[start..];
     let body = t.get(1..)?;
-    let ok = (t.starts_with('@') || t.starts_with('/')) && body.chars().all(|c| c.is_alphanumeric() || c == '_' || (t.starts_with('/') && c == '@'));
+    // `:word` needs two letters, so smileys like ":D" and times like "10:30" stay as they are.
+    let emoji = t.starts_with(':') && body.chars().count() >= 2 && body.chars().next().is_some_and(char::is_alphabetic);
+    let ok = (t.starts_with('@') || t.starts_with('/') || emoji) && body.chars().all(|c| c.is_alphanumeric() || c == '_' || (t.starts_with('/') && c == '@'));
     ok.then(|| t.to_owned())
 }
 

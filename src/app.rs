@@ -65,6 +65,7 @@ mod history;
 mod confirm;
 mod gifts;
 mod textures;
+mod emojikw;
 mod bubbles;
 use bubbles::*;
 use chatlist::{NewChat, Reorder, sort_chats};
@@ -904,7 +905,7 @@ impl App {
             Ev::Privacy(key, state) => {
                 self.privacy.rules.insert(key, state);
             }
-            ev @ (Ev::WebPreview { .. } | Ev::Mentions { .. } | Ev::BotCommands { .. }) => self.suggest_event(ev),
+            ev @ (Ev::WebPreview { .. } | Ev::Mentions { .. } | Ev::BotCommands { .. } | Ev::EmojiKeywords { .. }) => self.suggest_event(ev),
             Ev::Notice(text) => self.toast = Some((text, 0.0, false)),
             ev @ (Ev::Pinned { .. } | Ev::PinnedChanged { .. } | Ev::UnreadMarks { .. } | Ev::ReadBy { .. } | Ev::Views { .. }) => self.chat_view_event(ev),
             ev @ (Ev::Sponsored { .. } | Ev::SponsoredReport { .. }) => self.sponsored_event(ev),
