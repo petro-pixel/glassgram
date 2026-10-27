@@ -53,6 +53,14 @@ impl<K: Copy + PartialEq> Reorder<K> {
     }
 }
 
+/// Where the press on `grip` began, once the pointer has moved far enough to be a drag, not a click.
+/// The grip lies under its item: a drag-only widget on top would take every press, so the item would
+/// never be clicked or get its context menu, and a plain click would lift it.
+fn pulled(ui: &Ui, grip: &egui::Response) -> Option<egui::Pos2> {
+    let pulling = grip.dragged_by(egui::PointerButton::Primary) && ui.input(|i| i.pointer.is_decidedly_dragging());
+    pulling.then(|| ui.input(|i| i.pointer.press_origin())).flatten()
+}
+
 /// Spring-like approach to `target`: moves at once and settles softly (~200 ms).
 /// Positions are relative to the list start, so scrolling does not animate them.
 fn glide(ui: &Ui, id: Id, target: f32) -> f32 {
@@ -212,10 +220,10 @@ impl App {
     }
 
     /// Starts dragging a folder if its grip was pulled.
-    fn grab_folder(&mut self, grip: &egui::Response, id: Option<i32>, start: f32, vertical: bool) {
+    fn grab_folder(&mut self, ui: &Ui, grip: &egui::Response, id: Option<i32>, start: f32, vertical: bool) {
         let Some(fid) = id.filter(|x| *x != ARCHIVE) else { return };
-        if grip.drag_started()
-            && let Some(p) = grip.interact_pointer_pos()
+        if self.folder_drag.is_none()
+            && let Some(p) = pulled(ui, grip)
         {
             let at = if vertical { p.y } else { p.x };
             self.folder_drag = Some(Reorder { key: fid, grab: at - start, order: self.folders.iter().map(|f| f.id).collect() });
@@ -252,13 +260,13 @@ impl App {
                             continue;
                         }
                         let r = slot.translate(vec2(glide(ui, gid, rel) - rel, 0.0));
+                        let grip = ui.interact(r, gid.with("drag"), Sense::drag());
+                        grabs.push((grip, *id, r.left()));
                         let resp = glass::button(ui, r, ("folder", *id), &text, self.folder == *id, true);
                         if resp.clicked() {
                             chosen = Some(*id);
                         }
                         resp.context_menu(|ui| Self::folder_menu(ui, *id, &mut menu));
-                        let grip = ui.interact(r, gid.with("drag"), Sense::drag());
-                        grabs.push((grip, *id, r.left()));
                     }
                     let (r, _) = ui.allocate_exact_size(vec2(TABS_H, TABS_H), Sense::hover());
                     if glass::icon_button(ui, r, "folder-new", Icon::Plus, false, true).on_hover_text(l!("Нова папка", "New folder")).clicked() {
@@ -287,7 +295,7 @@ impl App {
                 });
             });
         for (grip, id, start) in grabs {
-            self.grab_folder(&grip, id, start, false);
+            self.grab_folder(ui, &grip, id, start, false);
         }
         if let Some(order) = drop {
             self.drop_folders(order);
@@ -329,13 +337,13 @@ impl App {
                         continue;
                     }
                     let r = slot.translate(vec2(0.0, glide(ui, gid, rel) - rel));
+                    let grip = ui.interact(r, gid.with("drag"), Sense::drag());
+                    grabs.push((grip, *id, r.top()));
                     let resp = self.folder_cell(ui, r, *id, title, *unread, false);
                     if resp.clicked() {
                         chosen = Some(*id);
                     }
                     resp.context_menu(|ui| Self::folder_menu(ui, *id, &mut menu));
-                    let grip = ui.interact(r, gid.with("drag"), Sense::drag());
-                    grabs.push((grip, *id, r.top()));
                 }
                 if let Some((id, title, unread, slot)) = lifted {
                     let gid = ui.scope_id().with(("cell-y", id));
@@ -356,7 +364,7 @@ impl App {
                 }
             });
         for (grip, id, start) in grabs {
-            self.grab_folder(&grip, id, start, true);
+            self.grab_folder(ui, &grip, id, start, true);
         }
         if let Some(order) = drop {
             self.drop_folders(order);
@@ -450,11 +458,11 @@ impl App {
                 }
                 let rel = slot.top() - origin;
                 let r = slot.translate(vec2(0.0, glide(ui, gid, rel) - rel));
+                let grip = ui.interact(r, gid.with("drag"), Sense::drag());
                 let mut row = ui.new_child(UiBuilder::new().max_rect(r).id_salt(("pin-row", chat.id)));
                 let resp = chat_row(&mut row, chat, selected, tex, typing, draft);
-                let grip = ui.interact(r, gid.with("drag"), Sense::drag());
-                if grip.drag_started()
-                    && let Some(p) = grip.interact_pointer_pos()
+                if drag.is_none()
+                    && let Some(p) = pulled(ui, &grip)
                 {
                     let order = rows[..pinned].iter().map(|c| c.id).collect();
                     *drag = Some((self.folder, Reorder { key: chat.id, grab: p.y - r.top(), order }));
