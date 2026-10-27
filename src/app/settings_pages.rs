@@ -189,6 +189,7 @@ impl App {
                 self.send(Cmd::LoadPassword);
             }
             SettingsTab::Devices => self.send(Cmd::LoadSessions),
+            SettingsTab::Folders => self.send(Cmd::LoadSuggestedFolders),
             SettingsTab::Notifications => self.load_notify_exceptions(),
             SettingsTab::Account => {
                 self.profile_edit = Some(ProfileEdit::from(&self.profile));
@@ -496,7 +497,10 @@ impl App {
                 p.rect_filled(row, 14.0, glass::veil(10));
                 icons::draw(p, Rect::from_center_size(pos2(row.left() + 22.0, row.center().y), vec2(20.0, 20.0)), Icon::Folder, ink_dim());
                 let title = if f.emoticon.is_empty() { f.title.clone() } else { format!("{} {}", f.emoticon, f.title) };
-                p.galley(pos2(row.left() + 48.0, row.center().y - 9.0), elided(ui, &title, 14.5, ink(), row.width() - 140.0), ink());
+                p.galley(pos2(row.left() + 48.0, row.center().y - 9.0), elided(ui, &title, 14.5, ink(), row.width() - 220.0), ink());
+                if let Some(c) = f.color {
+                    super::folders::draw_tags(ui, &[(f.title.clone(), c)], row.right() - 104.0, row.center().y, 100.0);
+                }
                 let b = |k: f32| Rect::from_center_size(pos2(row.right() - 22.0 - k * 40.0, row.center().y), vec2(36.0, 36.0));
                 if glass::icon_button(ui, b(1.0), ("folder-edit", f.id), Icon::Pencil, false, true).on_hover_text(l!("Редагувати", "Edit")).clicked() {
                     edit = Some(f.id);
@@ -509,6 +513,7 @@ impl App {
             ui.add_space(6.0);
             let r = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
             new = glass::button(ui, r, "folder-create", l!("Створити папку", "Create new folder"), false, true).clicked();
+            self.folder_extras(ui);
         });
         if new {
             self.new_folder();

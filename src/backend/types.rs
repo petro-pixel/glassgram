@@ -516,6 +516,8 @@ pub struct Folder {
     pub pinned: Vec<PeerId>,
     /// Shared folder (chatlist): its rules are not edited here.
     pub shared: bool,
+    /// Tag colour in the chat list (0–6: red, orange, violet, green, cyan, blue, pink); `None` — no tag.
+    pub color: Option<i32>,
 }
 
 impl Folder {

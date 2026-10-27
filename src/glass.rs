@@ -75,6 +75,17 @@ pub fn danger() -> Color32 {
     if is_light() { Color32::from_rgb(214, 48, 72) } else { Color32::from_rgb(255, 110, 130) }
 }
 
+/// Folder tag colours as Telegram numbers them: red, orange, violet, green, cyan, blue, pink.
+pub const TAG_COLORS: usize = 7;
+
+/// A folder tag's colour, deeper on light backgrounds so the small text stays readable.
+pub fn tag_color(id: i32) -> Color32 {
+    const DARK: [(u8, u8, u8); TAG_COLORS] = [(255, 110, 110), (255, 165, 80), (185, 140, 255), (110, 215, 130), (90, 210, 230), (110, 165, 255), (255, 120, 190)];
+    const LIGHT: [(u8, u8, u8); TAG_COLORS] = [(214, 52, 52), (214, 110, 20), (128, 78, 214), (38, 150, 70), (20, 140, 170), (40, 105, 225), (210, 60, 140)];
+    let (r, g, b) = if is_light() { LIGHT } else { DARK }[id.rem_euclid(TAG_COLORS as i32) as usize];
+    Color32::from_rgb(r, g, b)
+}
+
 /// Link colour inside a bubble.
 pub fn link(out: bool) -> Color32 {
     match (is_light(), out) {

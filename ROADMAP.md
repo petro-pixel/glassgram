@@ -46,7 +46,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Contacts: list with search (pencil → Contacts), "New contact" by name and phone (`importContacts`), "Add to contacts" / "Delete contact" in user info (`addContact`, `deleteContacts`), block / unblock and stop / restart bots (`contacts.block`, `unblock`), blocked list at the top of Privacy and Security (`getBlocked`)
 - ✅ Saved Messages by source: a strip of "All" and the chats messages were saved from, each with its own history (`getSavedDialogs`, `getSavedHistory`)
 - ✅ Saved Messages reaction tags: capsules with the emoji, name and count after the sources (`getSavedReactionTags`), a click shows only messages with that tag (`messages.search` with `saved_reaction`, combined with the source), right click → rename (`updateSavedReactionTag`, Premium), live `updateSavedReactionTags`. Custom emoji tags wait for custom emoji support
-- ⬜ **P1** Folder tags in the chat list (`toggleDialogFilterTags`), suggested folders
+- ✅ Folder tags in the chat list: a tag colour in the folder editor (7 colours or none, kept on save), coloured capsules of the other folders a chat is in on its row, the switch in Settings → Folders (`toggleDialogFilterTags`, Premium; `tags_enabled`); recommended folders with "Add" (`getSuggestedDialogFilters`)
 - ✅ Contact birthday reminders (`contacts.getBirthdays`): a card above the main list opens the chat, hidden until tomorrow with ×
 - ⬜ **P2** Shared folders by link: join, update, leave (`chatlists.*`)
 - ⬜ **P2** Communities (2026): linked groups, channels and bots as one structure (`communities.*`)

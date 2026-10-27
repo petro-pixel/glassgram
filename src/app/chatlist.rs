@@ -421,6 +421,7 @@ impl App {
             let typing = self.typing.get(&chat.id).map(|(who, _)| who.as_str());
             let draft = (self.selected != Some(chat.id)).then_some(chat.draft.as_str()).filter(|d| !d.trim().is_empty());
             let selected = self.selected == Some(chat.id);
+            let tags = self.chat_tags(chat);
             // In a folder the pin mark follows the folder's own pins, not the main list's.
             let fixed = (chat.pinned != (k < pinned)).then(|| ChatInfo { pinned: k < pinned, ..(*chat).clone() });
             let chat: &ChatInfo = fixed.as_ref().unwrap_or(chat);
@@ -435,7 +436,7 @@ impl App {
                 let r = slot.translate(vec2(0.0, glide(ui, gid, rel) - rel));
                 let grip = ui.interact(r, gid.with("drag"), Sense::drag());
                 let mut row = ui.new_child(UiBuilder::new().max_rect(r).id_salt(("pin-row", chat.id)));
-                let resp = chat_row(&mut row, chat, selected, tex, typing, draft);
+                let resp = chat_row(&mut row, chat, selected, tex, typing, draft, &tags);
                 if drag.is_none()
                     && let Some(p) = pulled(ui, &grip)
                 {
@@ -444,7 +445,7 @@ impl App {
                 }
                 resp
             } else {
-                chat_row(ui, chat, selected, tex, typing, draft)
+                chat_row(ui, chat, selected, tex, typing, draft, &tags)
             };
             if resp.clicked() {
                 out.clicked = Some(chat.id);
@@ -468,7 +469,7 @@ impl App {
                 lift(ui, r, 20.0);
                 let mut row = ui.new_child(UiBuilder::new().max_rect(r).id_salt(("pin-row", chat.id)));
                 let tex = self.textures.get(&ImgKey::Avatar(chat.id));
-                chat_row(&mut row, chat, self.selected == Some(chat.id), tex, None, None);
+                chat_row(&mut row, chat, self.selected == Some(chat.id), tex, None, None, &self.chat_tags(chat));
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
             }
             if !grip.dragged() {
@@ -610,7 +611,7 @@ impl App {
                     section_title(ui, l!("Публічні чати", "Public chats"));
                     for chat in public {
                         let tex = self.textures.get(&ImgKey::Avatar(chat.id));
-                        if chat_row(ui, chat, false, tex, None, None).clicked() {
+                        if chat_row(ui, chat, false, tex, None, None, &[]).clicked() {
                             found = Some(chat.clone());
                         }
                     }

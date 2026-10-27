@@ -139,6 +139,10 @@ pub enum Cmd {
     /// Create or edit a folder (a new one gets a free id, starting from 2).
     SaveFolder(Folder),
     DeleteFolder(i32),
+    /// Folder tags on chat rows (`messages.toggleDialogFilterTags`, Premium).
+    SetFolderTags(bool),
+    /// Folders Telegram recommends (`messages.getSuggestedDialogFilters`).
+    LoadSuggestedFolders,
     /// Forum topics (a group with topics enabled).
     LoadTopics(PeerId),
     /// Topic history: the first page (`before: None`) or older messages.
@@ -394,6 +398,10 @@ pub enum Ev {
     Deleted { ids: Vec<i32>, peer: Option<PeerId> },
     Image { key: ImgKey, image: ColorImage },
     Folders(Vec<Folder>),
+    /// Whether chat rows show folder tags.
+    FolderTags(bool),
+    /// Recommended folders with their descriptions.
+    SuggestedFolders(Vec<(Folder, String)>),
     Stickers(Vec<StickerSetInfo>),
     UploadProgress { id: u64, done: u64, total: u64 },
     UploadDone(u64),
@@ -819,7 +827,7 @@ impl Worker {
             cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,
             cmd @ (Cmd::RequestCode(..) | Cmd::SubmitCode(..) | Cmd::SubmitPassword(..) | Cmd::QrLogin | Cmd::QrPassword(..) | Cmd::QrSuccess(..) | Cmd::Logout) => self.login_cmd(cmd).await,
             cmd @ (Cmd::LoadSessions | Cmd::TerminateSession(..) | Cmd::TerminateOtherSessions) => self.sessions_cmd(cmd).await,
-            cmd @ (Cmd::SaveFolder(..) | Cmd::DeleteFolder(..) | Cmd::ReorderFolders(..)) => self.folders_cmd(cmd).await,
+            cmd @ (Cmd::SaveFolder(..) | Cmd::DeleteFolder(..) | Cmd::ReorderFolders(..) | Cmd::SetFolderTags(_) | Cmd::LoadSuggestedFolders) => self.folders_cmd(cmd).await,
             cmd @ (Cmd::InlineQuery { .. } | Cmd::SendInline { .. } | Cmd::PressButton { .. }) => self.inline_cmd(cmd).await,
             cmd @ Cmd::OpenComments { .. } => self.comments_cmd(cmd).await,
             cmd @ (Cmd::LoadTopics(..) | Cmd::OpenTopic { .. } | Cmd::CreateTopic { .. } | Cmd::EditTopic { .. } | Cmd::ReadTopic { .. }) => self.topics_cmd(cmd).await,
@@ -1078,44 +1086,8 @@ impl Worker {
             .invoke(&tl::functions::messages::GetDialogFilters {})
             .await
             .map_err(|e| lf!("Папки: {e}", "Folders: {e}"))?;
-        let ids = |v: &[tl::enums::InputPeer]| v.iter().map(|p| PeerRef::from(p.clone()).id).collect::<Vec<_>>();
-        let title = |t: &tl::enums::TextWithEntities| {
-            let tl::enums::TextWithEntities::Entities(t) = t;
-            t.text.clone()
-        };
-        let folders = res
-            .filters
-            .iter()
-            .filter_map(|f| match f {
-                tl::enums::DialogFilter::Filter(f) => Some(Folder {
-                    id: f.id,
-                    title: title(&f.title),
-                    emoticon: f.emoticon.clone().unwrap_or_default(),
-                    include: [ids(&f.pinned_peers), ids(&f.include_peers)].concat(),
-                    pinned: ids(&f.pinned_peers),
-                    exclude: ids(&f.exclude_peers),
-                    contacts: f.contacts,
-                    non_contacts: f.non_contacts,
-                    groups: f.groups,
-                    broadcasts: f.broadcasts,
-                    bots: f.bots,
-                    exclude_muted: f.exclude_muted,
-                    exclude_read: f.exclude_read,
-                    exclude_archived: f.exclude_archived,
-                    shared: false,
-                }),
-                tl::enums::DialogFilter::Chatlist(f) => Some(Folder {
-                    id: f.id,
-                    title: title(&f.title),
-                    emoticon: f.emoticon.clone().unwrap_or_default(),
-                    include: [ids(&f.pinned_peers), ids(&f.include_peers)].concat(),
-                    pinned: ids(&f.pinned_peers),
-                    shared: true,
-                    ..Default::default()
-                }),
-                tl::enums::DialogFilter::Default => None,
-            })
-            .collect();
+        self.out.send(Ev::FolderTags(res.tags_enabled));
+        let folders = res.filters.iter().filter_map(folders::folder_from).collect();
         self.out.send(Ev::Folders(folders));
         Ok(())
     }

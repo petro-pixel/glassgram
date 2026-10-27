@@ -1,6 +1,37 @@
-//! Chat folders: unread counts, membership and the folder editor.
+//! Chat folders: unread counts, membership, the folder editor with its tag colour, folder tags on
+//! chat rows and the folders Telegram suggests (Settings → Folders), as in Telegram Desktop.
 
 use super::*;
+
+/// Folder extras beyond the list itself.
+#[derive(Default)]
+pub(super) struct FolderMeta {
+    /// Chat rows show the tags of the folders they are in (Premium).
+    pub(super) tags: bool,
+    /// Recommended folders and why.
+    pub(super) suggested: Vec<(Folder, String)>,
+}
+
+/// Height of a tag capsule on a chat row.
+pub(super) const TAG_H: f32 = 16.0;
+
+/// Draws folder tags right to left from `right`; returns the width taken.
+pub(super) fn draw_tags(ui: &Ui, tags: &[(String, i32)], right: f32, center_y: f32, max_w: f32) -> f32 {
+    let mut x = right;
+    for (title, color) in tags {
+        let c = glass::tag_color(*color);
+        let g = elided(ui, &title.to_uppercase(), 10.0, c, 90.0);
+        let w = g.size().x + 10.0;
+        if right - (x - w) > max_w {
+            break;
+        }
+        let r = Rect::from_min_size(pos2(x - w, center_y - TAG_H / 2.0), vec2(w, TAG_H));
+        ui.painter().rect_filled(r, TAG_H / 2.0, glass::rgba(c, 40));
+        ui.painter().galley(r.center() - g.size() / 2.0, g, c);
+        x -= w + 4.0;
+    }
+    right - x
+}
 
 impl App {
     pub(super) fn folder_unread(&self, folder: Option<i32>) -> usize {
@@ -13,6 +44,59 @@ impl App {
             None => !c.archived,
             Some(ARCHIVE) => c.archived,
             Some(id) => self.folders.iter().find(|f| f.id == id).is_none_or(|f| f.contains(c)),
+        }
+    }
+
+    /// Tags for a chat row: the coloured folders it is in, except the one open.
+    pub(super) fn chat_tags(&self, c: &ChatInfo) -> Vec<(String, i32)> {
+        if !self.folder_meta.tags {
+            return Vec::new();
+        }
+        self.folders.iter().filter(|f| Some(f.id) != self.folder && f.contains(c)).filter_map(|f| Some((f.title.clone(), f.color?))).collect()
+    }
+
+    pub(super) fn add_suggested_folder(&mut self, i: usize) {
+        if i >= self.folder_meta.suggested.len() {
+            return;
+        }
+        let (mut f, _) = self.folder_meta.suggested.remove(i);
+        // Ids 0 and 1 are reserved by Telegram ("All chats" and archive).
+        f.id = self.folders.iter().map(|f| f.id).max().unwrap_or(1).max(1) + 1;
+        self.send(Cmd::SaveFolder(f));
+    }
+
+    /// Settings → Folders extras: the tags switch and the recommended folders.
+    pub(super) fn folder_extras(&mut self, ui: &mut Ui) {
+        ui.add_space(10.0);
+        section_title(ui, l!("Теги папок", "Folder tags"));
+        let mut tags = self.folder_meta.tags;
+        if ui.checkbox(&mut tags, l!("Показувати теги папок у списку чатів", "Show folder tags in the chat list")).changed() {
+            self.folder_meta.tags = tags;
+            self.send(Cmd::SetFolderTags(tags));
+        }
+        ui.label(egui::RichText::new(l!("Колір тегу задається в налаштуваннях папки. Потрібен Telegram Premium.", "A tag's colour is set in the folder's settings. Needs Telegram Premium.")).color(ink_dim()).size(12.5));
+        if self.folder_meta.suggested.is_empty() {
+            return;
+        }
+        ui.add_space(10.0);
+        section_title(ui, l!("Рекомендовані папки", "Recommended folders"));
+        let mut add = None;
+        for (i, (f, about)) in self.folder_meta.suggested.iter().enumerate() {
+            let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 52.0), Sense::hover());
+            let p = ui.painter();
+            p.rect_filled(row, 14.0, glass::veil(10));
+            icons::draw(p, Rect::from_center_size(pos2(row.left() + 22.0, row.center().y), vec2(20.0, 20.0)), Icon::Folder, ink_dim());
+            let title = if f.emoticon.is_empty() { f.title.clone() } else { format!("{} {}", f.emoticon, f.title) };
+            p.galley(pos2(row.left() + 48.0, row.top() + 8.0), elided(ui, &title, 14.5, ink(), row.width() - 160.0), ink());
+            p.galley(pos2(row.left() + 48.0, row.top() + 28.0), elided(ui, about, 12.5, ink_dim(), row.width() - 160.0), ink_dim());
+            let b = Rect::from_min_size(pos2(row.right() - 100.0, row.center().y - 15.0), vec2(90.0, 30.0));
+            if glass::button(ui, b, ("folder-suggest", i), l!("Додати", "Add"), true, true).clicked() {
+                add = Some(i);
+            }
+            ui.add_space(4.0);
+        }
+        if let Some(i) = add {
+            self.add_suggested_folder(i);
         }
     }
 
@@ -55,8 +139,31 @@ impl App {
             ed.folder.title = ed.folder.title.chars().take(FOLDER_TITLE_MAX).collect();
         }
 
+        // Tag colour: a row of dots, the crossed one first for "no tag".
+        let dots_y = emoji.bottom() + 22.0;
+        ui.painter().text(pos2(inner.left() + 4.0, dots_y), Align2::LEFT_CENTER, l!("Колір тегу", "Tag colour"), FontId::proportional(13.0), ink_dim());
+        for k in -1..glass::TAG_COLORS as i32 {
+            let c = pos2(inner.right() - 14.0 - (glass::TAG_COLORS as i32 - 1 - k) as f32 * 30.0, dots_y);
+            let r = Rect::from_center_size(c, vec2(26.0, 26.0));
+            let resp = ui.interact(r, ui.scope_id().with(("tag-color", k)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+            let on = ed.folder.color.unwrap_or(-1) == k;
+            let p = ui.painter();
+            if k < 0 {
+                p.circle_stroke(c, 9.0, egui::Stroke::new(1.5, ink_dim()));
+                p.line_segment([c + vec2(-6.0, 6.0), c + vec2(6.0, -6.0)], egui::Stroke::new(1.5, ink_dim()));
+            } else {
+                p.circle_filled(c, 9.0, glass::tag_color(k));
+            }
+            if on {
+                p.circle_stroke(c, 12.5, egui::Stroke::new(2.0, ink()));
+            }
+            if resp.clicked() {
+                ed.folder.color = (k >= 0).then_some(k);
+            }
+        }
+
         let buttons = Rect::from_min_max(pos2(inner.left(), inner.bottom() - 38.0), inner.max);
-        let body = Rect::from_min_max(pos2(inner.left(), emoji.bottom() + 12.0), pos2(inner.right(), buttons.top() - 10.0));
+        let body = Rect::from_min_max(pos2(inner.left(), dots_y + 22.0), pos2(inner.right(), buttons.top() - 10.0));
         let mut child = ui.new_child(UiBuilder::new().max_rect(body));
         child.set_clip_rect(body);
         let q = ed.query.trim().to_lowercase();

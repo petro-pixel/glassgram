@@ -170,10 +170,11 @@ pub fn folders() -> Vec<Folder> {
             non_contacts: true,
             include: vec![PeerId::user_unchecked(8), PeerId::user_unchecked(5)],
             pinned: vec![PeerId::user_unchecked(8), PeerId::user_unchecked(5)],
+            color: Some(3),
             ..Default::default()
         },
-        Folder { id: 2, title: "Групи".into(), emoticon: "👥".into(), groups: true, ..Default::default() },
-        Folder { id: 3, title: "Канали й боти".into(), emoticon: "📢".into(), broadcasts: true, bots: true, ..Default::default() },
+        Folder { id: 2, title: "Групи".into(), emoticon: "👥".into(), groups: true, color: Some(5), ..Default::default() },
+        Folder { id: 3, title: "Канали й боти".into(), emoticon: "📢".into(), broadcasts: true, bots: true, color: Some(1), ..Default::default() },
         Folder { id: 4, title: "Непрочитані".into(), emoticon: "✅".into(), contacts: true, non_contacts: true, groups: true, broadcasts: true, bots: true, exclude_read: true, ..Default::default() },
     ]
 }
@@ -346,6 +347,15 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 None => list.push(f),
             }
             app.push_event(Ev::Folders(list));
+        }
+        Cmd::SetFolderTags(on) => app.push_event(Ev::FolderTags(on)),
+        Cmd::LoadSuggestedFolders => {
+            let suggested = vec![
+                (Folder { title: "Нове".into(), emoticon: "🆕".into(), contacts: true, non_contacts: true, groups: true, broadcasts: true, bots: true, exclude_read: true, exclude_muted: true, ..Default::default() }, "Непрочитані чати зі сповіщеннями".into()),
+                (Folder { title: "Боти".into(), emoticon: "🤖".into(), bots: true, ..Default::default() }, "Чати з ботами".into()),
+            ];
+            let have: Vec<String> = app.demo_folders().into_iter().map(|f| f.title).collect();
+            app.push_event(Ev::SuggestedFolders(suggested.into_iter().filter(|(f, _)| !have.contains(&f.title)).collect()));
         }
         Cmd::DeleteFolder(id) => {
             let list = app.demo_folders().into_iter().filter(|f| f.id != id).collect();

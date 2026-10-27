@@ -423,6 +423,8 @@ pub struct App {
     revealed: HashSet<(PeerId, i32)>,
     compose: Compose,
     folders: Vec<Folder>,
+    /// Folder tags switch and suggested folders.
+    folder_meta: folders::FolderMeta,
     folder: Option<i32>,
     /// The sticker and emoji panel: sets, the open set, thumbnails asked for.
     stickers: composer::StickerPanel,
@@ -584,6 +586,7 @@ impl App {
             app.chats = chats;
             app.history = history;
             app.folders = demo::folders();
+            app.folder_meta.tags = true;
             if let Some(first) = app.chats.first().map(|c| c.id) {
                 app.open_chat(first);
             }
@@ -673,6 +676,7 @@ impl App {
             revealed: HashSet::new(),
             compose: Compose::New,
             folders: Vec::new(),
+            folder_meta: folders::FolderMeta::default(),
             folder: None,
             stickers: composer::StickerPanel {
                 sets: Vec::new(),
@@ -847,6 +851,8 @@ impl App {
             Ev::StoryVideo { peer, id, path } => self.on_story_video(peer, id, path),
             Ev::SavedHistory { source, msgs, older } => self.on_saved_history(source, msgs, older),
             Ev::SavedTags(tags) => self.on_saved_tags(tags),
+            Ev::FolderTags(on) => self.folder_meta.tags = on,
+            Ev::SuggestedFolders(list) => self.folder_meta.suggested = list,
             Ev::SavedTagsChanged => self.on_saved_tags_changed(),
             Ev::SavedTagged(msgs) => self.on_saved_tagged(msgs),
             Ev::BotStart { peer, param } => {
@@ -1646,6 +1652,7 @@ fn chat_row(
     avatar: Option<&TextureHandle>,
     typing: Option<&str>,
     draft: Option<&str>,
+    tags: &[(String, i32)],
 ) -> egui::Response {
     let w = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(vec2(w, 66.0), Sense::click());
@@ -1710,7 +1717,9 @@ fn chat_row(
     } else {
         0.0
     };
-    let preview_w = rect.right() - x - badge_w - 14.0;
+    // Folder tags sit before the badge and take at most a third of the line.
+    let tags_w = if tags.is_empty() { 0.0 } else { folders::draw_tags(ui, tags, rect.right() - 12.0 - badge_w, rect.bottom() - 21.0, (rect.width() - 68.0) / 3.0) + 4.0 };
+    let preview_w = rect.right() - x - badge_w - tags_w - 14.0;
     let preview_pos = pos2(x, rect.top() + 36.0);
     match (typing, draft) {
         (Some(who), _) => {
