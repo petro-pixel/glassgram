@@ -36,7 +36,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 sys-locale = "0.3"
-tokio = { version = "1.54.0", features = ["full"] }
+tokio = { version = "1.54.1", features = ["full"] }
 
 # Desktop notifications: D-Bus via zbus on Linux (pure Rust), WinRT toasts on Windows, Notification Center on macOS.
 notify-rust = { version = "4.11", default-features = false, features = ["z"] }
