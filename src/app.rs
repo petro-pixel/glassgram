@@ -45,6 +45,7 @@ mod contacts;
 mod webapp;
 mod polls;
 mod privacy;
+mod password;
 mod chatedit;
 mod birthdays;
 mod botstart;
@@ -480,6 +481,8 @@ pub struct App {
     sessions: Vec<Session>,
     /// Privacy and Security page: rules, their exceptions, the open rule, the people picker, global switches.
     privacy: privacy::PrivacyPage,
+    /// Two-step verification section of Privacy and Security.
+    two_step: password::TwoStep,
     /// A second press confirms "Terminate all other sessions".
     confirm_terminate: bool,
     /// Local passcode fields: new, repeat, current (for disabling).
@@ -737,6 +740,7 @@ impl App {
                 pick: None,
                 global: None,
             },
+            two_step: password::TwoStep::default(),
             confirm_terminate: false,
             pass_fields: Default::default(),
             lock: login::Lock {
@@ -933,6 +937,9 @@ impl App {
             }
             Ev::Sessions(list) => self.sessions = list,
             Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
+            Ev::Password(state) => self.on_password(state),
+            Ev::PasswordChecked { email } => self.on_password_checked(email),
+            Ev::PasswordFailed(e) => self.on_password_failed(e),
             Ev::PrivacyExceptions(key, ex) => {
                 self.privacy.exceptions.insert(key, ex);
             }

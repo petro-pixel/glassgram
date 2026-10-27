@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -756,6 +756,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::LoadGlobalPrivacy => app.push_event(Ev::GlobalPrivacy(GlobalPrivacy { archive_new: true, keep_unmuted: false, keep_folders: true, hide_read: false, premium_only: false })),
         Cmd::SetGlobalPrivacy(p) => app.push_event(Ev::GlobalPrivacy(p)),
+        cmd @ (Cmd::LoadPassword | Cmd::CheckPassword(_) | Cmd::UpdatePassword { .. } | Cmd::ConfirmPasswordEmail(_) | Cmd::ResendPasswordEmail | Cmd::CancelPasswordEmail) => password(app, cmd),
         Cmd::EditChat { peer, title, .. } => {
             if let Some(title) = title {
                 app.push_event(Ev::ChatTitle { peer, title });
@@ -845,6 +846,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
 }
 
 thread_local! {
+    /// Demo cloud password: "demo", with a hint and no recovery email at first.
+    static PASSWORD: std::cell::RefCell<(String, PasswordState)> = std::cell::RefCell::new((
+        "demo".into(),
+        PasswordState { has_password: true, hint: "demo".into(), has_recovery: false, email_pending: None },
+    ));
     /// Demo blocked list: starts with one spammer, follows Block / Unblock.
     static BLOCKED: std::cell::RefCell<Vec<ChatInfo>> = std::cell::RefCell::new(vec![person(50, "Спам-розсилка", "", Presence::None)]);
 }
@@ -1496,4 +1502,34 @@ fn demo_shared(app: &App, peer: PeerId, kind: SharedKind) -> Vec<Msg> {
         })
         .cloned()
         .collect()
+}
+
+/// Two-step verification without a server: the password is "demo", any 4-digit code confirms an email.
+fn password(app: &mut App, cmd: Cmd) {
+    let wrong = |app: &mut App| app.push_event(Ev::PasswordFailed("Невірний пароль · Wrong password".into()));
+    PASSWORD.with_borrow_mut(|(pw, state)| match cmd {
+        Cmd::CheckPassword(p) if p == *pw => app.push_event(Ev::PasswordChecked { email: if state.has_recovery { "o***@example.com".into() } else { String::new() } }),
+        Cmd::CheckPassword(_) => wrong(app),
+        Cmd::UpdatePassword { current, .. } if state.has_password && current != *pw => wrong(app),
+        Cmd::UpdatePassword { change, .. } => match change {
+            PasswordChange::Set { new, hint, email } => {
+                *pw = new;
+                state.has_password = true;
+                state.hint = hint;
+                if !email.is_empty() {
+                    state.email_pending = Some("o***@example.com".into());
+                }
+            }
+            PasswordChange::Email(_) => state.email_pending = Some("o***@example.com".into()),
+            PasswordChange::Off => *state = PasswordState::default(),
+        },
+        Cmd::ConfirmPasswordEmail(code) if code.len() == 4 => {
+            state.email_pending = None;
+            state.has_recovery = true;
+        }
+        Cmd::ConfirmPasswordEmail(_) => app.push_event(Ev::PasswordFailed("Невірний код · Wrong code".into())),
+        Cmd::CancelPasswordEmail => state.email_pending = None,
+        _ => {}
+    });
+    app.push_event(Ev::Password(PASSWORD.with_borrow(|(_, s)| s.clone())));
 }

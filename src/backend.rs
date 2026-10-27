@@ -67,6 +67,8 @@ mod contacts;
 mod webapp;
 mod polls;
 mod privacy;
+mod password;
+pub use password::{PasswordChange, PasswordState};
 mod chatedit;
 mod birthdays;
 mod botstart;
@@ -166,6 +168,14 @@ pub enum Cmd {
     /// Archive / read time / who can message me (`account.getGlobalPrivacySettings`).
     LoadGlobalPrivacy,
     SetGlobalPrivacy(GlobalPrivacy),
+    /// Two-step verification state (`account.getPassword`); answered with `Ev::Password`.
+    LoadPassword,
+    /// Checks the current cloud password before the page offers to change it.
+    CheckPassword(String),
+    UpdatePassword { current: String, change: PasswordChange },
+    ConfirmPasswordEmail(String),
+    ResendPasswordEmail,
+    CancelPasswordEmail,
     Forward { from: PeerId, ids: Vec<i32>, to: PeerId },
     /// An inline button with callback data was pressed.
     PressButton { peer: PeerId, id: i32, data: Vec<u8> },
@@ -415,6 +425,11 @@ pub enum Ev {
     Privacy(PrivacyKey, PrivacyState),
     PrivacyExceptions(PrivacyKey, PrivacyExceptions),
     GlobalPrivacy(GlobalPrivacy),
+    Password(PasswordState),
+    /// The current password was right; the recovery email it is bound to.
+    PasswordChecked { email: String },
+    /// A two-step verification request was refused (wrong password, bad email or code).
+    PasswordFailed(String),
     Notice(String),
     Error(String),
     LoggedOut,
@@ -833,6 +848,7 @@ impl Worker {
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
             cmd @ (Cmd::EditChat { .. } | Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. }) => self.chat_edit_cmd(cmd).await,
             cmd @ (Cmd::LoadGlobalPrivacy | Cmd::SetGlobalPrivacy(_)) => self.global_privacy_cmd(cmd).await,
+            cmd @ (Cmd::LoadPassword | Cmd::CheckPassword(_) | Cmd::UpdatePassword { .. } | Cmd::ConfirmPasswordEmail(_) | Cmd::ResendPasswordEmail | Cmd::CancelPasswordEmail) => self.password_cmd(cmd).await,
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } | Cmd::BotWriteAccess { .. } | Cmd::SharePhone { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,

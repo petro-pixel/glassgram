@@ -14,6 +14,14 @@ dirs = "6"
 eframe = "0.37.0"
 grammers-client = { version = "0.11", features = ["proxy"] }
 grammers-session = "0.11.0"
+# Two-step verification (backend/password.rs): grammers' SRP proof for the current password, and the
+# same crates it uses (all already in the build, pure Rust) to hash a new one.
+grammers-crypto = "0.11"
+num-bigint = "0.5"
+pbkdf2 = "0.13"
+hmac = "0.13"
+sha2-11 = { package = "sha2", version = "0.11" }
+getrandom = "0.4"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 jiff = "0.2"
 # SVG path parsing for the Lucide icons; already pulled in by the renderer, pure Rust.

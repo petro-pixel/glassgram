@@ -185,6 +185,8 @@ impl App {
                 self.send(Cmd::LoadPrivacy);
                 self.send(Cmd::LoadBlocked);
                 self.send(Cmd::LoadGlobalPrivacy);
+                self.two_step.reset();
+                self.send(Cmd::LoadPassword);
             }
             SettingsTab::Devices => self.send(Cmd::LoadSessions),
             SettingsTab::Notifications => self.load_notify_exceptions(),
@@ -619,6 +621,9 @@ impl App {
         }
         // Esc goes back to the main page first; the folder window on top handles its own Esc.
         let esc = self.folder_edit.is_none() && ui.input(|i| i.key_pressed(Key::Escape));
+        if back || esc || done {
+            self.two_step.reset();
+        }
         if back || (esc && tab != SettingsTab::Main) {
             self.settings_tab = SettingsTab::Main;
             self.profile_edit = None;
@@ -632,7 +637,8 @@ impl App {
     pub(super) fn privacy_tab(&mut self, ui: &mut Ui) {
         let mut set = None;
         let mut lock_now = false;
-        egui::ScrollArea::vertical().id_salt("privacy-body").auto_shrink(false).show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("privacy-body").auto_shrink(false)
+            .show(ui, |ui| {
             // First on the page, as in Telegram Desktop.
             self.blocked_section(ui);
             ui.add_space(6.0);
@@ -655,6 +661,8 @@ impl App {
             }
             ui.add_space(6.0);
             self.global_privacy_section(ui);
+            ui.add_space(6.0);
+            self.two_step_section(ui);
             ui.add_space(6.0);
             section_title(ui, l!("Локальний пароль", "Local passcode"));
             let s = &mut self.settings;

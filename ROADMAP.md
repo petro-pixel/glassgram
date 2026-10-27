@@ -27,7 +27,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Profile editing in Settings → My Account: first/last name and bio (`account.updateProfile`), username with a live availability check (`account.checkUsername`, `account.updateUsername`), photo from a file, center-cropped (`photos.uploadProfilePhoto`)
 - ✅ Birthday: our own in My Account — day, month, optional year (`account.updateBirthday`), who sees it under Privacy; a user's birthday in their info
 - ✅ A user's personal channel in their info (opens without joining) and their other usernames ("also @…"); our own collectible usernames in "My account": shown or hidden in the profile (`account.toggleUsername`) and their order (`account.reorderUsernames`); video profile photos play in the info panel (`video_sizes`)
-- ⬜ **P1** 2FA management: enable, change the password and recovery email (`account.updatePasswordSettings`)
+- ✅ 2FA management in Privacy and Security → Two-Step Verification: the current password (an SRP proof, `account.getPasswordSettings`) unlocks changing it, its hint and recovery email, or turning it off; the first password with an optional email; the email code with resend and cancel (`account.updatePasswordSettings`, `confirmPasswordEmail`, `resendPasswordEmail`, `cancelPasswordEmail`). The new password goes as `g^x mod p` with our own 32 bytes of salt, checked in a test against the server side of SRP
 - ⬜ **P2** Passkeys (`account.registerPasskey`), sign-in with an email code
 - ⬜ **P2** Name colour and profile background, emoji status (`account.updateColor`, `updateEmojiStatus`; partly Premium)
 - ⬜ **P2** Change number, self-destruct when inactive (`setAccountTTL`), delete account
