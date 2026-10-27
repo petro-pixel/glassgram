@@ -8,7 +8,7 @@ use std::time::Duration;
 use base64::Engine as _;
 use eframe::egui::ColorImage;
 use grammers_client::client::{LoginToken, PasswordToken};
-use grammers_client::media::{Attribute, Downloadable, InputMedia, Media, Photo, Uploaded};
+use grammers_client::media::{Downloadable, Media, Photo, Uploaded};
 use grammers_client::message::InputReactions;
 use grammers_client::message::{InputMessage, Message};
 use grammers_client::peer::{Peer, User};
@@ -118,10 +118,6 @@ pub enum Cmd {
     Send { peer: PeerId, text: String, reply_to: Option<ReplyTo>, opts: SendOpts },
     Edit { peer: PeerId, id: i32, text: String },
     Delete { peer: PeerId, ids: Vec<i32> },
-    /// `id` is the upload number in the UI, for progress.
-    /// Several files: images go as albums of 10, the rest as separate messages.
-    /// `as_file`: no compression, sent as documents.
-    SendFiles { id: u64, peer: PeerId, paths: Vec<PathBuf>, caption: String, reply_to: Option<ReplyTo>, opts: SendOpts, as_file: bool },
     LoadFullPhoto { peer: PeerId, id: i32 },
     /// Set a reaction (`None` removes ours).
     React { peer: PeerId, id: i32, emoji: Option<String> },
@@ -133,10 +129,6 @@ pub enum Cmd {
     InlineQuery { peer: PeerId, bot: String, query: String },
     /// Download a media file (video, GIF, audio) into the cache for playback.
     LoadMedia { peer: PeerId, id: i32 },
-    /// Recorded voice message (OGG/Opus); `waveform` holds levels 0..31.
-    SendVoice { id: u64, peer: PeerId, path: PathBuf, duration: f64, waveform: Vec<u8>, reply_to: Option<ReplyTo> },
-    /// Recorded video message (MP4 384×384).
-    SendRound { id: u64, peer: PeerId, path: PathBuf, duration: f64, reply_to: Option<ReplyTo> },
     /// A message's contents were seen (`readMessageContents`): a voice or round video message
     /// listened to, or a mention looked at.
     MarkListened { peer: PeerId, id: i32 },
@@ -779,7 +771,7 @@ impl Worker {
             cmd @ (Cmd::OpenChat(..) | Cmd::OpenAt { .. } | Cmd::LoadOlder { .. } | Cmd::Typing(..)) => self.history_cmd(cmd).await,
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
             cmd @ (Cmd::Reschedule { .. } | Cmd::SendScheduledNow { .. } | Cmd::DeleteScheduled { .. }) => self.scheduled_cmd(cmd).await,
-            cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::SendFiles { .. } | Cmd::SendVoice { .. } | Cmd::SendRound { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,
+            cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,
             cmd @ (Cmd::RequestCode(..) | Cmd::SubmitCode(..) | Cmd::SubmitPassword(..) | Cmd::QrLogin | Cmd::QrPassword(..) | Cmd::QrSuccess(..) | Cmd::Logout) => self.login_cmd(cmd).await,
             cmd @ (Cmd::LoadSessions | Cmd::TerminateSession(..) | Cmd::TerminateOtherSessions) => self.sessions_cmd(cmd).await,
             cmd @ (Cmd::SaveFolder(..) | Cmd::DeleteFolder(..) | Cmd::ReorderFolders(..)) => self.folders_cmd(cmd).await,
@@ -873,6 +865,7 @@ impl Worker {
                 self.out.replay(Ev::Dialogs(start.chats));
             }
             let queued = c.outbox().await;
+            prune_outbox(&self.session_path, &queued);
             if !queued.is_empty() {
                 self.out.replay(Ev::Outbox(queued));
             }
@@ -1420,6 +1413,19 @@ mod tests {
 
 fn log_error(e: &str) {
     eprintln!("glassgram: {e}");
+}
+
+/// Files of messages no longer in this account's queue (sent before a crash, or the demo's): removed.
+fn prune_outbox(session: &std::path::Path, queued: &[Queued]) {
+    let Ok(dirs) = std::fs::read_dir(session.with_file_name("outbox")) else { return };
+    // A fresh folder may belong to a message the UI is queueing right now.
+    let old = |d: &std::fs::DirEntry| d.metadata().and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|age| age > Duration::from_secs(3600));
+    for d in dirs.flatten() {
+        let key = d.file_name().to_string_lossy().parse::<i64>().ok();
+        if old(&d) && !key.is_some_and(|k| queued.iter().any(|q| q.key == k)) {
+            let _ = std::fs::remove_dir_all(d.path());
+        }
+    }
 }
 
 pub fn human_size(bytes: usize) -> String {

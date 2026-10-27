@@ -63,6 +63,30 @@ impl ReplyTo {
     }
 }
 
+/// Files of a queued message, copied into the outbox folder (`outbox_dir`) until they are sent.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum QueuedMedia {
+    /// Photos (compressed, in albums of up to 10) and documents; `as_file` sends photos as files too.
+    Files { paths: Vec<PathBuf>, as_file: bool },
+    Voice { path: PathBuf, duration: f64, waveform: Vec<u8> },
+    Round { path: PathBuf, duration: f64 },
+}
+
+impl QueuedMedia {
+    pub fn paths(&self) -> Vec<&std::path::Path> {
+        match self {
+            QueuedMedia::Files { paths, .. } => paths.iter().map(|p| p.as_path()).collect(),
+            QueuedMedia::Voice { path, .. } | QueuedMedia::Round { path, .. } => vec![path.as_path()],
+        }
+    }
+}
+
+/// Where a queued message keeps its files: one folder per queue key next to the account's
+/// session (and its queue in `chats.sqlite`), removed once sent.
+pub fn outbox_dir(session: &std::path::Path, key: i64) -> PathBuf {
+    session.with_file_name("outbox").join(key.to_string())
+}
+
 /// A message in the send queue. `key` is the queue's own key: there is no server id yet.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Queued {
@@ -86,6 +110,9 @@ pub struct Queued {
     /// The chat of the replied message, when it is another one.
     #[serde(default, with = "crate::cache::peer_id_opt")]
     pub reply_peer: Option<PeerId>,
+    /// Files, a voice or a round video message; `text` is then the caption.
+    #[serde(default)]
+    pub media: Option<QueuedMedia>,
 }
 
 impl Queued {
@@ -108,6 +135,18 @@ impl Queued {
             reply_to: self.reply_to,
             reply_quote: self.quote.as_ref().map(|q| q.text.clone()),
             reply_elsewhere: self.reply_peer.map(|_| String::new()),
+            // Until it is sent the bubble names what is on its way.
+            file: self.media.as_ref().map(|m| {
+                let names: Vec<String> = m.paths().iter().filter_map(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).collect();
+                let label = match m {
+                    QueuedMedia::Voice { .. } => l!("🎤 Голосове повідомлення", "🎤 Voice message").to_owned(),
+                    QueuedMedia::Round { .. } => l!("📹 Відеоповідомлення", "📹 Video message").to_owned(),
+                    QueuedMedia::Files { .. } if names.len() == 1 => names[0].clone(),
+                    QueuedMedia::Files { .. } => lf!("Файлів: {}", "Files: {}", names.len()),
+                };
+                let size: u64 = m.paths().iter().filter_map(|p| std::fs::metadata(p).ok()).map(|x| x.len()).sum();
+                (label, human_size(size as usize))
+            }),
             ..Msg::placeholder(self.peer)
         }
     }

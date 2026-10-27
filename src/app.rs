@@ -14,7 +14,7 @@ use crate::accounts::{self, Accounts};
 use crate::backend::{
     self, Audience, ButtonAction, ChatInfo, ChatKind, Cmd, Ev, Folder, Handle, ImgKey, InlineResult, MediaKind, Msg, PrivacyKey, PrivacyState, Reaction,
     SearchHit, SendOpts, SharedKind, Session, Topic, GENERAL_TOPIC, TOPIC_COLORS,
-    StickerSetInfo, ReplyTo,
+    StickerSetInfo, ReplyTo, QueuedMedia,
 };
 use crate::demo;
 use crate::emoji;
@@ -426,7 +426,6 @@ pub struct App {
     /// The sticker and emoji panel: sets, the open set, thumbnails asked for.
     stickers: composer::StickerPanel,
     uploads: Vec<Upload>,
-    next_upload: u64,
     /// Selected messages of the open chat.
     picked: Vec<i32>,
     forward: Option<ForwardPicker>,
@@ -671,7 +670,6 @@ impl App {
                 emoji_tab: true,
             },
             uploads: Vec::new(),
-            next_upload: 0,
             picked: Vec::new(),
             forward: None,
             schedule: None,

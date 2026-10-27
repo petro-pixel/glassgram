@@ -354,7 +354,7 @@ mod tests {
         let file = dir.join("cache.sqlite");
         let _ = std::fs::remove_file(&file);
         let peer = PeerId::user_unchecked(5);
-        let q = |key, text: &str| Queued { key, peer, text: text.into(), reply_to: None, silent: false, ts: 0, failed: false, no_webpage: false, quote: None, reply_peer: None };
+        let q = |key, text: &str| Queued { key, peer, text: text.into(), reply_to: None, silent: false, ts: 0, failed: false, no_webpage: false, quote: None, reply_peer: None, media: None };
         {
             let cache = Cache::spawn(file.clone());
             cache.queue_put(&q(2, "друге"));

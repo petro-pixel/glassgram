@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -321,17 +321,6 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             };
             app.push_event(Ev::BotAnswer { text: text.into(), alert: false });
         }
-        Cmd::SendFiles { id, peer, paths, caption, reply_to, .. } => {
-            for (i, path) in paths.iter().enumerate() {
-                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                let size = std::fs::metadata(path).map(|m| crate::backend::human_size(m.len() as usize)).unwrap_or_default();
-                let text = if i == 0 { caption.clone() } else { String::new() };
-                let mut m = replied(app, outgoing(peer, text, None), &reply_to);
-                m.id += i as i32;
-                app.push_event(Ev::NewMsg(Msg { file: Some((name, size)), ..m }));
-            }
-            app.push_event(Ev::UploadDone(id));
-        }
         Cmd::LoadStickers => {
             let set = |id: i64, title: &str, emojis: &str| StickerSetInfo {
                 id,
@@ -347,15 +336,6 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::SendSticker { peer, doc, reply_to } => {
             let emoji = ["🐱", "😺", "😀", "👍", "🔥"][doc as usize % 5].to_owned();
             app.push_event(Ev::NewMsg(Msg { sticker: Some((doc, emoji)), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
-        }
-        Cmd::SendVoice { id, peer, path, duration, waveform, reply_to } => {
-            let info = MediaInfo { kind: MediaKind::Voice, duration, size: (0, 0), title: String::new(), performer: String::new(), waveform };
-            let m = Msg { media: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply_to) };
-            let mid = m.id;
-            app.push_event(Ev::NewMsg(m));
-            // The file stays on disk: that's what we will play.
-            app.push_event(Ev::MediaReady { peer, id: mid, path });
-            app.push_event(Ev::UploadDone(id));
         }
         Cmd::SaveFolder(f) => {
             let mut list = app.demo_folders();
@@ -444,14 +424,6 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let find = |ids: &[PeerId]| ids.iter().filter_map(|p| app.demo_chats().iter().chain(demo_contacts().iter()).find(|c| c.id == *p).cloned()).collect::<Vec<_>>();
             let ex = crate::backend::PrivacyExceptions { allow: find(&allow), deny: find(&deny) };
             app.push_event(Ev::PrivacyExceptions(key, ex));
-        }
-        Cmd::SendRound { id, peer, path, duration, reply_to } => {
-            let info = MediaInfo { kind: MediaKind::Round, duration, size: (384, 384), title: String::new(), performer: String::new(), waveform: Vec::new() };
-            let m = Msg { media: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply_to) };
-            let mid = m.id;
-            app.push_event(Ev::NewMsg(m));
-            app.push_event(Ev::MediaReady { peer, id: mid, path });
-            app.push_event(Ev::UploadDone(id));
         }
         Cmd::Download { .. } => app.push_event(Ev::Notice("У демо-режимі файли не завантажуються".into())),
         Cmd::LoadMedia { peer, id } => match tone(id).or_else(|| clip(id)) {
@@ -719,6 +691,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         // `#offline` in the text pretends there is no network: the clock, retries, then the red mark.
         Cmd::SendQueued(q) if q.text.contains("#offline") => {
             app.push_event(Ev::QueueFailed { key: q.key, error: "Не надіслано: немає мережі (демо)".into(), retry: true });
+        }
+        Cmd::SendQueued(q) if q.media.is_some() => {
+            queued_media(app, &q);
+            app.push_event(Ev::UploadDone(q.key as u64));
+            app.push_event(Ev::QueueSent { key: q.key, peer: q.peer });
         }
         Cmd::SendQueued(q) => {
             let topic = q.reply_to.filter(|_| q.peer == PeerId::channel_unchecked(FORUM)).map(|r| {
@@ -1024,7 +1001,7 @@ fn demo_profile() -> Profile {
 /// Send queue "from the previous run": one message that failed, to show the red mark and its menu.
 pub fn outbox() -> Vec<Queued> {
     let ts = jiff::Timestamp::now().as_second() - 120;
-    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Скинув звіт — глянь, коли будеш онлайн".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false, quote: None, reply_peer: None }]
+    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Скинув звіт — глянь, коли будеш онлайн".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false, quote: None, reply_peer: None, media: None }]
 }
 
 /// Demo forum topics: (id, title, color, unread, pinned, closed).
@@ -1260,6 +1237,40 @@ fn clip(id: i32) -> Option<std::path::PathBuf> {
     }
     cmd.args(["-t", &secs.to_string(), "-pix_fmt", "yuv420p", "-shortest"]).arg(&path);
     cmd.status().ok()?.success().then_some(path)
+}
+
+/// Files, voice and round video messages from the send queue, as the server would echo them.
+fn queued_media(app: &mut App, q: &Queued) {
+    let (peer, reply) = (q.peer, q.reply());
+    match q.media.clone() {
+        Some(QueuedMedia::Files { paths, .. }) => {
+            for (i, path) in paths.iter().enumerate() {
+                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let size = std::fs::metadata(path).map(|m| crate::backend::human_size(m.len() as usize)).unwrap_or_default();
+                let text = if i == 0 { q.text.clone() } else { String::new() };
+                let mut m = replied(app, outgoing(peer, text, None), &reply);
+                m.id += i as i32;
+                app.push_event(Ev::NewMsg(Msg { file: Some((name, size)), ..m }));
+            }
+            let _ = std::fs::remove_dir_all(crate::backend::outbox_dir(&crate::accounts::session_path(0), q.key));
+        }
+        Some(QueuedMedia::Voice { path, duration, waveform }) => {
+            let info = MediaInfo { kind: MediaKind::Voice, duration, size: (0, 0), title: String::new(), performer: String::new(), waveform };
+            let m = Msg { media: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply) };
+            let mid = m.id;
+            app.push_event(Ev::NewMsg(m));
+            // The file stays on disk: that's what we will play.
+            app.push_event(Ev::MediaReady { peer, id: mid, path });
+        }
+        Some(QueuedMedia::Round { path, duration }) => {
+            let info = MediaInfo { kind: MediaKind::Round, duration, size: (384, 384), title: String::new(), performer: String::new(), waveform: Vec::new() };
+            let m = Msg { media: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply) };
+            let mid = m.id;
+            app.push_event(Ev::NewMsg(m));
+            app.push_event(Ev::MediaReady { peer, id: mid, path });
+        }
+        None => {}
+    }
 }
 
 fn rand_ish() -> i32 {

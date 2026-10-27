@@ -1,4 +1,4 @@
-//! Sending files (photos are compressed first), downloading, and caching media for playback.
+//! Uploading files with progress (photos are compressed first), downloading, and caching media for playback.
 
 use super::*;
 
@@ -8,15 +8,6 @@ pub(super) struct Sent {
     pub(super) out: Emitter,
     pub(super) loader: Option<Loader>,
     pub(super) names: Names,
-}
-
-/// A reply resolved before a background send: the id for grammers, the id bubbles look up in
-/// this chat, and our own request for quotes and other chats.
-#[derive(Clone, Default)]
-pub(super) struct Reply {
-    pub(super) id: Option<i32>,
-    pub(super) local: Option<i32>,
-    pub(super) extended: Option<tl::enums::InputReplyTo>,
 }
 
 impl Sent {
@@ -116,84 +107,6 @@ pub(super) async fn upload(client: &Client, path: &std::path::Path, id: u64, bas
     let mut stream = Progress { inner: file, id, done: base, total: total.max(base + len), reported: base, out: out.clone() };
     let up = client.upload_stream(&mut stream, len as usize, name.clone()).await.map_err(|e| err(&e))?;
     Ok((up, len))
-}
-
-/// Sends a group of files: photos one by one or as albums of up to 10 (compressed),
-/// the rest as documents. The caption and reply attach to the first message.
-#[allow(clippy::too_many_arguments)]
-pub(super) async fn send_files(
-    client: &Client,
-    r: PeerRef,
-    id: u64,
-    paths: Vec<PathBuf>,
-    caption: String,
-    reply: Reply,
-    opts: SendOpts,
-    as_file: bool,
-    sent: &Sent,
-) -> Result<(), String> {
-    let (photos, docs): (Vec<PathBuf>, Vec<PathBuf>) = paths.into_iter().partition(|p| !as_file && is_image(p));
-    let photos: Vec<PathBuf> = tokio::task::spawn_blocking(move || {
-        photos.into_iter().map(|p| compress_photo(&p).unwrap_or(p)).collect()
-    })
-    .await
-    .map_err(|e| e.to_string())?;
-    let total: u64 = photos.iter().chain(&docs).filter_map(|p| std::fs::metadata(p).ok()).map(|m| m.len()).sum();
-    let mut base = 0;
-    let mut first = Some((caption, reply));
-    let emit = |m: &Message, reply: &Reply| sent.emit(r.id, m, reply.local, opts);
-
-    for chunk in photos.chunks(10) {
-        let (cap, reply) = first.take().unwrap_or_default();
-        let mut ups = Vec::new();
-        for path in chunk {
-            let (up, len) = upload(client, path, id, base, total, &sent.out).await?;
-            base += len;
-            ups.push(up);
-        }
-        if let Some(x) = reply.extended.clone() {
-            let msgs = match ups.len() {
-                1 => reply::send_one(client, r, &cap, ups.pop().map(reply::photo), x, opts).await?.into_iter().collect(),
-                _ => reply::send_album(client, r, ups, &cap, x, opts).await?,
-            };
-            msgs.iter().for_each(|m| emit(m, &reply));
-            if msgs.is_empty() {
-                sent.scheduled(opts);
-            }
-        } else if ups.len() == 1 {
-            let Some(up) = ups.pop() else { continue };
-            let m = client.send_message(r, opts.apply(rich(&cap).reply_to(reply.id)).photo(up)).await.map_err(|e| e.to_string())?;
-            emit(&m, &reply);
-        } else {
-            let medias = ups.into_iter().enumerate().map(|(i, up)| {
-                let media = InputMedia::new().photo(up);
-                if i > 0 {
-                    return media;
-                }
-                let (text, entities) = format::parse(&cap);
-                media.caption(text).fmt_entities(entities).reply_to(reply.id)
-            });
-            let msgs = client.send_album(r, medias.collect()).await.map_err(|e| lf!("Альбом: {e}", "Album: {e}"))?;
-            msgs.iter().flatten().for_each(|m| emit(m, &reply));
-        }
-    }
-    for path in &docs {
-        let (cap, reply) = first.take().unwrap_or_default();
-        let (up, len) = upload(client, path, id, base, total, &sent.out).await?;
-        base += len;
-        let m = match reply.extended.clone() {
-            Some(x) => {
-                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                reply::send_one(client, r, &cap, Some(reply::document(up, &name, None, Vec::new())), x, opts).await?
-            }
-            None => Some(client.send_message(r, opts.apply(rich(&cap).reply_to(reply.id)).document(up)).await.map_err(|e| e.to_string())?),
-        };
-        match m {
-            Some(m) => emit(&m, &reply),
-            None => sent.scheduled(opts),
-        }
-    }
-    Ok(())
 }
 
 /// Downloads a message's media into the cache (once) and returns the path.

@@ -69,11 +69,8 @@ impl App {
             return;
         };
         let reply_to = self.take_reply();
-        self.next_upload += 1;
-        let id = self.next_upload;
-        let total = std::fs::metadata(&round.path).map_or(0, |m| m.len());
-        self.uploads.push(Upload { id, name: l!("Відеоповідомлення", "Video message").into(), done: 0, total });
-        self.send(Cmd::SendRound { id, peer, path: round.path, duration: round.duration, reply_to });
+        // The recording's temp file moves into the queue's folder.
+        self.enqueue_media(peer, String::new(), reply_to, QueuedMedia::Round { path: round.path, duration: round.duration }, true);
     }
 
     /// Round video recording: a round preview above the input field and a time row in the field.
@@ -152,11 +149,7 @@ impl App {
             self.playback.player.stop();
         }
         let reply_to = self.take_reply();
-        self.next_upload += 1;
-        let id = self.next_upload;
-        let total = std::fs::metadata(&voice.path).map_or(0, |m| m.len());
-        self.uploads.push(Upload { id, name: l!("Голосове повідомлення", "Voice message").into(), done: 0, total });
-        self.send(Cmd::SendVoice { id, peer, path: voice.path, duration: voice.duration, waveform: voice.waveform, reply_to });
+        self.enqueue_media(peer, String::new(), reply_to, QueuedMedia::Voice { path: voice.path, duration: voice.duration, waveform: voice.waveform }, true);
     }
 
     /// Input field while recording: red dot, time, live level and hint.

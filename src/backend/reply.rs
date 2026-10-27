@@ -2,6 +2,8 @@
 //! another chat. Such messages go as our own `sendMessage` / `sendMedia` / `sendMultiMedia`;
 //! plain replies keep the grammers path.
 
+use grammers_client::InvocationError;
+
 use super::*;
 
 impl Worker {
@@ -44,21 +46,58 @@ fn random_id() -> i64 {
     jiff::Timestamp::now().as_nanosecond() as i64
 }
 
+/// Why our own send request failed: the server's answer (some are worth retrying) or something else.
+pub(super) enum SendError {
+    Rpc(InvocationError),
+    Other(String),
+}
+
+impl SendError {
+    /// Worth another attempt from the send queue.
+    pub(super) fn retry(&self) -> bool {
+        matches!(self, SendError::Rpc(e) if outbox::retryable(e))
+    }
+
+    /// An earlier attempt with the same `random_id` got through.
+    pub(super) fn duplicate(&self) -> bool {
+        matches!(self, SendError::Rpc(InvocationError::Rpc(e)) if e.name == "RANDOM_ID_DUPLICATE")
+    }
+}
+
+impl From<InvocationError> for SendError {
+    fn from(e: InvocationError) -> Self {
+        SendError::Rpc(e)
+    }
+}
+
+impl std::fmt::Display for SendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SendError::Rpc(e) => e.fmt(f),
+            SendError::Other(s) => f.write_str(s),
+        }
+    }
+}
+
 /// The messages a request created, in the order of `random_ids`; scheduled ones are not fetched.
-async fn created(client: &Client, r: PeerRef, updates: &tl::enums::Updates, random_ids: &[i64], opts: SendOpts) -> Result<Vec<Message>, String> {
+async fn created(client: &Client, r: PeerRef, updates: &tl::enums::Updates, random_ids: &[i64], opts: SendOpts) -> Result<Vec<Message>, SendError> {
     if opts.schedule.is_some() {
         return Ok(Vec::new());
     }
     let ids: Vec<i32> = random_ids.iter().filter_map(|rid| outbox::sent_id(updates, *rid)).collect();
-    let msgs = client.get_messages_by_id(r, &ids).await.map_err(|e| e.to_string())?;
+    let msgs = client.get_messages_by_id(r, &ids).await?;
     Ok(msgs.into_iter().flatten().collect())
 }
 
 /// One message with an extended reply: text (markup) and maybe media.
 pub(super) async fn send_one(client: &Client, r: PeerRef, markup: &str, media: Option<tl::enums::InputMedia>, reply: tl::enums::InputReplyTo, opts: SendOpts) -> Result<Option<Message>, String> {
+    send_raw(client, r, markup, media, Some(reply), opts, random_id()).await.map_err(|e| e.to_string())
+}
+
+/// One message as our own request, with the `random_id` given (the send queue reuses its key).
+pub(super) async fn send_raw(client: &Client, r: PeerRef, markup: &str, media: Option<tl::enums::InputMedia>, reply: Option<tl::enums::InputReplyTo>, opts: SendOpts, rid: i64) -> Result<Option<Message>, SendError> {
     let (message, ents) = format::parse(markup);
     let entities = (!ents.is_empty()).then_some(ents);
-    let rid = random_id();
     let schedule_date = opts.schedule.map(|t| t as i32);
     let updates = match media {
         Some(media) => {
@@ -72,7 +111,7 @@ pub(super) async fn send_one(client: &Client, r: PeerRef, markup: &str, media: O
                     invert_media: false,
                     allow_paid_floodskip: false,
                     peer: r.into(),
-                    reply_to: Some(reply),
+                    reply_to: reply,
                     media,
                     message,
                     random_id: rid,
@@ -100,7 +139,7 @@ pub(super) async fn send_one(client: &Client, r: PeerRef, markup: &str, media: O
                     invert_media: false,
                     allow_paid_floodskip: false,
                     peer: r.into(),
-                    reply_to: Some(reply),
+                    reply_to: reply,
                     message,
                     random_id: rid,
                     reply_markup: None,
@@ -116,23 +155,19 @@ pub(super) async fn send_one(client: &Client, r: PeerRef, markup: &str, media: O
                 })
                 .await
         }
-    }
-    .map_err(|e| e.to_string())?;
+    }?;
     Ok(created(client, r, &updates, &[rid], opts).await?.into_iter().next())
 }
 
-/// An album of uploaded photos with an extended reply; the caption goes with the first one.
-pub(super) async fn send_album(client: &Client, r: PeerRef, ups: Vec<Uploaded>, caption: &str, reply: tl::enums::InputReplyTo, opts: SendOpts) -> Result<Vec<Message>, String> {
+/// An album as our own request; photo `i` gets the `random_id` `rid + i`.
+pub(super) async fn album_raw(client: &Client, r: PeerRef, ups: Vec<Uploaded>, caption: &str, reply: Option<tl::enums::InputReplyTo>, opts: SendOpts, rid: i64) -> Result<Vec<Message>, SendError> {
     let mut multi_media = Vec::new();
     let mut rids = Vec::new();
     for (i, up) in ups.into_iter().enumerate() {
         // An album takes only media already on the server.
-        let stored = client
-            .invoke(&tl::functions::messages::UploadMedia { business_connection_id: None, peer: r.into(), media: photo(up) })
-            .await
-            .map_err(|e| e.to_string())?;
+        let stored = client.invoke(&tl::functions::messages::UploadMedia { business_connection_id: None, peer: r.into(), media: photo(up) }).await?;
         let tl::enums::MessageMedia::Photo(tl::types::MessageMediaPhoto { photo: Some(tl::enums::Photo::Photo(p)), .. }) = stored else {
-            return Err(l!("Сервер не прийняв фото", "The server did not accept the photo").into());
+            return Err(SendError::Other(l!("Сервер не прийняв фото", "The server did not accept the photo").into()));
         };
         let media = tl::types::InputMediaPhoto {
             spoiler: false,
@@ -142,7 +177,7 @@ pub(super) async fn send_album(client: &Client, r: PeerRef, ups: Vec<Uploaded>, 
             video: None,
         };
         let (message, ents) = if i == 0 { format::parse(caption) } else { (String::new(), Vec::new()) };
-        let rid = random_id() + i as i64;
+        let rid = rid + i as i64;
         rids.push(rid);
         multi_media.push(tl::types::InputSingleMedia { media: media.into(), random_id: rid, message, entities: (!ents.is_empty()).then_some(ents) }.into());
     }
@@ -156,7 +191,7 @@ pub(super) async fn send_album(client: &Client, r: PeerRef, ups: Vec<Uploaded>, 
             invert_media: false,
             allow_paid_floodskip: false,
             peer: r.into(),
-            reply_to: Some(reply),
+            reply_to: reply,
             multi_media,
             schedule_date: opts.schedule.map(|t| t as i32),
             send_as: None,
@@ -164,8 +199,7 @@ pub(super) async fn send_album(client: &Client, r: PeerRef, ups: Vec<Uploaded>, 
             effect: None,
             allow_paid_stars: None,
         })
-        .await
-        .map_err(|e| lf!("Альбом: {e}", "Album: {e}"))?;
+        .await?;
     created(client, r, &updates, &rids, opts).await
 }
 

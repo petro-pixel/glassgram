@@ -104,16 +104,8 @@ impl App {
         }
         let caption = if self.selected == Some(peer) { std::mem::take(&mut self.draft) } else { String::new() };
         let reply_to = self.take_reply();
-        self.next_upload += 1;
-        let id = self.next_upload;
-        let name = match paths.as_slice() {
-            [one] => one.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
-            many => lf!("Файлів: {}", "Files: {}", many.len()),
-        };
-        let total = paths.iter().filter_map(|p| std::fs::metadata(p).ok()).map(|m| m.len()).sum();
-        self.uploads.push(Upload { id, name, done: 0, total });
-        let caption = caption.trim().to_owned();
-        self.send(Cmd::SendFiles { id, peer, paths, caption, reply_to, opts: SendOpts::default(), as_file });
+        // Through the send queue: offline the files wait for the network, like text.
+        self.enqueue_media(peer, caption.trim().to_owned(), reply_to, QueuedMedia::Files { paths, as_file }, false);
     }
 
     /// System file picker in a separate thread, so as not to block the UI.

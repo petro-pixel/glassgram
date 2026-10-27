@@ -1,11 +1,13 @@
 //! Send queue: a message shows up as a bubble right away and is retried with growing delays
 //! while the network is down. The backend keeps it in the cache, so it survives a restart.
 
+use std::path::{Path, PathBuf};
+
 use grammers_client::session::types::PeerId;
 
 use super::App;
-use crate::backend::{Cmd, Msg, Queued, ReplyTo, SendOpts};
-use crate::i18n::l;
+use crate::backend::{Cmd, Msg, Queued, QueuedMedia, ReplyTo, SendOpts, outbox_dir};
+use crate::i18n::{l, lf};
 
 /// Automatic attempts before the bubble turns into "failed" and waits for "Retry".
 const MAX_ATTEMPTS: u32 = 5;
@@ -37,19 +39,58 @@ impl App {
         self.outbox.iter().find(|p| p.id == id).map(|p| p.q.failed)
     }
 
+    /// Nanoseconds keep the queue order; a collision within one run is avoided explicitly.
+    fn next_key(&self) -> i64 {
+        let key = jiff::Timestamp::now().as_nanosecond() as i64;
+        self.outbox.iter().map(|p| p.q.key + 1).max().map_or(key, |last| key.max(last))
+    }
+
     /// Queue a text message: it appears in the chat immediately and is sent in the background.
     pub(super) fn enqueue(&mut self, peer: PeerId, text: String, reply: Option<ReplyTo>, opts: &SendOpts) {
-        let ts = jiff::Timestamp::now();
-        // Nanoseconds keep the queue order; a collision within one run is avoided explicitly.
-        let mut key = ts.as_nanosecond() as i64;
-        if let Some(last) = self.outbox.iter().map(|p| p.q.key).max() {
-            key = key.max(last + 1);
+        let key = self.next_key();
+        self.enqueue_key(key, peer, text, reply, opts, None);
+    }
+
+    /// Queue files, a voice or a round video message. They are copied into the queue's folder
+    /// first (`moved`: a recording's temp file is moved), so they survive a restart.
+    pub(super) fn enqueue_media(&mut self, peer: PeerId, caption: String, reply: Option<ReplyTo>, media: QueuedMedia, moved: bool) {
+        let key = self.next_key();
+        let dir = outbox_dir(&crate::accounts::session_path(self.accounts.active), key);
+        let keep = |k: usize, path: &Path| -> std::io::Result<PathBuf> {
+            // One folder per file keeps two files with one name apart, and the name as it was.
+            let sub = dir.join(k.to_string());
+            std::fs::create_dir_all(&sub)?;
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            let to = sub.join(crate::platform::safe_file_name(&name));
+            if !(moved && std::fs::rename(path, &to).is_ok()) {
+                std::fs::copy(path, &to)?;
+                if moved {
+                    let _ = std::fs::remove_file(path);
+                }
+            }
+            Ok(to)
+        };
+        let kept = match media {
+            QueuedMedia::Files { paths, as_file } => paths.iter().enumerate().map(|(k, p)| keep(k, p)).collect::<Result<Vec<_>, _>>().map(|paths| QueuedMedia::Files { paths, as_file }),
+            QueuedMedia::Voice { path, duration, waveform } => keep(0, &path).map(|path| QueuedMedia::Voice { path, duration, waveform }),
+            QueuedMedia::Round { path, duration } => keep(0, &path).map(|path| QueuedMedia::Round { path, duration }),
+        };
+        match kept {
+            Ok(media) => self.enqueue_key(key, peer, caption, reply, &SendOpts::default(), Some(media)),
+            Err(e) => {
+                let _ = std::fs::remove_dir_all(&dir);
+                self.toast = Some((lf!("Не вдалося підготувати файл: {e}", "Could not prepare the file: {e}"), 0.0, true));
+            }
         }
+    }
+
+    fn enqueue_key(&mut self, key: i64, peer: PeerId, text: String, reply: Option<ReplyTo>, opts: &SendOpts, media: Option<QueuedMedia>) {
+        let ts = jiff::Timestamp::now();
         let (reply_to, reply_peer, quote) = match reply {
             Some(r) => (Some(r.id), r.peer, r.quote),
             None => (None, None, None),
         };
-        let q = Queued { key, peer, text, reply_to, silent: opts.silent, ts: ts.as_second(), failed: false, no_webpage: opts.no_webpage, quote, reply_peer };
+        let q = Queued { key, peer, text, reply_to, silent: opts.silent, ts: ts.as_second(), failed: false, no_webpage: opts.no_webpage, quote, reply_peer, media };
         let id = self.new_local_id();
         let msg = self.queued_msg(&q, id);
         self.outbox.push(Pending { q, id, attempts: 0, next_at: 0.0, in_flight: false });
@@ -84,6 +125,12 @@ impl App {
         }
         // The demo answers inside `send`, so nothing from `outbox` is borrowed here.
         for q in due {
+            // Files show their upload progress at every attempt.
+            if let Some(m) = q.media.as_ref().filter(|_| !self.uploads.iter().any(|u| u.id == q.key as u64)) {
+                let total = m.paths().iter().filter_map(|p| std::fs::metadata(p).ok()).map(|x| x.len()).sum();
+                let name = q.to_msg(0).file.map(|f| f.0).unwrap_or_default();
+                self.uploads.push(super::Upload { id: q.key as u64, name, done: 0, total });
+            }
             self.send(Cmd::SendQueued(q));
         }
     }
