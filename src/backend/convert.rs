@@ -216,6 +216,13 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         day: day(m.date()),
         edited: m.edit_date().is_some(),
         reply_to: m.reply_to_message_id(),
+        reply_quote: match &m.raw {
+            tl::enums::Message::Message(x) => match &x.reply_to {
+                Some(tl::enums::MessageReplyHeader::Header(h)) if h.quote => h.quote_text.clone().filter(|t| !t.is_empty()),
+                _ => None,
+            },
+            _ => None,
+        },
         photo,
         file,
         sticker,

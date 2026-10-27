@@ -22,6 +22,13 @@ pub enum UsernameState {
     Invalid,
 }
 
+/// The part of a message a reply quotes: plain text and where it starts in the message (UTF-16 units).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Quote {
+    pub text: String,
+    pub offset: i32,
+}
+
 /// A message in the send queue. `key` is the queue's own key: there is no server id yet.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Queued {
@@ -39,6 +46,9 @@ pub struct Queued {
     /// Link preview turned off with ✕ in the composer.
     #[serde(default)]
     pub no_webpage: bool,
+    /// The quoted part of the message replied to.
+    #[serde(default)]
+    pub quote: Option<Quote>,
 }
 
 impl Queued {
@@ -55,6 +65,7 @@ impl Queued {
             ts: self.ts,
             day: day(at),
             reply_to: self.reply_to,
+            reply_quote: self.quote.as_ref().map(|q| q.text.clone()),
             ..Msg::placeholder(self.peer)
         }
     }
@@ -465,6 +476,9 @@ pub struct Msg {
     pub day: String,
     pub edited: bool,
     pub reply_to: Option<i32>,
+    /// The part of the replied message this reply quotes.
+    #[serde(default)]
+    pub reply_quote: Option<String>,
     pub photo: bool,
     /// (file name, size)
     pub file: Option<(String, String)>,
@@ -522,6 +536,7 @@ impl Msg {
             day: String::new(),
             edited: false,
             reply_to: None,
+            reply_quote: None,
             photo: false,
             file: None,
             sticker: None,

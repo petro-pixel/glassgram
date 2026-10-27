@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 46%** `█████████░░░░░░░░░░░` — 73 done, 12 partial, 85 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 47%** `█████████░░░░░░░░░░░` — 73 done, 13 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -113,6 +113,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/textures.rs` | Pictures on the GPU with a memory budget; dropped ones come back from the disk cache |
 | `src/app/emojikw.rs`, `src/backend/emojikw.rs` | Emoji suggestions while typing `:word` |
 | `src/app/report.rs`, `src/backend/report.rs` | "Report" box for messages |
+| `src/app/quote.rs` | Replying with a quote: picking a part of the message |
 | `src/app/privacy.rs`, `src/backend/privacy.rs` | Privacy rule exceptions (always / never allow) and global switches: new non-contact chats, read time, who can message me |
 | `src/app/polls.rs`, `src/backend/polls.rs` | "New poll" box: polls and quizzes |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Mini apps: server requests, the WebView window process (`glassgram --webview`) and its bridge |
@@ -146,7 +147,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 ## Controls
 
 - Right-click a message for the menu: reply, copy, edit, delete.
-- Double-click — reply.
+- Double-click — reply. Click the reply bar above the field to quote a part of the message.
 - Esc cancels a reply or edit and closes the sticker panel.
 - 📎 — send files (or drag them into the window); the composer text becomes the caption. Right click on 📎: send without compression, create a poll or quiz.
 - 🙂 — sticker panel.

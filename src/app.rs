@@ -66,6 +66,7 @@ mod confirm;
 mod gifts;
 mod textures;
 mod emojikw;
+mod quote;
 mod report;
 mod bubbles;
 use bubbles::*;
@@ -527,6 +528,8 @@ pub struct App {
     stories: stories::Stories,
     /// The "Report" box for messages.
     report: Option<report::ReportBox>,
+    /// Picking a quote for the reply, and the chosen one.
+    quoting: quote::Quoting,
     /// A hidden link or a received program waiting for "Open anyway".
     opening: Option<confirm::Opening>,
     /// Start parameters from `t.me/<bot>?start=` links, until Start is pressed in that bot chat.
@@ -760,6 +763,7 @@ impl App {
             bot_start: HashMap::new(),
             opening: None,
             report: None,
+            quoting: Default::default(),
             stories: stories::Stories::default(),
             saved: saved::Saved::default(),
             chat_photo_tx,
@@ -1148,7 +1152,10 @@ impl App {
     fn apply(&mut self, peer: PeerId, action: Action) {
         let Some(action) = self.chat_view_action(peer, action) else { return };
         match action {
-            Action::Reply(id) => self.compose = Compose::Reply(id),
+            Action::Reply(id) => {
+                self.compose = Compose::Reply(id);
+                self.quoting.clear();
+            }
             Action::Edit(id) => {
                 if let Some(m) = self.find(peer, id) {
                     let markup = format::to_markup(&m.text, &m.spans);

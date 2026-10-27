@@ -84,6 +84,7 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
                 day: "Сьогодні".into(),
                 edited: false,
                 reply_to: (id == 1 && i == 3).then_some(3),
+                reply_quote: None,
                 photo: text == "📷",
                 file: (text == "📄").then(|| ("Макети_v3.fig".to_owned(), "14.2 МБ".to_owned())),
                 sticker: (text == "🐱").then(|| (900, "🐱".to_owned())),
@@ -94,6 +95,12 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
             .map(|m| if id == 6 && !m.out { Msg { buttons: weather_buttons(), ..m } } else { m })
             .map(|m| if m.photo { Msg { text: "Ось так виглядає фото у склі ✨".into(), ..m } } else { m })
             .collect();
+        // The reply in the first chat quotes the last words of the message it answers.
+        let quoted = msgs.iter().find(|m| m.id == 3).map(|m| {
+            let words: Vec<&str> = m.text.split_whitespace().collect();
+            words[words.len().saturating_sub(3)..].join(" ")
+        });
+        let msgs: Vec<Msg> = msgs.into_iter().map(|m| if id == 1 && m.reply_to == Some(3) { Msg { reply_quote: quoted.clone(), ..m } } else { m }).collect();
         let last = msgs.last().unwrap();
         infos.push(ChatInfo {
             id: peer,
@@ -192,6 +199,7 @@ fn outgoing(peer: PeerId, markup: String, reply_to: Option<i32>) -> Msg {
         day: "Сьогодні".into(),
         edited: false,
         reply_to,
+        reply_quote: None,
         photo: false,
         file: None,
         sticker: None,
@@ -684,7 +692,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let topic = q.reply_to.filter(|_| q.peer == PeerId::channel_unchecked(FORUM)).map(|r| {
                 app.demo_history().find(|(p, _, _)| *p == q.peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == r).map(Msg::topic_id)).unwrap_or(r)
             });
-            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), ..outgoing(q.peer, q.text, q.reply_to) }));
+            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), reply_quote: q.quote.map(|x| x.text), ..outgoing(q.peer, q.text, q.reply_to) }));
             app.push_event(Ev::QueueSent { key: q.key, peer: q.peer });
         }
         // The UI already shows the new order; there is no server to tell.
@@ -934,7 +942,7 @@ fn demo_profile() -> Profile {
 /// Send queue "from the previous run": one message that failed, to show the red mark and its menu.
 pub fn outbox() -> Vec<Queued> {
     let ts = jiff::Timestamp::now().as_second() - 120;
-    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Скинув звіт — глянь, коли будеш онлайн".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false }]
+    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Скинув звіт — глянь, коли будеш онлайн".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false, quote: None }]
 }
 
 /// Demo forum topics: (id, title, color, unread, pinned, closed).

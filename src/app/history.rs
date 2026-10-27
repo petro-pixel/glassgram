@@ -254,9 +254,10 @@ impl App {
         let ticks = |m: &Msg| (m.out && !matches!(chat.kind, ChatKind::Channel | ChatKind::Saved)).then_some(m.id <= chat.read_out);
         let mut action = None;
         // In a forum, a "reply" to the topic root is just a message in the topic, no quote.
+        let quoted = m.reply_quote.as_ref().map(|q| q.replace('\n', " "));
         let reply = m.reply_to.filter(|r| topic.is_none_or(|t| *r != t)).map(|id| match msgs.iter().find(|x| x.id == id) {
-            Some(r) => (author(r, &self.me), quote(r)),
-            None => (l!("Відповідь", "Reply").to_owned(), l!("Повідомлення", "Message").to_owned()),
+            Some(r) => (author(r, &self.me), quoted.unwrap_or_else(|| quote(r))),
+            None => (l!("Відповідь", "Reply").to_owned(), quoted.unwrap_or_else(|| l!("Повідомлення", "Message").to_owned())),
         });
         let kind = m.media.as_ref().map(|i| i.kind);
         let animated = self.settings.autoplay && m.video_sticker

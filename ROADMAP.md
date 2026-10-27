@@ -69,7 +69,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ In-chat search filters: Media, Files, Links, Voice, GIF chips under the search field and "From…" in groups (member search, `messages.search` with `from_id`); results without a query. Days with photos and videos are dotted in the jump-to-date calendar (`getSearchResultsCalendar`)
 - ✅ Translating a message: "Translate" in the message menu opens a window with the original, the translation and the target language (`messages.translateText`); works without Premium
 - ⬜ **P2** Translating a whole chat inline (Premium, `togglePeerTranslations`)
-- ⬜ **P1** Reply quoting part of the text, reply in another chat
+- 🟡 Reply quoting part of the text: a click on the reply bar opens the message to select the quote (`quote_text` / `quote_offset` of `inputReplyToMessage`), received quotes are shown in the reply header; a quote the server rejects (the message was edited) falls back to a plain reply. **P1** left: reply in another chat, quotes with formatting, quotes for media and scheduled replies
 - ⬜ **P2** Chat wallpapers and themes, including custom and gift ones (`setChatWallPaper`, `setChatTheme`)
 - ⬜ **P2** Instant View for articles; 2026 rich text messages (`getRichMessage`, `translateRichMessage`)
 - ⬜ **P2** AI summaries of long posts (`summarizeText`), voice transcription (`transcribeAudio`, Premium)

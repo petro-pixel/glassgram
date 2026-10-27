@@ -4,7 +4,7 @@
 use grammers_client::session::types::PeerId;
 
 use super::App;
-use crate::backend::{Cmd, Queued, SendOpts};
+use crate::backend::{Cmd, Queued, Quote, SendOpts};
 use crate::i18n::l;
 
 /// Automatic attempts before the bubble turns into "failed" and waits for "Retry".
@@ -38,14 +38,14 @@ impl App {
     }
 
     /// Queue a text message: it appears in the chat immediately and is sent in the background.
-    pub(super) fn enqueue(&mut self, peer: PeerId, text: String, reply_to: Option<i32>, opts: &SendOpts) {
+    pub(super) fn enqueue(&mut self, peer: PeerId, text: String, reply_to: Option<i32>, quote: Option<Quote>, opts: &SendOpts) {
         let ts = jiff::Timestamp::now();
         // Nanoseconds keep the queue order; a collision within one run is avoided explicitly.
         let mut key = ts.as_nanosecond() as i64;
         if let Some(last) = self.outbox.iter().map(|p| p.q.key).max() {
             key = key.max(last + 1);
         }
-        let q = Queued { key, peer, text, reply_to, silent: opts.silent, ts: ts.as_second(), failed: false, no_webpage: opts.no_webpage };
+        let q = Queued { key, peer, text, reply_to, silent: opts.silent, ts: ts.as_second(), failed: false, no_webpage: opts.no_webpage, quote };
         let id = self.new_local_id();
         let msg = q.to_msg(id);
         self.outbox.push(Pending { q, id, attempts: 0, next_at: 0.0, in_flight: false });

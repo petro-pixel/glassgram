@@ -83,7 +83,8 @@ impl Worker {
             allow_paid_floodskip: false,
             peer: r.into(),
             reply_to: q.reply_to.map(|id| {
-                tl::types::InputReplyToMessage { reply_to_msg_id: id, top_msg_id: None, reply_to_peer_id: None, quote_text: None, quote_entities: None, quote_offset: None, monoforum_peer_id: None, todo_item_id: None, poll_option: None }.into()
+                let (quote_text, quote_offset) = q.quote.as_ref().map(|x| (x.text.clone(), x.offset)).unzip();
+                tl::types::InputReplyToMessage { reply_to_msg_id: id, top_msg_id: None, reply_to_peer_id: None, quote_text, quote_entities: None, quote_offset, monoforum_peer_id: None, todo_item_id: None, poll_option: None }.into()
             }),
             message: plain.clone(),
             random_id: key,
@@ -117,6 +118,10 @@ impl Worker {
             }
             // An earlier attempt got through after all.
             Ok(Err(InvocationError::Rpc(e))) if e.name == "RANDOM_ID_DUPLICATE" => done(self),
+            // The quote no longer matches the message (it was edited): send a plain reply instead of failing.
+            Ok(Err(InvocationError::Rpc(e))) if e.name.starts_with("QUOTE_") && q.quote.is_some() => {
+                return Box::pin(self.send_queued(Queued { quote: None, ..q })).await;
+            }
             Ok(Err(e)) => self.out.send(fail(lf!("Не надіслано: {e}", "Not sent: {e}"), retryable(&e))),
             Err(_) => self.out.send(fail(lf!("Не надіслано: немає відповіді за {} с", "Not sent: no response in {} s", SEND_TIMEOUT.as_secs()), true)),
         }

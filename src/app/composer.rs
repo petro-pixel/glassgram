@@ -44,13 +44,18 @@ impl App {
             }
             // Scheduled messages go straight to the server; the rest through the send queue.
             Compose::Reply(id) if opts.schedule.is_some() => self.send(Cmd::Send { peer, text, reply_to: Some(id), opts }),
-            Compose::Reply(id) => self.enqueue(peer, text, Some(id), &opts),
+            // A quote goes only with text from the queue; scheduled replies and media quote nothing.
+            Compose::Reply(id) => {
+                let quote = self.quoting.get(peer, id).cloned();
+                self.quoting.clear();
+                self.enqueue(peer, text, Some(id), quote, &opts);
+            }
             Compose::New => {
                 let reply_to = self.reply_target();
                 if opts.schedule.is_some() {
                     self.send(Cmd::Send { peer, text, reply_to, opts });
                 } else {
-                    self.enqueue(peer, text, reply_to, &opts);
+                    self.enqueue(peer, text, reply_to, None, &opts);
                 }
             }
         }
@@ -382,7 +387,12 @@ impl App {
 
     /// Strip above the input field: "Reply …" or "Editing".
     pub(super) fn compose_bar(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
+        let quoted = match self.compose {
+            Compose::Reply(id) => self.reply_quote(peer, id),
+            _ => None,
+        };
         let (icon, title, id) = match self.compose {
+            Compose::Reply(id) if quoted.is_some() => (Icon::Reply, l!("Відповідь із цитатою", "Reply with quote"), id),
             Compose::Reply(id) => (Icon::Reply, l!("Відповідь", "Reply"), id),
             Compose::Edit(id) => (Icon::Pencil, l!("Редагування", "Editing"), id),
             Compose::New => return,
@@ -392,7 +402,7 @@ impl App {
         icons::draw(&p, Rect::from_center_size(pos2(rect.left() + 20.0, rect.center().y), vec2(18.0, 18.0)), icon, ACCENT);
         p.rect_filled(Rect::from_min_size(pos2(rect.left() + 36.0, rect.top() + 8.0), vec2(3.0, rect.height() - 16.0)), 2.0, ACCENT);
         let (who, what) = match self.find(peer, id) {
-            Some(m) => (if matches!(self.compose, Compose::Edit(_)) { title.to_owned() } else { format!("{title}: {}", author(m, &self.me)) }, quote(m)),
+            Some(m) => (if matches!(self.compose, Compose::Edit(_)) { title.to_owned() } else { format!("{title}: {}", author(m, &self.me)) }, quoted.clone().unwrap_or_else(|| quote(m))),
             None => (title.to_owned(), String::new()),
         };
         let w = rect.width() - 100.0;
@@ -401,6 +411,14 @@ impl App {
         p.galley(pos2(rect.left() + 46.0, rect.top() + 5.0), g1, ACCENT);
         p.galley(pos2(rect.left() + 46.0, rect.top() + 21.0), g2, ink_dim());
         let close = Rect::from_center_size(pos2(rect.right() - 22.0, rect.center().y), vec2(28.0, 28.0));
+        // As in Telegram Desktop, a click on a reply opens the message to quote a part of it.
+        if let Compose::Reply(id) = self.compose {
+            let body = Rect::from_min_max(rect.min, pos2(close.left() - 4.0, rect.bottom()));
+            let resp = ui.interact(body, ui.scope_id().with("compose-quote"), Sense::click());
+            if resp.on_hover_text(l!("Натисніть, щоб процитувати частину", "Click to quote a part")).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                self.open_quote(peer, id);
+            }
+        }
         if glass::icon_button(ui, close, "compose-close", Icon::Close, false, true).clicked() {
             self.cancel_compose();
         }
@@ -411,6 +429,7 @@ impl App {
             self.draft = std::mem::take(&mut self.edit_stash);
         }
         self.compose = Compose::New;
+        self.quoting.clear();
     }
 }
 
