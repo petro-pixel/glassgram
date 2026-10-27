@@ -30,10 +30,17 @@ fn main() {
     // The exe icon (Explorer, taskbar, shortcuts). Only with MSVC, which has the resource compiler.
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") && env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
         println!("cargo:rerun-if-changed=packaging/icons/glassgram.ico");
+        println!("cargo:rerun-if-changed=packaging/windows/glassgram.manifest");
         let mut res = winresource::WindowsResource::new();
         res.set_icon("packaging/icons/glassgram.ico");
+        res.set_manifest_file("packaging/windows/glassgram.manifest");
+        // Full version info: antivirus heuristics distrust unsigned exes that say nothing about themselves.
         res.set("ProductName", "Glassgram");
         res.set("FileDescription", "Glassgram");
+        res.set("CompanyName", "petro-pixel");
+        res.set("LegalCopyright", "GPL-3.0-or-later, https://github.com/petro-pixel/glassgram");
+        res.set("OriginalFilename", "glassgram.exe");
+        res.set("InternalName", "glassgram");
         res.compile().expect("Windows resources");
     }
 }
