@@ -66,7 +66,7 @@ modules:
       env:
         CARGO_HOME: /run/build/glassgram/cargo
     build-commands:
-      - sh -c 'set -a; if [ -f keys.env ]; then . ./keys.env; fi; set +a; cargo build --release --locked'
+      - sh -c 'set -a; if [ -f keys.env ]; then . ./keys.env; F=--features=no-key-screen; fi; set +a; cargo build --release --locked $F'
       - rm -f keys.env
       - install -Dm755 target/release/glassgram /app/bin/glassgram
       - install -Dm644 packaging/linux/${FLATPAK_ID}.desktop /app/share/applications/${FLATPAK_ID}.desktop

@@ -14,6 +14,9 @@ pub(super) struct Lock {
     pub(super) last_activity: f64,
 }
 
+/// A build with keys inside (`--features no-key-screen`): the key step is only a "Retry" after a failed connection.
+const NO_KEY_SCREEN: bool = cfg!(feature = "no-key-screen");
+
 /// Sign-in form fields.
 pub(super) struct LoginForm {
     pub(super) api_id: String,
@@ -62,6 +65,7 @@ impl App {
         }
         let screen = ui.max_rect();
         let card_h = match step {
+            Step::Creds if NO_KEY_SCREEN => 300.0,
             Step::Creds => 400.0,
             Step::Connecting => 300.0,
             Step::Phone => 420.0,
@@ -93,6 +97,7 @@ impl App {
         p.text(pos2(card.center().x, y), Align2::CENTER_TOP, "Glassgram", FontId::proportional(26.0), ink());
         y += 36.0;
         let subtitle = match &step {
+            Step::Creds if NO_KEY_SCREEN => l!("Немає з'єднання з Telegram", "No connection to Telegram").to_owned(),
             Step::Creds => l!("Введіть API ID та API hash з my.telegram.org", "Enter API ID and API hash from my.telegram.org").to_owned(),
             Step::Connecting => l!("Підключення до Telegram…", "Connecting to Telegram…").to_owned(),
             Step::Phone => l!("Ваш номер телефону у міжнародному форматі", "Your phone number in international format").to_owned(),
@@ -116,6 +121,7 @@ impl App {
         let field = |y: f32| Rect::from_min_size(pos2(card.left() + 32.0, y), vec2(card.width() - 64.0, 46.0));
         let mut submit = false;
         let mut fields: Vec<(&mut String, &str, bool)> = match &step {
+            Step::Creds if NO_KEY_SCREEN => Vec::new(),
             Step::Creds => vec![(&mut self.login.api_id, "API ID", false), (&mut self.login.api_hash, "API hash", false)],
             Step::Phone => vec![(&mut self.login.phone, "+380 00 000 00 00", false)],
             Step::Code => vec![(&mut self.login.code, l!("Код", "Code"), false)],
@@ -131,6 +137,7 @@ impl App {
 
         let label = match (&step, self.busy) {
             (_, true) => l!("Зачекайте…", "Please wait…"),
+            (Step::Creds, _) if NO_KEY_SCREEN => l!("Повторити", "Retry"),
             (Step::Creds, _) => l!("Підключитися", "Connect"),
             (Step::Phone, _) => l!("Отримати код", "Get code"),
             _ => l!("Увійти", "Log in"),
@@ -179,6 +186,13 @@ impl App {
 
     pub(super) fn submit_login(&mut self, step: &Step) {
         let cmd = match step {
+            Step::Creds if NO_KEY_SCREEN => match backend::saved_credentials() {
+                Some((api_id, api_hash)) => {
+                    self.screen = Screen::Login(Step::Connecting);
+                    Cmd::Connect { api_id, api_hash }
+                }
+                None => return,
+            },
             Step::Creds => match self.login.api_id.trim().parse() {
                 Ok(api_id) if !self.login.api_hash.trim().is_empty() => {
                     self.screen = Screen::Login(Step::Connecting);

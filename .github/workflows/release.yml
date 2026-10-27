@@ -26,7 +26,7 @@ jobs:
         env:
           GLASSGRAM_API_ID: ${{ secrets.TG_API_ID }}
           GLASSGRAM_API_HASH: ${{ secrets.TG_API_HASH }}
-        run: cargo build --release --locked
+        run: cargo build --release --locked --features no-key-screen
 
       # GPL build with libx264, libopus, libvpx and ffplay; it goes next to glassgram.exe.
       # BtbN renames the archives with every ffmpeg release, so take the newest stable one from the list.

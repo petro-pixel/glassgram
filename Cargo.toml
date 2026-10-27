@@ -60,6 +60,10 @@ tray-icon = { version = "0.21", default-features = false }
 raw-window-handle = "0.6"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
 
+[features]
+# Release builds with keys built in: no API ID / hash screen, "Retry" when offline (see build.rs).
+no-key-screen = []
+
 [build-dependencies]
 # The exe icon on Windows (MSVC resource compiler); pure Rust, does nothing elsewhere.
 winresource = "0.1"

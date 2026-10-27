@@ -556,8 +556,18 @@ fn builtin_credentials() -> Option<(i32, String)> {
     Some(((id ^ m) as i32, hash))
 }
 
+/// The keys are the ones built into the release: never shown in the form or written to disk.
+pub fn is_builtin(api_id: i32, api_hash: &str) -> bool {
+    builtin_credentials().is_some_and(|(id, hash)| id == api_id && hash == api_hash)
+}
+
 fn save_credentials(api_id: i32, api_hash: &str) {
     let dir = data_dir();
+    if is_builtin(api_id, api_hash) {
+        // Older versions saved them in plain text.
+        let _ = std::fs::remove_file(dir.join("credentials"));
+        return;
+    }
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join("credentials");
     let _ = std::fs::write(&path, format!("{api_id}\n{api_hash}\n"));

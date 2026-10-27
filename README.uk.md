@@ -49,7 +49,8 @@ cargo run --release             # справжній акаунт
 
 Збірці з коду потрібні `api_id` та `api_hash` з <https://my.telegram.org> → *API development tools*.
 Їх можна ввести у вікні входу або передати через змінні `TG_API_ID` / `TG_API_HASH`. Щоб вбудувати їх
-у програму, як у релізах, задайте під час збірки `GLASSGRAM_API_ID` / `GLASSGRAM_API_HASH` (`build.rs`).
+у програму, як у релізах, задайте під час збірки `GLASSGRAM_API_ID` / `GLASSGRAM_API_HASH` (`build.rs`); з `--features no-key-screen`
+зникає й екран ключів (без з'єднання застосунок пропонує «Повторити»).
 
 Сесія та облікові дані зберігаються в теці даних: `~/.local/share/glassgram/` на Linux,
 `%APPDATA%\glassgram\` на Windows, `~/Library/Application Support/glassgram/` на macOS.

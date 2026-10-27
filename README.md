@@ -49,7 +49,8 @@ On Linux the build needs WebKitGTK for mini app windows: `sudo apt install libwe
 
 A build from source needs an `api_id` and `api_hash` from <https://my.telegram.org> → *API development tools*.
 Enter them in the sign-in window or pass them via the `TG_API_ID` / `TG_API_HASH` variables. To build them
-into the binary as the releases do, set `GLASSGRAM_API_ID` / `GLASSGRAM_API_HASH` while building (`build.rs`).
+into the binary as the releases do, set `GLASSGRAM_API_ID` / `GLASSGRAM_API_HASH` while building (`build.rs`); add `--features no-key-screen`
+to drop the key screen as well (without a connection the app offers "Retry" instead).
 
 The session and credentials are stored in the data folder: `~/.local/share/glassgram/` on Linux,
 `%APPDATA%\glassgram\` on Windows, `~/Library/Application Support/glassgram/` on macOS.

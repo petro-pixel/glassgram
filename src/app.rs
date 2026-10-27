@@ -604,8 +604,11 @@ impl App {
         let session = accounts::session_path(self.accounts.active);
         self.backend = Some(backend::spawn(self.ctx.clone(), session));
         if let Some((id, hash)) = backend::saved_credentials() {
-            self.login.api_id = id.to_string();
-            self.login.api_hash = hash.clone();
+            // The built-in keys stay out of the form: an offline fallback to the key screen would show them.
+            if !backend::is_builtin(id, &hash) {
+                self.login.api_id = id.to_string();
+                self.login.api_hash = hash.clone();
+            }
             self.send(Cmd::Connect { api_id: id, api_hash: hash });
             self.screen = Screen::Login(Step::Connecting);
         }

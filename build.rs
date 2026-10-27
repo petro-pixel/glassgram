@@ -5,6 +5,9 @@
 // a per-build random mask, so a plain search for strings doesn't find them. That is all a client can do:
 // whatever the program can read, a determined person can read too. Without the variables (local builds)
 // the app asks for the keys at sign-in, as before.
+//
+// The `no-key-screen` feature removes that screen for builds that ship keys: without a connection the app
+// shows "Retry" instead of key fields. Such a build without keys could never sign in, so it is refused.
 
 use std::env;
 use std::fs;
@@ -22,6 +25,9 @@ fn main() {
             let id_x = (id as u32) ^ u32::from_le_bytes([mask[0], mask[1], mask[2], mask[3]]);
             let hash_x: Vec<u8> = hash.bytes().zip(&mask[4..]).map(|(b, m)| b ^ m).collect();
             format!("pub const API: Option<(u32, &[u8], &[u8])> = Some(({id_x}, &{hash_x:?}, &{mask:?}));\n")
+        }
+        _ if env::var_os("CARGO_FEATURE_NO_KEY_SCREEN").is_some() => {
+            panic!("the no-key-screen feature needs GLASSGRAM_API_ID and GLASSGRAM_API_HASH");
         }
         _ => "pub const API: Option<(u32, &[u8], &[u8])> = None;\n".to_owned(),
     };

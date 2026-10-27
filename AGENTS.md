@@ -185,7 +185,8 @@ and **remove** it before finishing (check: `grep -c TMP src/app.rs` gives 0).
 A pushed tag `v*` runs `.github/workflows/release.yml`: the Windows installer (`packaging/windows`) and the
 Flatpak bundle (`packaging/flatpak`), attached to the GitHub release. Bump `version` in `Cargo.toml` and add a
 `<release>` to the metainfo before tagging. The Telegram API keys come from the repository secrets
-`TG_API_ID` / `TG_API_HASH` via `build.rs` — never put them in the code, a manifest, logs or a cache.
+`TG_API_ID` / `TG_API_HASH` via `build.rs`, built with `--features no-key-screen`, so a release never shows the key screen — never put them
+in the code, a manifest, logs or a cache.
 
 ## Security
 
