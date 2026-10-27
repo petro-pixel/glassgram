@@ -459,6 +459,8 @@ pub struct App {
     /// Open accounts menu under the name in the header.
     accounts_open: bool,
     accounts_anchor: Rect,
+    /// The other accounts, connected in the background for counters and notifications.
+    background: Vec<accounts_ui::Background>,
     /// Demo mode: no network and no account switching.
     demo: bool,
     /// Input field height in the last frame; space is reserved for it at the bottom of the history.
@@ -572,7 +574,9 @@ impl App {
         if demo_mode {
             app.demo = true;
             let (me, chats, history) = demo::data();
-            app.accounts = Accounts { active: 0, list: vec![accounts::Account { id: 0, name: me.clone() }] };
+            app.accounts = Accounts { active: 0, list: vec![accounts::Account { id: 0, name: me.clone() }, accounts::Account { id: 1, name: "Робочий акаунт".into() }] };
+            // The second account "in the background" has unread messages: the dot and the badge.
+            app.background.push(accounts_ui::Background::demo(1, 3));
             app.me = me;
             app.chats = chats;
             app.history = history;
@@ -591,6 +595,7 @@ impl App {
             return app;
         }
         app.start_backend();
+        app.start_background();
         app
     }
 
@@ -711,6 +716,7 @@ impl App {
             folder_edit: None,
             accounts_open: false,
             accounts_anchor: Rect::NOTHING,
+            background: Vec::new(),
             demo: false,
             composer_h: COMPOSER_H,
             forum: forum::Forum::default(),
@@ -1480,6 +1486,7 @@ impl eframe::App for App {
         self.close_web_apps();
         self.save_chats();
         self.send(Cmd::Shutdown);
+        self.stop_background();
         // Wait for the backend to finish writing the cache, but don't hold the window long.
         if let Some(b) = &self.backend {
             let _ = b.done.recv_timeout(std::time::Duration::from_secs(2));
@@ -1495,6 +1502,7 @@ impl eframe::App for App {
         let events: Vec<Ev> = self.backend.as_ref().map(|b| b.rx.try_iter().collect()).unwrap_or_default();
         let account = self.accounts.active;
         self.poll_web_apps();
+        self.poll_background();
         for ev in events {
             // After an account switch, the remaining events come from the old backend.
             if self.accounts.active != account {

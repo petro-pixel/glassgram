@@ -1,6 +1,7 @@
 {
   "@name": "",
   "@about": "Copy to <code>.json, set @name, translate the values. Empty values fall back to English.",
+  "New message": "",
   "New account": "",
   "Add account": "",
   "Accounts can't be switched in demo mode": "",
@@ -571,7 +572,6 @@
   "15 min": "",
   "1 hour": "",
   "Saved: {}": "",
-  "New message": "",
   "📷 Photo": "",
   "Sticker": "",
   "📎 File": "",

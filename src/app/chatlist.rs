@@ -528,6 +528,10 @@ impl App {
                 self.accounts_open = !self.accounts_open;
             }
             self.accounts_anchor = r;
+            // Something unread in another account: a dot by the name, as in Telegram Desktop.
+            if self.background_unread() > 0 {
+                p.circle_filled(pos2(r.right() + 8.0, r.center().y), 4.0, ACCENT);
+            }
         }
         let btn = |i: f32| Rect::from_min_size(pos2(inner.right() - 36.0 - i * 44.0, inner.top() + 4.0), vec2(36.0, 36.0));
         if glass::icon_button(ui, btn(0.0), "logout", Icon::Power, false, true).on_hover_text(l!("Вийти", "Log out")).clicked() {

@@ -23,7 +23,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Sign-in by phone and code, two-step verification (2FA), QR-code sign-in (with DC migration)
 - ✅ Log out; session and credential files owner-only (0600)
 - ✅ Active sessions: list, terminate one or all others
-- 🟡 Multiple accounts: menu under the name, adding, switching — **P1**: notifications and counters from inactive accounts (all accounts connected at once)
+- ✅ Multiple accounts: menu under the name, adding, switching; the other accounts stay connected in the background — their unread counters in the menu, a dot by the name, notifications with the account's name (dialogs refreshed every 5 minutes)
 - ✅ Profile editing in Settings → My Account: first/last name and bio (`account.updateProfile`), username with a live availability check (`account.checkUsername`, `account.updateUsername`), photo from a file, center-cropped (`photos.uploadProfilePhoto`)
 - ✅ Birthday: our own in My Account — day, month, optional year (`account.updateBirthday`), who sees it under Privacy; a user's birthday in their info
 - ✅ A user's personal channel in their info (opens without joining) and their other usernames ("also @…"); our own collectible usernames in "My account": shown or hidden in the profile (`account.toggleUsername`) and their order (`account.reorderUsernames`); video profile photos play in the info panel (`video_sizes`)
