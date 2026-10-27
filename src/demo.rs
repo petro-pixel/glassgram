@@ -39,7 +39,11 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
             (false, "Ірина", "**Нагадую:** реліз у __п'ятницю__, ~~четвер~~ скасовано. Деталі — [у трекері](https://codeberg.org/Lonami/grammers), запуск: `cargo run --release`. ||Сюрприз для команди 🎁||"),
         ],
         &[(true, "", "Ідеї: темна тема, реакції, голосові повідомлення"), (false, "Новини технологій", "Rust 1.95: швидша компіляція та нові можливості const fn")],
-        &[(false, "Новини технологій", "📷 Фото\nНовий стандарт Wi-Fi обіцяє вдвічі нижчі затримки.")],
+        &[
+            (false, "Новини технологій", "📷 Фото\nНовий стандарт Wi-Fi обіцяє вдвічі нижчі затримки."),
+            (false, "Новини технологій", "Вийшов Linux 7.3: новий планувальник і швидші файлові системи."),
+            (false, "Новини технологій", "Європа погодила єдиний роз'єм для ноутбуків."),
+        ],
         &[(false, "Андрій", "Завтра о 10:00 зідзвон?"), (true, "", "Так, домовились 👍"), (false, "Андрій", "Ось [звіт за квартал](https://example.org/q3-report) — глянь до зустрічі")],
         &[(true, "", "/weather Київ"), (false, "WeatherBot", "☀ Київ: +18°, ясно, вітер 3 м/с")],
         &[(false, "Софія", "Скинула макети у Figma"), (false, "Софія", "📄"), (false, "Максим", "🐱"), (false, "Максим", "Супер, гляну")],
@@ -516,10 +520,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::Notify { peer, state });
         }
         Cmd::LoadSponsored(peer) => {
-            let ads = if peer == PeerId::user_unchecked(DEMO_CHANNEL) { vec![demo_ad()] } else { Vec::new() };
-            app.push_event(Ev::Sponsored { peer, ads });
+            let ads = if peer == PeerId::user_unchecked(DEMO_CHANNEL) && !app.demo_profile().ads_off { vec![demo_ad(), demo_media_ad()] } else { Vec::new() };
+            app.push_event(Ev::Sponsored { peer, ads, between: Some(2) });
         }
         Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) => {}
+        Cmd::SetAdsEnabled(enabled) => app.push_event(Ev::Profile(Profile { ads_off: !enabled, ..app.demo_profile() })),
         Cmd::ReportSponsored { peer, random_id, option } => {
             let result = if option.is_empty() {
                 let reasons = ["Не цікавить", "Оманлива реклама", "Шахрайство", "Інше"];
@@ -925,6 +930,7 @@ const DEMO_REACTED: i32 = 3;
 /// The channel that shows a sponsored message.
 const DEMO_CHANNEL: i64 = 4;
 const DEMO_AD_PHOTO: i64 = 77;
+const DEMO_AD_MEDIA: i64 = 78;
 
 fn demo_ad() -> Sponsored {
     let text = "Щотижневий огляд нових крейтів, релізів і статей про **Rust**. Без води.";
@@ -941,6 +947,23 @@ fn demo_ad() -> Sponsored {
         sponsor_info: "ТОВ «Демо Медіа», ЄДРПОУ 00000000".into(),
         additional_info: "Реклама розміщена через Telegram Ads.".into(),
         photo: Some(DEMO_AD_PHOTO),
+        media: None,
+        video: false,
+    }
+}
+
+/// The second ad, a few posts higher: a media ad with a wide picture.
+fn demo_media_ad() -> Sponsored {
+    Sponsored {
+        random_id: vec![8; 16],
+        title: "Скляні шпалери".into(),
+        text: "Набір шпалер у стилі «рідкого скла» для робочого столу.".into(),
+        spans: Vec::new(),
+        url: "https://example.org/wallpapers".into(),
+        button: "Відкрити".into(),
+        photo: None,
+        media: Some(DEMO_AD_MEDIA),
+        ..demo_ad()
     }
 }
 /// Group members for @mentions and the search sender filter: (id, name, username, bot).
@@ -992,6 +1015,9 @@ fn demo_profile() -> Profile {
         birthday: Some(Birthday { day: 12, month: 5, year: None }),
         // Collectible usernames bought on Fragment: one shown in the profile, one hidden.
         usernames: vec![("glass".into(), true), ("liquidgram".into(), false)],
+        // Premium: "About this ad" offers to hide ads.
+        premium: true,
+        ads_off: false,
     }
 }
 
@@ -1267,6 +1293,7 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
         (ImgKey::Avatar(PeerId::user_unchecked(5)), sunset(96, 96)),
         (ImgKey::Photo(PeerId::user_unchecked(2), 5), sunset(480, 250)),
         (ImgKey::Sponsored(DEMO_AD_PHOTO), sunset(112, 112)),
+        (ImgKey::Sponsored(DEMO_AD_MEDIA), sunset(640, 360)),
     ]
 }
 

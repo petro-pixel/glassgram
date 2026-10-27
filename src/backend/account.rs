@@ -38,24 +38,25 @@ impl Worker {
         let client = self.client()?;
         let me = client.get_me().await.map_err(|e| lf!("Профіль: {e}", "Profile: {e}"))?;
         let full = client.invoke(&tl::functions::users::GetFullUser { id: tl::enums::InputUser::UserSelf }).await;
-        let (bio, birthday) = match full {
+        let (bio, birthday, ads) = match full {
             Ok(tl::enums::users::UserFull::Full(f)) => {
                 let tl::enums::UserFull::Full(u) = f.full_user;
-                (u.about.unwrap_or_default(), u.birthday.as_ref().map(Birthday::from_raw))
+                (u.about.unwrap_or_default(), u.birthday.as_ref().map(Birthday::from_raw), u.sponsored_enabled)
             }
             Err(e) => {
                 log_error(&lf!("Біо: {e}", "Bio: {e}"));
-                (String::new(), None)
+                (String::new(), None, true)
             }
         };
-        self.emit_profile(&me, bio, birthday);
+        self.emit_profile(&me, bio, birthday, ads);
         Ok(())
     }
 
-    fn emit_profile(&self, me: &User, bio: String, birthday: Option<Birthday>) {
+    fn emit_profile(&self, me: &User, bio: String, birthday: Option<Birthday>, ads: bool) {
         if let Some(loader) = &self.loader {
             loader.avatar(&Peer::User(me.clone()));
         }
+        let premium = matches!(&me.raw, tl::enums::User::User(u) if u.premium);
         let profile = Profile {
             id: Some(me.id()),
             first: me.first_name().unwrap_or_default().to_owned(),
@@ -68,6 +69,9 @@ impl Worker {
                 tl::enums::User::User(u) => u.usernames.iter().flatten().filter_map(|tl::enums::Username::Username(n)| (!n.editable).then(|| (n.username.clone(), n.active))).collect(),
                 _ => Vec::new(),
             },
+            premium,
+            // Without Premium the flag means nothing: ads are always on.
+            ads_off: premium && !ads,
         };
         self.out.send(Ev::Profile(profile));
     }

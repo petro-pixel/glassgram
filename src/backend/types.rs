@@ -16,6 +16,9 @@ pub struct Profile {
     /// Usernames besides the editable one (collectible ones from Fragment), in profile order,
     /// and whether each is shown in the profile.
     pub usernames: Vec<(String, bool)>,
+    pub premium: bool,
+    /// Premium turned ads off (`sponsored_enabled` unset).
+    pub ads_off: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

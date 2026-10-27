@@ -281,6 +281,8 @@ pub enum Cmd {
     ClickSponsored(Vec<u8>),
     /// Report an ad; an empty `option` asks the server for the list of reasons.
     ReportSponsored { peer: PeerId, random_id: Vec<u8>, option: Vec<u8> },
+    /// Show or hide ads everywhere — Premium only (`account.toggleSponsoredMessages`).
+    SetAdsEnabled(bool),
     /// Turn notifications for a whole category on or off.
     SetNotifyDefault { scope: NotifyScope, muted: bool },
     /// Chats of a category with settings of their own.
@@ -473,7 +475,8 @@ pub enum Ev {
     /// Calendar periods with photos and videos: (start of the day, how many).
     MediaDays { peer: PeerId, days: Vec<(i32, i32)> },
     /// Ads for the end of a channel's history (empty: none).
-    Sponsored { peer: PeerId, ads: Vec<Sponsored> },
+    /// `between`: posts between two ads, when the channel shows more than one.
+    Sponsored { peer: PeerId, ads: Vec<Sponsored>, between: Option<i32> },
     SponsoredReport { peer: PeerId, random_id: Vec<u8>, result: SponsoredReport },
     /// Default notification settings of a category (at start and when changed anywhere).
     NotifyDefault { scope: NotifyScope, state: NotifyState },
@@ -822,7 +825,7 @@ impl Worker {
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
-            cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. }) => self.sponsored_cmd(cmd).await,
+            cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. } | Cmd::SetAdsEnabled(_)) => self.sponsored_cmd(cmd).await,
             Cmd::WebPreview(text) => self.web_preview(text),
             Cmd::LoadMentions { peer, query } => self.load_members(peer, query),
             Cmd::LoadBotCommands(peer) => self.load_bot_commands(peer),

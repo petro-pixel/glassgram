@@ -7,11 +7,11 @@ use eframe::egui::{self, Align2, FontId, Key, Rect, Sense, TextureHandle, Ui, Ui
 use grammers_client::session::types::PeerId;
 
 use super::{Action, App, elided};
-use crate::backend::{ChatKind, Cmd, Ev, Sponsored, SponsoredReport};
+use crate::backend::{ChatKind, Cmd, Ev, ImgKey, Sponsored, SponsoredReport};
 use crate::format;
 use crate::glass::{self, ACCENT, Glass, ink, ink_dim};
 use crate::i18n::l;
-use crate::icons::Icon;
+use crate::icons::{self, Icon};
 
 /// Telegram asks clients not to request ads for the same chat more often than this.
 const REFRESH: f64 = 300.0;
@@ -22,8 +22,8 @@ const ADS_INFO: &str = "https://ads.telegram.org";
 /// Sponsored message state; kept in one field of `App`.
 #[derive(Default)]
 pub(super) struct Ads {
-    /// Channel → when the ads were fetched (UI time) and the ads.
-    by_peer: HashMap<PeerId, (f64, Vec<Sponsored>)>,
+    /// Channel → when the ads were fetched (UI time), the ads and the posts between two of them.
+    by_peer: HashMap<PeerId, (f64, Vec<Sponsored>, Option<i32>)>,
     /// Views already reported in this session.
     viewed: HashSet<Vec<u8>>,
     popup: Option<Popup>,
@@ -43,18 +43,34 @@ pub(super) enum AdAction {
 }
 
 impl Ads {
-    /// The ad shown at the end of the channel's history.
-    pub(super) fn first(&self, peer: PeerId) -> Option<&Sponsored> {
-        self.by_peer.get(&peer)?.1.first()
+    /// The ad that goes after the post with `below` newer posts under it: the first one after the
+    /// newest post, the next ones every `posts_between` posts above it.
+    pub(super) fn at(&self, peer: PeerId, below: usize) -> Option<&Sponsored> {
+        let (_, list, between) = self.by_peer.get(&peer)?;
+        let k = match (below, between.filter(|n| *n > 0)) {
+            (0, _) => 0,
+            (b, Some(n)) if b % n as usize == 0 => b / n as usize,
+            _ => return None,
+        };
+        list.get(k)
+    }
+
+    fn find(&self, peer: PeerId, random_id: &[u8]) -> Option<&Sponsored> {
+        self.by_peer.get(&peer)?.1.iter().find(|a| a.random_id == random_id)
     }
 }
 
 /// Incoming bubble with the "Ad" label, title, text and the action button.
 /// Returns whether it is on screen (for the view report) and what was clicked.
-pub(super) fn card(ui: &mut Ui, ad: &Sponsored, tex: Option<&TextureHandle>) -> (bool, Option<AdAction>) {
+pub(super) fn card(ui: &mut Ui, ad: &Sponsored, tex: Option<&TextureHandle>, media: Option<&TextureHandle>) -> (bool, Option<AdAction>) {
     let avail = ui.available_width();
     let max_w = (avail * 0.72).min(460.0);
     let pad = vec2(14.0, 9.0);
+    // A media ad: its picture across the top of the bubble, like a photo message.
+    let media_h = media.map_or(0.0, |t| {
+        let s = t.size_vec2();
+        (max_w - pad.x * 2.0) * (s.y / s.x.max(1.0)).min(1.0)
+    });
     let thumb = if tex.is_some() { THUMB + 10.0 } else { 0.0 };
     let text_w = (max_w - pad.x * 2.0 - thumb).max(80.0);
     let p = ui.painter().clone();
@@ -81,6 +97,10 @@ pub(super) fn card(ui: &mut Ui, ad: &Sponsored, tex: Option<&TextureHandle>) -> 
         block.x = block.x.max(200.0);
         block.y += 8.0 + BUTTON_H;
     }
+    if media.is_some() {
+        block.x = max_w - pad.x * 2.0;
+        block.y += media_h + 8.0;
+    }
     let size = block + pad * 2.0;
 
     let (row, resp) = ui.allocate_exact_size(vec2(avail, size.y + 6.0), Sense::click());
@@ -88,6 +108,14 @@ pub(super) fn card(ui: &mut Ui, ad: &Sponsored, tex: Option<&TextureHandle>) -> 
     glass::glass(&p, rect, Glass::tinted(18.0, glass::bubble_in().0, glass::bubble_in().1).frosted(1.0));
 
     let mut cursor = rect.min + pad;
+    if let Some(t) = media {
+        let r = Rect::from_min_size(cursor, vec2(size.x - pad.x * 2.0, media_h));
+        glass::image_rounded(&p, r, 12.0, t.id(), t.size_vec2());
+        if ad.video {
+            icons::draw(&p, Rect::from_center_size(r.center(), vec2(40.0, 40.0)), Icon::PlayCircle, glass::ON_DARK);
+        }
+        cursor.y += media_h + 8.0;
+    }
     let label_h = label.size().y;
     let what_rect = Rect::from_min_size(pos2(cursor.x + label.size().x + 8.0, cursor.y), what.size());
     p.galley(cursor, label, ACCENT);
@@ -102,7 +130,7 @@ pub(super) fn card(ui: &mut Ui, ad: &Sponsored, tex: Option<&TextureHandle>) -> 
         p.galley(cursor, b, ink());
     }
     if let Some(t) = tex {
-        let r = Rect::from_min_size(pos2(rect.right() - pad.x - THUMB, rect.top() + pad.y), vec2(THUMB, THUMB));
+        let r = Rect::from_min_size(pos2(rect.right() - pad.x - THUMB, rect.top() + pad.y + if media.is_some() { media_h + 8.0 } else { 0.0 }), vec2(THUMB, THUMB));
         glass::image_rounded(&p, r, 10.0, t.id(), t.size_vec2());
     }
     // A flat strip, not a glass button: no glass on glass.
@@ -133,11 +161,20 @@ pub(super) fn card(ui: &mut Ui, ad: &Sponsored, tex: Option<&TextureHandle>) -> 
 }
 
 impl App {
+    /// The ad after the row with `below` newer posts under it: (seen ids, the click).
+    pub(super) fn ad_card(&self, ui: &mut Ui, peer: PeerId, below: usize) -> (Option<Vec<u8>>, Option<(Vec<u8>, AdAction)>) {
+        let Some(ad) = self.ads.at(peer, below).filter(|_| !self.profile.ads_off) else { return (None, None) };
+        let tex = ad.photo.and_then(|id| self.textures.get(&ImgKey::Sponsored(id)));
+        let media = ad.media.and_then(|id| self.textures.get(&ImgKey::Sponsored(id)));
+        let (visible, a) = card(ui, ad, tex, media);
+        (visible.then(|| ad.random_id.clone()), a.map(|a| (ad.random_id.clone(), a)))
+    }
+
     /// Ask for ads when a channel opens, unless the last answer is still fresh.
     pub(super) fn open_sponsored(&mut self, peer: PeerId) {
-        let channel = self.chats.iter().any(|c| c.id == peer && c.kind == ChatKind::Channel);
+        let channel = self.chats.iter().any(|c| c.id == peer && c.kind == ChatKind::Channel) && !self.profile.ads_off;
         let now = self.ctx.input(|i| i.time);
-        let fresh = self.ads.by_peer.get(&peer).is_some_and(|(t, _)| now - t < REFRESH);
+        let fresh = self.ads.by_peer.get(&peer).is_some_and(|(t, _, _)| now - t < REFRESH);
         if channel && !fresh {
             // Mark the request at once so reopening the chat doesn't repeat it.
             self.ads.by_peer.entry(peer).or_default().0 = now;
@@ -147,9 +184,9 @@ impl App {
 
     pub(super) fn sponsored_event(&mut self, ev: Ev) {
         match ev {
-            Ev::Sponsored { peer, ads } => {
+            Ev::Sponsored { peer, ads, between } => {
                 let now = self.ctx.input(|i| i.time);
-                self.ads.by_peer.insert(peer, (now, ads));
+                self.ads.by_peer.insert(peer, (now, ads, between));
             }
             Ev::SponsoredReport { peer, random_id, result } => {
                 let waiting = matches!(&self.ads.popup, Some(Popup::Report { random_id: r, .. }) if *r == random_id);
@@ -175,7 +212,7 @@ impl App {
 
     /// Remove one ad (or all of the chat's) after a report.
     fn drop_ads(&mut self, peer: PeerId, random_id: Option<&[u8]>) {
-        if let Some((_, list)) = self.ads.by_peer.get_mut(&peer) {
+        if let Some((_, list, _)) = self.ads.by_peer.get_mut(&peer) {
             list.retain(|a| random_id.is_some_and(|r| a.random_id != r));
         }
         if matches!(&self.ads.popup, Some(Popup::Report { peer: p, .. } | Popup::About(p, _)) if *p == peer) {
@@ -190,8 +227,8 @@ impl App {
         }
     }
 
-    pub(super) fn ad_action(&mut self, peer: PeerId, action: AdAction) {
-        let Some(ad) = self.ads.first(peer).cloned() else { return };
+    pub(super) fn ad_action(&mut self, peer: PeerId, random_id: &[u8], action: AdAction) {
+        let Some(ad) = self.ads.find(peer, random_id).cloned() else { return };
         match action {
             AdAction::Open => {
                 self.send(Cmd::ClickSponsored(ad.random_id.clone()));
@@ -199,7 +236,13 @@ impl App {
                     self.apply(peer, Action::Open(ad.url));
                 }
             }
-            AdAction::About => self.ads.popup = Some(Popup::About(peer, ad)),
+            AdAction::About => {
+                // "Hide ads" depends on Premium, which comes with the own profile.
+                if self.profile.id.is_none() {
+                    self.send(Cmd::LoadProfile);
+                }
+                self.ads.popup = Some(Popup::About(peer, ad));
+            }
             AdAction::Report => self.report_ad(peer, ad.random_id, Vec::new()),
         }
     }
@@ -236,7 +279,7 @@ impl App {
             self.ads.popup = None;
             return;
         }
-        let footer = if matches!(popup, Popup::About(..)) { 52.0 } else { 0.0 };
+        let footer = if matches!(popup, Popup::About(..)) { 96.0 } else { 0.0 };
         let body = Rect::from_min_max(pos2(panel.left() + 18.0, panel.top() + 52.0), pos2(panel.right() - 18.0, panel.bottom() - 8.0 - footer));
         let mut child = ui.new_child(UiBuilder::new().max_rect(body));
         let mut picked = None;
@@ -297,6 +340,21 @@ impl App {
                 let random_id = ad.random_id.clone();
                 self.ads.popup = None;
                 self.report_ad(peer, random_id, Vec::new());
+                return;
+            }
+            // Premium can switch ads off everywhere, as in Telegram Desktop.
+            let hide = Rect::from_min_size(pos2(panel.left() + 18.0, left.top() - 44.0), vec2(panel.width() - 36.0, 38.0));
+            let premium = self.profile.premium;
+            let label = if premium { l!("Приховати рекламу", "Hide ads") } else { l!("Приховати рекламу (Premium)", "Hide ads (Premium)") };
+            let resp = glass::button(ui, hide, "ad-hide", label, false, premium);
+            if !premium {
+                resp.on_disabled_hover_text(l!("Без реклами можна з Telegram Premium", "Telegram Premium removes ads"));
+            } else if resp.clicked() {
+                self.ads.popup = None;
+                self.ads.by_peer.clear();
+                self.profile.ads_off = true;
+                self.send(Cmd::SetAdsEnabled(false));
+                self.toast = Some((l!("Рекламу вимкнено", "Ads are turned off").into(), 0.0, false));
                 return;
             }
         }

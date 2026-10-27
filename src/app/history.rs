@@ -121,7 +121,7 @@ impl App {
         // Messages scroll under the floating glass header and input field.
         let mut load_older = None;
         let mut action = None;
-        let (mut ad_seen, mut ad_action) = (None, None);
+        let (mut ad_seen, mut ad_action) = (Vec::new(), None);
         let mut open_calendar = None;
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect);
@@ -173,6 +173,15 @@ impl App {
                             }
                             let album = &msgs[i..end];
                             i = end;
+                            // Posts below this row: ads go between them (`posts_between`).
+                            let below = msgs.len() - end;
+                            let mut ad_here = |ui: &mut Ui| {
+                                if topic.is_none() && below > 0 {
+                                    let (seen, a) = self.ad_card(ui, peer, below);
+                                    ad_seen.extend(seen);
+                                    ad_action = a.or(ad_action.take());
+                                }
+                            };
                             let new_day = m.day != last_day;
                             last_day = &m.day;
                             // Virtualization: a row far from the screen and already measured is just empty space.
@@ -209,25 +218,21 @@ impl App {
                                 if let Some(a) = album_bubble(ui, album, &texs, look) {
                                     action = Some(a);
                                 }
+                                ad_here(ui);
                                 heights.insert((peer, m.id), ui.cursor().top() - top);
                                 continue;
                             }
                             if let Some(a) = self.message_row(ui, peer, chat, &msgs, m, topic, group, jump, now) {
                                 action = Some(a);
                             }
+                            ad_here(ui);
                             heights.insert((peer, m.id), ui.cursor().top() - top);
                         }
-                        // The ad goes after the newest post, as in Telegram Desktop.
-                        if topic.is_none()
-                            && !msgs.is_empty()
-                            && let Some(ad) = self.ads.first(peer)
-                        {
-                            let tex = ad.photo.and_then(|id| self.textures.get(&ImgKey::Sponsored(id)));
-                            let (visible, a) = sponsored::card(ui, ad, tex);
-                            if visible {
-                                ad_seen = Some(ad.random_id.clone());
-                            }
-                            ad_action = a;
+                        // The first ad goes after the newest post, as in Telegram Desktop.
+                        if topic.is_none() && !msgs.is_empty() {
+                            let (seen, a) = self.ad_card(ui, peer, 0);
+                            ad_seen.extend(seen);
+                            ad_action = a.or(ad_action.take());
                         }
                         if msgs.is_empty() {
                             ui.add_space(60.0);
@@ -255,11 +260,11 @@ impl App {
         if let Some(ts) = open_calendar {
             self.open_calendar(peer, Some(ts));
         }
-        if let Some(id) = ad_seen {
+        for id in ad_seen {
             self.ad_seen(&id);
         }
-        if let Some(a) = ad_action {
-            self.ad_action(peer, a);
+        if let Some((id, a)) = ad_action {
+            self.ad_action(peer, &id, a);
         }
 
     }

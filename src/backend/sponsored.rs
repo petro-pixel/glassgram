@@ -4,7 +4,10 @@
 use grammers_client::media::Photo;
 use grammers_client::tl;
 
-use super::{Cmd, Ev, ImgKey, Worker};
+use super::{Cmd, DocLoc, Ev, ImgKey, Loader, Worker};
+
+/// Longest side of a media ad's picture, in points: the width of a wide bubble.
+const MEDIA_PT: f32 = 460.0;
 use crate::format::{self, Span};
 use crate::i18n::lf;
 
@@ -26,6 +29,9 @@ pub struct Sponsored {
     pub additional_info: String,
     /// Photo id: the picture arrives as `ImgKey::Sponsored(id)`.
     pub photo: Option<i64>,
+    /// A media ad: its photo, or a video's cover, as `ImgKey::Sponsored(id)`.
+    pub media: Option<i64>,
+    pub video: bool,
 }
 
 /// Server answer to a report.
@@ -43,6 +49,11 @@ fn convert(m: tl::types::SponsoredMessage) -> Sponsored {
         Some(tl::enums::Photo::Photo(p)) => Some(p.id),
         _ => None,
     };
+    let (media, video) = match &m.media {
+        Some(tl::enums::MessageMedia::Photo(tl::types::MessageMediaPhoto { photo: Some(tl::enums::Photo::Photo(p)), .. })) => (Some(p.id), false),
+        Some(tl::enums::MessageMedia::Document(tl::types::MessageMediaDocument { document: Some(tl::enums::Document::Document(d)), .. })) => (Some(d.id), true),
+        _ => (None, false),
+    };
     Sponsored {
         spans: format::from_entities(&m.message, m.entities.as_deref().unwrap_or_default(), 0),
         random_id: m.random_id,
@@ -55,6 +66,31 @@ fn convert(m: tl::types::SponsoredMessage) -> Sponsored {
         sponsor_info: m.sponsor_info.unwrap_or_default(),
         additional_info: m.additional_info.unwrap_or_default(),
         photo,
+        media,
+        video,
+    }
+}
+
+impl Loader {
+    /// The picture of a media ad: the photo, or the largest thumbnail of a video.
+    fn ad_media(&self, media: &tl::enums::MessageMedia) {
+        match media {
+            tl::enums::MessageMedia::Photo(tl::types::MessageMediaPhoto { photo: Some(tl::enums::Photo::Photo(p)), .. }) => {
+                let photo = Photo::from_raw(tl::enums::Photo::Photo(p.clone()));
+                self.page_photo(ImgKey::Sponsored(p.id), format!("ad{}.jpg", p.id), photo);
+            }
+            tl::enums::MessageMedia::Document(tl::types::MessageMediaDocument { document: Some(tl::enums::Document::Document(doc)), .. }) => {
+                let thumb = doc.thumbs.iter().flatten().filter_map(|t| match t {
+                    tl::enums::PhotoSize::Size(s) => Some((s.w, s.r#type.clone())),
+                    tl::enums::PhotoSize::Progressive(s) => Some((s.w, s.r#type.clone())),
+                    _ => None,
+                }).max_by_key(|t| t.0);
+                if let Some((_, thumb)) = thumb {
+                    self.fetch(ImgKey::Sponsored(doc.id), format!("ad{}.jpg", doc.id), MEDIA_PT, DocLoc { doc: doc.clone(), thumb });
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -68,9 +104,9 @@ impl Worker {
                 let loader = self.loader.clone();
                 tokio::spawn(async move {
                     let req = tl::functions::messages::GetSponsoredMessages { peer: r.into(), msg_id: None };
-                    let list = match client.invoke(&req).await {
-                        Ok(tl::enums::messages::SponsoredMessages::Messages(l)) => l.messages,
-                        Ok(tl::enums::messages::SponsoredMessages::Empty) => Vec::new(),
+                    let (list, between) = match client.invoke(&req).await {
+                        Ok(tl::enums::messages::SponsoredMessages::Messages(l)) => (l.messages, l.posts_between),
+                        Ok(tl::enums::messages::SponsoredMessages::Empty) => (Vec::new(), None),
                         // Not every chat can have ads (private, admin, small channel): no error for the user.
                         Err(e) => return super::log_error(&format!("sponsored: {e}")),
                     };
@@ -81,10 +117,13 @@ impl Worker {
                                 let photo = Photo::from_raw(tl::enums::Photo::Photo(p.clone()));
                                 l.page_photo(ImgKey::Sponsored(p.id), format!("ad{}.jpg", p.id), photo);
                             }
+                            if let (Some(l), Some(media)) = (&loader, &m.media) {
+                                l.ad_media(media);
+                            }
                             convert(m)
                         })
                         .collect();
-                    out.send(Ev::Sponsored { peer, ads });
+                    out.send(Ev::Sponsored { peer, ads, between });
                 });
             }
             Cmd::ViewSponsored(random_id) => {
@@ -120,6 +159,10 @@ impl Worker {
                     };
                     out.send(Ev::SponsoredReport { peer, random_id, result });
                 });
+            }
+            Cmd::SetAdsEnabled(enabled) => {
+                client.invoke(&tl::functions::account::ToggleSponsoredMessages { enabled }).await.map_err(|e| lf!("Реклама: {e}", "Ads: {e}"))?;
+                return self.load_profile().await;
             }
             _ => {}
         }
