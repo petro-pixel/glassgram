@@ -28,6 +28,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.5.1" date="2026-10-27">
+      <description>
+        <p>Bugfix: pinned chats and folders open on click again instead of being dragged, and their context menus work. The Windows executable carries a manifest and full version information.</p>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-10-26">
       <description>
         <p>Security hardening: safe links, safe file names, asking before hidden links and received programs. Saved Messages by source, search filters by type and sender, days with media in the calendar, stories, gifts and personal channels in profiles, emoji suggestions, reporting messages, opening chats at the first unread message, a send queue without duplicates, a memory budget for pictures. Large internal refactor.</p>
