@@ -238,6 +238,12 @@ pub enum Cmd {
     LoadPeerStories(PeerId),
     /// Mark a peer's stories seen up to `max_id` (the owner sees us among the viewers).
     ReadStories { peer: PeerId, max_id: i32 },
+    /// Download a video story to play it.
+    LoadStoryVideo { peer: PeerId, id: i32 },
+    /// Our reaction to a story (`None` takes it back).
+    ReactStory { peer: PeerId, id: i32, emoji: Option<String> },
+    /// A private reply to a story: a message to its owner quoting it.
+    ReplyStory { peer: PeerId, id: i32, text: String },
     /// Where the messages in Saved Messages came from.
     LoadSavedDialogs,
     /// Saved Messages from one source; `saved` is the Saved Messages chat itself.
@@ -425,6 +431,8 @@ pub enum Ev {
     Stories(Vec<StoryPeer>),
     /// A peer's stories in posting order and the last one we saw.
     PeerStories { peer: PeerId, stories: Vec<Story>, max_read: i32 },
+    /// A video story is on disk.
+    StoryVideo { peer: PeerId, id: i32, path: PathBuf },
     /// Sources of Saved Messages, newest first.
     SavedDialogs(Vec<ChatInfo>),
     /// A page of Saved Messages from one source.
@@ -786,7 +794,7 @@ impl Worker {
                 }
                 Ok(())
             }
-            cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. }) => self.stories_cmd(cmd).await,
+            cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. } | Cmd::LoadStoryVideo { .. } | Cmd::ReactStory { .. } | Cmd::ReplyStory { .. }) => self.stories_cmd(cmd).await,
             cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. }) => self.saved_cmd(cmd).await,
             cmd @ Cmd::LoadGifts(_) => self.gifts_cmd(cmd).await,
             cmd @ Cmd::Report { .. } => self.report_cmd(cmd).await,

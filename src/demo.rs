@@ -582,7 +582,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let stories = ids
                 .iter()
                 .enumerate()
-                .map(|(k, id)| Story { id: *id, date: now - 3600 * (ids.len() - k) as i64, video: *id == 2, caption: captions.get(*id as usize - 1).copied().unwrap_or_default().into() })
+                .map(|(k, id)| Story { id: *id, date: now - 3600 * (ids.len() - k) as i64, video: *id == 2, duration: if *id == 2 { 5.0 } else { 0.0 }, caption: captions.get(*id as usize - 1).copied().unwrap_or_default().into(), reaction: None })
                 .collect();
             for id in &ids {
                 app.push_event(Ev::Image { key: ImgKey::Story(peer, *id), image: story_picture(*id) });
@@ -590,7 +590,13 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let max_read = if peer == PeerId::user_unchecked(5) { 5 } else { 0 };
             app.push_event(Ev::PeerStories { peer, stories, max_read });
         }
-        Cmd::ReadStories { .. } => {}
+        Cmd::ReadStories { .. } | Cmd::ReactStory { .. } => {}
+        // Story 2 is a video: an upright test picture with a tone.
+        Cmd::LoadStoryVideo { peer, id } => match clip(86) {
+            Some(path) => app.push_event(Ev::StoryVideo { peer, id, path }),
+            None => app.push_event(Ev::Notice("Для демо-відео потрібен ffmpeg".into())),
+        },
+        Cmd::ReplyStory { .. } => app.push_event(Ev::Notice("Відповідь надіслано".into())),
         Cmd::LoadMediaDays { peer, before } => {
             // A few days with photos in the month before `before`.
             let days = [9, 10, 17, 24, 30].into_iter().map(|back| (before - back * 86_400 - 3 * 3600, (back % 4 + 1) as i32)).collect();
@@ -1186,6 +1192,7 @@ fn clip(id: i32) -> Option<std::path::PathBuf> {
         83 => ("testsrc2=size=640x360:rate=30", true, 6),
         84 => ("mandelbrot=size=480x270:rate=30", false, 3),
         85 => ("life=size=240x240:mold=10:rate=30:ratio=0.5:death_color=#5a3cc8:life_color=#ffd6f0", true, 5),
+        86 => ("testsrc2=size=360x640:rate=30", true, 5),
         _ => return None,
     };
     let path = std::env::temp_dir().join(format!("glassgram-demo-{id}.mp4"));

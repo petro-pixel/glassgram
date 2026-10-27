@@ -828,6 +828,7 @@ impl App {
             Ev::SavedDialogs(list) => self.saved.sources = list,
             Ev::Stories(list) => self.on_stories(list),
             Ev::PeerStories { peer, stories, max_read } => self.on_peer_stories(peer, stories, max_read),
+            Ev::StoryVideo { peer, id, path } => self.on_story_video(peer, id, path),
             Ev::SavedHistory { source, msgs, older } => self.on_saved_history(source, msgs, older),
             Ev::BotStart { peer, param } => {
                 self.bot_start.insert(peer, param);

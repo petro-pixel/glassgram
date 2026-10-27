@@ -1,6 +1,6 @@
 //! Stories: the strip of people and channels with active stories (`stories.getAllStories`),
-//! a peer's stories for the viewer (`stories.getPeerStories`) and marking them seen.
-//! Photos come in full; a video story shows its cover until the player learns stories.
+//! a peer's stories for the viewer (`stories.getPeerStories`), marking them seen, videos to
+//! play, reactions and private replies.
 
 use std::collections::HashMap;
 
@@ -9,8 +9,9 @@ use grammers_client::peer::{Peer, User};
 use grammers_client::session::types::PeerId;
 use grammers_client::{Client, tl};
 
-use super::{ChatInfo, Cmd, DocLoc, Ev, ImgKey, Loader, Worker, best_thumb, found_chat};
-use crate::i18n::lf;
+use super::{ChatInfo, Cmd, DocLoc, Ev, ImgKey, Loader, Worker, best_thumb, data_dir, found_chat};
+use crate::format;
+use crate::i18n::{l, lf};
 
 /// Longest side of a story picture, in points: enough for the viewer on a large window.
 const STORY_PT: f32 = 900.0;
@@ -22,7 +23,11 @@ pub struct Story {
     /// Unix time it was posted.
     pub date: i64,
     pub video: bool,
+    /// Length of a video story in seconds.
+    pub duration: f64,
     pub caption: String,
+    /// The emoji we reacted with.
+    pub reaction: Option<String>,
 }
 
 /// A person or channel in the strip: the stories, if loaded, and the last one seen.
@@ -58,6 +63,27 @@ fn item_ids(items: &[tl::enums::StoryItem]) -> Vec<i32> {
         .collect();
     ids.sort_unstable();
     ids
+}
+
+/// The video of a video story.
+fn video_doc(item: &tl::types::StoryItem) -> Option<tl::types::Document> {
+    match &item.media {
+        tl::enums::MessageMedia::Document(m) => match &m.document {
+            Some(tl::enums::Document::Document(d)) => Some(d.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn video_secs(doc: &tl::types::Document) -> f64 {
+    doc.attributes
+        .iter()
+        .find_map(|a| match a {
+            tl::enums::DocumentAttribute::Video(v) => Some(v.duration),
+            _ => None,
+        })
+        .unwrap_or(0.0)
 }
 
 impl Loader {
@@ -120,7 +146,13 @@ impl Worker {
                         l.story_media(peer, x);
                     }
                     let caption = x.caption.clone().unwrap_or_default();
-                    stories.push(Story { id: x.id, date: x.date.into(), video: matches!(x.media, tl::enums::MessageMedia::Document(_)), caption });
+                    let reaction = match &x.sent_reaction {
+                        Some(tl::enums::Reaction::Emoji(e)) => Some(e.emoticon.clone()),
+                        _ => None,
+                    };
+                    let video = video_doc(x);
+                    let duration = video.as_ref().map_or(0.0, video_secs);
+                    stories.push(Story { id: x.id, date: x.date.into(), video: video.is_some(), duration, caption, reaction });
                 }
                 stories.sort_by_key(|s| s.id);
                 self.out.send(Ev::PeerStories { peer, stories, max_read: ps.max_read_id.unwrap_or(0) });
@@ -128,6 +160,76 @@ impl Worker {
             Cmd::ReadStories { peer, max_id } => {
                 let r = self.peer_ref(peer)?;
                 client.invoke(&tl::functions::stories::ReadStories { peer: r.into(), max_id }).await.map_err(err)?;
+            }
+            Cmd::LoadStoryVideo { peer, id } => {
+                let r = self.peer_ref(peer)?;
+                let out = self.out.clone();
+                // Videos are large: download in the background.
+                tokio::spawn(async move {
+                    let res = async {
+                        let path = data_dir().join("media").join(format!("s{}_{id}.mp4", peer.bot_api_dialog_id_unchecked()));
+                        if tokio::fs::metadata(&path).await.is_ok() {
+                            return Ok(path);
+                        }
+                        let tl::enums::stories::Stories::Stories(res) = client.invoke(&tl::functions::stories::GetStoriesById { peer: r.into(), id: vec![id] }).await.map_err(err)?;
+                        let doc = res.stories.iter().find_map(|s| match s {
+                            tl::enums::StoryItem::Item(x) => video_doc(x),
+                            _ => None,
+                        });
+                        let doc = doc.ok_or(l!("Відео історії недоступне", "The story video is unavailable"))?;
+                        let _ = tokio::fs::create_dir_all(data_dir().join("media")).await;
+                        let part = path.with_extension("part");
+                        client.download_media(&DocLoc { doc, thumb: String::new() }, &part).await.map_err(err)?;
+                        tokio::fs::rename(&part, &path).await.map_err(|e| e.to_string())?;
+                        Ok::<_, String>(path)
+                    }
+                    .await;
+                    out.send(match res {
+                        Ok(path) => Ev::StoryVideo { peer, id, path },
+                        Err(e) => Ev::Error(e),
+                    });
+                });
+            }
+            Cmd::ReactStory { peer, id, emoji } => {
+                let r = self.peer_ref(peer)?;
+                let reaction = match emoji {
+                    Some(emoticon) => tl::types::ReactionEmoji { emoticon }.into(),
+                    None => tl::enums::Reaction::Empty,
+                };
+                client
+                    .invoke(&tl::functions::stories::SendReaction { add_to_recent: true, peer: r.into(), story_id: id, reaction })
+                    .await
+                    .map_err(|e| lf!("Реакція: {e}", "Reaction: {e}"))?;
+            }
+            Cmd::ReplyStory { peer, id, text } => {
+                let r = self.peer_ref(peer)?;
+                let (message, ents) = format::parse(&text);
+                let req = tl::functions::messages::SendMessage {
+                    no_webpage: false,
+                    silent: false,
+                    background: false,
+                    clear_draft: false,
+                    noforwards: false,
+                    update_stickersets_order: false,
+                    invert_media: false,
+                    allow_paid_floodskip: false,
+                    peer: r.into(),
+                    reply_to: Some(tl::types::InputReplyToStory { peer: r.into(), story_id: id }.into()),
+                    message,
+                    random_id: jiff::Timestamp::now().as_nanosecond() as i64,
+                    reply_markup: None,
+                    entities: (!ents.is_empty()).then_some(ents),
+                    schedule_date: None,
+                    schedule_repeat_period: None,
+                    send_as: None,
+                    quick_reply_shortcut: None,
+                    effect: None,
+                    allow_paid_stars: None,
+                    suggested_post: None,
+                    rich_message: None,
+                };
+                client.invoke(&req).await.map_err(|e| lf!("Не надіслано: {e}", "Not sent: {e}"))?;
+                self.out.send(Ev::Notice(l!("Відповідь надіслано", "Reply sent").into()));
             }
             _ => {}
         }

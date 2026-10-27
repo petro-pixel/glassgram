@@ -77,6 +77,11 @@ impl Clip {
         }
     }
 
+    /// Frame size in pixels.
+    pub fn size(&self) -> [usize; 2] {
+        self.size
+    }
+
     /// Stop decoding, keeping the last frame (pause).
     pub fn stop(&mut self) {
         kill(&self.child);

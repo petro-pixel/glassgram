@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 48%** `██████████░░░░░░░░░░` — 77 done, 9 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 48%** `██████████░░░░░░░░░░` — 78 done, 8 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -107,7 +107,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/similar.rs`, `src/backend/similar.rs` | "Similar channels" tab in a channel's info |
 | `src/app/saved.rs`, `src/backend/saved.rs` | Saved Messages split by source: "All" and one tab per chat |
 | `src/app/chatsearch.rs` | In-chat search panel: type and sender filters, results |
-| `src/app/stories.rs`, `src/backend/stories.rs` | Stories: strip above the chat list and the viewer |
+| `src/app/stories.rs`, `src/backend/stories.rs` | Stories: strip above the chat list and the viewer (video with sound, replies, reactions) |
 | `src/app/confirm.rs` | "Open this link?" for hidden links and "Run this file?" for received programs |
 | `src/app/gifts.rs`, `src/backend/gifts.rs` | "Gifts" tab in a profile |
 | `src/app/textures.rs` | Pictures on the GPU with a memory budget; dropped ones come back from the disk cache |
