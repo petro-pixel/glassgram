@@ -13,6 +13,11 @@ AppId={{C8CA7836-2DCF-41F2-9E27-BF39F48D70DB}
 AppName=Glassgram
 AppVersion={#AppVersion}
 AppPublisher=petro-pixel
+; Code signing (SignPath) checks these against the release version.
+VersionInfoVersion={#AppVersion}
+VersionInfoProductName=Glassgram
+VersionInfoProductVersion={#AppVersion}
+VersionInfoProductTextVersion={#AppVersion}
 AppPublisherURL=https://github.com/petro-pixel/glassgram
 AppSupportURL=https://github.com/petro-pixel/glassgram/issues
 DefaultDirName={autopf}\Glassgram

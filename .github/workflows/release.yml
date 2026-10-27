@@ -3,6 +3,10 @@
 # and only reach the build as GLASSGRAM_API_ID / GLASSGRAM_API_HASH (see build.rs).
 # Only a pushed tag or a manual run starts this, never a pull request, so forks can't read the secrets;
 # nothing that holds the keys is cached.
+#
+# Windows code signing (SignPath Foundation) runs once the SIGNPATH_API_TOKEN secret and the
+# SIGNPATH_ORGANIZATION_ID variable are set; until then the release is built unsigned. Each signing
+# request waits for a manual approval in SignPath. Artifact configurations: packaging/windows/signpath.
 
 name: Release
 
@@ -13,12 +17,22 @@ on:
 
 permissions:
   contents: write
+  # SignPath reads the workflow run and the uploaded artifacts.
+  actions: read
 
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
     steps:
       - uses: actions/checkout@v5
+
+      - name: Version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          "GLASSGRAM_VERSION=$v" >> $env:GITHUB_ENV
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -27,6 +41,38 @@ jobs:
           GLASSGRAM_API_ID: ${{ secrets.TG_API_ID }}
           GLASSGRAM_API_HASH: ${{ secrets.TG_API_HASH }}
         run: cargo build --release --locked --features no-key-screen
+
+      # The exe is signed before packaging, so the installed program carries the signature too.
+      - name: Upload unsigned exe
+        id: unsigned-exe
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: actions/upload-artifact@v7
+        with:
+          path: target/release/glassgram.exe
+          archive: false
+
+      - name: Sign exe
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: glassgram
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: exe
+          github-artifact-id: ${{ steps.unsigned-exe.outputs.artifact-id }}
+          skip-decompress: true
+          wait-for-completion: true
+          # Time for the manual approval in SignPath.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-exe
+          parameters: |
+            version: "${{ env.GLASSGRAM_VERSION }}"
+
+      - name: Use signed exe
+        if: env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: Copy-Item (Get-ChildItem signed-exe -Filter *.exe | Select-Object -First 1).FullName target/release/glassgram.exe -Force
 
       # GPL build with libx264, libopus, libvpx and ffplay; it goes next to glassgram.exe.
       # BtbN renames the archives with every ffmpeg release, so take the newest stable one from the list.
@@ -48,8 +94,37 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
-          $env:GLASSGRAM_VERSION = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\windows\glassgram.iss
+
+      - name: Upload unsigned installer
+        id: unsigned-installer
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/Glassgram-${{ env.GLASSGRAM_VERSION }}-setup.exe
+          archive: false
+
+      - name: Sign installer
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: glassgram
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.unsigned-installer.outputs.artifact-id }}
+          skip-decompress: true
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-installer
+          parameters: |
+            version: "${{ env.GLASSGRAM_VERSION }}"
+
+      - name: Use signed installer
+        if: env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: Copy-Item (Get-ChildItem signed-installer -Filter *.exe | Select-Object -First 1).FullName "dist/Glassgram-$env:GLASSGRAM_VERSION-setup.exe" -Force
 
       - uses: actions/upload-artifact@v4
         with:
@@ -83,8 +158,14 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
+      # Only the finished files: the unsigned copies sent to SignPath are artifacts of this run too.
       - uses: actions/download-artifact@v4
         with:
+          name: windows-installer
+          path: out
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*flatpak*'
           path: out
           merge-multiple: true
 

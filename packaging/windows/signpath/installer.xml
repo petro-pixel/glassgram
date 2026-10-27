@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "installer": paste into the SignPath project (slug: installer).
+     Only the setup exe is signed; the glassgram.exe inside was signed before packaging, ffmpeg is upstream's. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <pe-file path="Glassgram-${version}-setup.exe" product-name="Glassgram" product-version="${version}">
+    <authenticode-sign />
+  </pe-file>
+</artifact-configuration>

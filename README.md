@@ -37,6 +37,19 @@ contain the Telegram API keys and ffmpeg, so you only sign in with your phone nu
 - **Windows**: `Glassgram-<version>-setup.exe`;
 - **Linux**: `Glassgram.flatpak` — `flatpak install --user Glassgram.flatpak`, then `flatpak run io.github.petro_pixel.Glassgram`.
 
+### Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+The Windows installer and `glassgram.exe` are built and signed by GitHub Actions (`.github/workflows/release.yml`)
+from this repository; the bundled `ffmpeg.exe` is the upstream build and is not signed by us.
+
+- Committers and reviewers: [petro-pixel](https://github.com/petro-pixel)
+- Approvers: [petro-pixel](https://github.com/petro-pixel)
+
+Privacy: this program will not transfer any information to other networked systems unless specifically
+requested by the user or the person installing or operating it. It connects only to the Telegram servers to run
+your account, and opens bot mini apps and links only when you do.
+
 ## Running from source
 
 ```sh

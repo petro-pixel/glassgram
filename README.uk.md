@@ -37,6 +37,19 @@
 - **Windows**: `Glassgram-<версія>-setup.exe`;
 - **Linux**: `Glassgram.flatpak` — `flatpak install --user Glassgram.flatpak`, потім `flatpak run io.github.petro_pixel.Glassgram`.
 
+### Політика підпису коду (Code signing policy)
+
+Безкоштовний підпис коду надає [SignPath.io](https://about.signpath.io/), сертифікат — [SignPath Foundation](https://signpath.org/).
+Інсталятор для Windows і `glassgram.exe` збирає й підписує GitHub Actions (`.github/workflows/release.yml`)
+з цього репозиторію; вкладений `ffmpeg.exe` — збірка upstream, ми його не підписуємо.
+
+- Автори й рецензенти: [petro-pixel](https://github.com/petro-pixel)
+- Затверджують підпис: [petro-pixel](https://github.com/petro-pixel)
+
+Приватність: програма не передає жодної інформації іншим мережевим системам, якщо цього прямо не попросив
+користувач або той, хто її встановлює чи запускає. Вона з'єднується лише з серверами Telegram, щоб працював
+ваш акаунт, а міні-застосунки ботів і посилання відкриває лише на вашу дію.
+
 ## Запуск із коду
 
 ```sh

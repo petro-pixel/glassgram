@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "exe": paste into the SignPath project (slug: exe).
+     The workflow uploads glassgram.exe on its own (archive: false), so the root is the file itself.
+     SignPath Foundation requires the product name and version to be enforced. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <pe-file path="glassgram.exe" product-name="Glassgram" product-version="${version}">
+    <authenticode-sign />
+  </pe-file>
+</artifact-configuration>

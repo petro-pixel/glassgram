@@ -188,6 +188,11 @@ Flatpak bundle (`packaging/flatpak`), attached to the GitHub release. Bump `vers
 `TG_API_ID` / `TG_API_HASH` via `build.rs`, built with `--features no-key-screen`, so a release never shows the key screen — never put them
 in the code, a manifest, logs or a cache.
 
+Windows files are signed through SignPath Foundation (the `SIGNPATH_API_TOKEN` secret, the `SIGNPATH_ORGANIZATION_ID`
+variable, configurations in `packaging/windows/signpath`); every signing request waits for the owner's approval in
+SignPath. Its conditions bind the project: keep the "Code signing policy" section in both READMEs, the product name
+and version in the exe and installer metadata, and never sign someone else's binaries (ffmpeg).
+
 ## Security
 
 Everything that comes from the network is untrusted: message texts and links, file names, bot
