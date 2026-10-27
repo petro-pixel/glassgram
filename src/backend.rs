@@ -316,6 +316,10 @@ pub enum Cmd {
     CheckUsername(String),
     /// New username (`account.updateUsername`); empty removes it.
     SetUsername(String),
+    /// Show or hide one of our extra usernames in the profile (`account.toggleUsername`).
+    ToggleUsername { name: String, active: bool },
+    /// The order of our usernames in the profile (`account.reorderUsernames`).
+    ReorderUsernames(Vec<String>),
     /// New profile photo from a file (`photos.uploadProfilePhoto`).
     SetProfilePhoto(PathBuf),
     /// Send a queued message; until it succeeds it stays in the cache and survives a restart.
@@ -472,6 +476,8 @@ pub enum Ev {
     Mentions { peer: PeerId, query: String, members: Vec<Mentionable> },
     BotCommands { peer: PeerId, commands: Vec<BotCmd> },
     ChatDetails { peer: PeerId, details: ChatDetails },
+    /// The profile photo of `peer` is a video, now on disk.
+    AvatarVideo { peer: PeerId, path: PathBuf },
     Members { peer: PeerId, query: String, admins: bool, list: Vec<Member> },
     Invite { peer: PeerId, link: String },
     Shared { peer: PeerId, kind: SharedKind, msgs: Vec<Msg>, older: bool },
@@ -823,6 +829,8 @@ impl Worker {
             Cmd::SaveProfile { first, last, bio } => self.save_profile(first, last, bio).await,
             Cmd::CheckUsername(name) => self.check_username(name),
             Cmd::SetUsername(name) => self.set_username(name).await,
+            Cmd::ToggleUsername { name, active } => self.toggle_username(name, active).await,
+            Cmd::ReorderUsernames(order) => self.reorder_usernames(order).await,
             Cmd::SetProfilePhoto(path) => self.set_profile_photo(path),
             Cmd::SendQueued(q) => self.send_queued(q).await,
             Cmd::LoadContacts => self.load_contacts().await,

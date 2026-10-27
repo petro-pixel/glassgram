@@ -556,6 +556,12 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let mut details = demo_details(peer, kind);
             details.counts = SharedKind::ALL.into_iter().map(|k| (k, demo_shared(app, peer, k).len() as i32)).collect();
             app.push_event(Ev::ChatDetails { peer, details });
+            // Олена's profile photo is a video.
+            if peer == PeerId::user_unchecked(1)
+                && let Some(path) = clip(87)
+            {
+                app.push_event(Ev::AvatarVideo { peer, path });
+            }
         }
         Cmd::LoadMembers { peer, query, admins } => {
             let q = query.to_lowercase();
@@ -767,6 +773,18 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. } => app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into())),
         Cmd::SetBirthday(birthday) => app.push_event(Ev::Profile(Profile { birthday, ..app.demo_profile() })),
+        Cmd::ToggleUsername { name, active } => {
+            let mut p = app.demo_profile();
+            if let Some(u) = p.usernames.iter_mut().find(|u| u.0 == name) {
+                u.1 = active;
+            }
+            app.push_event(Ev::Profile(p));
+        }
+        Cmd::ReorderUsernames(order) => {
+            let mut p = app.demo_profile();
+            p.usernames.sort_by_key(|u| order.iter().position(|o| *o == u.0));
+            app.push_event(Ev::Profile(p));
+        }
         Cmd::LoadBirthdays => {
             // Олена has her birthday today, so the reminder is always there in the demo.
             let olena = app.demo_chats().iter().find(|c| c.id == PeerId::user_unchecked(1)).cloned();
@@ -965,6 +983,8 @@ fn demo_profile() -> Profile {
         username: "glassgram_demo".into(),
         phone: "+380 00 000 00 00".into(),
         birthday: Some(Birthday { day: 12, month: 5, year: None }),
+        // Collectible usernames bought on Fragment: one shown in the profile, one hidden.
+        usernames: vec![("glass".into(), true), ("liquidgram".into(), false)],
     }
 }
 
@@ -1193,6 +1213,7 @@ fn clip(id: i32) -> Option<std::path::PathBuf> {
         84 => ("mandelbrot=size=480x270:rate=30", false, 3),
         85 => ("life=size=240x240:mold=10:rate=30:ratio=0.5:death_color=#5a3cc8:life_color=#ffd6f0", true, 5),
         86 => ("testsrc2=size=360x640:rate=30", true, 5),
+        87 => ("mandelbrot=size=240x240:rate=30", false, 4),
         _ => return None,
     };
     let path = std::env::temp_dir().join(format!("glassgram-demo-{id}.mp4"));

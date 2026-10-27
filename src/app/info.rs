@@ -47,6 +47,9 @@ struct SharedList {
     exhausted: bool,
 }
 
+/// Radius of the big avatar at the top of the panel.
+const AVATAR_R: f32 = 42.0;
+
 pub(super) struct InfoPanel {
     peer: PeerId,
     details: Option<ChatDetails>,
@@ -67,6 +70,8 @@ pub(super) struct InfoPanel {
     pub(super) confirm: Option<Confirm>,
     /// "Also delete for the other side" checkbox in private chats.
     revoke: bool,
+    /// The profile photo is a video: it plays in the big avatar, looped.
+    avatar_video: Option<crate::video::Clip>,
 }
 
 /// What a click in the panel asks for; applied after drawing, when `self.info` is back in place.
@@ -117,6 +122,7 @@ impl App {
             notify_open: false,
             confirm: None,
             revoke: false,
+            avatar_video: None,
         });
         self.send(Cmd::LoadChatInfo(peer));
         // Asked up front: the tab is shown only when there is something in it.
@@ -159,6 +165,14 @@ impl App {
 
     pub(super) fn info_event(&mut self, ev: Ev) {
         match ev {
+            Ev::AvatarVideo { peer, path } => {
+                let px = ((AVATAR_R * 2.0 * self.ctx.pixels_per_point()) as usize / 2 * 2).max(2);
+                let now = self.ctx.input(|i| i.time);
+                if let Some(info) = self.info.as_mut().filter(|i| i.peer == peer) {
+                    let spec = crate::video::Spec { path, size: [px, px], from: 0.0, speed: 1.0, looped: true, contain: false };
+                    info.avatar_video = Some(crate::video::Clip::start(spec, 0, now));
+                }
+            }
             Ev::ChatDetails { peer, details } => {
                 let muted = details.notify.muted();
                 if let Some(c) = self.chat_mut(peer) {
@@ -282,6 +296,10 @@ impl App {
         child.set_clip_rect(body);
         egui::ScrollArea::vertical().id_salt(("info", info.peer)).auto_shrink(false).show(&mut child, |ui| {
             ui.spacing_mut().item_spacing.y = 2.0;
+            if let Some(c) = &mut info.avatar_video {
+                c.advance(ui.ctx(), &format!("avatar-video{}", info.peer.bot_api_dialog_id_unchecked()), ui.input(|i| i.time));
+                ui.ctx().request_repaint();
+            }
             self.info_profile(ui, &chat, &info);
             self.info_rows(ui, &chat, &mut info, &mut todo);
             ui.add_space(8.0);
@@ -383,8 +401,9 @@ impl App {
         let w = ui.available_width();
         let (r, _) = ui.allocate_exact_size(vec2(w, 150.0), Sense::hover());
         let p = ui.painter();
-        let tex = self.textures.get(&ImgKey::Avatar(chat.id));
-        glass::avatar(p, pos2(r.center().x, r.top() + 46.0), 42.0, &chat.title, chat.id.bot_api_dialog_id_unchecked(), kind_icon(chat.kind), tex);
+        let video = info.avatar_video.as_ref().and_then(|c| c.tex.as_ref());
+        let tex = video.or(self.textures.get(&ImgKey::Avatar(chat.id)));
+        glass::avatar(p, pos2(r.center().x, r.top() + 46.0), AVATAR_R, &chat.title, chat.id.bot_api_dialog_id_unchecked(), kind_icon(chat.kind), tex);
         p.galley(pos2(r.center().x, r.top() + 98.0) - vec2(elided(ui, &chat.title, 17.0, ink(), w - 24.0).size().x / 2.0, 0.0), elided(ui, &chat.title, 17.0, ink(), w - 24.0), ink());
         let d = info.details.as_ref();
         let (sub, color) = match chat.kind {

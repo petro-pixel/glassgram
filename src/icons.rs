@@ -45,6 +45,7 @@ pub enum Icon {
     Gear,
     Lock,
     ChevronDown,
+    ChevronUp,
     /// Mention "@".
     At,
     /// Reaction.
@@ -119,6 +120,7 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::ChevronLeft => include_str!("../assets/icons/chevron-left.svg"),
         Icon::ChevronRight => include_str!("../assets/icons/chevron-right.svg"),
         Icon::ChevronDown => include_str!("../assets/icons/chevron-down.svg"),
+        Icon::ChevronUp => include_str!("../assets/icons/chevron-up.svg"),
         Icon::Bell => include_str!("../assets/icons/bell.svg"),
         Icon::Mic => include_str!("../assets/icons/mic.svg"),
         Icon::Gear => include_str!("../assets/icons/settings.svg"),
@@ -303,7 +305,7 @@ mod tests {
             Icon::Check, Icon::Close, Icon::Search, Icon::Reload, Icon::Power, Icon::Attach, Icon::Smile, Icon::Reply, Icon::Pencil,
             Icon::Pin, Icon::Muted, Icon::Channel, Icon::Bot, Icon::File, Icon::Camera, Icon::Bookmark, Icon::Forward, Icon::Trash,
             Icon::Copy, Icon::Download, Icon::Clock, Icon::Location, Icon::ChevronLeft, Icon::ChevronRight, Icon::Bell, Icon::Mic,
-            Icon::Gear, Icon::Lock, Icon::ChevronDown, Icon::At, Icon::Heart, Icon::Eye, Icon::List, Icon::Link, Icon::Commands,
+            Icon::Gear, Icon::Lock, Icon::ChevronDown, Icon::ChevronUp, Icon::At, Icon::Heart, Icon::Eye, Icon::List, Icon::Link, Icon::Commands,
             Icon::Info, Icon::Phone, Icon::User, Icon::Chat, Icon::Folder, Icon::Globe, Icon::Laptop, Icon::Chats, Icon::Users,
             Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle, Icon::Flag, Icon::Calendar, Icon::Translate, Icon::Poll, Icon::Cake, Icon::Megaphone,
         ];

@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 48%** `██████████░░░░░░░░░░` — 78 done, 8 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 49%** `██████████░░░░░░░░░░` — 79 done, 7 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>

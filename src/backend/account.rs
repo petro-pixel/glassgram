@@ -64,6 +64,10 @@ impl Worker {
             username: me.username().unwrap_or_default().to_owned(),
             phone: me.phone().map(|p| format!("+{p}")).unwrap_or_default(),
             birthday,
+            usernames: match &me.raw {
+                tl::enums::User::User(u) => u.usernames.iter().flatten().filter_map(|tl::enums::Username::Username(n)| (!n.editable).then(|| (n.username.clone(), n.active))).collect(),
+                _ => Vec::new(),
+            },
         };
         self.out.send(Ev::Profile(profile));
     }
@@ -95,6 +99,18 @@ impl Worker {
             out.send(Ev::UsernameCheck { name, state });
         });
         Ok(())
+    }
+
+    pub(super) async fn toggle_username(&mut self, name: String, active: bool) -> Result<(), String> {
+        let client = self.client()?;
+        client.invoke(&tl::functions::account::ToggleUsername { username: name, active }).await.map_err(|e| profile_error(&e))?;
+        self.load_profile().await
+    }
+
+    pub(super) async fn reorder_usernames(&mut self, order: Vec<String>) -> Result<(), String> {
+        let client = self.client()?;
+        client.invoke(&tl::functions::account::ReorderUsernames { order }).await.map_err(|e| profile_error(&e))?;
+        self.load_profile().await
     }
 
     pub(super) async fn set_username(&mut self, name: String) -> Result<(), String> {

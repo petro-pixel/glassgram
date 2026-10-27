@@ -37,6 +37,43 @@ impl ProfileEdit {
     }
 }
 
+/// Collectible usernames besides the editable one: shown in the profile or not, and their order.
+fn usernames_section(ui: &mut Ui, list: &[(String, bool)]) -> Option<Cmd> {
+    if list.is_empty() {
+        return None;
+    }
+    section_title(ui, l!("Інші імена користувача", "Other usernames"));
+    let mut cmd = None;
+    let names: Vec<String> = list.iter().map(|(n, _)| n.clone()).collect();
+    for (k, (name, active)) in list.iter().enumerate() {
+        let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
+        let color = if *active { ink() } else { ink_dim() };
+        ui.painter().text(pos2(row.left() + 4.0, row.center().y), Align2::LEFT_CENTER, format!("@{name}"), FontId::proportional(14.5), color);
+        let side = 32.0;
+        let down = Rect::from_center_size(pos2(row.right() - side / 2.0, row.center().y), vec2(side, side));
+        let up = down.translate(vec2(-side - 4.0, 0.0));
+        let shown = Rect::from_min_max(pos2(up.left() - 120.0, up.top()), pos2(up.left() - 6.0, up.bottom()));
+        let label = if *active { l!("У профілі", "In profile") } else { l!("Приховане", "Hidden") };
+        let tip = if *active { l!("Натисніть, щоб приховати", "Click to hide") } else { l!("Натисніть, щоб показати в профілі", "Click to show in your profile") };
+        if glass::button(ui, shown, ("username-active", name), label, *active, true).on_hover_text(tip).clicked() {
+            cmd = Some(Cmd::ToggleUsername { name: name.clone(), active: !*active });
+        }
+        let moved = |to: usize| {
+            let mut order = names.clone();
+            order.swap(k, to);
+            Some(Cmd::ReorderUsernames(order))
+        };
+        if k > 0 && glass::icon_button(ui, up, ("username-up", name), Icon::ChevronUp, false, true).on_hover_text(l!("Вище", "Move up")).clicked() {
+            cmd = moved(k - 1);
+        }
+        if k + 1 < list.len() && glass::icon_button(ui, down, ("username-down", name), Icon::ChevronDown, false, true).on_hover_text(l!("Нижче", "Move down")).clicked() {
+            cmd = moved(k + 1);
+        }
+    }
+    hint(ui, l!("Колекційні імена з Fragment. Показані імена видно у вашому профілі в цьому порядку.", "Collectible usernames from Fragment. Shown ones appear in your profile in this order."));
+    cmd
+}
+
 /// Local username rules (as on the server), so obvious mistakes don't need a request.
 fn username_problem(name: &str) -> Option<&'static str> {
     if name.is_empty() {
@@ -296,6 +333,7 @@ impl App {
         let mut pick_photo = false;
         let mut save = None;
         let mut save_username = None;
+        let mut other_usernames = None;
         let mut bday_cmd = None;
         egui::ScrollArea::vertical().id_salt("settings-account").auto_shrink(false).show(ui, |ui| {
             let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 96.0), Sense::hover());
@@ -366,6 +404,7 @@ impl App {
                 save_username = Some(Ok(name));
             }
 
+            other_usernames = usernames_section(ui, &p.usernames);
             bday_cmd = super::birthdays::birthday_section(ui, &mut self.birthdays.edit, p.birthday);
             if !p.phone.is_empty() {
                 section_title(ui, l!("Телефон", "Phone number"));
@@ -381,6 +420,9 @@ impl App {
         }
         if let Some((first, last, bio)) = save {
             self.send(Cmd::SaveProfile { first, last, bio });
+        }
+        if let Some(cmd) = other_usernames {
+            self.send(cmd);
         }
         match save_username {
             Some(Ok(name)) => self.send(Cmd::SetUsername(name)),

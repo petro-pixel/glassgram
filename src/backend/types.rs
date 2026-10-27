@@ -13,6 +13,9 @@ pub struct Profile {
     pub username: String,
     pub phone: String,
     pub birthday: Option<Birthday>,
+    /// Usernames besides the editable one (collectible ones from Fragment), in profile order,
+    /// and whether each is shown in the profile.
+    pub usernames: Vec<(String, bool)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

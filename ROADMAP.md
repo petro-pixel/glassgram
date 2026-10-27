@@ -26,7 +26,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - 🟡 Multiple accounts: menu under the name, adding, switching — **P1**: notifications and counters from inactive accounts (all accounts connected at once)
 - ✅ Profile editing in Settings → My Account: first/last name and bio (`account.updateProfile`), username with a live availability check (`account.checkUsername`, `account.updateUsername`), photo from a file, center-cropped (`photos.uploadProfilePhoto`)
 - ✅ Birthday: our own in My Account — day, month, optional year (`account.updateBirthday`), who sees it under Privacy; a user's birthday in their info
-- 🟡 A user's personal channel in their info (opens without joining) and their other usernames ("also @…"). Left: managing our own extra usernames (`reorderUsernames`), video avatar
+- ✅ A user's personal channel in their info (opens without joining) and their other usernames ("also @…"); our own collectible usernames in "My account": shown or hidden in the profile (`account.toggleUsername`) and their order (`account.reorderUsernames`); video profile photos play in the info panel (`video_sizes`)
 - ⬜ **P1** 2FA management: enable, change the password and recovery email (`account.updatePasswordSettings`)
 - ⬜ **P2** Passkeys (`account.registerPasskey`), sign-in with an email code
 - ⬜ **P2** Name colour and profile background, emoji status (`account.updateColor`, `updateEmojiStatus`; partly Premium)

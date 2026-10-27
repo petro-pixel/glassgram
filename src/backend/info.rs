@@ -1,11 +1,14 @@
 //! Chat info: profile, members, shared media, notifications, leaving and deleting.
 
+use std::path::PathBuf;
+
 use grammers_client::Client;
+use grammers_client::media::Downloadable;
 use grammers_client::peer::Peer;
-use grammers_client::session::types::{PeerKind, PeerRef};
+use grammers_client::session::types::{PeerId, PeerKind, PeerRef};
 use grammers_client::tl;
 
-use super::{Birthday, ChatInfo, ChatRights, Cmd, Ev, Worker, clock, convert, found_chat, local, peer_title, remember_name};
+use super::{Birthday, ChatInfo, ChatRights, Cmd, Ev, Worker, clock, convert, data_dir, found_chat, local, log_error, peer_title, remember_name};
 use crate::i18n::{l, lf};
 
 /// How many members we show at once; beyond that, search.
@@ -159,7 +162,11 @@ impl Worker {
                 let notifs = self.notifs.clone();
                 let (refs, names, loader) = (self.refs.clone(), self.names.clone(), self.loader.clone());
                 tokio::spawn(async move {
-                    out.send(match details(&client, r).await {
+                    let (res, video) = match details(&client, r).await {
+                        Ok((d, channel, video)) => (Ok((d, channel)), video),
+                        Err(e) => (Err(e), None),
+                    };
+                    out.send(match res {
                         Ok((mut details, channel)) => {
                             details.notify = notifs.lock().unwrap().resolve(peer, details.notify);
                             // The personal channel opens from the profile without joining: keep access to it.
@@ -181,6 +188,13 @@ impl Worker {
                         }
                         Err(e) => Ev::Error(lf!("Інформація про чат: {e}", "Chat info: {e}")),
                     });
+                    // After the details: the panel is useful at once, the video comes when it is ready.
+                    if let Some(v) = video {
+                        match fetch_avatar_video(&client, peer, v).await {
+                            Ok(path) => out.send(Ev::AvatarVideo { peer, path }),
+                            Err(e) => log_error(&lf!("Відеоаватар: {e}", "Video avatar: {e}")),
+                        }
+                    }
                 });
             }
             Cmd::LoadMembers { peer, query, admins } => {
@@ -382,9 +396,52 @@ async fn delete_history(client: &Client, r: PeerRef, just_clear: bool, revoke: b
 }
 
 /// User profile or full group/channel info, and a user's personal channel.
-async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Peer>), String> {
+/// The video of a profile photo, as a file to download.
+struct AvatarVideo {
+    photo: tl::types::Photo,
+    kind: String,
+}
+
+impl Downloadable for AvatarVideo {
+    fn to_raw_input_location(&self) -> Option<tl::enums::InputFileLocation> {
+        let p = &self.photo;
+        Some(tl::types::InputPhotoFileLocation { id: p.id, access_hash: p.access_hash, file_reference: p.file_reference.clone(), thumb_size: self.kind.clone() }.into())
+    }
+
+    fn dc_id(&self) -> Option<i32> {
+        Some(self.photo.dc_id)
+    }
+}
+
+/// A profile photo that is a video: the main video size ("u"), or any.
+fn avatar_video(photo: Option<&tl::enums::Photo>) -> Option<AvatarVideo> {
+    let Some(tl::enums::Photo::Photo(p)) = photo else { return None };
+    let sizes = p.video_sizes.as_ref()?;
+    let kinds: Vec<&str> = sizes.iter().filter_map(|v| match v {
+        tl::enums::VideoSize::Size(s) => Some(s.r#type.as_str()),
+        _ => None,
+    }).collect();
+    let kind = kinds.iter().find(|k| **k == "u").or(kinds.first())?.to_string();
+    Some(AvatarVideo { photo: p.clone(), kind })
+}
+
+/// Downloads a profile video into the media cache (once per photo).
+async fn fetch_avatar_video(client: &Client, peer: PeerId, v: AvatarVideo) -> Result<PathBuf, String> {
+    let dir = data_dir().join("media");
+    let _ = tokio::fs::create_dir_all(&dir).await;
+    let path = dir.join(format!("av{}_{}.mp4", peer.bot_api_dialog_id_unchecked(), v.photo.id));
+    if tokio::fs::metadata(&path).await.is_err() {
+        let part = path.with_extension("part");
+        client.download_media(&v, &part).await.map_err(|e| e.to_string())?;
+        tokio::fs::rename(&part, &path).await.map_err(|e| e.to_string())?;
+    }
+    Ok(path)
+}
+
+async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Peer>, Option<AvatarVideo>), String> {
     let mut d = ChatDetails::default();
     let mut channel = None;
+    let mut video = None;
     match r.id.kind() {
         PeerKind::User => {
             let tl::enums::users::UserFull::Full(f) = client.invoke(&tl::functions::users::GetFullUser { id: r.into() }).await.map_err(|e| e.to_string())?;
@@ -395,6 +452,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
             d.birthday = u.birthday.as_ref().map(Birthday::from_raw);
             d.gifts = u.stargifts_count.unwrap_or(0);
             d.notify = NotifyState::from_raw(&u.notify_settings);
+            video = avatar_video(u.profile_photo.as_ref());
             if let Some(id) = u.personal_channel_id {
                 channel = f.chats.iter().find(|c| c.id() == id).cloned().map(|c| Peer::from_raw(client, c));
             }
@@ -408,6 +466,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
             let tl::enums::messages::ChatFull::Full(f) =
                 client.invoke(&tl::functions::messages::GetFullChat { chat_id: r.into() }).await.map_err(|e| e.to_string())?;
             if let tl::enums::ChatFull::Full(c) = f.full_chat {
+                video = avatar_video(c.chat_photo.as_ref());
                 d.about = c.about;
                 d.notify = NotifyState::from_raw(&c.notify_settings);
                 d.invite = invite_link(c.exported_invite);
@@ -428,6 +487,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
             let tl::enums::messages::ChatFull::Full(f) =
                 client.invoke(&tl::functions::channels::GetFullChannel { channel: r.into() }).await.map_err(|e| e.to_string())?;
             if let tl::enums::ChatFull::ChannelFull(c) = f.full_chat {
+                video = avatar_video(Some(&c.chat_photo));
                 d.about = c.about;
                 d.notify = NotifyState::from_raw(&c.notify_settings);
                 d.invite = invite_link(c.exported_invite);
@@ -455,7 +515,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
     if let Ok(counters) = client.invoke(&req).await {
         d.counts = SharedKind::ALL.into_iter().zip(counters).map(|(k, tl::enums::messages::SearchCounter::Counter(c))| (k, c.count)).collect();
     }
-    Ok((d, channel))
+    Ok((d, channel, video))
 }
 
 /// Main username, or else the first active collectible one.
