@@ -232,7 +232,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ ffmpeg (with x264, opus, vpx, ffplay) as a module of the manifest
 - ✅ Permissions: network, Wayland/X11, GPU and camera (`--device=all`), PulseAudio + PipeWire, D-Bus for the tray and notifications, `xdg-download`
 - ⬜ Portals: notifications, opening files, file chooser, camera
-- 🟡 `.desktop`, `hicolor` icons, AppStream metainfo (validated); screenshots still missing
+- ✅ `.desktop`, `hicolor` icons, AppStream metainfo (validated) with screenshots of both themes
 - ⬜ Submitting a PR to `flathub/flathub`
 
 **macOS** — ⬜ **P3**: `.app`/`.dmg` bundle (with ffmpeg inside or via Homebrew), signing and notarisation

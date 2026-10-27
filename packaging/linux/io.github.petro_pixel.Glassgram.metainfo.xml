@@ -16,6 +16,16 @@
       панелі, меню й поле вводу — напівпрозоре скло.</p>
     <p>Glassgram is not affiliated with Telegram FZ-LLC.</p>
   </description>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Chats in the dark theme</caption>
+      <image type="source" width="1120" height="740">https://raw.githubusercontent.com/petro-pixel/glassgram/main/assets/screenshots/dark-en.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Chats in the light theme</caption>
+      <image type="source" width="1120" height="740">https://raw.githubusercontent.com/petro-pixel/glassgram/main/assets/screenshots/light-en.png</image>
+    </screenshot>
+  </screenshots>
   <launchable type="desktop-id">io.github.petro_pixel.Glassgram.desktop</launchable>
   <url type="homepage">https://github.com/petro-pixel/glassgram</url>
   <url type="bugtracker">https://github.com/petro-pixel/glassgram/issues</url>
