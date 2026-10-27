@@ -50,6 +50,7 @@ mod media;
 mod search;
 mod outbox;
 mod reply;
+mod newchat;
 use crate::format::{self, Span};
 use crate::i18n::{l, lf};
 
@@ -340,6 +341,12 @@ pub enum Cmd {
     CreateGroup { title: String, users: Vec<PeerId> },
     /// New channel (`channels.createChannel`).
     CreateChannel { title: String, about: String },
+    /// Whether `name` is free for a channel's public link (`channels.checkUsername`).
+    CheckChannelUsername { peer: PeerId, name: String },
+    /// A channel's public link `t.me/<name>`; empty makes it private (`channels.updateUsername`).
+    SetChannelUsername { peer: PeerId, name: String },
+    /// Add people to a channel (`channels.inviteToChannel`).
+    InviteToChannel { peer: PeerId, users: Vec<PeerId> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -486,6 +493,8 @@ pub enum Ev {
     ChatRemoved(PeerId),
     HistoryCleared(PeerId),
     Profile(Profile),
+    /// Answer to `Cmd::CheckChannelUsername`.
+    ChannelUsernameCheck { peer: PeerId, name: String, state: UsernameState },
     /// Answer to `Cmd::CheckUsername` for `name`.
     UsernameCheck { name: String, state: UsernameState },
     /// Queue from the previous run (from the cache).
@@ -835,8 +844,7 @@ impl Worker {
             Cmd::SendQueued(q) => self.send_queued(q).await,
             Cmd::LoadContacts => self.load_contacts().await,
             Cmd::SearchContacts(query) => self.search_contacts(query).await,
-            Cmd::CreateGroup { title, users } => self.create_group(title, users).await,
-            Cmd::CreateChannel { title, about } => self.create_channel(title, about).await,
+            cmd @ (Cmd::CreateGroup { .. } | Cmd::CreateChannel { .. } | Cmd::CheckChannelUsername { .. } | Cmd::SetChannelUsername { .. } | Cmd::InviteToChannel { .. }) => self.new_chat_cmd(cmd).await,
         }
     }
 
@@ -1389,56 +1397,6 @@ impl Worker {
         Ok(())
     }
 
-    async fn create_group(&mut self, title: String, users: Vec<PeerId>) -> Result<(), String> {
-        let client = self.client()?;
-        let users = users.into_iter().map(|p| self.peer_ref(p).map(tl::enums::InputUser::from)).collect::<Result<Vec<_>, _>>()?;
-        let req = tl::functions::messages::CreateChat { users, title, ttl_period: None };
-        let tl::enums::messages::InvitedUsers::Users(res) =
-            client.invoke(&req).await.map_err(|e| lf!("Групу не створено: {e}", "Group not created: {e}"))?;
-        if !res.missing_invitees.is_empty() {
-            let n = res.missing_invitees.len();
-            self.out.send(Ev::Notice(lf!("Не вдалося додати учасників: {n} — їхня приватність це забороняє", "Could not add {n} members — their privacy settings forbid it")));
-        }
-        self.created(&client, res.updates).await
-    }
-
-    async fn create_channel(&mut self, title: String, about: String) -> Result<(), String> {
-        let client = self.client()?;
-        let req = tl::functions::channels::CreateChannel {
-            broadcast: true,
-            megagroup: false,
-            for_import: false,
-            forum: false,
-            title,
-            about,
-            geo_point: None,
-            address: None,
-            ttl_period: None,
-        };
-        let updates = client.invoke(&req).await.map_err(|e| lf!("Канал не створено: {e}", "Channel not created: {e}"))?;
-        self.created(&client, updates).await
-    }
-
-    /// The new chat comes in the reply updates: take it from there and open it.
-    async fn created(&mut self, client: &Client, updates: tl::enums::Updates) -> Result<(), String> {
-        let chats = match updates {
-            tl::enums::Updates::Updates(u) => u.chats,
-            tl::enums::Updates::Combined(u) => u.chats,
-            _ => Vec::new(),
-        };
-        let peer = chats.into_iter().next().map(|raw| Peer::from_raw(client, raw));
-        let Some(peer) = peer else { return self.load_dialogs().await };
-        if !self.remember(&peer).await {
-            return self.load_dialogs().await;
-        }
-        let mut info = found_chat(&peer, String::new());
-        info.joined = true;
-        info.can_post = true;
-        info.last_ts = jiff::Timestamp::now().as_second();
-        let _ = self.load_dialogs().await;
-        self.out.send(Ev::ChatCreated(info));
-        Ok(())
-    }
 }
 
 #[cfg(test)]

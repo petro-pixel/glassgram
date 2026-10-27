@@ -204,6 +204,7 @@ impl App {
                 }
             }
             Ev::Invite { peer, link } => {
+                self.new_channel_invite(peer, &link);
                 if let Some(d) = self.info.as_mut().filter(|i| i.peer == peer).and_then(|i| i.details.as_mut()) {
                     d.invite = link;
                 }

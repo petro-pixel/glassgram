@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 49%** `██████████░░░░░░░░░░` — 79 done, 7 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 49%** `██████████░░░░░░░░░░` — 80 done, 6 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -114,6 +114,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/emojikw.rs`, `src/backend/emojikw.rs` | Emoji suggestions while typing `:word` |
 | `src/app/report.rs`, `src/backend/report.rs` | "Report" box for messages |
 | `src/app/quote.rs`, `src/backend/reply.rs` | Replies with a quote and in another chat |
+| `src/app/newchat.rs`, `src/backend/newchat.rs` | "New chat": contacts, new group, new channel with its type, link and subscribers |
 | `src/app/privacy.rs`, `src/backend/privacy.rs` | Privacy rule exceptions (always / never allow) and global switches: new non-contact chats, read time, who can message me |
 | `src/app/polls.rs`, `src/backend/polls.rs` | "New poll" box: polls and quizzes |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Mini apps: server requests, the WebView window process (`glassgram --webview`) and its bridge |
@@ -127,7 +128,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/settings_pages.rs` | Settings pages (Telegram Desktop layout), My Account editor |
 | `src/app/hotkeys.rs` | Keyboard shortcuts |
 | `src/app/outbox.rs` | Send queue: pending/failed bubbles, retries with backoff |
-| `src/app/chatlist.rs` | Folder column and tabs, dragging pinned chats and folders, "New chat" |
+| `src/app/chatlist.rs` | Folder column and tabs, dragging pinned chats and folders |
 | `src/player.rs` | Voice and audio player via `ffplay`: pause, seeking, speed |
 | `src/video.rs` | Video frames via `ffmpeg` into an egui texture: GIFs, round videos, videos, webm stickers |
 | `src/camera.rs` | Video message recording: camera + microphone → MP4, round preview; the microphone for all recordings (`Mic`) |

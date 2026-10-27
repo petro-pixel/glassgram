@@ -66,11 +66,13 @@ mod confirm;
 mod gifts;
 mod textures;
 mod emojikw;
+mod newchat;
 mod quote;
 mod report;
 mod bubbles;
 use bubbles::*;
-use chatlist::{NewChat, Reorder, sort_chats};
+use chatlist::{Reorder, sort_chats};
+use newchat::NewChat;
 
 const GAP: f32 = 14.0;
 const HEADER_H: f32 = 62.0;
@@ -864,7 +866,7 @@ impl App {
                 let tex = self.ctx.load_texture(format!("{key:?}"), image, TextureOptions::LINEAR);
                 self.textures.insert(key, tex);
             }
-            ev @ (Ev::Contacts(_) | Ev::ContactResults { .. } | Ev::ChatCreated(_)) => self.chatlist_event(ev),
+            ev @ (Ev::Contacts(_) | Ev::ContactResults { .. } | Ev::ChatCreated(_) | Ev::ChannelUsernameCheck { .. }) => self.new_chat_event(ev),
             Ev::Error(e) => {
                 if let Some(n) = &mut self.new_chat {
                     n.busy = false;
@@ -1557,7 +1559,7 @@ impl eframe::App for App {
         if self.stories.view.is_some() {
             self.story_viewer(ui);
         }
-        self.chatlist_overlays(ui);
+        self.new_chat_overlays(ui);
         if self.accounts_open {
             self.accounts_menu(ui);
         }

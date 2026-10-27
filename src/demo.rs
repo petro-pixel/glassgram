@@ -829,6 +829,13 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let text = if about.is_empty() { format!("Канал «{title}» створено") } else { format!("Канал «{title}» створено\n{about}") };
             created(app, &title, ChatKind::Channel, text);
         }
+        // Short famous names are taken, the rest are free.
+        Cmd::CheckChannelUsername { peer, name } => {
+            let state = if ["telegram", "durov", "news"].iter().any(|t| name.to_lowercase().contains(t)) { UsernameState::Taken } else { UsernameState::Free };
+            app.push_event(Ev::ChannelUsernameCheck { peer, name, state });
+        }
+        Cmd::SetChannelUsername { name, .. } => app.push_event(Ev::Notice(format!("Посилання: t.me/{name}"))),
+        Cmd::InviteToChannel { users, .. } => app.push_event(Ev::Notice(format!("Додано підписників: {}", users.len()))),
         // Contacts without a demo history open as an empty chat.
         Cmd::OpenChat(peer) if !app.demo_history().any(|(p, ..)| p == peer) => {
             app.push_event(Ev::History { peer, msgs: Vec::new(), older: false });

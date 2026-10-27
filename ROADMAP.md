@@ -42,7 +42,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Forums and topics (list, create, rename, close); channel comments
 - ✅ Left folder column as in Telegram Desktop (icons, names, unread badges), or tabs on top — switch in Settings → General → Folders
 - ✅ Drag to reorder pinned chats (main list, archive, inside a folder) and folders in the column or tabs (`reorderPinnedDialogs`, `updateDialogFiltersOrder`)
-- 🟡 New chat (pencil next to search): contacts with search (`contacts.getContacts`, `contacts.search`), new group (`createChat`), new channel (`channels.createChannel`); still missing: group/channel photo, public link and channel type step, adding subscribers to a new channel
+- ✅ New chat (pencil next to search): contacts with search (`contacts.getContacts`, `contacts.search`), new group (`createChat`), new channel (`channels.createChannel`), a photo for either; after a new channel, its type — public with a checked `t.me/` link (`channels.checkUsername`, `updateUsername`) or private with its invite link — and the first subscribers from contacts (`channels.inviteToChannel`)
 - ✅ Contacts: list with search (pencil → Contacts), "New contact" by name and phone (`importContacts`), "Add to contacts" / "Delete contact" in user info (`addContact`, `deleteContacts`), block / unblock and stop / restart bots (`contacts.block`, `unblock`), blocked list at the top of Privacy and Security (`getBlocked`)
 - ✅ Saved Messages by source: a strip of "All" and the chats messages were saved from, each with its own history (`getSavedDialogs`, `getSavedHistory`)
 - ⬜ **P1** Saved Messages reaction tags (`savedReactionTags`)
