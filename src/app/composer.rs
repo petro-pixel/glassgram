@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// Stickers offered above the field for a typed emoji.
+const SUGGEST_MAX: usize = 8;
+
 /// The sticker and emoji panel: sets, the open set, thumbnails asked for.
 pub(super) struct StickerPanel {
     /// Installed sticker sets.
@@ -124,6 +127,65 @@ impl App {
             }
             ctx.request_repaint();
         });
+    }
+
+    /// Installed stickers for the emoji typed alone in the field (Settings → "Suggest stickers by emoji").
+    fn suggested_stickers(&mut self) -> Vec<(i64, String)> {
+        // Variation selectors differ between keyboards and sticker sets.
+        let plain = |s: &str| s.chars().filter(|c| *c != '\u{fe0f}').collect::<String>();
+        let typed = plain(self.draft.trim());
+        if !self.settings.suggest_stickers || matches!(self.compose, Compose::Edit(_)) || typed.is_empty() || typed.chars().count() > 4 || typed.chars().any(|c| c.is_alphanumeric() || c.is_whitespace()) {
+            return Vec::new();
+        }
+        if !self.stickers.requested {
+            self.stickers.requested = true;
+            self.send(Cmd::LoadStickers);
+        }
+        let mut seen = HashSet::new();
+        self.stickers.sets.iter().flat_map(|s| &s.stickers).filter(|(id, e)| plain(e) == typed && seen.insert(*id)).take(SUGGEST_MAX).cloned().collect()
+    }
+
+    /// A row of stickers above the field for the typed emoji; a click sends one instead of the text.
+    pub(super) fn sticker_suggest_view(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
+        let ids = self.suggested_stickers();
+        if ids.is_empty() {
+            return;
+        }
+        let want: Vec<i64> = ids.iter().map(|(id, _)| *id).filter(|id| self.stickers.thumbs.insert(*id)).collect();
+        if !want.is_empty() {
+            self.send(Cmd::LoadStickerThumbs(want));
+        }
+        let cell = 64.0;
+        let w = (ids.len() as f32 * cell + 16.0).min(rect.width());
+        let panel = Rect::from_min_size(pos2(rect.left(), rect.bottom() - cell - 16.0), vec2(w, cell + 16.0));
+        glass::glass(ui.painter(), panel, Glass::tinted(22.0, glass::chrome(), 160).frosted(1.0).with_shadow());
+        ui.interact(panel, ui.scope_id().with("sticker-suggest-bg"), Sense::click());
+        let mut send = None;
+        for (k, (id, emoji)) in ids.iter().enumerate() {
+            let r = Rect::from_min_size(pos2(panel.left() + 8.0 + k as f32 * cell, panel.top() + 8.0), vec2(cell, cell));
+            if r.right() > panel.right() {
+                break;
+            }
+            let resp = ui.interact(r, ui.scope_id().with(("sticker-suggest", *id)), Sense::click());
+            let hover = ui.ctx().animate_bool(resp.id, resp.hovered());
+            if hover > 0.0 {
+                ui.painter().rect_filled(r, 14.0, glass::veil((hover * 22.0) as u8));
+            }
+            match self.textures.get(&ImgKey::Sticker(*id)) {
+                Some(t) => glass::image_contain(ui.painter(), r.shrink(6.0 - hover * 2.0), t),
+                None => {
+                    ui.painter().text(r.center(), Align2::CENTER_CENTER, emoji, FontId::proportional(cell * 0.45), ink());
+                }
+            }
+            if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                send = Some(*id);
+            }
+        }
+        if let Some(doc) = send {
+            self.draft.clear();
+            let reply_to = self.take_reply();
+            self.send(Cmd::SendSticker { peer, doc, reply_to });
+        }
     }
 
     pub(super) fn request_sticker_thumbs(&mut self) {

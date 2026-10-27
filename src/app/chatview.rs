@@ -259,11 +259,41 @@ impl App {
             *n = if left == 0 { 0 } else { (*n - 1).max(left) };
             read_all = *n == 0;
         }
-        // The server only clears these per chat — once the last one is seen.
+        // A mention is read by itself; reactions only per chat, once the last one is seen.
+        if !reactions {
+            self.send(Cmd::MarkListened { peer, id });
+        }
         if read_all {
             self.send(Cmd::ReadMarks { peer, reactions });
         }
         self.jump_in_chat(peer, id);
+    }
+
+    /// A mention or a reaction to our message arrived live: read at once if it is in view,
+    /// otherwise it counts on the "@" / "❤" button.
+    pub(super) fn live_mark(&mut self, peer: PeerId, id: i32, reactions: bool) {
+        let focused = self.ctx.input(|i| i.viewport().focused.unwrap_or(true));
+        let counted = self.chats.iter().find(|c| c.id == peer).map_or(0, |c| if reactions { c.unread_reactions } else { c.unread_mentions });
+        if self.selected == Some(peer) && self.scroll.at_bottom && focused && !self.lock.on {
+            match reactions {
+                false => self.send(Cmd::MarkListened { peer, id }),
+                // Reactions are read per chat only: fine while nothing else is waiting.
+                true if counted == 0 => self.send(Cmd::ReadMarks { peer, reactions }),
+                true => {}
+            }
+            if !reactions || counted == 0 {
+                return;
+            }
+        }
+        if let Some(list) = self.marks.get_mut(&(peer, reactions))
+            && !list.contains(&id)
+        {
+            list.push(id);
+            list.sort_unstable();
+        }
+        if let Some(c) = self.chat_mut(peer) {
+            *if reactions { &mut c.unread_reactions } else { &mut c.unread_mentions } += 1;
+        }
     }
 
     fn read_all_marks(&mut self, peer: PeerId, reactions: bool) {

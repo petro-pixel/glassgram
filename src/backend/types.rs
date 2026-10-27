@@ -158,6 +158,9 @@ pub struct ChatInfo {
     /// We may pin messages here.
     #[serde(default)]
     pub can_pin: bool,
+    /// Telegram hides the whole chat here (copyright, local law…): why, instead of its messages.
+    #[serde(default)]
+    pub restricted: Option<String>,
 }
 
 /// Forum topic. The General topic has id 1.
@@ -541,6 +544,12 @@ pub struct Msg {
     pub video_sticker: bool,
     /// Voice or round video message not listened to yet.
     pub media_unread: bool,
+    /// Mentions us and is not read yet: counts for the "@" button.
+    #[serde(default)]
+    pub mentioned: bool,
+    /// Someone reacted to it and we haven't seen that yet: counts for the "❤" button.
+    #[serde(default)]
+    pub reaction_unread: bool,
     /// Forum topic (`None`: not a forum, or the General topic).
     pub topic: Option<i32>,
     /// Number of comments on a channel post (`None`: comments are disabled).
@@ -577,6 +586,8 @@ impl Msg {
             reply_to: None,
             reply_quote: None,
             reply_elsewhere: None,
+            mentioned: false,
+            reaction_unread: false,
             photo: false,
             file: None,
             sticker: None,

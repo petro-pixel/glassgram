@@ -116,7 +116,7 @@ impl Cache {
             Ev::History { msgs, .. } | Ev::TopicHistory { msgs, .. } if !msgs.is_empty() => Op::Msgs(msgs.clone()),
             Ev::NewMsg(m) | Ev::Edited(m) => Op::Msgs(vec![m.clone()]),
             Ev::Deleted { ids, peer } => Op::Delete { peer: *peer, ids: ids.clone() },
-            Ev::Reactions { peer, id, reactions } => Op::Reactions { peer: *peer, id: *id, reactions: reactions.clone() },
+            Ev::Reactions { peer, id, reactions, .. } => Op::Reactions { peer: *peer, id: *id, reactions: reactions.clone() },
             _ => return,
         };
         let _ = self.0.send(op);

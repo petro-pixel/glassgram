@@ -71,6 +71,8 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
                 media: None,
                 video_sticker: false,
                 media_unread: false,
+                mentioned: false,
+                reaction_unread: false,
                 topic: None,
                 comments: (id == 4 && !*out).then_some(3),
                 // Pinned: each of these chats has something for the bar above history.
@@ -136,6 +138,8 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
             // "Дизайн-студія" has protected content: no forwarding or copying.
             noforwards: id == 7,
             can_pin: !matches!(kind, ChatKind::Channel) && id != 7,
+            // The archived group is blocked by Telegram: its reason shows instead of the history.
+            restricted: (id == 9).then(|| "Цю групу заблоковано через порушення умов використання Telegram.".to_owned()),
         });
         let mut msgs = msgs;
         extras(id, peer, &mut msgs);
@@ -190,6 +194,8 @@ fn outgoing(peer: PeerId, markup: String, reply_to: Option<i32>) -> Msg {
         media: None,
         video_sticker: false,
         media_unread: false,
+        mentioned: false,
+        reaction_unread: false,
         topic: None,
         comments: None,
         pinned: false,
@@ -704,6 +710,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let reply = q.reply();
             app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), ..replied(app, outgoing(q.peer, q.text, None), &reply) }));
             app.push_event(Ev::QueueSent { key: q.key, peer: q.peer });
+            // The team answers with a mention: it counts on the "@" button unless the chat is in view.
+            if q.peer == PeerId::user_unchecked(2) {
+                let m = Msg { out: false, sender: "Тарас".into(), mentioned: true, id: 20_000 + rand_ish(), ..outgoing(q.peer, "@demo прийнято, дякую!".into(), None) };
+                app.push_event(Ev::NewMsg(m));
+            }
         }
         // The UI already shows the new order; there is no server to tell.
         Cmd::ReorderPinned { .. } => {}
@@ -844,6 +855,7 @@ fn person(id: i64, name: &str, status: &str, presence: Presence) -> ChatInfo {
         unread_reactions: 0,
         noforwards: false,
         can_pin: false,
+        restricted: None,
     }
 }
 
@@ -932,6 +944,7 @@ fn helper_bot() -> ChatInfo {
         unread_reactions: 0,
         noforwards: false,
         can_pin: false,
+        restricted: None,
     }
 }
 /// The demo user's own id (for the avatar in settings).
@@ -1016,6 +1029,7 @@ fn forum_chat() -> (ChatInfo, Vec<Msg>) {
         unread_reactions: 0,
         noforwards: false,
         can_pin: true,
+        restricted: None,
     };
     (chat, msgs)
 }
@@ -1359,6 +1373,7 @@ fn demo_members() -> Vec<Member> {
                 unread_reactions: 0,
                 noforwards: false,
                 can_pin: false,
+                restricted: None,
             },
             role,
             rank: if id == 5 { "модератор".into() } else { String::new() },

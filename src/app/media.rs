@@ -125,7 +125,9 @@ impl App {
             } else if kind == Some(MediaKind::Video) {
                 self.playback.clips.remove(&key);
             } else if self.playback.clips.get(&key).is_none_or(|c| c.run != 0) {
-                self.playback.clips.insert(key, Clip::start(spec(0.0, 1.0, true), 0, now));
+                // A sticker that doesn't loop plays once each time it comes into view.
+                let looped = info.is_some() || self.settings.loop_stickers;
+                self.playback.clips.insert(key, Clip::start(spec(0.0, 1.0, looped), 0, now));
             }
             if let Some(c) = self.playback.clips.get_mut(&key) {
                 c.advance(&self.ctx, &format!("clip{}_{}", key.0.bot_api_dialog_id_unchecked(), key.1), now);

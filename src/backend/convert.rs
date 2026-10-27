@@ -242,6 +242,12 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         media,
         video_sticker: matches!(m.media(), Some(Media::Sticker(_))) && raw_document(m).is_some_and(|d| d.mime_type == "video/webm"),
         media_unread: matches!(&m.raw, tl::enums::Message::Message(x) if x.media_unread),
+        // An unread mention is a mention whose contents are not read yet.
+        mentioned: matches!(&m.raw, tl::enums::Message::Message(x) if x.mentioned && x.media_unread),
+        reaction_unread: match &m.raw {
+            tl::enums::Message::Message(x) => x.reactions.as_ref().is_some_and(reactions_unread),
+            _ => false,
+        },
         topic: message_topic(m),
         comments: match &m.raw {
             tl::enums::Message::Message(x) => match &x.replies {
@@ -273,11 +279,16 @@ fn reply_header(m: &Message) -> Option<&tl::types::MessageReplyHeader> {
     }
 }
 
-/// Why Telegram hides a message here: reasons for "all" platforms apply, mobile-only ones don't.
+/// Why Telegram hides a message here.
 fn restriction(raw: &tl::enums::Message) -> Option<String> {
     let tl::enums::Message::Message(x) = raw else { return None };
-    x.restriction_reason.as_ref()?.iter().find_map(|tl::enums::RestrictionReason::Reason(r)| {
-        (!matches!(r.platform.as_str(), "ios" | "android")).then(|| if r.text.is_empty() { l!("Це повідомлення недоступне", "This message is unavailable").to_owned() } else { r.text.clone() })
+    reason_text(x.restriction_reason.as_ref()?, l!("Це повідомлення недоступне", "This message is unavailable"))
+}
+
+/// Reasons for "all" platforms (and desktop ones) apply, mobile-only ones don't.
+fn reason_text(reasons: &[tl::enums::RestrictionReason], fallback: &str) -> Option<String> {
+    reasons.iter().find_map(|tl::enums::RestrictionReason::Reason(r)| {
+        (!matches!(r.platform.as_str(), "ios" | "android")).then(|| if r.text.is_empty() { fallback.to_owned() } else { r.text.clone() })
     })
 }
 
@@ -323,7 +334,25 @@ pub(super) fn found_chat(peer: &Peer, last_text: String) -> ChatInfo {
         unread_reactions: 0,
         noforwards: noforwards(peer),
         can_pin: can_pin(peer),
+        restricted: chat_restriction(peer),
     }
+}
+
+/// Why Telegram hides a whole chat, bot or channel on desktop apps.
+pub(super) fn chat_restriction(peer: &Peer) -> Option<String> {
+    let reasons = match peer {
+        Peer::User(u) => match &u.raw {
+            tl::enums::User::User(x) if x.restricted => x.restriction_reason.as_deref(),
+            _ => None,
+        },
+        Peer::Channel(c) if c.raw.restricted => c.raw.restriction_reason.as_deref(),
+        Peer::Group(g) => match &g.raw {
+            tl::enums::Chat::Channel(x) if x.restricted => x.restriction_reason.as_deref(),
+            _ => None,
+        },
+        _ => None,
+    };
+    reason_text(reasons?, l!("Цей чат недоступний", "This chat is unavailable"))
 }
 
 /// Protected content of a group or channel.
@@ -428,6 +457,12 @@ pub(super) fn pack_waveform(levels: &[u8]) -> Vec<u8> {
         }
     }
     out
+}
+
+/// Someone else's reaction we haven't seen (only our own messages get these).
+pub(super) fn reactions_unread(r: &tl::enums::MessageReactions) -> bool {
+    let tl::enums::MessageReactions::Reactions(r) = r;
+    r.recent_reactions.iter().flatten().any(|tl::enums::MessagePeerReaction::Reaction(p)| p.unread && !p.my)
 }
 
 pub(super) fn reactions(r: &tl::enums::MessageReactions) -> Vec<Reaction> {

@@ -136,7 +136,8 @@ pub enum Cmd {
     SendVoice { id: u64, peer: PeerId, path: PathBuf, duration: f64, waveform: Vec<u8>, reply_to: Option<ReplyTo> },
     /// Recorded video message (MP4 384×384).
     SendRound { id: u64, peer: PeerId, path: PathBuf, duration: f64, reply_to: Option<ReplyTo> },
-    /// Voice or round video message was listened to.
+    /// A message's contents were seen (`readMessageContents`): a voice or round video message
+    /// listened to, or a mention looked at.
     MarkListened { peer: PeerId, id: i32 },
     SendInline { peer: PeerId, query_id: i64, result: String, reply_to: Option<ReplyTo> },
     /// Create or edit a folder (a new one gets a free id, starting from 2).
@@ -363,7 +364,8 @@ pub enum Ev {
     Stickers(Vec<StickerSetInfo>),
     UploadProgress { id: u64, done: u64, total: u64 },
     UploadDone(u64),
-    Reactions { peer: PeerId, id: i32, reactions: Vec<Reaction> },
+    /// `unread`: someone else's reaction to our message we haven't seen yet.
+    Reactions { peer: PeerId, id: i32, reactions: Vec<Reaction>, unread: bool },
     MediaReady { peer: PeerId, id: i32, path: PathBuf },
     /// Voice or round video messages were listened to (`peer: None`: private chats and small groups).
     Listened { peer: Option<PeerId>, ids: Vec<i32> },
@@ -1180,6 +1182,7 @@ impl Worker {
                 unread_reactions,
                 noforwards: noforwards(peer),
                 can_pin: can_pin(peer),
+                restricted: chat_restriction(peer),
             });
             peers.push(peer.clone());
         }

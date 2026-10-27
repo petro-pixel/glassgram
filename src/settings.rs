@@ -34,11 +34,15 @@ pub struct Settings {
     pub text_size: f32,
     /// Send with Ctrl+Enter (Cmd+Enter on macOS); Enter then breaks the line.
     pub ctrl_enter: bool,
+    /// Video stickers play over and over; off — once each time they come into view.
+    pub loop_stickers: bool,
+    /// Stickers for an emoji typed alone in the field, above it.
+    pub suggest_stickers: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false }
+        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true }
     }
 }
 
@@ -74,6 +78,8 @@ impl Settings {
                 "folders_side" => s.folders_side = flag,
                 "text_size" => s.text_size = v.parse().ok().filter(|v| TEXT_SIZES.contains(v)).unwrap_or(15.0),
                 "ctrl_enter" => s.ctrl_enter = flag,
+                "loop_stickers" => s.loop_stickers = flag,
+                "suggest_stickers" => s.suggest_stickers = flag,
                 _ => {}
             }
         }
@@ -85,7 +91,7 @@ impl Settings {
         let _ = std::fs::create_dir_all(&dir);
         let b = |v: bool| if v { "1" } else { "0" };
         let text = format!(
-            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\n",
+            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\n",
             self.lang.code(),
             match self.theme {
                 Theme::System => "system",
@@ -101,7 +107,9 @@ impl Settings {
             self.camera,
             b(self.folders_side),
             self.text_size,
-            b(self.ctrl_enter)
+            b(self.ctrl_enter),
+            b(self.loop_stickers),
+            b(self.suggest_stickers)
         );
         // Holds the local passcode hash, so owner-only.
         let _ = std::fs::write(dir.join("settings"), text);

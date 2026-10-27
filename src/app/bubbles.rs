@@ -172,21 +172,27 @@ pub(super) fn reaction_chips(ui: &mut Ui, id: i32, reactions: &[Reaction], left:
     action
 }
 
+/// Cards grow with the message text size (Settings → Chat Settings), like the text around them.
+fn card_k() -> f32 {
+    glass::msg_font() / 15.0
+}
+
 /// Height of the poll / location / contact card (0 means no card).
 pub(super) fn card_height(ui: &Ui, m: &Msg, w: f32, chosen: &[Vec<u8>]) -> f32 {
     if m.media.as_ref().is_some_and(|i| matches!(i.kind, MediaKind::Voice | MediaKind::Audio)) {
         return MEDIA_H;
     }
     if let Some(poll) = &m.poll {
-        let q = ui.painter().layout(poll.question.clone(), FontId::new(15.0, egui::FontFamily::Name(format::BOLD.into())), ink(), w);
+        let k = card_k();
+        let q = ui.painter().layout(poll.question.clone(), FontId::new(15.0 * k, egui::FontFamily::Name(format::BOLD.into())), ink(), w);
         let button = poll.multiple && !poll.voted() && !poll.closed && !chosen.is_empty();
-        return q.size().y + 22.0 + poll.answers.len() as f32 * 40.0 + 20.0 + if button { 40.0 } else { 0.0 };
+        return q.size().y + (22.0 + poll.answers.len() as f32 * 40.0 + 20.0) * k + if button { 40.0 } else { 0.0 };
     }
     if m.geo.is_some() {
-        return 150.0;
+        return 150.0 * card_k();
     }
     if m.contact.is_some() {
-        return 52.0;
+        return 52.0 * card_k();
     }
     0.0
 }
@@ -198,8 +204,9 @@ pub(super) fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<
     if m.media.as_ref().is_some_and(|i| matches!(i.kind, MediaKind::Voice | MediaKind::Audio)) {
         return media_card(ui, m, rect, look.play);
     }
+    let k = card_k();
     if let Some(poll) = &m.poll {
-        let bold = FontId::new(15.0, egui::FontFamily::Name(format::BOLD.into()));
+        let bold = FontId::new(15.0 * k, egui::FontFamily::Name(format::BOLD.into()));
         let q = p.layout(poll.question.clone(), bold, ink(), rect.width());
         let mut y = rect.top();
         let qh = q.size().y;
@@ -210,17 +217,18 @@ pub(super) fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<
             (_, true) => l!("Кілька відповідей", "Multiple answers"),
             _ => l!("Опитування", "Poll"),
         };
-        p.text(pos2(rect.left(), y), Align2::LEFT_TOP, kind, FontId::proportional(12.0), rgba(ink(), 160));
-        y += 20.0;
+        p.text(pos2(rect.left(), y), Align2::LEFT_TOP, kind, FontId::proportional(12.0 * k), rgba(ink(), 160));
+        y += 20.0 * k;
         let show = poll.voted() || poll.closed;
         for a in &poll.answers {
-            let r = Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), 36.0));
+            let r = Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), 36.0 * k));
             if show {
                 let pct = if poll.total > 0 { a.voters as f32 / poll.total as f32 } else { 0.0 };
-                p.text(pos2(r.left(), r.top() + 2.0), Align2::LEFT_TOP, format!("{:.0}%", pct * 100.0), FontId::proportional(13.0), ink());
+                p.text(pos2(r.left(), r.top() + 2.0), Align2::LEFT_TOP, format!("{:.0}%", pct * 100.0), FontId::proportional(13.0 * k), ink());
                 let label = format!("{}{}", a.text, if a.chosen { "  ✓" } else { "" });
-                p.galley(pos2(r.left() + 44.0, r.top() + 2.0), elided(ui, &label, 14.0, ink(), r.width() - 44.0), ink());
-                let bar = Rect::from_min_size(pos2(r.left() + 44.0, r.bottom() - 9.0), vec2((r.width() - 44.0) * pct.max(0.02), 4.0));
+                let x = 44.0 * k;
+                p.galley(pos2(r.left() + x, r.top() + 2.0), elided(ui, &label, 14.0 * k, ink(), r.width() - x), ink());
+                let bar = Rect::from_min_size(pos2(r.left() + x, r.bottom() - 9.0), vec2((r.width() - x) * pct.max(0.02), 4.0));
                 let col = if poll.quiz && a.correct { Color32::from_rgb(70, 220, 120) } else if a.chosen { ink() } else { rgba(ink(), 140) };
                 p.rect_filled(bar, 2.0, col);
             } else {
@@ -229,19 +237,20 @@ pub(super) fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<
                     p.rect_filled(r, 10.0, glass::veil(18));
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                 }
-                let c = pos2(r.left() + 12.0, r.center().y);
+                let c = pos2(r.left() + 12.0 * k, r.center().y);
                 let on = chosen.contains(&a.option);
                 if on {
-                    p.circle_filled(c, 8.0, ink());
+                    p.circle_filled(c, 8.0 * k, ink());
                 } else {
-                    p.circle_stroke(c, 8.0, egui::Stroke::new(1.5, rgba(ink(), 180)));
+                    p.circle_stroke(c, 8.0 * k, egui::Stroke::new(1.5, rgba(ink(), 180)));
                 }
-                p.galley(pos2(r.left() + 30.0, r.center().y - 9.0), elided(ui, &a.text, 14.5, ink(), r.width() - 34.0), ink());
+                let label = elided(ui, &a.text, 14.5 * k, ink(), r.width() - 34.0 * k);
+                p.galley(pos2(r.left() + 30.0 * k, r.center().y - label.size().y / 2.0), label, ink());
                 if resp.clicked() {
                     action = Some(if poll.multiple { Action::TogglePoll(m.id, a.option.clone()) } else { Action::Vote(m.id, vec![a.option.clone()]) });
                 }
             }
-            y += 40.0;
+            y += 40.0 * k;
         }
         if poll.multiple && !show && !chosen.is_empty() {
             let b = Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), 34.0));
@@ -254,10 +263,10 @@ pub(super) fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<
             0 => l!("Ще немає голосів", "No votes yet").to_owned(),
             n => format!("{}{}", lf!("Голосів: {n}", "Votes: {n}"), if poll.closed { l!(" · завершено", " · closed") } else { "" }),
         };
-        p.text(pos2(rect.left(), y), Align2::LEFT_TOP, votes, FontId::proportional(12.0), rgba(ink(), 160));
+        p.text(pos2(rect.left(), y), Align2::LEFT_TOP, votes, FontId::proportional(12.0 * k), rgba(ink(), 160));
     } else if let Some(g) = &m.geo {
         // Stylized "map": a street grid and a pin; a click opens OpenStreetMap.
-        let map = Rect::from_min_size(rect.min, vec2(rect.width(), 100.0));
+        let map = Rect::from_min_size(rect.min, vec2(rect.width(), 100.0 * k));
         let resp = ui.interact(rect, ui.scope_id().with(("geo", m.id)), Sense::click());
         p.rect_filled(map, 12.0, Color32::from_rgb(34, 44, 78));
         let clip = p.with_clip_rect(map.shrink(1.0));
@@ -271,9 +280,9 @@ pub(super) fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<
         let pin = Rect::from_center_size(map.center() - vec2(0.0, 6.0), vec2(30.0, 30.0));
         icons::draw(&p, pin, Icon::Location, Color32::from_rgb(255, 110, 130));
         let title = if !g.title.is_empty() { g.title.clone() } else if g.live { l!("Трансляція геопозиції", "Live location").into() } else { l!("Геопозиція", "Location").into() };
-        p.galley(pos2(rect.left(), map.bottom() + 6.0), elided(ui, &title, 14.5, ink(), rect.width()), ink());
+        p.galley(pos2(rect.left(), map.bottom() + 6.0 * k), elided(ui, &title, 14.5 * k, ink(), rect.width()), ink());
         let sub = if g.address.is_empty() { format!("{:.5}, {:.5}", g.lat, g.lon) } else { g.address.clone() };
-        p.galley(pos2(rect.left(), map.bottom() + 26.0), elided(ui, &sub, 12.5, rgba(ink(), 170), rect.width()), ink());
+        p.galley(pos2(rect.left(), map.bottom() + 26.0 * k), elided(ui, &sub, 12.5 * k, rgba(ink(), 170), rect.width()), ink());
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
@@ -282,9 +291,10 @@ pub(super) fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<
         }
     } else if let Some((name, phone)) = &m.contact {
         let resp = ui.interact(rect, ui.scope_id().with(("contact", m.id)), Sense::click());
-        glass::avatar(&p, pos2(rect.left() + 24.0, rect.center().y), 22.0, name, name.len() as i64, None, None);
-        p.galley(pos2(rect.left() + 56.0, rect.top() + 6.0), elided(ui, name, 15.0, ink(), rect.width() - 60.0), ink());
-        p.galley(pos2(rect.left() + 56.0, rect.top() + 28.0), elided(ui, phone, 13.0, rgba(ink(), 180), rect.width() - 60.0), ink());
+        glass::avatar(&p, pos2(rect.left() + 24.0 * k, rect.center().y), 22.0 * k, name, name.len() as i64, None, None);
+        let x = 56.0 * k;
+        p.galley(pos2(rect.left() + x, rect.top() + 6.0 * k), elided(ui, name, 15.0 * k, ink(), rect.width() - x - 4.0), ink());
+        p.galley(pos2(rect.left() + x, rect.top() + 28.0 * k), elided(ui, phone, 13.0 * k, rgba(ink(), 180), rect.width() - x - 4.0), ink());
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }

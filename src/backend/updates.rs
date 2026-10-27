@@ -91,7 +91,7 @@ pub(super) fn raw_event(u: &tl::enums::Update, names: &Names, notifs: &notify::N
         U::ReadChannelOutbox(r) => Ev::ReadOutbox { peer: PeerId::channel(r.channel_id)?, max_id: r.max_id },
         U::ReadMessagesContents(r) => Ev::Listened { peer: None, ids: r.messages.clone() },
         U::ChannelReadMessagesContents(r) => Ev::Listened { peer: Some(PeerId::channel(r.channel_id)?), ids: r.messages.clone() },
-        U::MessageReactions(r) => Ev::Reactions { peer: PeerId::from(&r.peer), id: r.msg_id, reactions: reactions(&r.reactions) },
+        U::MessageReactions(r) => Ev::Reactions { peer: PeerId::from(&r.peer), id: r.msg_id, reactions: reactions(&r.reactions), unread: reactions_unread(&r.reactions) },
         U::PinnedMessages(p) => Ev::PinnedChanged { peer: PeerId::from(&p.peer), ids: p.messages.clone(), pinned: p.pinned },
         U::PinnedChannelMessages(p) => Ev::PinnedChanged { peer: PeerId::channel(p.channel_id)?, ids: p.messages.clone(), pinned: p.pinned },
         U::ChannelMessageViews(v) => Ev::Views { peer: PeerId::channel(v.channel_id)?, id: v.id, views: v.views },

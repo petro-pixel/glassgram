@@ -418,6 +418,10 @@ impl App {
             ui.add_space(10.0);
             section_title(ui, l!("Медіа", "Media"));
             ui.checkbox(&mut s.autoplay, l!("Автовідтворення GIF, кружечків і відео-стікерів", "Autoplay GIFs, video messages and video stickers"));
+            ui.add_space(10.0);
+            section_title(ui, l!("Стікери та емодзі", "Stickers and emoji"));
+            ui.checkbox(&mut s.suggest_stickers, l!("Пропонувати стікери за емодзі", "Suggest stickers by emoji"));
+            ui.checkbox(&mut s.loop_stickers, l!("Повторювати анімовані стікери", "Loop animated stickers"));
         });
     }
 

@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 47%** `█████████░░░░░░░░░░░` — 74 done, 12 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 48%** `██████████░░░░░░░░░░` — 77 done, 9 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -150,7 +150,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - Double-click — reply. Click the reply bar above the field to quote a part of the message or to reply in another chat.
 - Esc cancels a reply or edit and closes the sticker panel.
 - 📎 — send files (or drag them into the window); the composer text becomes the caption. Right click on 📎: send without compression, create a poll or quiz.
-- 🙂 — sticker panel.
+- 🙂 — sticker panel. An emoji typed alone offers matching stickers above the field.
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.
 - Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat), shared media tabs, leave / clear history / delete chat.

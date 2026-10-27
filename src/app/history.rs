@@ -65,6 +65,19 @@ impl App {
         }
     }
 
+    /// A chat Telegram hides as a whole: the header and the reason, no history and no composer.
+    fn restricted_view(&mut self, ui: &mut Ui, peer: PeerId, chat: &ChatInfo, rect: Rect, reason: &str) {
+        let now = ui.input(|i| i.time);
+        self.chat_header(ui, peer, chat, rect, None, false, now);
+        let w = (rect.width() - 80.0).clamp(200.0, 420.0);
+        let text = ui.painter().layout(reason.to_owned(), FontId::proportional(14.5), ink(), w - 36.0);
+        let panel = Rect::from_center_size(rect.center(), vec2(w, text.size().y + 64.0));
+        glass::glass(ui.painter(), panel, Glass::panel(24.0));
+        let p = ui.painter();
+        icons::draw(p, Rect::from_center_size(pos2(panel.center().x, panel.top() + 24.0), vec2(22.0, 22.0)), Icon::Lock, ink_dim());
+        p.galley(pos2(panel.center().x - text.size().x / 2.0, panel.top() + 44.0), text, ink());
+    }
+
     /// The first unread message of this chat, for the divider.
     fn unread_divider(&self, peer: PeerId) -> Option<i32> {
         self.scroll.unread.filter(|u| u.peer == peer).and_then(|u| u.first)
@@ -87,6 +100,10 @@ impl App {
         let group = matches!(chat.kind, ChatKind::Group);
 
         let now = ui.input(|i| i.time);
+        if let Some(reason) = &chat.restricted {
+            self.restricted_view(ui, peer, &chat, rect, reason);
+            return;
+        }
         if self.scroll.jump.is_some_and(|(p, _, start)| p != peer || now - start > JUMP_FLASH) {
             self.scroll.jump = None;
         }
@@ -475,6 +492,7 @@ impl App {
         }
         let suggest_rect = Rect::from_min_max(pos2(rect.left(), (above - 300.0).max(header.bottom() + 8.0)), pos2(send_btn.right(), above));
         self.suggest_view(ui, peer, chat.kind, suggest_rect, now);
+        self.sticker_suggest_view(ui, peer, suggest_rect);
         glass::glass(ui.painter(), input, Glass::tinted((input.height() / 2.0).min(25.0), glass::chrome(), 110).with_shadow().frosted(0.96));
         let arrow_edit = self.can_edit_by_arrow() && ui.input(|i| i.key_pressed(Key::ArrowUp) && i.modifiers.is_none());
         let send_mods = self.send_mods();

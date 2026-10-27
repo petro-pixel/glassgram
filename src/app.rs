@@ -875,9 +875,15 @@ impl App {
                 self.toast = Some((e, 0.0, true));
             }
             Ev::BotAnswer { text, alert } => self.toast = Some((text, 0.0, alert)),
-            Ev::Reactions { peer, id, reactions } => {
+            Ev::Reactions { peer, id, reactions, unread } => {
+                let mut fresh = false;
                 if let Some(m) = self.find_mut(peer, id) {
                     m.reactions = reactions;
+                    fresh = unread && m.out && !m.reaction_unread;
+                    m.reaction_unread = unread;
+                }
+                if fresh {
+                    self.live_mark(peer, id, true);
                 }
             }
             Ev::Typing { peer, who, active } => {
@@ -968,6 +974,9 @@ impl App {
                 let body = if chat.kind == ChatKind::Group && !m.sender.is_empty() { format!("{}: {}", m.sender, quote(&m)) } else { quote(&m) };
                 notify(&chat.title, &body);
             }
+        }
+        if !m.out && m.mentioned && !self.history.get(&m.peer).is_some_and(|l| l.iter().any(|x| x.id == m.id)) {
+            self.live_mark(m.peer, m.id, false);
         }
         if let Some(list) = self.history.get_mut(&m.peer)
             && !list.iter().any(|x| x.id == m.id)
@@ -1096,6 +1105,7 @@ impl App {
                 unread_reactions: 0,
                 noforwards: false,
                 can_pin: false,
+                restricted: None,
             });
         }
         self.open_chat(peer);
