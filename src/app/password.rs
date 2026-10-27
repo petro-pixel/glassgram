@@ -61,13 +61,30 @@ fn password_problem(new: &str, again: &str, hint: &str) -> Option<&'static str> 
 }
 
 fn full_button(ui: &mut Ui, id: &str, label: &str, accent: bool, enabled: bool) -> bool {
+    ui.add_space(4.0);
     let r = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::hover()).0;
     glass::button(ui, r, id, label, accent, enabled).clicked() && enabled
 }
 
 fn input(ui: &mut Ui, text: &mut String, hint: &str, secret: bool) -> egui::Response {
+    ui.add_space(4.0);
     let r = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
     glass::text_field(ui, r, text, hint, secret)
+}
+
+/// The state card at the top of the section: a lock, "On" / "Off" and one line under it.
+fn status_card(ui: &mut Ui, on: bool, sub: &str) {
+    let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 52.0), Sense::hover());
+    let p = ui.painter();
+    p.rect_filled(row, 14.0, glass::veil(10));
+    let tint = if on { ACCENT } else { ink_dim() };
+    let c = pos2(row.left() + 26.0, row.center().y);
+    p.circle_filled(c, 16.0, glass::rgba(tint, 40));
+    icons::draw(p, Rect::from_center_size(c, vec2(16.0, 16.0)), Icon::Lock, tint);
+    let title = if on { l!("Пароль увімкнено", "Password is on") } else { l!("Пароль вимкнено", "Password is off") };
+    p.galley(pos2(row.left() + 52.0, row.top() + 8.0), elided(ui, title, 14.5, ink(), row.width() - 64.0), ink());
+    p.galley(pos2(row.left() + 52.0, row.top() + 28.0), elided(ui, sub, 12.5, ink_dim(), row.width() - 64.0), ink_dim());
+    ui.add_space(2.0);
 }
 
 fn note(ui: &mut Ui, text: &str) {
@@ -132,11 +149,11 @@ impl App {
                     cmd = Some((Cmd::CancelPasswordEmail, false));
                 }
             });
-            ui.add_space(6.0);
+            ui.add_space(12.0);
         }
 
         if !state.has_password {
-            note(ui, l!("Додатковий пароль, який потрібен під час входу на новому пристрої разом із кодом.", "An extra password needed, along with the code, when you sign in on a new device."));
+            status_card(ui, false, l!("Потрібен під час входу на новому пристрої разом із кодом", "Needed with the code when you sign in on a new device"));
             if t.form != Some(Form::Password) {
                 if full_button(ui, "pw-on", l!("Увімкнути пароль", "Set password"), true, true) {
                     t.form = Some(Form::Password);
@@ -146,7 +163,8 @@ impl App {
             }
         } else if let Some(email) = t.unlocked.clone() {
             let mail = if email.is_empty() { l!("не задано", "not set").to_owned() } else { email };
-            note(ui, &lf!("Пароль увімкнено. Пошта для відновлення: {mail}", "Password is on. Recovery email: {mail}"));
+            status_card(ui, true, &lf!("Пошта для відновлення: {mail}", "Recovery email: {mail}"));
+            ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                 for (form, label) in [(Form::Password, l!("Змінити пароль", "Change password")), (Form::Email, l!("Пошта для відновлення", "Recovery email")), (Form::Off, l!("Вимкнути пароль", "Turn off password"))] {
@@ -180,8 +198,8 @@ impl App {
                 None => {}
             }
         } else {
-            let hint = if state.hint.is_empty() { String::new() } else { lf!(" Підказка: {}", " Hint: {}", state.hint) };
-            note(ui, &format!("{}{hint}", l!("Пароль увімкнено. Введіть його, щоб змінити налаштування.", "Password is on. Enter it to change the settings.")));
+            let sub = if state.hint.is_empty() { l!("Введіть його, щоб змінити налаштування", "Enter it to change the settings").to_owned() } else { lf!("Введіть його, щоб змінити налаштування. Підказка: {}", "Enter it to change the settings. Hint: {}", state.hint) };
+            status_card(ui, true, &sub);
             let resp = input(ui, &mut t.current, l!("Поточний пароль", "Current password"), true);
             let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
             if (full_button(ui, "pw-check", l!("Продовжити", "Continue"), true, !t.current.is_empty() && !t.busy) || enter) && !t.current.is_empty() {
@@ -211,7 +229,7 @@ fn password_form(ui: &mut Ui, t: &mut TwoStep, first: bool) -> Option<PasswordCh
     }
     let problem = password_problem(&t.new, &t.again, &t.hint);
     if let Some(p) = problem.filter(|_| !t.again.is_empty()) {
-        note(ui, p);
+        ui.label(egui::RichText::new(p).color(glass::danger()).size(12.5));
     }
     let save = full_button(ui, "pw-save", l!("Зберегти пароль", "Save password"), true, problem.is_none() && !t.busy);
     save.then(|| PasswordChange::Set { new: t.new.clone(), hint: t.hint.trim().to_owned(), email: t.email.trim().to_owned() })
