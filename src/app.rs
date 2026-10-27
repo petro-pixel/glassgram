@@ -511,6 +511,8 @@ pub struct App {
     web_apps: Vec<webapp::WebAppWin>,
     /// Text of the keyboard button whose mini app is being opened (for `sendWebViewData`).
     web_app_button: String,
+    /// A mini app's request waiting for the user's answer in this window.
+    web_app_ask: Option<(PeerId, webapp::Ask)>,
     /// Composer helpers: link preview, @mentions, bot commands.
     suggest: suggest::Suggest,
     /// Chat info column (`None` = closed); follows the open chat.
@@ -753,6 +755,7 @@ impl App {
             poll_form: None,
             web_apps: Vec::new(),
             web_app_button: String::new(),
+            web_app_ask: None,
             suggest: Default::default(),
             info: None,
             profile: backend::Profile::default(),
@@ -934,7 +937,7 @@ impl App {
             Ev::DateFound { peer, id } => self.date_found(peer, id),
             Ev::MediaDays { peer, days } => self.media_days(peer, days),
             Ev::Translated { peer, id, to, result } => self.translated(peer, id, to, result),
-            ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. }) => self.web_app_event(ev),
+            ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. } | Ev::BotWriteAccess { .. } | Ev::PhoneShared { .. }) => self.web_app_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
             ev @ (Ev::ChatDetails { .. } | Ev::AvatarVideo { .. } | Ev::SimilarChannels { .. } | Ev::Gifts { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
@@ -1573,6 +1576,7 @@ impl eframe::App for App {
         }
         self.info_confirm_view(ui);
         self.opening_view(ui);
+        self.web_app_ask_view(ui);
         self.contact_form_view(ui);
         self.poll_form_view(ui);
         self.chat_edit_view(ui);

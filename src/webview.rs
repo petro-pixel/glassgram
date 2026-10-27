@@ -54,11 +54,13 @@ pub struct FromView {
 enum User {
     Line(ToView),
     Eof,
+    /// The page asked for the window to fill the screen, or to leave it.
+    Fullscreen(bool),
 }
 
 /// Bridge calls handled here or in the page; everything else goes to the main process.
 fn local(call: &FromView) -> bool {
-    matches!(call.r#type.as_str(), "web_app_open_link")
+    matches!(call.r#type.as_str(), "web_app_open_link" | "web_app_request_fullscreen" | "web_app_exit_fullscreen")
 }
 
 pub fn run() {
@@ -70,6 +72,7 @@ pub fn run() {
 
     let event_loop = EventLoopBuilder::<User>::with_user_event().build();
     let proxy = event_loop.create_proxy();
+    let window_proxy = event_loop.create_proxy();
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines() {
             let Ok(line) = line else { break };
@@ -88,12 +91,18 @@ pub fn run() {
         .with_initialization_script(&init)
         // Mini apps are web pages: never let one navigate the window to local files or app handlers.
         .with_navigation_handler(|url| ["https:", "http:", "about:", "blob:", "data:"].iter().any(|s| url.starts_with(s)))
-        .with_ipc_handler(|req| {
+        .with_ipc_handler(move |req| {
             let Ok(call) = serde_json::from_str::<FromView>(req.body()) else { return };
             if local(&call) {
-                // The page chooses the link: web links only, as Telegram's `openLink` allows.
-                if let Some(url) = call.data.get("url").and_then(|u| u.as_str()).filter(|u| u.starts_with("https://") || u.starts_with("http://")) {
-                    crate::platform::open_url(url);
+                match call.r#type.as_str() {
+                    "web_app_request_fullscreen" => drop(window_proxy.send_event(User::Fullscreen(true))),
+                    "web_app_exit_fullscreen" => drop(window_proxy.send_event(User::Fullscreen(false))),
+                    // The page chooses the link: web links only, as Telegram's `openLink` allows.
+                    _ => {
+                        if let Some(url) = call.data.get("url").and_then(|u| u.as_str()).filter(|u| u.starts_with("https://") || u.starts_with("http://")) {
+                            crate::platform::open_url(url);
+                        }
+                    }
                 }
                 return;
             }
@@ -122,6 +131,11 @@ pub fn run() {
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } | Event::UserEvent(User::Line(ToView::Close) | User::Eof) => *flow = ControlFlow::Exit,
             Event::UserEvent(User::Line(ToView::Event { r#type, data })) => {
                 let js = format!("window.__glassgram && window.__glassgram.receive({}, {})", serde_json::Value::String(r#type), data);
+                let _ = webview.evaluate_script(&js);
+            }
+            Event::UserEvent(User::Fullscreen(on)) => {
+                window.set_fullscreen(on.then_some(tao::window::Fullscreen::Borderless(None)));
+                let js = format!("window.__glassgram && window.__glassgram.receive('fullscreen_changed', {{ is_fullscreen: {on} }})");
                 let _ = webview.evaluate_script(&js);
             }
             _ => {}
@@ -225,10 +239,13 @@ const BRIDGE_JS: &str = r#"
     web_app_setup_closing_behavior: () => {},
     web_app_setup_swipe_behavior: () => {},
     web_app_trigger_haptic_feedback: () => {},
-    web_app_request_phone: () => receive('phone_requested', { status: 'cancelled' }),
-    web_app_request_write_access: () => receive('write_access_requested', { status: 'cancelled' }),
     web_app_check_home_screen: () => receive('home_screen_checked', { status: 'unsupported' }),
-    web_app_request_fullscreen: () => receive('fullscreen_failed', { error: 'UNSUPPORTED' }),
+    // A desktop has no location, biometry or camera scanner for pages, as in Telegram Desktop.
+    web_app_check_location: () => receive('location_checked', { available: false }),
+    web_app_request_location: () => receive('location_requested', { available: false }),
+    web_app_biometry_get_info: () => receive('biometry_info_received', { available: false }),
+    web_app_biometry_request_access: () => receive('biometry_info_received', { available: false }),
+    web_app_open_scan_qr_popup: () => receive('scan_qr_popup_closed', {}),
   };
   window.TelegramWebviewProxy = {
     postEvent(type, json) {

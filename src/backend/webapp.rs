@@ -4,7 +4,9 @@
 use grammers_client::session::types::PeerId;
 use grammers_client::tl;
 
-use super::{Cmd, Ev, Worker};
+use grammers_client::message::InputMessage;
+
+use super::{Cmd, Ev, SendOpts, Worker};
 use crate::i18n::lf;
 
 /// Platform name the server expects; it decides how the page treats the client.
@@ -77,6 +79,31 @@ impl Worker {
                     };
                     out.send(Ev::WebAppMethodResult { bot, req_id, result });
                 });
+            }
+            Cmd::BotWriteAccess { bot, allow } => {
+                let b = self.peer_ref(bot)?;
+                let allowed = if allow {
+                    client.invoke(&tl::functions::bots::AllowSendMessage { bot: b.into() }).await.is_ok()
+                } else {
+                    client.invoke(&tl::functions::bots::CanSendMessage { bot: b.into() }).await.unwrap_or(false)
+                };
+                out.send(Ev::BotWriteAccess { bot, allowed, asked: allow });
+            }
+            Cmd::SharePhone { bot } => {
+                let b = self.peer_ref(bot)?;
+                let me = client.get_me().await.map_err(|e| e.to_string())?;
+                let phone = me.phone().unwrap_or_default().to_owned();
+                let media = tl::types::InputMediaContact {
+                    phone_number: phone,
+                    first_name: me.first_name().unwrap_or_default().to_owned(),
+                    last_name: me.last_name().unwrap_or_default().to_owned(),
+                    vcard: String::new(),
+                };
+                let sent = client.send_message(b, InputMessage::new().media(media)).await;
+                if let Ok(m) = &sent {
+                    self.sent().emit(bot, m, None, SendOpts::default());
+                }
+                out.send(Ev::PhoneShared { bot, sent: sent.is_ok() });
             }
             _ => {}
         }

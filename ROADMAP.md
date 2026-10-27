@@ -124,8 +124,7 @@ Time estimate — [at the end of the file](#time-estimate).
       (WebView2 / WebKitGTK / WKWebView); opened from inline and keyboard buttons, the bot's menu button and `t.me/bot/app`,
       `t.me/bot?startapp` links (`requestWebView`, `requestSimpleWebView`, `requestMainWebView`, `requestAppWebView`, `prolongWebView`);
       bridge: theme, viewport, main / secondary / back buttons, popups, `sendData`, cloud storage and other custom methods
-      (`invokeWebViewCustomMethod`), links (web only); reading the clipboard is refused. Left: payments (`openInvoice`), phone and write-access requests,
-      location, fullscreen, QR scanner, biometry
+      (`invokeWebViewCustomMethod`), links (web only), fullscreen; write access (`bots.canSendMessage`, `allowSendMessage`) and the phone number (sent as a contact) only after a question in our own window, never inside the page; reading the clipboard is refused, and location, biometry and the QR scanner answer "unavailable", as on desktop. Left: payments (`openInvoice`) — only after a separate security review
 - ⬜ **P2** Bots in the attachment menu (`getAttachMenuBots`), logging in to websites via Telegram (`requestUrlAuth`)
 - ⬜ **P2** Payments in bots: invoices, payment form, Stars (`payments.getPaymentForm`, `sendStarsForm`)
 - ⬜ **P2** Guest AI bots that can be mentioned in any chat (2026); ephemeral bot replies in groups (`ephemeral.*`)

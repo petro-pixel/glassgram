@@ -216,6 +216,11 @@ pub enum Cmd {
     WebAppData { bot: PeerId, button_text: String, data: String },
     /// `invokeCustomMethod` (cloud storage and the like), answered by `req_id`.
     WebAppMethod { bot: PeerId, req_id: String, method: String, params: String },
+    /// A mini app asks whether its bot may message us: `allow` grants it (`bots.allowSendMessage`),
+    /// otherwise only check (`bots.canSendMessage`). Answered with `Ev::BotWriteAccess`.
+    BotWriteAccess { bot: PeerId, allow: bool },
+    /// Share our phone number with a bot as a contact, after the user agreed (`requestPhone`).
+    SharePhone { bot: PeerId },
     /// New title and / or description of a group or channel (`None` — unchanged).
     EditChat { peer: PeerId, title: Option<String>, about: Option<String> },
     SetChatPhoto { peer: PeerId, path: PathBuf },
@@ -428,6 +433,10 @@ pub enum Ev {
     BotMenuApp { peer: PeerId, text: String, url: String },
     /// Answer to `WebAppMethod`: the result JSON or an error.
     WebAppMethodResult { bot: PeerId, req_id: String, result: Result<String, String> },
+    /// Whether the bot may message us now; `asked`: the answer to an `allow`.
+    BotWriteAccess { bot: PeerId, allowed: bool, asked: bool },
+    /// Our contact reached the bot (`false`: it failed).
+    PhoneShared { bot: PeerId, sent: bool },
     /// A file was saved to Downloads; the UI opens it (asking first for programs).
     Downloaded(PathBuf),
     /// Contacts whose birthday is today.
@@ -814,7 +823,7 @@ impl Worker {
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
             cmd @ (Cmd::EditChat { .. } | Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. }) => self.chat_edit_cmd(cmd).await,
             cmd @ (Cmd::LoadGlobalPrivacy | Cmd::SetGlobalPrivacy(_)) => self.global_privacy_cmd(cmd).await,
-            cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. }) => self.webapp_cmd(cmd).await,
+            cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } | Cmd::BotWriteAccess { .. } | Cmd::SharePhone { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
             cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. } | Cmd::SetAdsEnabled(_)) => self.sponsored_cmd(cmd).await,

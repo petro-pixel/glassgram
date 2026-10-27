@@ -11,6 +11,15 @@ use crate::webview::{FromView, Open, Strings, ToView};
 /// `prolongWebView` interval for inline-button sessions, as in Telegram Desktop.
 const PROLONG: f64 = 60.0;
 
+/// What a mini app asked for, waiting for the user. Asked here, in our own window: anything
+/// drawn inside the page could be clicked by the page itself.
+pub(super) enum Ask {
+    /// Let the bot send us messages (`requestWriteAccess`).
+    Write,
+    /// Share our phone number with the bot (`requestContact`).
+    Phone,
+}
+
 /// An open mini app window.
 pub(super) struct WebAppWin {
     opened: WebAppOpened,
@@ -98,6 +107,16 @@ impl App {
             Ev::BotMenuApp { peer, text, url } => {
                 self.suggest_menu_app(peer, text, url);
             }
+            Ev::BotWriteAccess { bot, allowed, asked } => {
+                if allowed || asked {
+                    self.web_app_reply(bot, "write_access_requested", serde_json::json!({ "status": if allowed { "allowed" } else { "cancelled" } }));
+                } else {
+                    self.ask_web_app(bot, Ask::Write);
+                }
+            }
+            Ev::PhoneShared { bot, sent } => {
+                self.web_app_reply(bot, "phone_requested", serde_json::json!({ "status": if sent { "sent" } else { "cancelled" } }));
+            }
             Ev::WebAppMethodResult { bot, req_id, result } => {
                 let data = match result {
                     Ok(json) => serde_json::json!({ "req_id": req_id, "result": serde_json::from_str::<serde_json::Value>(&json).unwrap_or(serde_json::Value::Null) }),
@@ -156,6 +175,10 @@ impl App {
             // The window was closed by the user.
             !matches!(w.child.try_wait(), Ok(Some(_)))
         });
+        // A question from a window that is gone has no one to answer.
+        if self.web_app_ask.as_ref().is_some_and(|(bot, _)| !self.web_apps.iter().any(|w| w.opened.bot == *bot)) {
+            self.web_app_ask = None;
+        }
         for cmd in prolong {
             self.send(cmd);
         }
@@ -196,7 +219,76 @@ impl App {
             "web_app_read_text_from_clipboard" => reply(self, "clipboard_text_received", serde_json::json!({ "req_id": str_of("req_id"), "data": null })),
             // Payments are not supported yet: tell the page right away.
             "web_app_open_invoice" => reply(self, "invoice_closed", serde_json::json!({ "slug": str_of("slug"), "status": "failed" })),
+            // Already allowed bots get "allowed" at once; the rest ask the user.
+            "web_app_request_write_access" => self.send(Cmd::BotWriteAccess { bot, allow: false }),
+            "web_app_request_phone" => self.ask_web_app(bot, Ask::Phone),
             _ => {}
+        }
+    }
+
+    fn web_app_reply(&mut self, bot: PeerId, kind: &str, data: serde_json::Value) {
+        if let Some(w) = self.web_apps.iter_mut().find(|w| w.opened.bot == bot) {
+            w.event(kind, data);
+        }
+    }
+
+    /// One question at a time; a second one is turned down at once, like Telegram does.
+    fn ask_web_app(&mut self, bot: PeerId, ask: Ask) {
+        if self.web_app_ask.is_some() {
+            let (kind, status) = match ask {
+                Ask::Write => ("write_access_requested", "cancelled"),
+                Ask::Phone => ("phone_requested", "cancelled"),
+            };
+            return self.web_app_reply(bot, kind, serde_json::json!({ "status": status }));
+        }
+        // The number shown in the question comes with the own profile.
+        if matches!(ask, Ask::Phone) && self.profile.phone.is_empty() {
+            self.send(Cmd::LoadProfile);
+        }
+        self.web_app_ask = Some((bot, ask));
+        // The mini app window is on top: bring ours forward to ask.
+        self.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
+
+    pub(super) fn web_app_ask_view(&mut self, ui: &mut Ui) {
+        let Some((bot, ask)) = &self.web_app_ask else { return };
+        let bot = *bot;
+        let name = self.chats.iter().find(|c| c.id == bot).map_or_else(|| l!("Бот", "The bot").to_owned(), |c| c.title.clone());
+        let (title, body, go) = match ask {
+            Ask::Write => (l!("Дозволити повідомлення?", "Allow messages?"), lf!("{name} зможе надсилати вам повідомлення.", "{name} will be able to send you messages."), l!("Дозволити", "Allow")),
+            Ask::Phone => {
+                let phone = &self.profile.phone;
+                let body = if phone.is_empty() {
+                    lf!("{name} отримає ваш номер телефону як контакт.", "{name} will get your phone number as a contact.")
+                } else {
+                    lf!("{name} отримає ваш номер телефону {phone} як контакт.", "{name} will get your phone number {phone} as a contact.")
+                };
+                (l!("Поділитися номером?", "Share your phone number?"), body, l!("Поділитися", "Share"))
+            }
+        };
+        let screen = ui.max_rect();
+        ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
+        ui.interact(screen, ui.scope_id().with("web-ask-bg"), Sense::click());
+        let w = 380.0;
+        let g = ui.painter().layout(body, FontId::proportional(14.0), ink_dim(), w - 36.0);
+        let rect = Rect::from_center_size(screen.center(), vec2(w, 18.0 + 30.0 + g.size().y + 20.0 + 34.0 + 18.0));
+        glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());
+        let inner = rect.shrink(18.0);
+        ui.painter().text(inner.left_top(), Align2::LEFT_TOP, title, FontId::proportional(17.0), ink());
+        ui.painter().galley(pos2(inner.left(), inner.top() + 30.0), g, ink_dim());
+        let half = (inner.width() - 8.0) / 2.0;
+        let row = |x: f32| Rect::from_min_size(pos2(x, inner.bottom() - 34.0), vec2(half, 34.0));
+        let cancel = glass::button(ui, row(inner.left()), "web-ask-cancel", l!("Скасувати", "Cancel"), false, true).clicked() || ui.input(|i| i.key_pressed(Key::Escape));
+        let ok = glass::button(ui, row(inner.right() - half), "web-ask-ok", go, true, true).clicked();
+        if !(ok || cancel) {
+            return;
+        }
+        let Some((bot, ask)) = self.web_app_ask.take() else { return };
+        match (ask, ok) {
+            (Ask::Write, true) => self.send(Cmd::BotWriteAccess { bot, allow: true }),
+            (Ask::Phone, true) => self.send(Cmd::SharePhone { bot }),
+            (Ask::Write, false) => self.web_app_reply(bot, "write_access_requested", serde_json::json!({ "status": "cancelled" })),
+            (Ask::Phone, false) => self.web_app_reply(bot, "phone_requested", serde_json::json!({ "status": "cancelled" })),
         }
     }
 

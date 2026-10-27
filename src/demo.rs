@@ -496,6 +496,8 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::Sponsored { peer, ads, between: Some(2) });
         }
         Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) => {}
+        Cmd::BotWriteAccess { bot, allow } => app.push_event(Ev::BotWriteAccess { bot, allowed: allow, asked: allow }),
+        Cmd::SharePhone { bot } => app.push_event(Ev::PhoneShared { bot, sent: true }),
         Cmd::SetAdsEnabled(enabled) => app.push_event(Ev::Profile(Profile { ads_off: !enabled, ..app.demo_profile() })),
         Cmd::ReportSponsored { peer, random_id, option } => {
             let result = if option.is_empty() {
