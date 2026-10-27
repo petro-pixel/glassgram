@@ -31,8 +31,9 @@ impl App {
             return;
         }
         self.draft.clear();
-        match std::mem::replace(&mut self.compose, Compose::New) {
+        match self.compose {
             Compose::Edit(id) => {
+                self.compose = Compose::New;
                 if let Some(m) = self.history.get_mut(&peer).and_then(|l| l.iter_mut().find(|m| m.id == id)) {
                     let (plain, ents) = format::parse(&text);
                     m.spans = format::from_entities(&plain, &ents, 0);
@@ -43,19 +44,12 @@ impl App {
                 self.send(Cmd::Edit { peer, id, text });
             }
             // Scheduled messages go straight to the server; the rest through the send queue.
-            Compose::Reply(id) if opts.schedule.is_some() => self.send(Cmd::Send { peer, text, reply_to: Some(id), opts }),
-            // A quote goes only with text from the queue; scheduled replies and media quote nothing.
-            Compose::Reply(id) => {
-                let quote = self.quoting.get(peer, id).cloned();
-                self.quoting.clear();
-                self.enqueue(peer, text, Some(id), quote, &opts);
-            }
-            Compose::New => {
-                let reply_to = self.reply_target();
+            _ => {
+                let reply_to = self.take_reply();
                 if opts.schedule.is_some() {
                     self.send(Cmd::Send { peer, text, reply_to, opts });
                 } else {
-                    self.enqueue(peer, text, reply_to, None, &opts);
+                    self.enqueue(peer, text, reply_to, &opts);
                 }
             }
         }
@@ -78,11 +72,27 @@ impl App {
         if self.settings.ctrl_enter { egui::Modifiers::COMMAND } else { egui::Modifiers::NONE }
     }
 
-    pub(super) fn reply_target(&self) -> Option<i32> {
-        match self.compose {
-            Compose::Reply(id) => Some(id),
-            _ => self.forum.open.filter(|t| *t != GENERAL_TOPIC),
+    pub(super) fn reply_target(&self) -> Option<ReplyTo> {
+        let quote = |peer: PeerId, id: i32| self.quoting.get(peer, id).cloned();
+        match (self.compose, self.selected) {
+            (Compose::Reply(id), Some(peer)) => Some(ReplyTo { id, peer: None, quote: quote(peer, id) }),
+            (Compose::Reply(id), None) => Some(ReplyTo::to(id)),
+            (_, peer) => match peer.and_then(|p| self.quoting.elsewhere(p)) {
+                Some((from, id)) => Some(ReplyTo { id, peer: Some(from), quote: quote(from, id) }),
+                None => self.forum.open.filter(|t| *t != GENERAL_TOPIC).map(ReplyTo::to),
+            },
         }
+    }
+
+    /// The reply for a message being sent now; the reply bar closes with it.
+    pub(super) fn take_reply(&mut self) -> Option<ReplyTo> {
+        let reply = self.reply_target();
+        let elsewhere = self.selected.is_some_and(|p| self.quoting.elsewhere(p).is_some());
+        if matches!(self.compose, Compose::Reply(_)) || elsewhere {
+            self.compose = Compose::New;
+            self.quoting.clear();
+        }
+        reply
     }
 
     pub(super) fn send_files(&mut self, peer: PeerId, paths: Vec<PathBuf>, as_file: bool) {
@@ -90,10 +100,7 @@ impl App {
             return;
         }
         let caption = if self.selected == Some(peer) { std::mem::take(&mut self.draft) } else { String::new() };
-        let reply_to = self.reply_target();
-        if reply_to.is_some() {
-            self.compose = Compose::New;
-        }
+        let reply_to = self.take_reply();
         self.next_upload += 1;
         let id = self.next_upload;
         let name = match paths.as_slice() {
@@ -200,7 +207,7 @@ impl App {
         if let Some(result) = chosen
             && let Some(i) = self.inline.take()
         {
-            let reply_to = self.reply_target();
+            let reply_to = self.take_reply();
             self.send(Cmd::SendInline { peer, query_id: i.query_id, result, reply_to });
             self.draft.clear();
             self.compose = Compose::New;
@@ -331,7 +338,7 @@ impl App {
                 }
             });
         if let Some(doc) = send {
-            let reply_to = self.reply_target();
+            let reply_to = self.take_reply();
             self.compose = Compose::New;
             self.send(Cmd::SendSticker { peer, doc, reply_to });
         }
@@ -395,7 +402,7 @@ impl App {
             Compose::Reply(id) if quoted.is_some() => (Icon::Reply, l!("Відповідь із цитатою", "Reply with quote"), id),
             Compose::Reply(id) => (Icon::Reply, l!("Відповідь", "Reply"), id),
             Compose::Edit(id) => (Icon::Pencil, l!("Редагування", "Editing"), id),
-            Compose::New => return,
+            Compose::New => return self.elsewhere_bar(ui, peer, rect),
         };
         glass::glass(ui.painter(), rect, Glass::tinted(rect.height() / 2.0, glass::chrome(), 130).with_shadow().frosted(0.96));
         let p = ui.painter().clone();
@@ -416,7 +423,7 @@ impl App {
             let body = Rect::from_min_max(rect.min, pos2(close.left() - 4.0, rect.bottom()));
             let resp = ui.interact(body, ui.scope_id().with("compose-quote"), Sense::click());
             if resp.on_hover_text(l!("Натисніть, щоб процитувати частину", "Click to quote a part")).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
-                self.open_quote(peer, id);
+                self.open_quote(peer, peer, id);
             }
         }
         if glass::icon_button(ui, close, "compose-close", Icon::Close, false, true).clicked() {

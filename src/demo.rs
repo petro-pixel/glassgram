@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -85,6 +85,7 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
                 edited: false,
                 reply_to: (id == 1 && i == 3).then_some(3),
                 reply_quote: None,
+                reply_elsewhere: None,
                 photo: text == "📷",
                 file: (text == "📄").then(|| ("Макети_v3.fig".to_owned(), "14.2 МБ".to_owned())),
                 sticker: (text == "🐱").then(|| (900, "🐱".to_owned())),
@@ -168,6 +169,13 @@ pub fn folders() -> Vec<Folder> {
     ]
 }
 
+/// A sent reply as the server echoes it: the quote, and the title of the other chat it replies in.
+fn replied(app: &App, m: Msg, reply: &Option<ReplyTo>) -> Msg {
+    let Some(r) = reply else { return m };
+    let chat = |p: PeerId| app.demo_history().find(|(x, _, _)| *x == p).map(|(_, (title, _), _)| title.to_owned()).unwrap_or_default();
+    Msg { reply_to: Some(r.id), reply_quote: r.quote.as_ref().map(|q| q.text.clone()), reply_elsewhere: r.peer.map(chat), ..m }
+}
+
 fn outgoing(peer: PeerId, markup: String, reply_to: Option<i32>) -> Msg {
     let (text, ents) = format::parse(&markup);
     Msg {
@@ -200,6 +208,7 @@ fn outgoing(peer: PeerId, markup: String, reply_to: Option<i32>) -> Msg {
         edited: false,
         reply_to,
         reply_quote: None,
+        reply_elsewhere: None,
         photo: false,
         file: None,
         sticker: None,
@@ -281,10 +290,10 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::Send { peer, text, reply_to, .. } => {
             // In a forum, a reply goes into the topic of the message being replied to (or the topic itself).
-            let topic = reply_to.filter(|_| peer == PeerId::channel_unchecked(FORUM)).map(|r| {
+            let topic = reply_to.as_ref().map(|r| r.id).filter(|_| peer == PeerId::channel_unchecked(FORUM)).map(|r| {
                 app.demo_history().find(|(p, _, _)| *p == peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == r).map(Msg::topic_id)).unwrap_or(r)
             });
-            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), ..outgoing(peer, text, reply_to) }));
+            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), ..replied(app, outgoing(peer, text, None), &reply_to) }));
         }
         Cmd::Forward { from, ids, to } => {
             let src = app.demo_history().find(|(p, _, _)| *p == from).map(|(_, (title, _), msgs)| (title.to_owned(), msgs.clone()));
@@ -307,7 +316,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 let size = std::fs::metadata(path).map(|m| crate::backend::human_size(m.len() as usize)).unwrap_or_default();
                 let text = if i == 0 { caption.clone() } else { String::new() };
-                let mut m = outgoing(peer, text, reply_to);
+                let mut m = replied(app, outgoing(peer, text, None), &reply_to);
                 m.id += i as i32;
                 app.push_event(Ev::NewMsg(Msg { file: Some((name, size)), ..m }));
             }
@@ -327,11 +336,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::SendSticker { peer, doc, reply_to } => {
             let emoji = ["🐱", "😺", "😀", "👍", "🔥"][doc as usize % 5].to_owned();
-            app.push_event(Ev::NewMsg(Msg { sticker: Some((doc, emoji)), ..outgoing(peer, String::new(), reply_to) }));
+            app.push_event(Ev::NewMsg(Msg { sticker: Some((doc, emoji)), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
         }
         Cmd::SendVoice { id, peer, path, duration, waveform, reply_to } => {
             let info = MediaInfo { kind: MediaKind::Voice, duration, size: (0, 0), title: String::new(), performer: String::new(), waveform };
-            let m = Msg { media: Some(info), ..outgoing(peer, String::new(), reply_to) };
+            let m = Msg { media: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply_to) };
             let mid = m.id;
             app.push_event(Ev::NewMsg(m));
             // The file stays on disk: that's what we will play.
@@ -428,7 +437,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::SendRound { id, peer, path, duration, reply_to } => {
             let info = MediaInfo { kind: MediaKind::Round, duration, size: (384, 384), title: String::new(), performer: String::new(), waveform: Vec::new() };
-            let m = Msg { media: Some(info), ..outgoing(peer, String::new(), reply_to) };
+            let m = Msg { media: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply_to) };
             let mid = m.id;
             app.push_event(Ev::NewMsg(m));
             app.push_event(Ev::MediaReady { peer, id: mid, path });
@@ -692,7 +701,8 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let topic = q.reply_to.filter(|_| q.peer == PeerId::channel_unchecked(FORUM)).map(|r| {
                 app.demo_history().find(|(p, _, _)| *p == q.peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == r).map(Msg::topic_id)).unwrap_or(r)
             });
-            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), reply_quote: q.quote.map(|x| x.text), ..outgoing(q.peer, q.text, q.reply_to) }));
+            let reply = q.reply();
+            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), ..replied(app, outgoing(q.peer, q.text, None), &reply) }));
             app.push_event(Ev::QueueSent { key: q.key, peer: q.peer });
         }
         // The UI already shows the new order; there is no server to tell.
@@ -728,7 +738,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 .map(|(i, o)| PollOption { text: o.clone(), option: vec![i as u8], voters: 0, chosen: false, correct: poll.quiz == Some(i) })
                 .collect();
             let info = PollInfo { question: poll.question, answers, total: 0, closed: false, quiz: poll.quiz.is_some(), multiple: poll.multiple };
-            app.push_event(Ev::NewMsg(Msg { id: rand_ish(), poll: Some(info), ..outgoing(peer, String::new(), reply_to) }));
+            app.push_event(Ev::NewMsg(Msg { id: rand_ish(), poll: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
         }
         Cmd::LoadGlobalPrivacy => app.push_event(Ev::GlobalPrivacy(GlobalPrivacy { archive_new: true, keep_unmuted: false, keep_folders: true, hide_read: false, premium_only: false })),
         Cmd::SetGlobalPrivacy(p) => app.push_event(Ev::GlobalPrivacy(p)),
@@ -942,7 +952,7 @@ fn demo_profile() -> Profile {
 /// Send queue "from the previous run": one message that failed, to show the red mark and its menu.
 pub fn outbox() -> Vec<Queued> {
     let ts = jiff::Timestamp::now().as_second() - 120;
-    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Скинув звіт — глянь, коли будеш онлайн".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false, quote: None }]
+    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Скинув звіт — глянь, коли будеш онлайн".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false, quote: None, reply_peer: None }]
 }
 
 /// Demo forum topics: (id, title, color, unread, pinned, closed).

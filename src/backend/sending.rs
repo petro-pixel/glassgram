@@ -8,14 +8,18 @@ impl Worker {
             Cmd::Send { peer, text, reply_to, opts } => {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
-                let m = client
-                    .send_message(r, opts.apply(rich(&text).reply_to(reply_to)))
-                    .await
-                    .map_err(|e| lf!("Не надіслано: {e}", "Not sent: {e}"))?;
+                let not_sent = |e: &dyn std::fmt::Display| lf!("Не надіслано: {e}", "Not sent: {e}");
+                let m = match self.extended_reply(&reply_to)? {
+                    Some(reply) => reply::send_one(&client, r, &text, None, reply, opts).await.map_err(|e| not_sent(&e))?,
+                    None => Some(client.send_message(r, opts.apply(rich(&text).reply_to(reply_to.as_ref().map(|x| x.id)))).await.map_err(|e| not_sent(&e))?),
+                };
                 // In private chats the server replies with a short UpdateShortSentMessage that has only some
                 // of the entities (no `code`, etc.). We know our own entities exactly, so we use them.
                 let (plain, ents) = format::parse(&text);
-                self.sent().emit_with(peer, &m, reply_to, opts, Some((&plain, &ents)));
+                match m {
+                    Some(m) => self.sent().emit_with(peer, &m, ReplyTo::local(&reply_to), opts, Some((&plain, &ents))),
+                    None => self.sent().scheduled(opts),
+                }
                 Ok(())
             }
             Cmd::Forward { from, ids, to } => {
@@ -50,13 +54,14 @@ impl Worker {
                 Ok(())
             }
             Cmd::SendFiles { id, peer, paths, caption, reply_to, opts, as_file } => {
-                let (client, r) = match (self.client(), self.peer_ref(peer)) {
-                    (Ok(c), Ok(r)) => (c, r),
-                    (Err(e), _) | (_, Err(e)) => {
+                let (client, r, extended) = match (self.client(), self.peer_ref(peer), self.extended_reply(&reply_to)) {
+                    (Ok(c), Ok(r), Ok(x)) => (c, r, x),
+                    (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => {
                         self.out.send(Ev::UploadDone(id));
                         return Err(e);
                     }
                 };
+                let reply_to = Reply { id: reply_to.as_ref().map(|x| x.id), local: ReplyTo::local(&reply_to), extended };
                 let sent = self.sent();
                 // Upload runs in the background so long files don't block other commands.
                 tokio::spawn(async move {
@@ -68,71 +73,8 @@ impl Worker {
                 });
                 Ok(())
             }
-            Cmd::SendVoice { id, peer, path, duration, waveform, reply_to } => {
-                let (client, r) = match (self.client(), self.peer_ref(peer)) {
-                    (Ok(c), Ok(r)) => (c, r),
-                    (Err(e), _) | (_, Err(e)) => {
-                        self.out.send(Ev::UploadDone(id));
-                        return Err(e);
-                    }
-                };
-                let sent = self.sent();
-                tokio::spawn(async move {
-                    let res = async {
-                        let total = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-                        let (up, _) = upload(&client, &path, id, 0, total, &sent.out).await?;
-                        let msg = InputMessage::new()
-                            .reply_to(reply_to)
-                            .mime_type("audio/ogg")
-                            .document(up)
-                            .attribute(Attribute::Voice { duration: Duration::from_secs_f64(duration.max(1.0)), waveform: Some(pack_waveform(&waveform)) });
-                        let m = client.send_message(r, msg).await.map_err(|e| lf!("Голосове не надіслано: {e}", "Voice message not sent: {e}"))?;
-                        sent.emit(r.id, &m, reply_to, SendOpts::default());
-                        Ok::<_, String>(())
-                    }
-                    .await;
-                    sent.out.send(Ev::UploadDone(id));
-                    let _ = std::fs::remove_file(&path);
-                    if let Err(e) = res {
-                        sent.out.send(Ev::Error(e));
-                    }
-                });
-                Ok(())
-            }
-            Cmd::SendRound { id, peer, path, duration, reply_to } => {
-                let (client, r) = match (self.client(), self.peer_ref(peer)) {
-                    (Ok(c), Ok(r)) => (c, r),
-                    (Err(e), _) | (_, Err(e)) => {
-                        self.out.send(Ev::UploadDone(id));
-                        return Err(e);
-                    }
-                };
-                let sent = self.sent();
-                tokio::spawn(async move {
-                    let res = async {
-                        let total = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-                        let (up, _) = upload(&client, &path, id, 0, total, &sent.out).await?;
-                        let side = crate::camera::SIDE as i32;
-                        let msg = InputMessage::new().reply_to(reply_to).mime_type("video/mp4").document(up).attribute(Attribute::Video {
-                            round_message: true,
-                            supports_streaming: true,
-                            duration: Duration::from_secs_f64(duration.max(1.0)),
-                            w: side,
-                            h: side,
-                        });
-                        let m = client.send_message(r, msg).await.map_err(|e| lf!("Відеоповідомлення не надіслано: {e}", "Video message not sent: {e}"))?;
-                        sent.emit(r.id, &m, reply_to, SendOpts::default());
-                        Ok::<_, String>(())
-                    }
-                    .await;
-                    sent.out.send(Ev::UploadDone(id));
-                    let _ = std::fs::remove_file(&path);
-                    if let Err(e) = res {
-                        sent.out.send(Ev::Error(e));
-                    }
-                });
-                Ok(())
-            }
+            Cmd::SendVoice { id, peer, path, duration, waveform, reply_to } => self.send_recording(id, peer, path, reply_to, Recording::Voice { duration, waveform }),
+            Cmd::SendRound { id, peer, path, duration, reply_to } => self.send_recording(id, peer, path, reply_to, Recording::Round { duration }),
             Cmd::SendSticker { peer, doc, reply_to } => {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
@@ -145,11 +87,14 @@ impl Worker {
                     ttl_seconds: None,
                     query: None,
                 };
-                let m = client
-                    .send_message(r, InputMessage::new().media(media).reply_to(reply_to))
-                    .await
-                    .map_err(|e| lf!("Стікер не надіслано: {e}", "Sticker not sent: {e}"))?;
-                self.sent().emit(peer, &m, reply_to, SendOpts::default());
+                let not_sent = |e: &dyn std::fmt::Display| lf!("Стікер не надіслано: {e}", "Sticker not sent: {e}");
+                let m = match self.extended_reply(&reply_to)? {
+                    Some(x) => reply::send_one(&client, r, "", Some(media.into()), x, SendOpts::default()).await.map_err(|e| not_sent(&e))?,
+                    None => Some(client.send_message(r, InputMessage::new().media(media).reply_to(reply_to.as_ref().map(|x| x.id))).await.map_err(|e| not_sent(&e))?),
+                };
+                if let Some(m) = m {
+                    self.sent().emit(peer, &m, ReplyTo::local(&reply_to), SendOpts::default());
+                }
                 Ok(())
             }
             Cmd::React { peer, id, emoji } => {
@@ -181,4 +126,76 @@ impl Worker {
             _ => Ok(()),
         }
     }
+
+    /// A recorded voice or round video message: uploaded in the background, the file deleted afterwards.
+    fn send_recording(&self, id: u64, peer: PeerId, path: PathBuf, reply_to: Option<ReplyTo>, rec: Recording) -> Result<(), String> {
+        let (client, r, extended) = match (self.client(), self.peer_ref(peer), self.extended_reply(&reply_to)) {
+            (Ok(c), Ok(r), Ok(x)) => (c, r, x),
+            (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => {
+                self.out.send(Ev::UploadDone(id));
+                return Err(e);
+            }
+        };
+        let reply = Reply { id: reply_to.as_ref().map(|x| x.id), local: ReplyTo::local(&reply_to), extended };
+        let sent = self.sent();
+        tokio::spawn(async move {
+            let res = async {
+                let total = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                let (up, _) = upload(&client, &path, id, 0, total, &sent.out).await?;
+                let side = crate::camera::SIDE as i32;
+                let voice = matches!(rec, Recording::Voice { .. });
+                let (mime, name) = if voice { ("audio/ogg", "voice.ogg") } else { ("video/mp4", "round.mp4") };
+                let not_sent = |e: &dyn std::fmt::Display| {
+                    if voice { lf!("Голосове не надіслано: {e}", "Voice message not sent: {e}") } else { lf!("Відеоповідомлення не надіслано: {e}", "Video message not sent: {e}") }
+                };
+                let m = match (reply.extended, rec) {
+                    (Some(x), rec) => {
+                        let attr: tl::enums::DocumentAttribute = match rec {
+                            Recording::Voice { duration, waveform } => {
+                                tl::types::DocumentAttributeAudio { voice: true, duration: duration.max(1.0).round() as i32, title: None, performer: None, waveform: Some(pack_waveform(&waveform)) }.into()
+                            }
+                            Recording::Round { duration } => tl::types::DocumentAttributeVideo {
+                                round_message: true,
+                                supports_streaming: true,
+                                nosound: false,
+                                duration: duration.max(1.0),
+                                w: side,
+                                h: side,
+                                preload_prefix_size: None,
+                                video_start_ts: None,
+                                video_codec: None,
+                            }
+                            .into(),
+                        };
+                        reply::send_one(&client, r, "", Some(reply::document(up, name, Some(mime), vec![attr])), x, SendOpts::default()).await.map_err(|e| not_sent(&e))?
+                    }
+                    (None, rec) => {
+                        let attr = match rec {
+                            Recording::Voice { duration, waveform } => Attribute::Voice { duration: Duration::from_secs_f64(duration.max(1.0)), waveform: Some(pack_waveform(&waveform)) },
+                            Recording::Round { duration } => Attribute::Video { round_message: true, supports_streaming: true, duration: Duration::from_secs_f64(duration.max(1.0)), w: side, h: side },
+                        };
+                        let msg = InputMessage::new().reply_to(reply.id).mime_type(mime).document(up).attribute(attr);
+                        Some(client.send_message(r, msg).await.map_err(|e| not_sent(&e))?)
+                    }
+                };
+                if let Some(m) = m {
+                    sent.emit(r.id, &m, reply.local, SendOpts::default());
+                }
+                Ok::<_, String>(())
+            }
+            .await;
+            sent.out.send(Ev::UploadDone(id));
+            let _ = std::fs::remove_file(&path);
+            if let Err(e) = res {
+                sent.out.send(Ev::Error(e));
+            }
+        });
+        Ok(())
+    }
+}
+
+/// What `send_recording` sends.
+enum Recording {
+    Voice { duration: f64, waveform: Vec<u8> },
+    Round { duration: f64 },
 }

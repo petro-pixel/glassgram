@@ -65,20 +65,7 @@ impl Worker {
                     clear_draft: true,
                     hide_via: false,
                     peer: r.into(),
-                    reply_to: reply_to.map(|id| {
-                        tl::types::InputReplyToMessage {
-                            reply_to_msg_id: id,
-                            top_msg_id: None,
-                            reply_to_peer_id: None,
-                            quote_text: None,
-                            quote_entities: None,
-                            quote_offset: None,
-                            monoforum_peer_id: None,
-                            todo_item_id: None,
-                            poll_option: None,
-                        }
-                        .into()
-                    }),
+                    reply_to: reply_to.as_ref().map(|x| self.input_reply(x)).transpose()?,
                     random_id: jiff::Timestamp::now().as_nanosecond() as i64,
                     query_id,
                     id: result,

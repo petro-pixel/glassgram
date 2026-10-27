@@ -290,6 +290,23 @@ pub mod peer_id {
     }
 }
 
+/// `peer_id` for optional fields.
+pub mod peer_id_opt {
+    use grammers_client::session::types::PeerId;
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
+
+    pub fn serialize<S: Serializer>(peer: &Option<PeerId>, s: S) -> Result<S::Ok, S::Error> {
+        match peer {
+            Some(p) => s.serialize_some(&p.bot_api_dialog_id_unchecked()),
+            None => s.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<PeerId>, D::Error> {
+        Option::<i64>::deserialize(d)?.map(|id| PeerId::from_bot_api_dialog_id(id).ok_or_else(|| D::Error::custom("peer id"))).transpose()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,7 +354,7 @@ mod tests {
         let file = dir.join("cache.sqlite");
         let _ = std::fs::remove_file(&file);
         let peer = PeerId::user_unchecked(5);
-        let q = |key, text: &str| Queued { key, peer, text: text.into(), reply_to: None, silent: false, ts: 0, failed: false, no_webpage: false, quote: None };
+        let q = |key, text: &str| Queued { key, peer, text: text.into(), reply_to: None, silent: false, ts: 0, failed: false, no_webpage: false, quote: None, reply_peer: None };
         {
             let cache = Cache::spawn(file.clone());
             cache.queue_put(&q(2, "друге"));

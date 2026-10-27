@@ -14,7 +14,7 @@ use crate::accounts::{self, Accounts};
 use crate::backend::{
     self, Audience, ButtonAction, ChatInfo, ChatKind, Cmd, Ev, Folder, Handle, ImgKey, InlineResult, MediaKind, Msg, PrivacyKey, PrivacyState, Reaction,
     SearchHit, SendOpts, SharedKind, Session, Topic, GENERAL_TOPIC, TOPIC_COLORS,
-    StickerSetInfo,
+    StickerSetInfo, ReplyTo,
 };
 use crate::demo;
 use crate::emoji;
@@ -232,6 +232,8 @@ struct ForwardPicker {
     from: PeerId,
     ids: Vec<i32>,
     query: String,
+    /// Choosing the chat to reply in ("Reply in another chat"), not to forward to.
+    reply: bool,
 }
 
 /// Comments panel for a channel post.
@@ -1215,8 +1217,8 @@ impl App {
                 }
                 None => self.picked.push(id),
             },
-            Action::Forward(id) => self.forward = Some(ForwardPicker { from: peer, ids: vec![id], query: String::new() }),
-            Action::ForwardMany(ids) => self.forward = Some(ForwardPicker { from: peer, ids, query: String::new() }),
+            Action::Forward(id) => self.forward = Some(ForwardPicker { from: peer, ids: vec![id], query: String::new(), reply: false }),
+            Action::ForwardMany(ids) => self.forward = Some(ForwardPicker { from: peer, ids, query: String::new(), reply: false }),
             Action::DeleteMany(ids) => self.send(Cmd::Delete { peer, ids }),
             Action::PickMany(ids) => {
                 let all = ids.iter().all(|id| self.picked.contains(id));
@@ -1271,7 +1273,7 @@ impl App {
                     ButtonAction::Callback(data) => self.send(Cmd::PressButton { peer, id, data }),
                     ButtonAction::Url(url) => self.open_link(&url),
                     ButtonAction::Text => {
-                        let reply_to = self.forum.open.filter(|t| *t != GENERAL_TOPIC);
+                        let reply_to = self.forum.open.filter(|t| *t != GENERAL_TOPIC).map(ReplyTo::to);
                         self.send(Cmd::Send { peer, text: b.text, reply_to, opts: SendOpts::default() });
                     }
                     ButtonAction::Copy(text) => {

@@ -180,7 +180,7 @@ impl App {
             };
             let peer = f.peer;
             self.poll_form = None;
-            let reply_to = self.reply_target();
+            let reply_to = self.take_reply();
             self.send(Cmd::SendPoll { peer, poll, reply_to });
         }
     }

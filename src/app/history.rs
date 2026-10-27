@@ -100,7 +100,7 @@ impl App {
     fn chat_history(&mut self, ui: &mut Ui, peer: PeerId, chat: &ChatInfo, rect: Rect, topic: Option<i32>, source: Option<PeerId>, group: bool, now: f64) {
         // In channels views replace ticks; in "Saved Messages" there is nobody to read.
         let ticks = |m: &Msg| (m.out && !matches!(chat.kind, ChatKind::Channel | ChatKind::Saved)).then_some(m.id <= chat.read_out);
-        let bar = if self.compose == Compose::New { 0.0 } else { COMPOSE_BAR_H + 8.0 };
+        let bar = if self.compose_bar_shown(peer) { COMPOSE_BAR_H + 8.0 } else { 0.0 };
         // Messages scroll under the floating glass header and input field.
         let mut load_older = None;
         let mut action = None;
@@ -255,9 +255,14 @@ impl App {
         let mut action = None;
         // In a forum, a "reply" to the topic root is just a message in the topic, no quote.
         let quoted = m.reply_quote.as_ref().map(|q| q.replace('\n', " "));
-        let reply = m.reply_to.filter(|r| topic.is_none_or(|t| *r != t)).map(|id| match msgs.iter().find(|x| x.id == id) {
-            Some(r) => (author(r, &self.me), quoted.unwrap_or_else(|| quote(r))),
-            None => (l!("Відповідь", "Reply").to_owned(), quoted.unwrap_or_else(|| l!("Повідомлення", "Message").to_owned())),
+        let reply = m.reply_to.filter(|r| topic.is_none_or(|t| *r != t)).map(|id| match (&m.reply_elsewhere, msgs.iter().find(|x| x.id == id)) {
+            // The id belongs to another chat: name that chat instead of looking it up here.
+            (Some(chat), _) => {
+                let chat = if chat.is_empty() { l!("Інший чат", "Another chat") } else { chat.as_str() };
+                (lf!("Відповідь у «{chat}»", "Reply in «{chat}»"), quoted.unwrap_or_else(|| l!("Повідомлення", "Message").to_owned()))
+            }
+            (None, Some(r)) => (author(r, &self.me), quoted.unwrap_or_else(|| quote(r))),
+            (None, None) => (l!("Відповідь", "Reply").to_owned(), quoted.unwrap_or_else(|| l!("Повідомлення", "Message").to_owned())),
         });
         let kind = m.media.as_ref().map(|i| i.kind);
         let animated = self.settings.autoplay && m.video_sticker
@@ -445,7 +450,7 @@ impl App {
         self.composer_h = input_h;
         let input = Rect::from_min_max(pos2(input_left, rect.bottom() - input_h), pos2(input_right, rect.bottom()));
         let mut above = input.top() - 8.0;
-        if self.compose != Compose::New {
+        if self.compose_bar_shown(peer) {
             let bar_rect = Rect::from_min_max(pos2(rect.left(), above - COMPOSE_BAR_H), pos2(send_btn.right(), above));
             self.compose_bar(ui, peer, bar_rect);
             above = bar_rect.top() - 8.0;
@@ -671,7 +676,7 @@ impl App {
             self.chat_search = None;
         } else if !self.picked.is_empty() {
             self.picked.clear();
-        } else if self.compose != Compose::New {
+        } else if self.compose_bar_shown(peer) {
             self.cancel_compose();
         } else if let Some(i) = &mut self.info {
             if i.confirm.take().is_none() {
@@ -707,7 +712,7 @@ impl App {
         if glass::icon_button(ui, btn(0.0), "pick-forward", Icon::Forward, true, true).on_hover_text(l!("Переслати", "Forward")).clicked() {
             let mut ids = std::mem::take(&mut self.picked);
             ids.sort_unstable();
-            self.forward = Some(ForwardPicker { from: peer, ids, query: String::new() });
+            self.forward = Some(ForwardPicker { from: peer, ids, query: String::new(), reply: false });
         }
         if glass::icon_button(ui, btn(1.0), "pick-copy", Icon::Copy, false, true).on_hover_text(l!("Копіювати", "Copy")).clicked() {
             let mut msgs: Vec<&Msg> = self.picked.iter().filter_map(|id| self.find(peer, *id)).collect();

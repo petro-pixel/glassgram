@@ -68,10 +68,7 @@ impl App {
             self.toast = Some((l!("Відео закоротке або камера недоступна", "Video is too short or the camera is unavailable").into(), 0.0, true));
             return;
         };
-        let reply_to = self.reply_target();
-        if reply_to.is_some() {
-            self.compose = Compose::New;
-        }
+        let reply_to = self.take_reply();
         self.next_upload += 1;
         let id = self.next_upload;
         let total = std::fs::metadata(&round.path).map_or(0, |m| m.len());
@@ -154,10 +151,7 @@ impl App {
         if self.playback.player.is(peer, PREVIEW_ID) {
             self.playback.player.stop();
         }
-        let reply_to = self.reply_target();
-        if reply_to.is_some() {
-            self.compose = Compose::New;
-        }
+        let reply_to = self.take_reply();
         self.next_upload += 1;
         let id = self.next_upload;
         let total = std::fs::metadata(&voice.path).map_or(0, |m| m.len());

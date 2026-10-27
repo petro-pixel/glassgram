@@ -4,7 +4,7 @@
 use grammers_client::session::types::PeerId;
 
 use super::App;
-use crate::backend::{Cmd, Queued, Quote, SendOpts};
+use crate::backend::{Cmd, Msg, Queued, ReplyTo, SendOpts};
 use crate::i18n::l;
 
 /// Automatic attempts before the bubble turns into "failed" and waits for "Retry".
@@ -38,20 +38,33 @@ impl App {
     }
 
     /// Queue a text message: it appears in the chat immediately and is sent in the background.
-    pub(super) fn enqueue(&mut self, peer: PeerId, text: String, reply_to: Option<i32>, quote: Option<Quote>, opts: &SendOpts) {
+    pub(super) fn enqueue(&mut self, peer: PeerId, text: String, reply: Option<ReplyTo>, opts: &SendOpts) {
         let ts = jiff::Timestamp::now();
         // Nanoseconds keep the queue order; a collision within one run is avoided explicitly.
         let mut key = ts.as_nanosecond() as i64;
         if let Some(last) = self.outbox.iter().map(|p| p.q.key).max() {
             key = key.max(last + 1);
         }
-        let q = Queued { key, peer, text, reply_to, silent: opts.silent, ts: ts.as_second(), failed: false, no_webpage: opts.no_webpage, quote };
+        let (reply_to, reply_peer, quote) = match reply {
+            Some(r) => (Some(r.id), r.peer, r.quote),
+            None => (None, None, None),
+        };
+        let q = Queued { key, peer, text, reply_to, silent: opts.silent, ts: ts.as_second(), failed: false, no_webpage: opts.no_webpage, quote, reply_peer };
         let id = self.new_local_id();
-        let msg = q.to_msg(id);
+        let msg = self.queued_msg(&q, id);
         self.outbox.push(Pending { q, id, attempts: 0, next_at: 0.0, in_flight: false });
         // Same path as an incoming message: the chat preview and order update too.
         self.on_new_message(msg);
         self.pump_outbox(self.ctx.input(|i| i.time));
+    }
+
+    /// The bubble of a queued message; a reply to another chat names that chat.
+    pub(super) fn queued_msg(&self, q: &Queued, id: i32) -> Msg {
+        let mut msg = q.to_msg(id);
+        if let Some(from) = q.reply_peer {
+            msg.reply_elsewhere = Some(self.chats.iter().find(|c| c.id == from).map(|c| c.title.clone()).unwrap_or_default());
+        }
+        msg
     }
 
     /// Sends what is due. Per chat only the oldest message goes out, so the order is kept.
@@ -82,8 +95,9 @@ impl App {
                 continue;
             }
             let id = self.new_local_id();
+            let msg = self.queued_msg(&q, id);
             if let Some(h) = self.history.get_mut(&q.peer) {
-                h.push(q.to_msg(id));
+                h.push(msg);
             }
             self.outbox.push(Pending { q, id, attempts: 0, next_at: 0.0, in_flight: false });
         }
@@ -91,9 +105,10 @@ impl App {
 
     /// A fresh history page from the server replaces the list — put the queued bubbles back at the end.
     pub(super) fn keep_outbox(&mut self, peer: PeerId) {
+        let queued: Vec<Msg> = self.outbox.iter().filter(|p| p.q.peer == peer).map(|p| self.queued_msg(&p.q, p.id)).collect();
         let Some(list) = self.history.get_mut(&peer) else { return };
         list.retain(|m| m.id >= 0);
-        list.extend(self.outbox.iter().filter(|p| p.q.peer == peer).map(|p| p.q.to_msg(p.id)));
+        list.extend(queued);
     }
 
     fn drop_bubble(&mut self, peer: PeerId, id: i32) {

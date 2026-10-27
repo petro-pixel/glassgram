@@ -27,6 +27,34 @@ pub enum UsernameState {
 pub struct Quote {
     pub text: String,
     pub offset: i32,
+    /// Formatting of `text`, cut out of the message's own.
+    #[serde(default)]
+    pub spans: Vec<format::Span>,
+}
+
+/// What a new message replies to: a message in this chat or in another one, maybe quoting a part of it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReplyTo {
+    pub id: i32,
+    /// The chat of the replied message when it is not the chat we send to.
+    pub peer: Option<PeerId>,
+    pub quote: Option<Quote>,
+}
+
+impl ReplyTo {
+    pub fn to(id: i32) -> Self {
+        Self { id, peer: None, quote: None }
+    }
+
+    /// grammers can only reply to a message id in the same chat; the rest needs our own request.
+    pub fn extended(&self) -> bool {
+        self.peer.is_some() || self.quote.is_some()
+    }
+
+    /// The replied message id when it is in the same chat (bubbles look it up there).
+    pub fn local(reply: &Option<ReplyTo>) -> Option<i32> {
+        reply.as_ref().filter(|r| r.peer.is_none()).map(|r| r.id)
+    }
 }
 
 /// A message in the send queue. `key` is the queue's own key: there is no server id yet.
@@ -49,9 +77,16 @@ pub struct Queued {
     /// The quoted part of the message replied to.
     #[serde(default)]
     pub quote: Option<Quote>,
+    /// The chat of the replied message, when it is another one.
+    #[serde(default, with = "crate::cache::peer_id_opt")]
+    pub reply_peer: Option<PeerId>,
 }
 
 impl Queued {
+    pub fn reply(&self) -> Option<ReplyTo> {
+        self.reply_to.map(|id| ReplyTo { id, peer: self.reply_peer, quote: self.quote.clone() })
+    }
+
     /// Bubble for a message the server doesn't have yet (`id` is local and negative).
     pub fn to_msg(&self, id: i32) -> Msg {
         let (text, ents) = format::parse(&self.text);
@@ -66,6 +101,7 @@ impl Queued {
             day: day(at),
             reply_to: self.reply_to,
             reply_quote: self.quote.as_ref().map(|q| q.text.clone()),
+            reply_elsewhere: self.reply_peer.map(|_| String::new()),
             ..Msg::placeholder(self.peer)
         }
     }
@@ -479,6 +515,9 @@ pub struct Msg {
     /// The part of the replied message this reply quotes.
     #[serde(default)]
     pub reply_quote: Option<String>,
+    /// The replied message is in another chat (its title): `reply_to` is an id there.
+    #[serde(default)]
+    pub reply_elsewhere: Option<String>,
     pub photo: bool,
     /// (file name, size)
     pub file: Option<(String, String)>,
@@ -537,6 +576,7 @@ impl Msg {
             edited: false,
             reply_to: None,
             reply_quote: None,
+            reply_elsewhere: None,
             photo: false,
             file: None,
             sticker: None,

@@ -6,7 +6,7 @@ use std::time::Duration;
 use grammers_client::session::types::PeerId;
 use grammers_client::{InvocationError, tl};
 
-use super::{Cmd, Ev, Queued, SendOpts, Worker};
+use super::{Cmd, Ev, Queued, ReplyTo, SendOpts, Worker};
 use crate::format;
 use crate::i18n::lf;
 
@@ -22,7 +22,7 @@ fn retryable(e: &InvocationError) -> bool {
 }
 
 /// Id of the message a send request created, found by its random_id.
-fn sent_id(updates: &tl::enums::Updates, random_id: i64) -> Option<i32> {
+pub(super) fn sent_id(updates: &tl::enums::Updates, random_id: i64) -> Option<i32> {
     let list = match updates {
         tl::enums::Updates::UpdateShortSentMessage(u) => return Some(u.id),
         tl::enums::Updates::Updates(u) => &u.updates,
@@ -68,6 +68,14 @@ impl Worker {
             }
         };
         let opts = SendOpts { silent: q.silent, schedule: None, no_webpage: q.no_webpage };
+        let reply_to = match q.reply().map(|x| self.input_reply(&x)).transpose() {
+            Ok(x) => x,
+            // The other chat is not known in this session yet.
+            Err(e) => {
+                self.out.send(fail(e, true));
+                return Ok(());
+            }
+        };
         let (plain, ents) = format::parse(&q.text);
         let ents = self.with_mentions(ents);
         // The queue key is the request's random_id on every attempt: if an earlier attempt reached
@@ -82,10 +90,7 @@ impl Worker {
             invert_media: false,
             allow_paid_floodskip: false,
             peer: r.into(),
-            reply_to: q.reply_to.map(|id| {
-                let (quote_text, quote_offset) = q.quote.as_ref().map(|x| (x.text.clone(), x.offset)).unzip();
-                tl::types::InputReplyToMessage { reply_to_msg_id: id, top_msg_id: None, reply_to_peer_id: None, quote_text, quote_entities: None, quote_offset, monoforum_peer_id: None, todo_item_id: None, poll_option: None }.into()
-            }),
+            reply_to,
             message: plain.clone(),
             random_id: key,
             reply_markup: None,
@@ -112,7 +117,7 @@ impl Worker {
                 if let Some(id) = sent_id(&updates, key)
                     && let Ok(Some(m)) = client.get_messages_by_id(r, &[id]).await.map(|l| l.into_iter().flatten().next())
                 {
-                    self.sent().emit_with(peer, &m, q.reply_to, opts, Some((&plain, &ents)));
+                    self.sent().emit_with(peer, &m, ReplyTo::local(&q.reply()), opts, Some((&plain, &ents)));
                 }
                 done(self);
             }

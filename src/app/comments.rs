@@ -69,7 +69,7 @@ impl App {
             && let Some((disc, root)) = c.discussion
         {
             let text = std::mem::take(&mut c.draft).trim().to_owned();
-            self.send(Cmd::Send { peer: disc, text, reply_to: Some(root), opts: SendOpts::default() });
+            self.send(Cmd::Send { peer: disc, text, reply_to: Some(ReplyTo::to(root)), opts: SendOpts::default() });
             resp.request_focus();
         }
         // Actions on a comment (copy, react, download) happen in the discussion group.

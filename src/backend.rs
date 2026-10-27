@@ -49,6 +49,7 @@ mod history;
 mod media;
 mod search;
 mod outbox;
+mod reply;
 use crate::format::{self, Span};
 use crate::i18n::{l, lf};
 
@@ -113,13 +114,13 @@ pub enum Cmd {
     ReloadDialogs,
     OpenChat(PeerId),
     LoadOlder { peer: PeerId, before: i32 },
-    Send { peer: PeerId, text: String, reply_to: Option<i32>, opts: SendOpts },
+    Send { peer: PeerId, text: String, reply_to: Option<ReplyTo>, opts: SendOpts },
     Edit { peer: PeerId, id: i32, text: String },
     Delete { peer: PeerId, ids: Vec<i32> },
     /// `id` is the upload number in the UI, for progress.
     /// Several files: images go as albums of 10, the rest as separate messages.
     /// `as_file`: no compression, sent as documents.
-    SendFiles { id: u64, peer: PeerId, paths: Vec<PathBuf>, caption: String, reply_to: Option<i32>, opts: SendOpts, as_file: bool },
+    SendFiles { id: u64, peer: PeerId, paths: Vec<PathBuf>, caption: String, reply_to: Option<ReplyTo>, opts: SendOpts, as_file: bool },
     LoadFullPhoto { peer: PeerId, id: i32 },
     /// Set a reaction (`None` removes ours).
     React { peer: PeerId, id: i32, emoji: Option<String> },
@@ -132,12 +133,12 @@ pub enum Cmd {
     /// Download a media file (video, GIF, audio) into the cache for playback.
     LoadMedia { peer: PeerId, id: i32 },
     /// Recorded voice message (OGG/Opus); `waveform` holds levels 0..31.
-    SendVoice { id: u64, peer: PeerId, path: PathBuf, duration: f64, waveform: Vec<u8>, reply_to: Option<i32> },
+    SendVoice { id: u64, peer: PeerId, path: PathBuf, duration: f64, waveform: Vec<u8>, reply_to: Option<ReplyTo> },
     /// Recorded video message (MP4 384×384).
-    SendRound { id: u64, peer: PeerId, path: PathBuf, duration: f64, reply_to: Option<i32> },
+    SendRound { id: u64, peer: PeerId, path: PathBuf, duration: f64, reply_to: Option<ReplyTo> },
     /// Voice or round video message was listened to.
     MarkListened { peer: PeerId, id: i32 },
-    SendInline { peer: PeerId, query_id: i64, result: String, reply_to: Option<i32> },
+    SendInline { peer: PeerId, query_id: i64, result: String, reply_to: Option<ReplyTo> },
     /// Create or edit a folder (a new one gets a free id, starting from 2).
     SaveFolder(Folder),
     DeleteFolder(i32),
@@ -174,7 +175,7 @@ pub enum Cmd {
     Forward { from: PeerId, ids: Vec<i32>, to: PeerId },
     /// An inline button with callback data was pressed.
     PressButton { peer: PeerId, id: i32, data: Vec<u8> },
-    SendSticker { peer: PeerId, doc: i64, reply_to: Option<i32> },
+    SendSticker { peer: PeerId, doc: i64, reply_to: Option<ReplyTo> },
     LoadStickers,
     LoadStickerThumbs(Vec<i64>),
     Download { peer: PeerId, id: i32 },
@@ -257,7 +258,7 @@ pub enum Cmd {
     /// Contacts' birthdays today, for the reminder above the chat list.
     LoadBirthdays,
     /// Send a new poll or quiz.
-    SendPoll { peer: PeerId, poll: NewPoll, reply_to: Option<i32> },
+    SendPoll { peer: PeerId, poll: NewPoll, reply_to: Option<ReplyTo> },
     /// Translate a message's text into `to` (a language code).
     Translate { peer: PeerId, id: i32, to: String },
     /// Find the first message sent at or after `date` (unix time), for the calendar.

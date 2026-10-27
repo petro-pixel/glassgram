@@ -216,13 +216,9 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         day: day(m.date()),
         edited: m.edit_date().is_some(),
         reply_to: m.reply_to_message_id(),
-        reply_quote: match &m.raw {
-            tl::enums::Message::Message(x) => match &x.reply_to {
-                Some(tl::enums::MessageReplyHeader::Header(h)) if h.quote => h.quote_text.clone().filter(|t| !t.is_empty()),
-                _ => None,
-            },
-            _ => None,
-        },
+        reply_quote: reply_header(m).filter(|h| h.quote).and_then(|h| h.quote_text.clone()).filter(|t| !t.is_empty()),
+        // `reply_to_peer_id` is set only for replies to another chat.
+        reply_elsewhere: reply_header(m).and_then(|h| h.reply_to_peer_id.as_ref()).map(|p| names.lock().unwrap().get(&PeerId::from(p)).cloned().unwrap_or_default()),
         photo,
         file,
         sticker,
@@ -264,6 +260,16 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
     match restriction(&m.raw) {
         Some(reason) => Msg { text: reason, spans: Vec::new(), photo: false, file: None, sticker: None, media: None, poll: None, geo: None, contact: None, webpage: None, buttons: Vec::new(), video_sticker: false, ..msg },
         None => msg,
+    }
+}
+
+fn reply_header(m: &Message) -> Option<&tl::types::MessageReplyHeader> {
+    match &m.raw {
+        tl::enums::Message::Message(x) => match &x.reply_to {
+            Some(tl::enums::MessageReplyHeader::Header(h)) => Some(h),
+            _ => None,
+        },
+        _ => None,
     }
 }
 

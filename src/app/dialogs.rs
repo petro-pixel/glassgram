@@ -43,12 +43,13 @@ impl App {
         ui.interact(ui.max_rect(), ui.scope_id().with("forward-bg"), Sense::click());
         glass::glass(ui.painter(), rect, Glass::panel(26.0).with_shadow());
         let inner = rect.shrink(16.0);
-        let title = lf!("Переслати ({})", "Forward ({})", fw.ids.len());
+        let title = if fw.reply { l!("Відповісти в…", "Reply in…").to_owned() } else { lf!("Переслати ({})", "Forward ({})", fw.ids.len()) };
         ui.painter().text(inner.left_top() + vec2(4.0, 2.0), Align2::LEFT_TOP, title, FontId::proportional(18.0), ink());
         let close = Rect::from_min_size(pos2(inner.right() - 32.0, inner.top() - 4.0), vec2(32.0, 32.0));
         let mut cancel = glass::icon_button(ui, close, "fw-close", Icon::Close, false, true).clicked();
         let field = Rect::from_min_size(inner.left_top() + vec2(0.0, 38.0), vec2(inner.width(), 38.0));
-        let resp = glass::text_field(ui, field, &mut fw.query, l!("Кому переслати…", "Forward to…"), false);
+        let hint = if fw.reply { l!("Пошук чату…", "Search chats…") } else { l!("Кому переслати…", "Forward to…") };
+        let resp = glass::text_field(ui, field, &mut fw.query, hint, false);
         if !resp.has_focus() && fw.query.is_empty() {
             resp.request_focus();
         }
@@ -69,8 +70,13 @@ impl App {
         if let Some(to) = chosen
             && let Some(fw) = self.forward.take()
         {
-            self.send(Cmd::Forward { from: fw.from, ids: fw.ids, to });
-            self.open_chat(to);
+            match (fw.reply, fw.ids.first()) {
+                (true, Some(id)) => self.reply_elsewhere(fw.from, *id, to),
+                _ => {
+                    self.send(Cmd::Forward { from: fw.from, ids: fw.ids, to });
+                    self.open_chat(to);
+                }
+            }
             cancel = false;
         }
         if cancel {

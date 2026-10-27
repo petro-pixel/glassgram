@@ -4,7 +4,7 @@
 use grammers_client::session::types::PeerId;
 use grammers_client::tl;
 
-use super::{Ev, SendOpts, Worker};
+use super::{Ev, ReplyTo, SendOpts, Worker};
 use crate::format;
 use crate::i18n::lf;
 
@@ -41,7 +41,7 @@ pub(super) fn new_message_id(u: &tl::enums::Updates) -> Option<i32> {
 }
 
 impl Worker {
-    pub(super) async fn send_poll(&self, peer: PeerId, poll: NewPoll, reply_to: Option<i32>) -> Result<(), String> {
+    pub(super) async fn send_poll(&self, peer: PeerId, poll: NewPoll, reply_to: Option<ReplyTo>) -> Result<(), String> {
         let client = self.client()?;
         let r = self.peer_ref(peer)?;
         let quiz = poll.quiz.is_some();
@@ -78,20 +78,8 @@ impl Worker {
             solution_entities,
             solution_media: None,
         };
-        let reply_to = reply_to.map(|id| {
-            tl::types::InputReplyToMessage {
-                reply_to_msg_id: id,
-                top_msg_id: None,
-                reply_to_peer_id: None,
-                quote_text: None,
-                quote_entities: None,
-                quote_offset: None,
-                monoforum_peer_id: None,
-                todo_item_id: None,
-                poll_option: None,
-            }
-            .into()
-        });
+        let local = ReplyTo::local(&reply_to);
+        let reply_to = reply_to.as_ref().map(|x| self.input_reply(x)).transpose()?;
         let req = tl::functions::messages::SendMedia {
             silent: false,
             background: false,
@@ -121,7 +109,7 @@ impl Worker {
             && let Ok(msgs) = client.get_messages_by_id(r, &[id]).await
             && let Some(Some(m)) = msgs.into_iter().next()
         {
-            self.sent().emit(peer, &m, None, SendOpts::default());
+            self.sent().emit(peer, &m, local, SendOpts::default());
         } else {
             self.out.send(Ev::Notice(lf!("Опитування надіслано", "Poll sent")));
         }
