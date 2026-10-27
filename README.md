@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 50%** `██████████░░░░░░░░░░` — 84 done, 2 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 50%** `██████████░░░░░░░░░░` — 85 done, 1 partial, 84 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -130,7 +130,8 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/outbox.rs` | Send queue: pending/failed bubbles, retries with backoff |
 | `src/app/chatlist.rs` | Folder column and tabs, dragging pinned chats and folders |
 | `src/player.rs` | Voice and audio player via `ffplay`: pause, seeking, speed |
-| `src/video.rs` | Video frames via `ffmpeg` into an egui texture: GIFs, round videos, videos, webm stickers |
+| `src/video.rs` | Video frames via `ffmpeg` into an egui texture: GIFs, round videos, videos, webm stickers; `.tgs` stickers from `src/lottie.rs` |
+| `src/lottie.rs` | Animated (Lottie) stickers drawn on the CPU: `velato` + `vello_cpu`, with limits for untrusted files |
 | `src/camera.rs` | Video message recording: camera + microphone → MP4, round preview; the microphone for all recordings (`Mic`) |
 | `src/recorder.rs` | Voice recording via `ffmpeg`, level and waveform |
 | `src/export.rs` | Chat history export to HTML and JSON |

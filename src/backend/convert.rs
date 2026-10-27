@@ -241,6 +241,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         },
         media,
         video_sticker: matches!(m.media(), Some(Media::Sticker(_))) && raw_document(m).is_some_and(|d| d.mime_type == "video/webm"),
+        lottie: matches!(m.media(), Some(Media::Sticker(_))) && raw_document(m).is_some_and(|d| d.mime_type == "application/x-tgsticker"),
         media_unread: matches!(&m.raw, tl::enums::Message::Message(x) if x.media_unread),
         // An unread mention is a mention whose contents are not read yet.
         mentioned: matches!(&m.raw, tl::enums::Message::Message(x) if x.mentioned && x.media_unread),
@@ -264,7 +265,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
     };
     // Hidden by Telegram for everyone (or for desktop apps): show why instead of the content.
     match restriction(&m.raw) {
-        Some(reason) => Msg { text: reason, spans: Vec::new(), photo: false, file: None, sticker: None, media: None, poll: None, geo: None, contact: None, webpage: None, buttons: Vec::new(), video_sticker: false, ..msg },
+        Some(reason) => Msg { text: reason, spans: Vec::new(), photo: false, file: None, sticker: None, media: None, poll: None, geo: None, contact: None, webpage: None, buttons: Vec::new(), video_sticker: false, lottie: false, ..msg },
         None => msg,
     }
 }

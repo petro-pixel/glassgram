@@ -587,6 +587,9 @@ pub struct Msg {
     pub media: Option<MediaInfo>,
     /// Video sticker (webm) that can be animated.
     pub video_sticker: bool,
+    /// Animated sticker (`.tgs`, Lottie) that can be animated.
+    #[serde(default)]
+    pub lottie: bool,
     /// Voice or round video message not listened to yet.
     pub media_unread: bool,
     /// Mentions us and is not read yet: counts for the "@" button.
@@ -646,6 +649,7 @@ impl Msg {
             contact: None,
             media: None,
             video_sticker: false,
+            lottie: false,
             media_unread: false,
             topic: None,
             comments: None,

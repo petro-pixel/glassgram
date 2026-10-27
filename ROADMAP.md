@@ -96,7 +96,7 @@ Time estimate — [at the end of the file](#time-estimate).
 
 ## 5. Media and stickers
 - ✅ Photo viewer, video in the bubble, webm stickers and GIFs, voice and audio player
-- 🟡 Stickers: panel, sending; **P1** Lottie/TGS animation (our own Lottie renderer or `rlottie` via FFI)
+- ✅ Stickers: panel, sending; animated `.tgs` stickers play in the chat (pure Rust: `velato` reads Lottie, `vello_cpu` draws it on a thread of its own; file sizes and repeaters are capped, a file we can't draw stays a still picture)
 - ✅ **P0** Shared chat media in chat info: photo/video grid, files, links, voice, GIF tabs with counters (`messages.search` + `InputMessagesFilter*`, `getSearchCounters`)
 - ⬜ **P1** Full-screen video player: seeking, volume, speed, picture-in-picture
 - ⬜ **P1** Streaming large videos (downloading in parts instead of the whole file)

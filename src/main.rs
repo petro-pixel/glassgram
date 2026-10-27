@@ -18,6 +18,7 @@ mod glass;
 mod icons;
 mod lock;
 mod logo;
+mod lottie;
 mod platform;
 mod player;
 #[cfg(test)]

@@ -95,6 +95,7 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
                 photo: text == "📷",
                 file: (text == "📄").then(|| ("Макети_v3.fig".to_owned(), "14.2 МБ".to_owned())),
                 sticker: (text == "🐱").then(|| (900, "🐱".to_owned())),
+                lottie: text == "🐱",
                 text,
             })
             .map(|m| if m.file.is_some() || m.sticker.is_some() { Msg { text: String::new(), ..m } } else { m })
@@ -197,6 +198,7 @@ fn outgoing(peer: PeerId, markup: String, reply_to: Option<i32>) -> Msg {
         contact: None,
         media: None,
         video_sticker: false,
+        lottie: false,
         media_unread: false,
         mentioned: false,
         reaction_unread: false,
@@ -426,6 +428,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::PrivacyExceptions(key, ex));
         }
         Cmd::Download { .. } => app.push_event(Ev::Notice("У демо-режимі файли не завантажуються".into())),
+        // The cat sticker is animated: a small Lottie file of our own.
+        Cmd::LoadMedia { peer, id } if app.demo_history().any(|(p, _, msgs)| p == peer && msgs.iter().any(|m| m.id == id && m.lottie)) => match demo_tgs() {
+            Some(path) => app.push_event(Ev::MediaReady { peer, id, path }),
+            None => {}
+        },
         Cmd::LoadMedia { peer, id } => match tone(id).or_else(|| clip(id)) {
             Some(path) => app.push_event(Ev::MediaReady { peer, id, path }),
             None => app.push_event(Ev::Notice("Для демо-відео потрібен ffmpeg".into())),
@@ -1273,6 +1280,24 @@ fn queued_media(app: &mut App, q: &Queued) {
         }
         None => {}
     }
+}
+
+/// A beating heart as a `.tgs` (gzipped Lottie), for the demo's animated sticker.
+fn demo_tgs() -> Option<std::path::PathBuf> {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("glassgram-demo-heart.tgs");
+    if path.exists() {
+        return Some(path);
+    }
+    let scale = r#"{"a":1,"k":[{"t":0,"s":[80,80,100],"i":{"x":[0.4],"y":[1]},"o":{"x":[0.6],"y":[0]}},{"t":15,"s":[105,105,100],"i":{"x":[0.4],"y":[1]},"o":{"x":[0.6],"y":[0]}},{"t":30,"s":[80,80,100]}]}"#;
+    let heart = r#"{"ty":"sh","ks":{"a":0,"k":{"c":true,"v":[[0,40],[-60,-10],[-30,-55],[0,-30],[30,-55],[60,-10]],"i":[[0,0],[0,25],[-25,0],[0,0],[0,0],[0,-25]],"o":[[0,0],[0,-25],[0,0],[0,0],[25,0],[0,25]]}}}"#;
+    let json = format!(
+        r#"{{"v":"5.5.2","fr":30,"ip":0,"op":30,"w":200,"h":200,"layers":[{{"ty":4,"ind":1,"ip":0,"op":30,"st":0,"ks":{{"o":{{"a":0,"k":100}},"r":{{"a":0,"k":0}},"p":{{"a":0,"k":[100,105,0]}},"a":{{"a":0,"k":[0,0,0]}},"s":{scale}}},"shapes":[{heart},{{"ty":"fl","c":{{"a":0,"k":[0.95,0.25,0.4,1]}},"o":{{"a":0,"k":100}}}}]}}]}}"#
+    );
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    gz.write_all(json.as_bytes()).ok()?;
+    std::fs::write(&path, gz.finish().ok()?).ok()?;
+    Some(path)
 }
 
 fn rand_ish() -> i32 {

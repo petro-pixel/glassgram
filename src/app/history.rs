@@ -287,7 +287,7 @@ impl App {
             (None, None) => (l!("Відповідь", "Reply").to_owned(), quoted.unwrap_or_else(|| l!("Повідомлення", "Message").to_owned())),
         });
         let kind = m.media.as_ref().map(|i| i.kind);
-        let animated = self.settings.autoplay && m.video_sticker
+        let animated = self.settings.autoplay && (m.video_sticker || m.lottie)
             || matches!(kind, Some(MediaKind::Gif | MediaKind::Round))
             || (kind == Some(MediaKind::Video) && self.playback.player.is(peer, m.id));
         let clip = self.playback.clips.get(&(peer, m.id)).and_then(|c| c.tex.as_ref());

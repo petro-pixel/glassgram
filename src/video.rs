@@ -49,6 +49,34 @@ impl Clip {
         Self { run, size, rx, child, started: now, frames: 0, tex: None, done: false }
     }
 
+    /// An animated (`.tgs`) sticker: frames drawn by `lottie.rs` on a thread of its own, at the
+    /// same pace as video frames. `None`: the file is not an animation we can draw.
+    pub fn lottie(path: &std::path::Path, side: usize, looped: bool, now: f64) -> Option<Self> {
+        let data = std::fs::read(path).ok()?;
+        let mut anim = crate::lottie::Lottie::load(&data, side as u16).ok()?;
+        let (tx, rx) = sync_channel(4);
+        std::thread::spawn(move || {
+            let length = anim.duration();
+            let mut k = 0u64;
+            loop {
+                let mut t = k as f64 / FPS;
+                if t > length {
+                    if !looped {
+                        return;
+                    }
+                    k = 0;
+                    t = 0.0;
+                }
+                // The clip is gone: so is the reason to draw.
+                if tx.send(anim.frame(t)).is_err() {
+                    return;
+                }
+                k += 1;
+            }
+        });
+        Some(Self { run: 0, size: [side, side], rx, child: Arc::new(Mutex::new(None)), started: now, frames: 0, tex: None, done: false })
+    }
+
     /// Takes frames whose time has come and updates the texture with the latest one.
     pub fn advance(&mut self, ctx: &egui::Context, key: &str, now: f64) {
         if self.done {

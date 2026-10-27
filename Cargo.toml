@@ -24,6 +24,11 @@ roxmltree = "0.21"
 libsql = { version = "0.10", default-features = false, features = ["core"] }
 # File types for documents we upload ourselves; grammers uses the same crate, pure Rust.
 mime_guess = "2"
+# Animated (.tgs) stickers: velato reads Lottie, vello_cpu (already in the build via egui) draws it,
+# flate2 (already in the build) unpacks the gzip. All pure Rust.
+velato = { version = "0.12", default-features = false }
+vello_cpu = "0.2"
+flate2 = "1"
 open = "5"
 qrcode = { version = "0.14", default-features = false }
 rfd = "0.17"

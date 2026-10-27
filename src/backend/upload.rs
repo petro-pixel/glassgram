@@ -131,6 +131,7 @@ pub(super) async fn cache_media(client: &Client, r: PeerRef, id: i32) -> Result<
             Some(m) if m.starts_with("audio/") => "m4a",
             _ => "mp4",
         },
+        Media::Sticker(s) if s.document.mime_type() == Some("application/x-tgsticker") => "tgs",
         Media::Sticker(_) => "webm",
         _ => "bin",
     };

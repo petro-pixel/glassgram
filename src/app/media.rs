@@ -127,7 +127,16 @@ impl App {
             } else if self.playback.clips.get(&key).is_none_or(|c| c.run != 0) {
                 // A sticker that doesn't loop plays once each time it comes into view.
                 let looped = info.is_some() || self.settings.loop_stickers;
-                self.playback.clips.insert(key, Clip::start(spec(0.0, 1.0, looped), 0, now));
+                let clip = if path.extension().is_some_and(|e| e == "tgs") {
+                    // A file we can't draw stays a still picture (its thumbnail).
+                    match Clip::lottie(&path, size[0], looped, now) {
+                        Some(c) => c,
+                        None => continue,
+                    }
+                } else {
+                    Clip::start(spec(0.0, 1.0, looped), 0, now)
+                };
+                self.playback.clips.insert(key, clip);
             }
             if let Some(c) = self.playback.clips.get_mut(&key) {
                 c.advance(&self.ctx, &format!("clip{}_{}", key.0.bot_api_dialog_id_unchecked(), key.1), now);
