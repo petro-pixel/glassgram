@@ -96,6 +96,7 @@ pub(super) fn raw_event(u: &tl::enums::Update, names: &Names, notifs: &notify::N
         U::PinnedChannelMessages(p) => Ev::PinnedChanged { peer: PeerId::channel(p.channel_id)?, ids: p.messages.clone(), pinned: p.pinned },
         U::ChannelMessageViews(v) => Ev::Views { peer: PeerId::channel(v.channel_id)?, id: v.id, views: v.views },
         U::NotifySettings(n) => return notify::update_event(n, notifs),
+        U::SavedReactionTags => Ev::SavedTagsChanged,
         U::DraftMessage(d) if d.top_msg_id.is_none() => Ev::Draft { peer: PeerId::from(&d.peer), text: draft_text(&Some(d.draft.clone())) },
         _ => return None,
     })

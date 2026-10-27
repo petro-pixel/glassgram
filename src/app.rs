@@ -846,6 +846,9 @@ impl App {
             Ev::PeerStories { peer, stories, max_read } => self.on_peer_stories(peer, stories, max_read),
             Ev::StoryVideo { peer, id, path } => self.on_story_video(peer, id, path),
             Ev::SavedHistory { source, msgs, older } => self.on_saved_history(source, msgs, older),
+            Ev::SavedTags(tags) => self.on_saved_tags(tags),
+            Ev::SavedTagsChanged => self.on_saved_tags_changed(),
+            Ev::SavedTagged(msgs) => self.on_saved_tagged(msgs),
             Ev::BotStart { peer, param } => {
                 self.bot_start.insert(peer, param);
             }
@@ -1599,6 +1602,7 @@ impl eframe::App for App {
         self.poll_form_view(ui);
         self.chat_edit_view(ui);
         self.privacy_pick_view(ui);
+        self.tag_rename_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);
     }

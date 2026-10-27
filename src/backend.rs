@@ -74,6 +74,7 @@ mod birthdays;
 mod botstart;
 mod similar;
 mod saved;
+pub use saved::SavedTag;
 mod stories;
 mod gifts;
 mod emojikw;
@@ -256,6 +257,12 @@ pub enum Cmd {
     LoadSavedDialogs,
     /// Saved Messages from one source; `saved` is the Saved Messages chat itself.
     LoadSavedHistory { saved: PeerId, source: PeerId, before: Option<i32> },
+    /// Reaction tags of Saved Messages (`messages.getSavedReactionTags`).
+    LoadSavedTags,
+    /// Messages of Saved Messages tagged with this emoji.
+    LoadSavedTagged { saved: PeerId, emoji: String },
+    /// Name a tag (Premium); an empty title removes the name.
+    RenameSavedTag { emoji: String, title: String },
     /// Gifts shown in a profile.
     LoadGifts(PeerId),
     /// Report messages; start with an empty `option` and pass the chosen one in the next step.
@@ -466,6 +473,10 @@ pub enum Ev {
     SavedDialogs(Vec<ChatInfo>),
     /// A page of Saved Messages from one source.
     SavedHistory { source: PeerId, msgs: Vec<Msg>, older: bool },
+    SavedTags(Vec<SavedTag>),
+    /// The tags changed on another device or by a reaction here.
+    SavedTagsChanged,
+    SavedTagged(Vec<Msg>),
     /// The next step of a report.
     ReportStep { peer: PeerId, ids: Vec<i32>, step: ReportStep },
     /// Keywords of one language, each with its emoji.
@@ -839,7 +850,7 @@ impl Worker {
                 Ok(())
             }
             cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. } | Cmd::LoadStoryVideo { .. } | Cmd::ReactStory { .. } | Cmd::ReplyStory { .. }) => self.stories_cmd(cmd).await,
-            cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. }) => self.saved_cmd(cmd).await,
+            cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. } | Cmd::LoadSavedTags | Cmd::LoadSavedTagged { .. } | Cmd::RenameSavedTag { .. }) => self.saved_cmd(cmd).await,
             cmd @ Cmd::LoadGifts(_) => self.gifts_cmd(cmd).await,
             cmd @ Cmd::Report { .. } => self.report_cmd(cmd).await,
             cmd @ Cmd::LoadEmojiKeywords(_) => self.emoji_keywords_cmd(cmd).await,

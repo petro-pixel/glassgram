@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{SavedTag, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -599,6 +599,27 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let list = [3, 4, 1].into_iter().filter_map(|id| app.demo_chat(PeerId::user_unchecked(id)).cloned()).collect();
             app.push_event(Ev::SavedDialogs(list));
         }
+        Cmd::LoadSavedTags => app.push_event(Ev::SavedTags(SAVED_TAGS.with_borrow(Clone::clone))),
+        Cmd::RenameSavedTag { emoji, title } => {
+            SAVED_TAGS.with_borrow_mut(|tags| tags.iter_mut().filter(|t| t.emoji == emoji).for_each(|t| t.title = title.clone()));
+            app.push_event(Ev::SavedTags(SAVED_TAGS.with_borrow(Clone::clone)));
+        }
+        Cmd::LoadSavedTagged { saved, emoji } => {
+            // 👍 marks the note and the channel post, ❤ the note only.
+            let ids: &[i32] = if emoji == "👍" { &[1, 2] } else { &[1] };
+            let msgs = app
+                .demo_history()
+                .find(|(p, _, _)| *p == saved)
+                .map(|(_, _, m)| m.iter().filter(|m| ids.contains(&m.id)).cloned().collect::<Vec<_>>())
+                .unwrap_or_default()
+                .into_iter()
+                .map(|mut m| {
+                    m.reactions = SAVED_TAGS.with_borrow(|t| t.iter().filter(|t| t.emoji == "👍" || m.id == 1).map(|t| Reaction { emoji: t.emoji.clone(), count: 1, mine: true }).collect());
+                    m
+                })
+                .collect();
+            app.push_event(Ev::SavedTagged(msgs));
+        }
         Cmd::LoadSavedHistory { saved, source, .. } => {
             let mut msgs: Vec<Msg> = app.demo_history().find(|(p, _, _)| *p == saved).map(|(_, _, m)| m.clone()).unwrap_or_default();
             // Message 1 is our note, 2 the channel post.
@@ -846,6 +867,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
 }
 
 thread_local! {
+    /// Demo reaction tags of Saved Messages; renaming changes them.
+    static SAVED_TAGS: std::cell::RefCell<Vec<SavedTag>> = std::cell::RefCell::new(vec![
+        SavedTag { emoji: "👍".into(), title: "Ідеї".into(), count: 2 },
+        SavedTag { emoji: "❤".into(), title: String::new(), count: 1 },
+    ]);
     /// Demo cloud password: "demo", with a hint and no recovery email at first.
     static PASSWORD: std::cell::RefCell<(String, PasswordState)> = std::cell::RefCell::new((
         "demo".into(),

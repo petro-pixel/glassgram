@@ -141,8 +141,11 @@ impl App {
                     Some(all) => {
                         // In a forum, show only the open topic.
                         // Saved Messages likewise show only the picked source.
-                        let msgs: Vec<&Msg> = all.iter().filter(|m| topic.is_none_or(|t| m.topic_id() == t) && source.is_none_or(|s| m.saved_from == Some(s))).collect();
-                        let exhausted = match (topic, source) {
+                        // A tag keeps only messages carrying that reaction; it loads them all at once.
+                        let tag = self.saved_tag(chat);
+                        let tagged = |m: &Msg| tag.as_ref().is_none_or(|t| m.reactions.iter().any(|r| &r.emoji == t));
+                        let msgs: Vec<&Msg> = all.iter().filter(|m| topic.is_none_or(|t| m.topic_id() == t) && source.is_none_or(|s| m.saved_from == Some(s)) && tagged(m)).collect();
+                        let exhausted = tag.is_some() || match (topic, source) {
                             (Some(t), _) => self.forum.exhausted.contains(&(peer, t)),
                             (_, Some(s)) => self.saved.exhausted.contains(&s),
                             _ => self.exhausted.get(&peer).copied().unwrap_or(false),

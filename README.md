@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 51%** `██████████░░░░░░░░░░` — 86 done, 1 partial, 83 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 51%** `██████████░░░░░░░░░░` — 87 done, 1 partial, 82 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -119,7 +119,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/birthdays.rs`, `src/backend/birthdays.rs` | Birthdays: reminder above the chat list, birthday in user info and in My Account |
 | `src/app/botstart.rs`, `src/backend/botstart.rs` | Bot deep links `t.me/<bot>?start=…`: Start bar with the parameter |
 | `src/app/similar.rs`, `src/backend/similar.rs` | "Similar channels" tab in a channel's info |
-| `src/app/saved.rs`, `src/backend/saved.rs` | Saved Messages split by source: "All" and one tab per chat |
+| `src/app/saved.rs`, `src/backend/saved.rs` | Saved Messages split by source: "All" and one tab per chat; reaction tags as filters, renaming them |
 | `src/app/chatsearch.rs` | In-chat search panel: type and sender filters, results |
 | `src/app/stories.rs`, `src/backend/stories.rs` | Stories: strip above the chat list and the viewer (video with sound, replies, reactions) |
 | `src/app/confirm.rs` | "Open this link?" for hidden links and "Run this file?" for received programs |

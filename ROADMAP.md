@@ -45,7 +45,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ New chat (pencil next to search): contacts with search (`contacts.getContacts`, `contacts.search`), new group (`createChat`), new channel (`channels.createChannel`), a photo for either; after a new channel, its type — public with a checked `t.me/` link (`channels.checkUsername`, `updateUsername`) or private with its invite link — and the first subscribers from contacts (`channels.inviteToChannel`)
 - ✅ Contacts: list with search (pencil → Contacts), "New contact" by name and phone (`importContacts`), "Add to contacts" / "Delete contact" in user info (`addContact`, `deleteContacts`), block / unblock and stop / restart bots (`contacts.block`, `unblock`), blocked list at the top of Privacy and Security (`getBlocked`)
 - ✅ Saved Messages by source: a strip of "All" and the chats messages were saved from, each with its own history (`getSavedDialogs`, `getSavedHistory`)
-- ⬜ **P1** Saved Messages reaction tags (`savedReactionTags`)
+- ✅ Saved Messages reaction tags: capsules with the emoji, name and count after the sources (`getSavedReactionTags`), a click shows only messages with that tag (`messages.search` with `saved_reaction`, combined with the source), right click → rename (`updateSavedReactionTag`, Premium), live `updateSavedReactionTags`. Custom emoji tags wait for custom emoji support
 - ⬜ **P1** Folder tags in the chat list (`toggleDialogFilterTags`), suggested folders
 - ✅ Contact birthday reminders (`contacts.getBirthdays`): a card above the main list opens the chat, hidden until tomorrow with ×
 - ⬜ **P2** Shared folders by link: join, update, leave (`chatlists.*`)
