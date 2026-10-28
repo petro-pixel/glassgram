@@ -70,6 +70,7 @@ mod webapp;
 mod polls;
 mod privacy;
 mod websites;
+mod autodelete;
 pub use websites::WebSession;
 mod password;
 pub use password::{PasswordChange, PasswordState};
@@ -183,6 +184,11 @@ pub enum Cmd {
     /// Whether sensitive media is shown unfiltered (`account.getContentSettings`).
     LoadContentSettings,
     /// Websites logged in with Telegram; each answer is `Ev::Websites`.
+    /// The auto-delete timer for new chats, in seconds (0 — off); answered with `Ev::DefaultTtl`.
+    LoadDefaultTtl,
+    SetDefaultTtl(i32),
+    /// A chat's auto-delete timer; answered with `Ev::HistoryTtl`.
+    SetHistoryTtl { peer: PeerId, period: i32 },
     LoadWebsites,
     LogoutWebsite(i64),
     LogoutAllWebsites,
@@ -459,6 +465,8 @@ pub enum Ev {
     /// Sensitive content: shown unfiltered, and whether the account may change that.
     ContentSettings { enabled: bool, can_change: bool },
     Websites(Vec<WebSession>),
+    DefaultTtl(i32),
+    HistoryTtl { peer: PeerId, period: i32 },
     Password(PasswordState),
     /// The current password was right; the recovery email it is bound to.
     PasswordChecked { email: String },
@@ -843,6 +851,7 @@ impl Worker {
             cmd @ (Cmd::OpenChat(..) | Cmd::OpenAt { .. } | Cmd::LoadOlder { .. } | Cmd::Typing(..)) => self.history_cmd(cmd).await,
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
             cmd @ (Cmd::Reschedule { .. } | Cmd::SendScheduledNow { .. } | Cmd::DeleteScheduled { .. }) => self.scheduled_cmd(cmd).await,
+            cmd @ (Cmd::LoadDefaultTtl | Cmd::SetDefaultTtl(_) | Cmd::SetHistoryTtl { .. }) => self.autodelete_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
             cmd @ Cmd::EditMedia { .. } => self.edit_media_cmd(cmd).await,
             cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,

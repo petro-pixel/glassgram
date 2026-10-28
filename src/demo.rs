@@ -791,6 +791,15 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::LoadGlobalPrivacy => app.push_event(Ev::GlobalPrivacy(GlobalPrivacy { archive_new: true, keep_unmuted: false, keep_folders: true, hide_read: false, premium_only: false })),
         Cmd::SetGlobalPrivacy(p) => app.push_event(Ev::GlobalPrivacy(p)),
+        Cmd::LoadDefaultTtl => app.push_event(Ev::DefaultTtl(DEMO_DEFAULT_TTL.get())),
+        Cmd::SetDefaultTtl(period) => {
+            DEMO_DEFAULT_TTL.set(period);
+            app.push_event(Ev::DefaultTtl(period));
+        }
+        Cmd::SetHistoryTtl { peer, period } => {
+            DEMO_TTL.with_borrow_mut(|t| t.insert(peer, period));
+            app.push_event(Ev::HistoryTtl { peer, period });
+        }
         Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites => {
             let gone = match &cmd {
                 Cmd::LogoutWebsite(h) => vec![*h],
@@ -914,6 +923,9 @@ pub fn handle(app: &mut App, cmd: Cmd) {
 }
 
 thread_local! {
+    /// Demo auto-delete timers: chats changed in this run, and the default for new chats.
+    static DEMO_TTL: std::cell::RefCell<HashMap<PeerId, i32>> = std::cell::RefCell::new(HashMap::new());
+    static DEMO_DEFAULT_TTL: std::cell::Cell<i32> = const { std::cell::Cell::new(0) };
     /// Demo websites the user disconnected.
     static DEMO_WEB_GONE: std::cell::RefCell<Vec<i64>> = const { std::cell::RefCell::new(Vec::new()) };
     /// Demo reaction tags of Saved Messages; renaming changes them.
@@ -1469,6 +1481,8 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
                 6 => "weather_demo_bot".into(),
                 _ => String::new(),
             };
+            d.can_ttl = kind == Some(ChatKind::User);
+            d.ttl = DEMO_TTL.with_borrow(|t| t.get(&peer).copied().unwrap_or(if id == 1 { 7 * 86400 } else { 0 }));
             if id == 1 {
                 d.phone = "+380 50 000 00 01".into();
                 d.birthday = Some(today_birthday(Some(1996)));

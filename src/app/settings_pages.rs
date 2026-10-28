@@ -187,6 +187,7 @@ impl App {
                 self.send(Cmd::LoadGlobalPrivacy);
                 self.send(Cmd::LoadContentSettings);
                 self.send(Cmd::LoadWebsites);
+                self.send(Cmd::LoadDefaultTtl);
                 self.two_step.reset();
                 self.send(Cmd::LoadPassword);
             }
@@ -672,6 +673,8 @@ impl App {
             }
             ui.add_space(6.0);
             self.global_privacy_section(ui);
+            ui.add_space(6.0);
+            self.default_ttl_section(ui);
             ui.add_space(6.0);
             self.sensitive_section(ui);
             ui.add_space(6.0);

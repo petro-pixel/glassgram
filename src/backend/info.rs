@@ -133,6 +133,10 @@ pub struct ChatDetails {
     pub notify: NotifyState,
     /// Item counts per shared media tab.
     pub counts: Vec<(SharedKind, i32)>,
+    /// Messages here delete themselves after this many seconds (0 — never).
+    pub ttl: i32,
+    /// We may change that timer.
+    pub can_ttl: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -452,6 +456,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
             d.birthday = u.birthday.as_ref().map(Birthday::from_raw);
             d.gifts = u.stargifts_count.unwrap_or(0);
             d.notify = NotifyState::from_raw(&u.notify_settings);
+            d.ttl = u.ttl_period.unwrap_or(0);
             video = avatar_video(u.profile_photo.as_ref());
             if let Some(id) = u.personal_channel_id {
                 channel = f.chats.iter().find(|c| c.id() == id).cloned().map(|c| Peer::from_raw(client, c));
@@ -460,6 +465,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.usernames = other_usernames(x.username.as_deref(), x.usernames.as_deref());
                 d.username = first_username(x.username, x.usernames);
                 d.phone = x.phone.map(|p| format!("+{p}")).unwrap_or_default();
+                d.can_ttl = !x.bot && !x.is_self;
             }
         }
         PeerKind::Chat => {
@@ -470,6 +476,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.about = c.about;
                 d.notify = NotifyState::from_raw(&c.notify_settings);
                 d.invite = invite_link(c.exported_invite);
+                d.ttl = c.ttl_period.unwrap_or(0);
                 if let tl::enums::ChatParticipants::Participants(p) = &c.participants {
                     d.members = Some(p.participants.len() as i32);
                     d.admins = Some(p.participants.iter().filter(|x| !matches!(x, tl::enums::ChatParticipant::Participant(_))).count() as i32);
@@ -479,6 +486,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.creator = c.creator;
                 d.admin = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.invite_users);
                 d.can_edit = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.change_info);
+                d.can_ttl = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.delete_messages);
                 d.rights = Some(ChatRights::from_banned(c.default_banned_rights.as_ref()));
             }
             d.can_view_members = true;
@@ -496,12 +504,14 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.admins = c.admins_count;
                 d.can_view_members = c.can_view_participants;
                 d.slowmode = Some(c.slowmode_seconds.unwrap_or(0));
+                d.ttl = c.ttl_period.unwrap_or(0);
             }
             if let Some(tl::enums::Chat::Channel(c)) = f.chats.into_iter().find(|c| c.id() == r.id.bare_id_unchecked()) {
                 d.creator = c.creator;
                 d.admin = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.invite_users);
                 d.username = first_username(c.username, c.usernames);
                 d.can_edit = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.change_info);
+                d.can_ttl = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.delete_messages);
                 if c.megagroup {
                     d.rights = Some(ChatRights::from_banned(c.default_banned_rights.as_ref()));
                 } else {

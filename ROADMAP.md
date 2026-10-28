@@ -160,7 +160,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Global settings on the Privacy and Security page: archive and mute new non-contacts (keep unmuted / folder chats archived), hide read time, who can message me (`get/setGlobalPrivacySettings`; other server fields are kept)
 - ✅ Blocking from user info; reporting messages in groups and channels from the message menu: the server's reasons, sub-reasons and a comment step (`messages.report`)
 - ⬜ **P2** End-to-end encrypted secret chats (`requestEncryption`, MTProto 2.0 E2E)
-- ⬜ **P2** Default and per-chat message auto-delete (`setDefaultHistoryTTL`, `setHistoryTTL`)
+- ✅ Message auto-delete: the default timer for new chats in Privacy and Security (`setDefaultHistoryTTL`) and a chat's own timer in its info panel (`setHistoryTTL`, read from the full chat's `ttl_period`): off, 1 day, 1 week, 1 month
 - ⬜ **P2** Encrypting local data with the local passcode (for now the passcode only hides the interface)
 - ✅ Sensitive content: "Disable filtering" in Privacy and Security (`account.getContentSettings` / `setContentSettings`), greyed out for accounts that can't change it
 - ✅ Hardening against untrusted content (audit 2026-10): links open only https/http/mailto/tg; sender file names can't leave Downloads; received programs and scripts are shown in their folder, not run; mini apps can't open local paths, read the clipboard or navigate to `file:`; recordings live in an owner-only temp folder

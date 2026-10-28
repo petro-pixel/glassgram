@@ -67,6 +67,8 @@ pub(super) struct InfoPanel {
     /// Gifts and how many there are in all; `None` until loaded.
     gifts: Option<(Vec<crate::backend::Gift>, i32)>,
     pub(super) notify_open: bool,
+    /// The auto-delete timers are unfolded.
+    ttl_open: bool,
     pub(super) confirm: Option<Confirm>,
     /// "Also delete for the other side" checkbox in private chats.
     revoke: bool,
@@ -91,6 +93,8 @@ enum Do {
     Edit,
     AddContact,
     Unblock,
+    /// A new auto-delete timer, in seconds.
+    Ttl(i32),
 }
 
 fn has_members(kind: ChatKind) -> bool {
@@ -99,6 +103,11 @@ fn has_members(kind: ChatKind) -> bool {
 
 
 impl App {
+    /// Details of the chat whose info panel is open, if it is `peer`.
+    pub(super) fn info_details_mut(&mut self, peer: PeerId) -> Option<&mut ChatDetails> {
+        self.info.as_mut().filter(|i| i.peer == peer).and_then(|i| i.details.as_mut())
+    }
+
     /// Opens the panel for a chat and requests everything it shows.
     pub(super) fn open_info(&mut self, peer: PeerId) {
         let Some(kind) = self.chats.iter().find(|c| c.id == peer).map(|c| c.kind) else {
@@ -120,6 +129,7 @@ impl App {
             similar: None,
             gifts: None,
             notify_open: false,
+            ttl_open: false,
             confirm: None,
             revoke: false,
             avatar_video: None,
@@ -367,6 +377,7 @@ impl App {
             Do::Photo(id) => self.open_viewer(peer, id),
             Do::Jump(msg) => self.jump_to(&SearchHit { chat: chat.title.clone(), kind: chat.kind, msg }),
             Do::Tab(tab) => self.select_info_tab(tab),
+            Do::Ttl(period) => self.send(Cmd::SetHistoryTtl { peer, period }),
             Do::Notify(mute_until, silent) => {
                 if let Some(i) = &mut self.info {
                     i.notify_open = false;
@@ -506,6 +517,9 @@ impl App {
             opt(ui, l!("Вимкнути назавжди", "Mute forever"), false, Do::Notify(MUTE_FOREVER, silent));
             // Keep the current mute deadline, flip only the sound.
             opt(ui, l!("Без звуку", "Silent"), silent, Do::Notify(if muted { d.notify.mute_until } else { 0 }, !silent));
+        }
+        if let Some(period) = super::autodelete::ttl_rows(ui, &d, &mut info.ttl_open) {
+            todo.push(Do::Ttl(period));
         }
     }
 
@@ -815,7 +829,7 @@ fn info_actions(ui: &mut Ui, chat: &ChatInfo, creator: bool, blocked: Option<boo
 }
 
 /// Icon, wrapped value and a caption under it; click copies.
-fn info_row(ui: &mut Ui, icon: Icon, text: &str, caption: &str) -> egui::Response {
+pub(super) fn info_row(ui: &mut Ui, icon: Icon, text: &str, caption: &str) -> egui::Response {
     let w = ui.available_width();
     let x = 52.0;
     let job = LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), ink(), w - x - 12.0);
@@ -837,7 +851,7 @@ fn info_row(ui: &mut Ui, icon: Icon, text: &str, caption: &str) -> egui::Respons
 }
 
 /// Option row in the notifications list, with a check mark when active.
-fn menu_row(ui: &mut Ui, label: &str, on: bool) -> egui::Response {
+pub(super) fn menu_row(ui: &mut Ui, label: &str, on: bool) -> egui::Response {
     let w = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(vec2(w, 36.0), Sense::click());
     let hover = ui.ctx().animate_bool(resp.id, resp.hovered());
