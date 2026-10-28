@@ -178,6 +178,9 @@ pub enum Cmd {
     /// Archive / read time / who can message me (`account.getGlobalPrivacySettings`).
     LoadGlobalPrivacy,
     SetGlobalPrivacy(GlobalPrivacy),
+    /// Whether sensitive media is shown unfiltered (`account.getContentSettings`).
+    LoadContentSettings,
+    SetSensitive(bool),
     /// Two-step verification state (`account.getPassword`); answered with `Ev::Password`.
     LoadPassword,
     /// Checks the current cloud password before the page offers to change it.
@@ -447,6 +450,8 @@ pub enum Ev {
     Privacy(PrivacyKey, PrivacyState),
     PrivacyExceptions(PrivacyKey, PrivacyExceptions),
     GlobalPrivacy(GlobalPrivacy),
+    /// Sensitive content: shown unfiltered, and whether the account may change that.
+    ContentSettings { enabled: bool, can_change: bool },
     Password(PasswordState),
     /// The current password was right; the recovery email it is bound to.
     PasswordChecked { email: String },
@@ -874,7 +879,7 @@ impl Worker {
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
             cmd @ (Cmd::EditChat { .. } | Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. }) => self.chat_edit_cmd(cmd).await,
-            cmd @ (Cmd::LoadGlobalPrivacy | Cmd::SetGlobalPrivacy(_)) => self.global_privacy_cmd(cmd).await,
+            cmd @ (Cmd::LoadGlobalPrivacy | Cmd::SetGlobalPrivacy(_) | Cmd::LoadContentSettings | Cmd::SetSensitive(_)) => self.global_privacy_cmd(cmd).await,
             cmd @ (Cmd::LoadPassword | Cmd::CheckPassword(_) | Cmd::UpdatePassword { .. } | Cmd::ConfirmPasswordEmail(_) | Cmd::ResendPasswordEmail | Cmd::CancelPasswordEmail) => self.password_cmd(cmd).await,
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } | Cmd::BotWriteAccess { .. } | Cmd::SharePhone { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,

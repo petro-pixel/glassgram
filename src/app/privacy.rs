@@ -15,6 +15,8 @@ pub(super) struct PrivacyPage {
     pub(super) pick: Option<PrivacyPick>,
     /// Global privacy switches (`None` — not loaded yet).
     pub(super) global: Option<backend::GlobalPrivacy>,
+    /// Sensitive content unfiltered, and whether it may be changed (`None` — not loaded yet).
+    pub(super) sensitive: Option<(bool, bool)>,
 }
 
 impl App {
@@ -55,6 +57,23 @@ impl App {
             self.privacy.global = Some(p);
             self.send(Cmd::SetGlobalPrivacy(p));
         }
+    }
+
+    /// "Sensitive content", as in Telegram Desktop; some accounts (by the app store rules of
+    /// where they signed up) can't change it, then the switch is greyed out.
+    pub(super) fn sensitive_section(&mut self, ui: &mut Ui) {
+        let Some((mut on, can_change)) = self.privacy.sensitive else { return };
+        section_title(ui, l!("Делікатний вміст", "Sensitive content"));
+        if ui.add_enabled(can_change, egui::Checkbox::new(&mut on, l!("Вимкнути фільтрування", "Disable filtering"))).changed() {
+            self.privacy.sensitive = Some((on, can_change));
+            self.send(Cmd::SetSensitive(on));
+        }
+        let note = if can_change {
+            l!("Показувати медіа з делікатним вмістом у публічних каналах без розмиття.", "Show media with sensitive content in public channels without blurring.")
+        } else {
+            l!("Для цього акаунта змінити це не можна.", "This account can't change it.")
+        };
+        ui.label(egui::RichText::new(note).color(ink_dim()).size(12.5));
     }
 }
 

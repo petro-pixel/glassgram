@@ -1,6 +1,6 @@
 //! Privacy: exceptions of the per-setting rules ("always" / "never" for people and groups) and the
 //! global settings (`account.getGlobalPrivacySettings`): archiving new chats from non-contacts,
-//! hiding read times, who can message me.
+//! hiding read times, who can message me; and sensitive content filtering (`account.getContentSettings`).
 
 use grammers_client::peer::{Peer, User};
 use grammers_client::session::types::{PeerId, PeerKind};
@@ -42,6 +42,12 @@ async fn get(client: &grammers_client::Client) -> Result<tl::types::GlobalPrivac
     Ok(s)
 }
 
+async fn content(client: &grammers_client::Client) -> Result<Ev, String> {
+    let tl::enums::account::ContentSettings::Settings(s) =
+        client.invoke(&tl::functions::account::GetContentSettings {}).await.map_err(|e| lf!("Приватність: {e}", "Privacy: {e}"))?;
+    Ok(Ev::ContentSettings { enabled: s.sensitive_enabled, can_change: s.sensitive_can_change })
+}
+
 impl Worker {
     pub(super) async fn global_privacy_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
         let client = self.client()?;
@@ -68,6 +74,14 @@ impl Worker {
                     }
                 };
                 self.out.send(Ev::GlobalPrivacy(state));
+            }
+            Cmd::LoadContentSettings => self.out.send(content(&client).await?),
+            Cmd::SetSensitive(on) => {
+                let res = client.invoke(&tl::functions::account::SetContentSettings { sensitive_enabled: on }).await;
+                if let Err(e) = res {
+                    self.out.send(Ev::Error(lf!("Не вдалося змінити: {e}", "Could not change it: {e}")));
+                }
+                self.out.send(content(&client).await?);
             }
             _ => {}
         }

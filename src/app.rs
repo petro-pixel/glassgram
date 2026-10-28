@@ -750,6 +750,7 @@ impl App {
                 open: None,
                 pick: None,
                 global: None,
+                sensitive: None,
             },
             two_step: password::TwoStep::default(),
             confirm_terminate: false,
@@ -958,6 +959,7 @@ impl App {
             }
             Ev::Sessions(list) => self.sessions = list,
             Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
+            Ev::ContentSettings { enabled, can_change } => self.privacy.sensitive = Some((enabled, can_change)),
             Ev::Password(state) => self.on_password(state),
             Ev::PasswordChecked { email } => self.on_password_checked(email),
             Ev::PasswordFailed(e) => self.on_password_failed(e),
