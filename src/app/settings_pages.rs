@@ -188,6 +188,7 @@ impl App {
                 self.send(Cmd::LoadContentSettings);
                 self.send(Cmd::LoadWebsites);
                 self.send(Cmd::LoadDefaultTtl);
+                self.send(Cmd::LoadAccountTtl);
                 self.two_step.reset();
                 self.send(Cmd::LoadPassword);
             }
@@ -681,6 +682,8 @@ impl App {
             self.sensitive_section(ui);
             ui.add_space(6.0);
             self.websites_section(ui);
+            ui.add_space(6.0);
+            self.self_destruct_section(ui);
             ui.add_space(6.0);
             self.two_step_section(ui);
             ui.add_space(6.0);

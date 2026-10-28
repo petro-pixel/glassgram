@@ -30,7 +30,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ 2FA management in Privacy and Security → Two-Step Verification: the current password (an SRP proof, `account.getPasswordSettings`) unlocks changing it, its hint and recovery email, or turning it off; the first password with an optional email; the email code with resend and cancel (`account.updatePasswordSettings`, `confirmPasswordEmail`, `resendPasswordEmail`, `cancelPasswordEmail`). The new password goes as `g^x mod p` with our own 32 bytes of salt, checked in a test against the server side of SRP
 - ⬜ **P2** Passkeys (`account.registerPasskey`), sign-in with an email code
 - ⬜ **P2** Name colour and profile background, emoji status (`account.updateColor`, `updateEmojiStatus`; partly Premium)
-- ⬜ **P2** Change number, self-destruct when inactive (`setAccountTTL`), delete account
+- ✅ Account self-destruct when inactive: 1, 3, 6, 12, 18 or 24 months in Privacy and Security (`account.getAccountTTL` / `setAccountTTL`)
+- ⬜ **P2** Change number, delete account
 - ✅ Connected websites in Privacy and Security → "Logged in with Telegram": site, its bot, browser, region and IP, last use; disconnect one or all (`account.getWebAuthorizations`, `resetWebAuthorization(s)`)
 - ⬜ **P3** Telegram Passport
 

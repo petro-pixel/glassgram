@@ -72,6 +72,7 @@ mod privacy;
 mod websites;
 mod storage;
 mod dice;
+mod selfdestruct;
 pub use storage::CacheKind;
 mod autodelete;
 pub use websites::WebSession;
@@ -193,6 +194,9 @@ pub enum Cmd {
     /// A chat's auto-delete timer; answered with `Ev::HistoryTtl`.
     SetHistoryTtl { peer: PeerId, period: i32 },
     /// What the local cache takes by type; answered with `Ev::CacheUsage`.
+    /// Days away before the account deletes itself; answered with `Ev::AccountTtl`.
+    LoadAccountTtl,
+    SetAccountTtl(i32),
     LoadCacheUsage,
     /// An emoji game (🎲 🎯 🏀 ⚽ 🎰 🎳); the server rolls the value.
     SendDice { peer: PeerId, emoji: String, reply_to: Option<ReplyTo> },
@@ -478,6 +482,7 @@ pub enum Ev {
     /// (type, bytes, files) of the local cache.
     CacheUsage(Vec<(CacheKind, u64, usize)>),
     DefaultTtl(i32),
+    AccountTtl(i32),
     HistoryTtl { peer: PeerId, period: i32 },
     Password(PasswordState),
     /// The current password was right; the recovery email it is bound to.
@@ -864,6 +869,7 @@ impl Worker {
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
             cmd @ (Cmd::Reschedule { .. } | Cmd::SendScheduledNow { .. } | Cmd::DeleteScheduled { .. }) => self.scheduled_cmd(cmd).await,
             cmd @ (Cmd::LoadDefaultTtl | Cmd::SetDefaultTtl(_) | Cmd::SetHistoryTtl { .. }) => self.autodelete_cmd(cmd).await,
+            cmd @ (Cmd::LoadAccountTtl | Cmd::SetAccountTtl(_)) => self.self_destruct_cmd(cmd).await,
             cmd @ Cmd::SendDice { .. } => self.dice_cmd(cmd).await,
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,

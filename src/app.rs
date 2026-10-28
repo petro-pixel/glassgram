@@ -78,6 +78,7 @@ mod websites;
 mod autodelete;
 mod storage;
 mod dice;
+mod selfdestruct;
 mod spoiler;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;
@@ -528,6 +529,7 @@ pub struct App {
     websites: websites::Websites,
     autodelete: autodelete::AutoDelete,
     storage: storage::Storage,
+    self_destruct: selfdestruct::SelfDestruct,
     /// Open mini app windows (separate WebView processes).
     web_apps: Vec<webapp::WebAppWin>,
     /// Text of the keyboard button whose mini app is being opened (for `sendWebViewData`).
@@ -791,6 +793,7 @@ impl App {
             websites: websites::Websites::default(),
             autodelete: autodelete::AutoDelete::default(),
             storage: storage::Storage::default(),
+            self_destruct: selfdestruct::SelfDestruct::default(),
             web_apps: Vec::new(),
             web_app_button: String::new(),
             web_app_ask: None,
@@ -971,6 +974,7 @@ impl App {
             Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
             Ev::Websites(list) => self.on_websites(list),
             Ev::CacheUsage(usage) => self.on_cache_usage(usage),
+            Ev::AccountTtl(days) => self.on_account_ttl(days),
             Ev::DefaultTtl(period) => self.on_default_ttl(period),
             Ev::HistoryTtl { peer, period } => self.on_history_ttl(peer, period),
             Ev::ContentSettings { enabled, can_change } => self.privacy.sensitive = Some((enabled, can_change)),

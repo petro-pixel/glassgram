@@ -758,6 +758,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let usage = made_up.into_iter().map(|(k, b, n)| if DEMO_CLEARED.with_borrow(|c| c.contains(&k)) { (k, 0, 0) } else { (k, b, n) }).collect();
             app.push_event(Ev::CacheUsage(usage));
         }
+        Cmd::LoadAccountTtl => app.push_event(Ev::AccountTtl(DEMO_ACCOUNT_TTL.get())),
+        Cmd::SetAccountTtl(days) => {
+            DEMO_ACCOUNT_TTL.set(days);
+            app.push_event(Ev::AccountTtl(days));
+        }
         Cmd::LoadDefaultTtl => app.push_event(Ev::DefaultTtl(DEMO_DEFAULT_TTL.get())),
         Cmd::SetDefaultTtl(period) => {
             DEMO_DEFAULT_TTL.set(period);
@@ -893,6 +898,7 @@ thread_local! {
     /// Demo auto-delete timers: chats changed in this run, and the default for new chats.
     static DEMO_TTL: std::cell::RefCell<HashMap<PeerId, i32>> = std::cell::RefCell::new(HashMap::new());
     static DEMO_DEFAULT_TTL: std::cell::Cell<i32> = const { std::cell::Cell::new(0) };
+    static DEMO_ACCOUNT_TTL: std::cell::Cell<i32> = const { std::cell::Cell::new(180) };
     /// Demo cache types the user cleared (the real cache is never touched in the demo).
     static DEMO_CLEARED: std::cell::RefCell<Vec<crate::backend::CacheKind>> = const { std::cell::RefCell::new(Vec::new()) };
     /// Demo websites the user disconnected.
