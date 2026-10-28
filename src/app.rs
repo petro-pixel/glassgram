@@ -74,6 +74,7 @@ mod bubbles;
 use bubbles::*;
 mod sendbox;
 mod editmedia;
+mod websites;
 mod spoiler;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;
@@ -521,6 +522,7 @@ pub struct App {
     send_box: Option<sendbox::SendBox>,
     spoilers: spoiler::Spoilers,
     edit_media: editmedia::EditMedia,
+    websites: websites::Websites,
     /// Open mini app windows (separate WebView processes).
     web_apps: Vec<webapp::WebAppWin>,
     /// Text of the keyboard button whose mini app is being opened (for `sendWebViewData`).
@@ -781,6 +783,7 @@ impl App {
             send_box: None,
             spoilers: spoiler::Spoilers::default(),
             edit_media: editmedia::EditMedia::default(),
+            websites: websites::Websites::default(),
             web_apps: Vec::new(),
             web_app_button: String::new(),
             web_app_ask: None,
@@ -959,6 +962,7 @@ impl App {
             }
             Ev::Sessions(list) => self.sessions = list,
             Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
+            Ev::Websites(list) => self.on_websites(list),
             Ev::ContentSettings { enabled, can_change } => self.privacy.sensitive = Some((enabled, can_change)),
             Ev::Password(state) => self.on_password(state),
             Ev::PasswordChecked { email } => self.on_password_checked(email),

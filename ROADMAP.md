@@ -31,7 +31,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P2** Passkeys (`account.registerPasskey`), sign-in with an email code
 - ⬜ **P2** Name colour and profile background, emoji status (`account.updateColor`, `updateEmojiStatus`; partly Premium)
 - ⬜ **P2** Change number, self-destruct when inactive (`setAccountTTL`), delete account
-- ⬜ **P2** Connected websites (Log in with Telegram, `getWebAuthorizations`), Telegram Passport — **P3**
+- ✅ Connected websites in Privacy and Security → "Logged in with Telegram": site, its bot, browser, region and IP, last use; disconnect one or all (`account.getWebAuthorizations`, `resetWebAuthorization(s)`)
+- ⬜ **P3** Telegram Passport
 
 ## 2. Chat list and navigation
 - ✅ Dialogs: unread, pinned, archive, search by name, cached avatars

@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 54%** `███████████░░░░░░░░░` — 92 done, 1 partial, 78 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 54%** `███████████░░░░░░░░░` — 93 done, 1 partial, 78 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -132,6 +132,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/privacy.rs`, `src/backend/privacy.rs` | Privacy rule exceptions (always / never allow) and global switches: new non-contact chats, read time, who can message me; sensitive content filtering |
 | `src/app/password.rs`, `src/backend/password.rs` | Two-step verification: turning the cloud password on and off, changing it, its hint and recovery email (SRP, the code sent to the email) |
 | `src/app/polls.rs`, `src/backend/polls.rs` | "New poll" box: polls and quizzes |
+| `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |
 | `src/app/editmedia.rs`, `src/backend/editmedia.rs` | Editing media messages: caption, replacing the photo or file |
 | `src/app/sendbox.rs`, `src/app/spoiler.rs` | "Send files" box (previews, caption, compression, spoiler, caption above); spoiler cover over hidden media |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Mini apps: server requests, the WebView window process (`glassgram --webview`) and its bridge |

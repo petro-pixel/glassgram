@@ -69,6 +69,8 @@ mod contacts;
 mod webapp;
 mod polls;
 mod privacy;
+mod websites;
+pub use websites::WebSession;
 mod password;
 pub use password::{PasswordChange, PasswordState};
 mod chatedit;
@@ -180,6 +182,10 @@ pub enum Cmd {
     SetGlobalPrivacy(GlobalPrivacy),
     /// Whether sensitive media is shown unfiltered (`account.getContentSettings`).
     LoadContentSettings,
+    /// Websites logged in with Telegram; each answer is `Ev::Websites`.
+    LoadWebsites,
+    LogoutWebsite(i64),
+    LogoutAllWebsites,
     SetSensitive(bool),
     /// Two-step verification state (`account.getPassword`); answered with `Ev::Password`.
     LoadPassword,
@@ -452,6 +458,7 @@ pub enum Ev {
     GlobalPrivacy(GlobalPrivacy),
     /// Sensitive content: shown unfiltered, and whether the account may change that.
     ContentSettings { enabled: bool, can_change: bool },
+    Websites(Vec<WebSession>),
     Password(PasswordState),
     /// The current password was right; the recovery email it is bound to.
     PasswordChecked { email: String },
@@ -836,6 +843,7 @@ impl Worker {
             cmd @ (Cmd::OpenChat(..) | Cmd::OpenAt { .. } | Cmd::LoadOlder { .. } | Cmd::Typing(..)) => self.history_cmd(cmd).await,
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
             cmd @ (Cmd::Reschedule { .. } | Cmd::SendScheduledNow { .. } | Cmd::DeleteScheduled { .. }) => self.scheduled_cmd(cmd).await,
+            cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
             cmd @ Cmd::EditMedia { .. } => self.edit_media_cmd(cmd).await,
             cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,
             cmd @ (Cmd::RequestCode(..) | Cmd::SubmitCode(..) | Cmd::SubmitPassword(..) | Cmd::QrLogin | Cmd::QrPassword(..) | Cmd::QrSuccess(..) | Cmd::Logout) => self.login_cmd(cmd).await,

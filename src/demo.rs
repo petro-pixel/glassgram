@@ -791,6 +791,18 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::LoadGlobalPrivacy => app.push_event(Ev::GlobalPrivacy(GlobalPrivacy { archive_new: true, keep_unmuted: false, keep_folders: true, hide_read: false, premium_only: false })),
         Cmd::SetGlobalPrivacy(p) => app.push_event(Ev::GlobalPrivacy(p)),
+        Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites => {
+            let gone = match &cmd {
+                Cmd::LogoutWebsite(h) => vec![*h],
+                Cmd::LogoutAllWebsites => vec![1, 2],
+                _ => Vec::new(),
+            };
+            DEMO_WEB_GONE.with_borrow_mut(|g| g.extend(gone));
+            let site = |hash, domain: &str, bot: &str, device: &str, place: &str, active: &str| crate::backend::WebSession { hash, domain: domain.into(), bot: bot.into(), device: device.into(), place: place.into(), active: active.into() };
+            let list = [site(1, "example.org", "Example Login", "Firefox 140 · Linux", "Kyiv, Ukraine · 192.0.2.10", "вчора 21:14"), site(2, "forum.example.net", "Forum Bot", "Chrome 141 · Windows", "Lviv, Ukraine · 198.51.100.7", "12.10.2026 09:30")];
+            let list = list.into_iter().filter(|s| !DEMO_WEB_GONE.with_borrow(|g| g.contains(&s.hash))).collect();
+            app.push_event(Ev::Websites(list));
+        }
         Cmd::LoadContentSettings => app.push_event(Ev::ContentSettings { enabled: false, can_change: true }),
         Cmd::SetSensitive(enabled) => app.push_event(Ev::ContentSettings { enabled, can_change: true }),
         cmd @ (Cmd::LoadPassword | Cmd::CheckPassword(_) | Cmd::UpdatePassword { .. } | Cmd::ConfirmPasswordEmail(_) | Cmd::ResendPasswordEmail | Cmd::CancelPasswordEmail) => password(app, cmd),
@@ -902,6 +914,8 @@ pub fn handle(app: &mut App, cmd: Cmd) {
 }
 
 thread_local! {
+    /// Demo websites the user disconnected.
+    static DEMO_WEB_GONE: std::cell::RefCell<Vec<i64>> = const { std::cell::RefCell::new(Vec::new()) };
     /// Demo reaction tags of Saved Messages; renaming changes them.
     static SAVED_TAGS: std::cell::RefCell<Vec<SavedTag>> = std::cell::RefCell::new(vec![
         SavedTag { emoji: "👍".into(), title: "Ідеї".into(), count: 2 },
