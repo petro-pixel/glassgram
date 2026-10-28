@@ -30,7 +30,8 @@ impl App {
         let opts = SendOpts { no_webpage: opts.no_webpage || self.link_preview_off(), ..opts };
         let text = self.draft.trim().to_owned();
         let Some(peer) = self.selected else { return };
-        if text.is_empty() {
+        // A media message may lose its caption.
+        if text.is_empty() && self.editing_media().is_none() {
             return;
         }
         self.draft.clear();
@@ -44,7 +45,7 @@ impl App {
                     m.edited = true;
                 }
                 self.draft = std::mem::take(&mut self.edit_stash);
-                self.send(Cmd::Edit { peer, id, text });
+                self.send_media_edit(peer, id, text);
             }
             // Scheduled messages go straight to the server; the rest through the send queue.
             _ => {
@@ -456,12 +457,15 @@ impl App {
             Some(m) => (if matches!(self.compose, Compose::Edit(_)) { title.to_owned() } else { format!("{title}: {}", author(m, &self.me)) }, quoted.clone().unwrap_or_else(|| quote(m))),
             None => (title.to_owned(), String::new()),
         };
+        let close = Rect::from_center_size(pos2(rect.right() - 22.0, rect.center().y), vec2(28.0, 28.0));
+        // Editing a photo or file: a button to replace it, and the new file's name under the title.
+        let replaced = self.editing_media().is_some().then(|| self.replace_button(ui, Rect::from_center_size(pos2(close.left() - 22.0, rect.center().y), vec2(34.0, 34.0)))).flatten();
+        let what = replaced.unwrap_or(what);
         let w = rect.width() - 100.0;
         let g1 = elided(ui, &who, 12.5, ACCENT, w);
         let g2 = elided(ui, &what, 13.0, ink_dim(), w);
         p.galley(pos2(rect.left() + 46.0, rect.top() + 5.0), g1, ACCENT);
         p.galley(pos2(rect.left() + 46.0, rect.top() + 21.0), g2, ink_dim());
-        let close = Rect::from_center_size(pos2(rect.right() - 22.0, rect.center().y), vec2(28.0, 28.0));
         // As in Telegram Desktop, a click on a reply opens the message to quote a part of it.
         if let Compose::Reply(id) = self.compose {
             let body = Rect::from_min_max(rect.min, pos2(close.left() - 4.0, rect.bottom()));
@@ -479,6 +483,7 @@ impl App {
         if matches!(self.compose, Compose::Edit(_)) {
             self.draft = std::mem::take(&mut self.edit_stash);
         }
+        self.clear_replacement();
         self.compose = Compose::New;
         self.quoting.clear();
     }

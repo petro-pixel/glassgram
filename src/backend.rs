@@ -51,6 +51,7 @@ mod media;
 mod search;
 mod outbox;
 mod reply;
+mod editmedia;
 mod newchat;
 use crate::format::{self, Span};
 use crate::i18n::{l, lf};
@@ -121,6 +122,9 @@ pub enum Cmd {
     LoadOlder { peer: PeerId, before: i32 },
     Send { peer: PeerId, text: String, reply_to: Option<ReplyTo>, opts: SendOpts },
     Edit { peer: PeerId, id: i32, text: String },
+    /// Replace a sent message's photo or file with `path` (`as_file`: an image as a document),
+    /// keeping its spoiler and caption position; answered with `Ev::MediaReplaced`.
+    EditMedia { peer: PeerId, id: i32, text: String, path: PathBuf, as_file: bool, spoiler: bool, above: bool },
     Delete { peer: PeerId, ids: Vec<i32> },
     LoadFullPhoto { peer: PeerId, id: i32 },
     /// Set a reaction (`None` removes ours).
@@ -395,6 +399,8 @@ pub enum Ev {
     History { peer: PeerId, msgs: Vec<Msg>, older: bool },
     NewMsg(Msg),
     Edited(Msg),
+    /// A message whose media was replaced: its old pictures and files are stale.
+    MediaReplaced(Msg),
     /// `peer: None`: deletion not tied to a channel (private chats and small groups).
     Deleted { ids: Vec<i32>, peer: Option<PeerId> },
     Image { key: ImgKey, image: ColorImage },
@@ -825,6 +831,7 @@ impl Worker {
             cmd @ (Cmd::OpenChat(..) | Cmd::OpenAt { .. } | Cmd::LoadOlder { .. } | Cmd::Typing(..)) => self.history_cmd(cmd).await,
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
             cmd @ (Cmd::Reschedule { .. } | Cmd::SendScheduledNow { .. } | Cmd::DeleteScheduled { .. }) => self.scheduled_cmd(cmd).await,
+            cmd @ Cmd::EditMedia { .. } => self.edit_media_cmd(cmd).await,
             cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,
             cmd @ (Cmd::RequestCode(..) | Cmd::SubmitCode(..) | Cmd::SubmitPassword(..) | Cmd::QrLogin | Cmd::QrPassword(..) | Cmd::QrSuccess(..) | Cmd::Logout) => self.login_cmd(cmd).await,
             cmd @ (Cmd::LoadSessions | Cmd::TerminateSession(..) | Cmd::TerminateOtherSessions) => self.sessions_cmd(cmd).await,

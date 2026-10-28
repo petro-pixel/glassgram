@@ -529,8 +529,9 @@ impl App {
             self.inline_view(ui, peer, panel);
         }
         let enter = submitted;
-        let can_send = !self.draft.trim().is_empty();
         let editing = matches!(self.compose, Compose::Edit(_));
+        // A media message may be saved with no caption.
+        let can_send = !self.draft.trim().is_empty() || self.editing_media().is_some();
         // Empty field shows the microphone button, as in Telegram.
         let mic = !can_send && !editing;
         let icon = if editing { Icon::Check } else if mic { Icon::Mic } else { Icon::Send };

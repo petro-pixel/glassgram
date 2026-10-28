@@ -46,7 +46,8 @@ pub(super) fn message_menu(ui: &mut Ui, m: &Msg, chat: Option<&ChatInfo>, action
     if !protected && (m.photo || m.file.is_some() || m.media.is_some()) && glass::menu_button(ui, Icon::Download, l!("Завантажити", "Download")).clicked() {
         *action = Some(Action::Download(m.id));
     }
-    if m.out && !m.photo && m.sticker.is_none() && m.file.is_none() && m.media.is_none() && glass::menu_button(ui, Icon::Pencil, l!("Редагувати", "Edit")).clicked() {
+    let plain = !m.photo && m.sticker.is_none() && m.file.is_none() && m.media.is_none();
+    if m.out && m.id > 0 && (plain || super::editmedia::editable_media(m)) && glass::menu_button(ui, Icon::Pencil, l!("Редагувати", "Edit")).clicked() {
         *action = Some(Action::Edit(m.id));
     }
     if !protected

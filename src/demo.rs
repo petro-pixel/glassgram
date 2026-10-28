@@ -792,6 +792,25 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::LoadGlobalPrivacy => app.push_event(Ev::GlobalPrivacy(GlobalPrivacy { archive_new: true, keep_unmuted: false, keep_folders: true, hide_read: false, premium_only: false })),
         Cmd::SetGlobalPrivacy(p) => app.push_event(Ev::GlobalPrivacy(p)),
         cmd @ (Cmd::LoadPassword | Cmd::CheckPassword(_) | Cmd::UpdatePassword { .. } | Cmd::ConfirmPasswordEmail(_) | Cmd::ResendPasswordEmail | Cmd::CancelPasswordEmail) => password(app, cmd),
+        Cmd::EditMedia { peer, id, text, path, as_file, spoiler, above } => {
+            let Some(old) = app.demo_history().find(|(p, _, _)| *p == peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == id)).cloned() else { return };
+            let (plain, ents) = format::parse(&text);
+            let m = Msg { text: plain.clone(), spans: format::from_entities(&plain, &ents, 0), edited: true, photo: false, file: None, media: None, spoiler, invert_media: above, ..old };
+            // As the server answers: a picture becomes a photo, anything else a file.
+            let picture = (!as_file).then(|| image::open(&path).ok()).flatten().map(|img| img.thumbnail(800, 800).to_rgba8());
+            match picture {
+                Some(rgba) => {
+                    let size = [rgba.width() as usize, rgba.height() as usize];
+                    app.push_event(Ev::MediaReplaced(Msg { photo: true, ..m }));
+                    app.push_event(Ev::Image { key: ImgKey::Photo(peer, id), image: ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()) });
+                }
+                None => {
+                    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                    let size = std::fs::metadata(&path).map(|x| crate::backend::human_size(x.len() as usize)).unwrap_or_default();
+                    app.push_event(Ev::MediaReplaced(Msg { file: Some((name, size)), ..m }));
+                }
+            }
+        }
         Cmd::EditChat { peer, title, .. } => {
             if let Some(title) = title {
                 app.push_event(Ev::ChatTitle { peer, title });

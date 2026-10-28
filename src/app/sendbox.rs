@@ -81,7 +81,7 @@ impl SendBox {
 impl App {
     /// Files to send open the box first; more files for the same chat join an open box.
     pub(super) fn send_files(&mut self, peer: PeerId, paths: Vec<PathBuf>, as_file: bool) {
-        if paths.is_empty() {
+        if paths.is_empty() || self.take_replacement(peer, &paths, as_file) {
             return;
         }
         if let Some(b) = self.send_box.as_mut().filter(|b| b.peer == peer) {

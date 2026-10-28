@@ -73,6 +73,7 @@ mod report;
 mod bubbles;
 use bubbles::*;
 mod sendbox;
+mod editmedia;
 mod spoiler;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;
@@ -519,6 +520,7 @@ pub struct App {
     /// The "Send files" box with what is about to be sent.
     send_box: Option<sendbox::SendBox>,
     spoilers: spoiler::Spoilers,
+    edit_media: editmedia::EditMedia,
     /// Open mini app windows (separate WebView processes).
     web_apps: Vec<webapp::WebAppWin>,
     /// Text of the keyboard button whose mini app is being opened (for `sendWebViewData`).
@@ -777,6 +779,7 @@ impl App {
             poll_form: None,
             send_box: None,
             spoilers: spoiler::Spoilers::default(),
+            edit_media: editmedia::EditMedia::default(),
             web_apps: Vec::new(),
             web_app_button: String::new(),
             web_app_ask: None,
@@ -880,6 +883,7 @@ impl App {
                 self.unread_after_history(peer);
             }
             Ev::NewMsg(m) => self.on_new_message(m),
+            Ev::MediaReplaced(m) => self.on_media_replaced(m),
             Ev::Edited(m) => {
                 if let Some(x) = self.history.get_mut(&m.peer).and_then(|l| l.iter_mut().find(|x| x.id == m.id)) {
                     *x = m;
@@ -1214,6 +1218,7 @@ impl App {
                         self.draft = markup;
                     }
                     self.compose = Compose::Edit(id);
+                    self.clear_replacement();
                 }
             }
             Action::Copy(text) => self.ctx.copy_text(text),

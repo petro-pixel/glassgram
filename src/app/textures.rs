@@ -59,6 +59,13 @@ impl Textures {
         self.map.insert(key, tex);
     }
 
+    /// A picture that is no longer right (its message's media was replaced).
+    pub(super) fn remove(&mut self, key: &ImgKey) {
+        self.map.remove(key);
+        self.dropped.remove(key);
+        self.used.borrow_mut().remove(key);
+    }
+
     pub(super) fn clear(&mut self) {
         *self = Self::default();
     }

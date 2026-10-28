@@ -13,6 +13,12 @@ pub(super) struct Spoilers {
     blurred: HashMap<(PeerId, i32), TextureHandle>,
 }
 
+impl Spoilers {
+    pub(super) fn forget(&mut self, key: (PeerId, i32)) {
+        self.blurred.remove(&key);
+    }
+}
+
 impl App {
     /// Every picture that arrives: a hidden one keeps a blurred copy for its cover.
     pub(super) fn on_spoiler_image(&mut self, key: ImgKey, image: &ColorImage) {
