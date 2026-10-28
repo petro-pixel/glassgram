@@ -1667,9 +1667,12 @@ fn chat_row(
     typing: Option<&str>,
     draft: Option<&str>,
     tags: &[(String, i32)],
+    density: settings::Density,
 ) -> egui::Response {
     let w = ui.available_width();
-    let (rect, resp) = ui.allocate_exact_size(vec2(w, 66.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2(w, density.row_h()), Sense::click());
+    let (above, below) = density.lines();
+    let mid = rect.center().y;
     let hover = ui.ctx().animate_bool(resp.id, resp.hovered());
     let sel = ui.ctx().animate_bool(resp.id.with("sel"), selected);
     let p = ui.painter();
@@ -1679,25 +1682,26 @@ fn chat_row(
         p.rect_filled(rect, 20.0, glass::veil((hover * 14.0) as u8));
     }
     let seed = chat.id.bot_api_dialog_id_unchecked();
-    let center = pos2(rect.left() + 34.0, rect.center().y);
-    glass::avatar(p, center, 24.0, &chat.title, seed, kind_icon(chat.kind), avatar);
+    let r = density.avatar_r();
+    let center = pos2(rect.left() + 10.0 + r, mid);
+    glass::avatar(p, center, r, &chat.title, seed, kind_icon(chat.kind), avatar);
     if chat.presence.online() {
-        let dot = center + vec2(17.0, 17.0);
+        let dot = center + egui::Vec2::splat(r * 0.7);
         p.circle_filled(dot, 6.5, glass::chrome());
         p.circle_filled(dot, 4.5, Color32::from_rgb(70, 220, 120));
     }
 
-    let x = rect.left() + 68.0;
+    let x = rect.left() + 20.0 + r * 2.0;
     let time = elided(ui, &chat.last_time, 12.0, ink_dim(), 80.0);
     let time_w = time.size().x;
-    p.galley(pos2(rect.right() - 12.0 - time_w, rect.top() + 14.0), time, ink_dim());
+    p.galley(pos2(rect.right() - 12.0 - time_w, mid - above + 2.0), time, ink_dim());
 
     let title_icon = match chat.kind {
         ChatKind::Channel => Some(Icon::Channel),
         ChatKind::Bot => Some(Icon::Bot),
         _ => None,
     };
-    let title_y = rect.top() + 21.0;
+    let title_y = mid - above + 9.0;
     let mut tx = x;
     if let Some(icon) = title_icon {
         icons::draw(p, Rect::from_center_size(pos2(tx + 7.0, title_y), vec2(15.0, 15.0)), icon, ink_dim());
@@ -1706,7 +1710,7 @@ fn chat_row(
     let mute_w = if chat.muted { 18.0 } else { 0.0 };
     let title = elided(ui, &chat.title, 15.0, ink(), rect.right() - tx - time_w - 22.0 - mute_w);
     let title_w = title.size().x;
-    p.galley(pos2(tx, rect.top() + 12.0), title, ink());
+    p.galley(pos2(tx, mid - above), title, ink());
     if chat.muted {
         icons::draw(p, Rect::from_center_size(pos2(tx + title_w + 11.0, title_y), vec2(13.0, 13.0)), Icon::Muted, ink_dim());
     }
@@ -1719,22 +1723,22 @@ fn chat_row(
         };
         let g = elided(ui, &label, 12.0, Color32::WHITE, 60.0);
         let bw = (g.size().x + 14.0).max(22.0);
-        let b = Rect::from_min_size(pos2(rect.right() - 12.0 - bw, rect.bottom() - 32.0), vec2(bw, 22.0));
+        let b = Rect::from_min_size(pos2(rect.right() - 12.0 - bw, mid + below - 2.0), vec2(bw, 22.0));
         // As in Telegram: muted chats have a grey counter.
         let (tint, alpha) = if chat.muted { (Color32::from_rgb(150, 158, 190), 120) } else { (ACCENT, 230) };
         glass::glass(p, b, Glass::tinted(11.0, tint, alpha));
         p.galley(b.center() - g.size() / 2.0, g, Color32::WHITE);
         bw + 8.0
     } else if chat.pinned {
-        icons::draw(p, Rect::from_center_size(pos2(rect.right() - 20.0, rect.bottom() - 21.0), vec2(14.0, 14.0)), Icon::Pin, ink_dim());
+        icons::draw(p, Rect::from_center_size(pos2(rect.right() - 20.0, mid + below + 9.0), vec2(14.0, 14.0)), Icon::Pin, ink_dim());
         22.0
     } else {
         0.0
     };
     // Folder tags sit before the badge and take at most a third of the line.
-    let tags_w = if tags.is_empty() { 0.0 } else { folders::draw_tags(ui, tags, rect.right() - 12.0 - badge_w, rect.bottom() - 21.0, (rect.width() - 68.0) / 3.0) + 4.0 };
+    let tags_w = if tags.is_empty() { 0.0 } else { folders::draw_tags(ui, tags, rect.right() - 12.0 - badge_w, mid + below + 9.0, (rect.width() - 68.0) / 3.0) + 4.0 };
     let preview_w = rect.right() - x - badge_w - tags_w - 14.0;
-    let preview_pos = pos2(x, rect.top() + 36.0);
+    let preview_pos = pos2(x, mid + below);
     match (typing, draft) {
         (Some(who), _) => {
             let text = if who.is_empty() || matches!(chat.kind, ChatKind::User | ChatKind::Bot) { l!("друкує…", "typing…").to_owned() } else { lf!("{who} друкує…", "{who} is typing…") };

@@ -456,6 +456,10 @@ impl App {
             let sizes = [(13.0, l!("Малий", "Small")), (15.0, l!("Звичайний", "Standard")), (17.0, l!("Великий", "Large")), (19.0, l!("Дуже великий", "Huge"))];
             choice(ui, "text-size", &mut s.text_size, &sizes, 122.0);
             ui.add_space(10.0);
+            section_title(ui, l!("Список чатів", "Chat list"));
+            let densities = [(settings::Density::Compact, l!("Щільний", "Compact")), (settings::Density::Standard, l!("Звичайний", "Standard")), (settings::Density::Large, l!("Просторий", "Large"))];
+            choice(ui, "density", &mut s.density, &densities, 122.0);
+            ui.add_space(10.0);
             section_title(ui, l!("Надсилання повідомлень", "Sending messages"));
             let keys = [(false, l!("Enter", "Enter")), (true, if cfg!(target_os = "macos") { l!("Cmd+Enter", "Cmd+Enter") } else { l!("Ctrl+Enter", "Ctrl+Enter") })];
             choice(ui, "send-key", &mut s.ctrl_enter, &keys, 122.0);

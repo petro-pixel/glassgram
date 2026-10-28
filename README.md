@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 53%** `███████████░░░░░░░░░` — 90 done, 1 partial, 80 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 54%** `███████████░░░░░░░░░` — 91 done, 1 partial, 79 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -181,7 +181,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - "Select" in the message menu turns on selection mode; Esc leaves it.
 - Enter sends, Shift+Enter — new line.
 - Jump to a date: the calendar button in chat search, or click a date chip between messages.
-- Enter sends, Shift+Enter starts a new line; Settings → Chat Settings switches sending to Ctrl+Enter (Cmd+Enter on macOS) and sets the message text size.
+- Enter sends, Shift+Enter starts a new line; Settings → Chat Settings switches sending to Ctrl+Enter (Cmd+Enter on macOS) and sets the message text size and the chat list density (compact, standard, large).
 - Hotkeys (as in Telegram Desktop): Ctrl+F — search in the chat (or the chat list), Ctrl+K — chat list search, Ctrl+1…9 — folders, Alt+↑/↓ or Ctrl+Tab / Ctrl+Shift+Tab — previous/next chat, Ctrl+E or ↑ in an empty composer — edit your last message, Esc — close the topmost panel, then the chat.
 - In `--demo`, a message containing `#offline` pretends there is no network (clock → retries → red mark).
 - Folders: "+" to the right of the tabs (or at the bottom of the column) — new; right-click a folder — edit or delete; dragging changes the order. Tabs on top or a column on the left — in Settings.

@@ -11,6 +11,49 @@ pub enum Theme {
     Light,
 }
 
+/// How tall chat list rows are.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Density {
+    Compact,
+    Standard,
+    Large,
+}
+
+impl Density {
+    pub fn row_h(self) -> f32 {
+        match self {
+            Density::Compact => 52.0,
+            Density::Standard => 66.0,
+            Density::Large => 76.0,
+        }
+    }
+
+    pub fn avatar_r(self) -> f32 {
+        match self {
+            Density::Compact => 19.0,
+            Density::Standard => 24.0,
+            Density::Large => 28.0,
+        }
+    }
+
+    /// Offsets of the title (up) and the preview (down) from the row's middle.
+    pub fn lines(self) -> (f32, f32) {
+        match self {
+            Density::Compact => (19.0, 1.0),
+            Density::Standard => (21.0, 3.0),
+            Density::Large => (23.0, 5.0),
+        }
+    }
+
+    fn code(self) -> &'static str {
+        match self {
+            Density::Compact => "compact",
+            Density::Standard => "standard",
+            Density::Large => "large",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
     pub theme: Theme,
@@ -38,11 +81,12 @@ pub struct Settings {
     pub loop_stickers: bool,
     /// Stickers for an emoji typed alone in the field, above it.
     pub suggest_stickers: bool,
+    pub density: Density,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true }
+        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard }
     }
 }
 
@@ -80,6 +124,13 @@ impl Settings {
                 "ctrl_enter" => s.ctrl_enter = flag,
                 "loop_stickers" => s.loop_stickers = flag,
                 "suggest_stickers" => s.suggest_stickers = flag,
+                "density" => {
+                    s.density = match v {
+                        "compact" => Density::Compact,
+                        "large" => Density::Large,
+                        _ => Density::Standard,
+                    }
+                }
                 _ => {}
             }
         }
@@ -91,7 +142,7 @@ impl Settings {
         let _ = std::fs::create_dir_all(&dir);
         let b = |v: bool| if v { "1" } else { "0" };
         let text = format!(
-            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\n",
+            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\n",
             self.lang.code(),
             match self.theme {
                 Theme::System => "system",
@@ -109,7 +160,8 @@ impl Settings {
             self.text_size,
             b(self.ctrl_enter),
             b(self.loop_stickers),
-            b(self.suggest_stickers)
+            b(self.suggest_stickers),
+            self.density.code()
         );
         // Holds the local passcode hash, so owner-only.
         let _ = std::fs::write(dir.join("settings"), text);

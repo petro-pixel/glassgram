@@ -11,7 +11,6 @@ use crate::i18n::l;
 use crate::icons::{self, Icon};
 
 /// Chat row height (as in `chat_row`) and the gap between rows.
-const ROW_H: f32 = 66.0;
 const ROW_GAP: f32 = 4.0;
 /// Folder column width and the height of one item.
 pub(super) const COLUMN_W: f32 = 76.0;
@@ -413,6 +412,8 @@ impl App {
     /// Chat list rows; the first `pinned` ones can be dragged.
     pub(super) fn chat_rows(&self, ui: &mut Ui, rows: &[&ChatInfo], pinned: usize, drag: &mut Option<(Option<i32>, Reorder<PeerId>)>) -> RowsOut {
         let mut out = RowsOut::default();
+        let density = self.settings.density;
+        let row_h = density.row_h();
         let origin = ui.cursor().top();
         let w = ui.available_width();
         let mut lifted = None;
@@ -426,7 +427,7 @@ impl App {
             let fixed = (chat.pinned != (k < pinned)).then(|| ChatInfo { pinned: k < pinned, ..(*chat).clone() });
             let chat: &ChatInfo = fixed.as_ref().unwrap_or(chat);
             let resp = if k < pinned {
-                let (slot, _) = ui.allocate_exact_size(vec2(w, ROW_H), Sense::hover());
+                let (slot, _) = ui.allocate_exact_size(vec2(w, row_h), Sense::hover());
                 let gid = ui.scope_id().with(("pin-y", self.folder, chat.id));
                 if drag.as_ref().is_some_and(|(_, d)| d.key == chat.id) {
                     lifted = Some((rows[k], slot));
@@ -436,7 +437,7 @@ impl App {
                 let r = slot.translate(vec2(0.0, glide(ui, gid, rel) - rel));
                 let grip = ui.interact(r, gid.with("drag"), Sense::drag());
                 let mut row = ui.new_child(UiBuilder::new().max_rect(r).id_salt(("pin-row", chat.id)));
-                let resp = chat_row(&mut row, chat, selected, tex, typing, draft, &tags);
+                let resp = chat_row(&mut row, chat, selected, tex, typing, draft, &tags, density);
                 if drag.is_none()
                     && let Some(p) = pulled(ui, &grip)
                 {
@@ -445,7 +446,7 @@ impl App {
                 }
                 resp
             } else {
-                chat_row(ui, chat, selected, tex, typing, draft, &tags)
+                chat_row(ui, chat, selected, tex, typing, draft, &tags, density)
             };
             if resp.clicked() {
                 out.clicked = Some(chat.id);
@@ -460,16 +461,16 @@ impl App {
         if let Some((chat, slot)) = lifted {
             let gid = ui.scope_id().with(("pin-y", self.folder, chat.id));
             let grip = ui.interact(slot, gid.with("drag"), Sense::drag());
-            let step = ROW_H + ROW_GAP;
+            let step = row_h + ROW_GAP;
             if let (Some((_, d)), Some(p)) = (drag.as_mut(), ui.input(|i| i.pointer.interact_pos())) {
                 let pos = (p.y - d.grab - origin).clamp(0.0, step * (pinned as f32 - 1.0).max(0.0));
-                d.follow(pos, |_| ROW_H, ROW_GAP);
+                d.follow(pos, |_| row_h, ROW_GAP);
                 set_glide(ui, gid, pos);
                 let r = Rect::from_min_size(pos2(slot.left(), origin + pos), slot.size());
                 lift(ui, r, 20.0);
                 let mut row = ui.new_child(UiBuilder::new().max_rect(r).id_salt(("pin-row", chat.id)));
                 let tex = self.textures.get(&ImgKey::Avatar(chat.id));
-                chat_row(&mut row, chat, self.selected == Some(chat.id), tex, None, None, &self.chat_tags(chat));
+                chat_row(&mut row, chat, self.selected == Some(chat.id), tex, None, None, &self.chat_tags(chat), density);
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
             }
             if !grip.dragged() {
@@ -611,7 +612,7 @@ impl App {
                     section_title(ui, l!("Публічні чати", "Public chats"));
                     for chat in public {
                         let tex = self.textures.get(&ImgKey::Avatar(chat.id));
-                        if chat_row(ui, chat, false, tex, None, None, &[]).clicked() {
+                        if chat_row(ui, chat, false, tex, None, None, &[], self.settings.density).clicked() {
                             found = Some(chat.clone());
                         }
                     }
