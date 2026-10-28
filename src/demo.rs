@@ -61,44 +61,22 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
             .map(|(i, (out, sender, text))| (i, out, sender, format::parse(text)))
             .map(|(i, out, sender, (text, ents))| Msg {
                 id: i as i32 + 1,
-                peer,
                 out: *out,
                 sender: sender.to_string(),
                 spans: format::from_entities(&text, &ents, 0),
-                forwarded: None,
-                buttons: Vec::new(),
-                group: None,
-                reactions: Vec::new(),
-                poll: None,
-                geo: None,
-                contact: None,
-                media: None,
-                spoiler: false,
-                invert_media: false,
-                video_sticker: false,
-                media_unread: false,
-                mentioned: false,
-                reaction_unread: false,
-                topic: None,
                 comments: (id == 4 && !*out).then_some(3),
                 // Pinned: each of these chats has something for the bar above history.
                 pinned: matches!((id, i), (1, 3) | (2, 4) | (4, 0)),
                 views: (id == 4).then_some(12_400),
-                noforwards: false,
-                webpage: None,
-                saved_from: None,
                 time: format!("{}:{:02}", 9 + i, (id * 7 + i as i64 * 13) % 60),
-                ts: 0,
                 day: "Сьогодні".into(),
-                edited: false,
                 reply_to: (id == 1 && i == 3).then_some(3),
-                reply_quote: None,
-                reply_elsewhere: None,
                 photo: text == "📷",
                 file: (text == "📄").then(|| ("Макети_v3.fig".to_owned(), "14.2 МБ".to_owned())),
                 sticker: (text == "🐱").then(|| (900, "🐱".to_owned())),
                 lottie: text == "🐱",
                 text,
+                ..Msg::placeholder(peer)
             })
             .map(|m| if m.file.is_some() || m.sticker.is_some() { Msg { text: String::new(), ..m } } else { m })
             .map(|m| if id == 3 && !m.out { Msg { forwarded: Some(m.sender.clone()), sender: String::new(), out: true, ..m } } else { m })
@@ -192,43 +170,14 @@ fn outgoing(peer: PeerId, markup: String, reply_to: Option<i32>) -> Msg {
     let (text, ents) = format::parse(&markup);
     Msg {
         spans: format::from_entities(&text, &ents, 0),
-        forwarded: None,
-        buttons: Vec::new(),
-        group: None,
-        reactions: Vec::new(),
-        poll: None,
-        geo: None,
-        contact: None,
-        media: None,
-        spoiler: false,
-        invert_media: false,
-        video_sticker: false,
-        lottie: false,
-        media_unread: false,
-        mentioned: false,
-        reaction_unread: false,
-        topic: None,
-        comments: None,
-        pinned: false,
-        views: None,
-        noforwards: false,
-        webpage: None,
-        saved_from: None,
         id: 10_000 + rand_ish(),
-        peer,
         out: true,
-        sender: String::new(),
         text,
         time: jiff::Zoned::now().strftime("%H:%M").to_string(),
         ts: jiff::Timestamp::now().as_second(),
         day: "Сьогодні".into(),
-        edited: false,
         reply_to,
-        reply_quote: None,
-        reply_elsewhere: None,
-        photo: false,
-        file: None,
-        sticker: None,
+        ..Msg::placeholder(peer)
     }
 }
 
@@ -343,6 +292,15 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::SendSticker { peer, doc, reply_to } => {
             let emoji = ["🐱", "😺", "😀", "👍", "🔥"][doc as usize % 5].to_owned();
             app.push_event(Ev::NewMsg(Msg { sticker: Some((doc, emoji)), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
+        }
+        Cmd::SendDice { peer, emoji, reply_to } => {
+            let top = match emoji.as_str() {
+                "🎰" => 64,
+                "🏀" | "⚽" => 5,
+                _ => 6,
+            };
+            let value = rand_ish() % top + 1;
+            app.push_event(Ev::NewMsg(Msg { dice: Some((emoji, value)), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
         }
         Cmd::SaveFolder(f) => {
             let mut list = app.demo_folders();
@@ -1266,6 +1224,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
             });
             msgs.push(Msg { id: 84, media: Some(MediaInfo { size: (480, 270), ..media(MediaKind::Gif, 3.0, "", "") }), ..base(25, "") });
             msgs.push(Msg { id: 85, media: Some(MediaInfo { size: (240, 240), ..media(MediaKind::Round, 5.0, "", "") }), media_unread: true, ..base(26, "Олена") });
+            msgs.push(Msg { id: 73, dice: Some(("🎰".into(), 64)), ..base(27, "Олена") });
             msgs.push(Msg { id: 74, photo: true, spoiler: true, text: "Не відкривай, якщо не дивився фінал 🙈".into(), ..base(27, "Олена") });
             msgs.push(Msg { id: 75, photo: true, invert_media: true, text: "Підпис над фото, як у Telegram".into(), ..base(27, "") });
         }

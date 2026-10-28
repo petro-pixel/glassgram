@@ -586,6 +586,9 @@ pub(super) fn bubble(
     if let Some((_, emoji)) = &m.sticker {
         return sticker_bubble(ui, m, emoji, sticker, look);
     }
+    if let Some((emoji, value)) = &m.dice {
+        return dice::dice_bubble(ui, m, emoji, *value, look);
+    }
     let kind = m.media.as_ref().map(|i| i.kind);
     if kind == Some(MediaKind::Round) {
         return round_bubble(ui, m, photo, look);

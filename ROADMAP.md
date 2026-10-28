@@ -76,7 +76,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P2** AI summaries of long posts (`summarizeText`), voice transcription (`transcribeAudio`, Premium)
 - ⬜ **P2** Message effects (`availableEffects`), timed and view-once messages
 - ⬜ **P2** Member tags (2026), fact checks (`getFactCheck`), greeting messages and buttons in messages (August 2026)
-- ⬜ **P3** Emoji games (dice and so on, `getEmojiGameInfo`)
+- ✅ Emoji games: a message of just 🎲 🎯 🏀 ⚽ 🎰 or 🎳 goes as `inputMediaDice`; the bubble shows the outcome (score, goal, strike, the slot machine's reels)
+- ⬜ **P3** Dice games with TON stakes (`getEmojiGameInfo`) — only after the payments security review
 
 ## 4. Composer and editor
 - ✅ Multi-line field, markup (`**`, `__`, `~~`, `||`, `` ` ``, links), reply, edit

@@ -589,6 +589,9 @@ pub struct Msg {
     pub file: Option<(String, String)>,
     /// (document id, emoji)
     pub sticker: Option<(i64, String)>,
+    /// An emoji game: (emoji, value; 0 until rolled).
+    #[serde(default)]
+    pub dice: Option<(String, i32)>,
     /// Formatting of `text`.
     pub spans: Vec<Span>,
     /// Who it was forwarded from.
@@ -659,6 +662,7 @@ impl Msg {
             invert_media: false,
             file: None,
             sticker: None,
+            dice: None,
             spans: Vec::new(),
             forwarded: None,
             buttons: Vec::new(),

@@ -101,7 +101,14 @@ pub(super) fn media_label(m: &Message) -> Option<&'static str> {
         Media::Contact(_) => l!("👤 Контакт", "👤 Contact"),
         Media::Poll(_) => l!("📊 Опитування", "📊 Poll"),
         Media::Geo(_) | Media::GeoLive(_) | Media::Venue(_) => l!("📍 Локація", "📍 Location"),
-        Media::Dice(_) => "🎲",
+        Media::Dice(d) => match d.raw.emoticon.as_str() {
+            "🎯" => "🎯",
+            "🏀" => "🏀",
+            "⚽" => "⚽",
+            "🎰" => "🎰",
+            "🎳" => "🎳",
+            _ => "🎲",
+        },
         Media::WebPage(_) => return None,
         #[allow(unreachable_patterns)]
         _ => l!("Вкладення", "Attachment"),
@@ -200,7 +207,11 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         )),
         _ => None,
     };
-    let text = if sticker.is_some() || file.is_some() || media.is_some() { m.text().to_owned() } else { text };
+    let dice = match m.media() {
+        Some(Media::Dice(d)) => Some((d.raw.emoticon.clone(), d.raw.value)),
+        _ => None,
+    };
+    let text = if sticker.is_some() || file.is_some() || media.is_some() || dice.is_some() { m.text().to_owned() } else { text };
     let spans = match (m.fmt_entities(), text.strip_suffix(m.text())) {
         (Some(ents), Some(prefix)) if !m.text().is_empty() => format::from_entities(&text, ents, prefix.len()),
         _ => Vec::new(),
@@ -231,6 +242,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         invert_media: matches!(&m.raw, tl::enums::Message::Message(x) if x.invert_media),
         file,
         sticker,
+        dice,
         spans,
         forwarded: forwarded(m, names),
         buttons: buttons(m),

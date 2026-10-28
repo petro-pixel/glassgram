@@ -77,6 +77,7 @@ mod editmedia;
 mod websites;
 mod autodelete;
 mod storage;
+mod dice;
 mod spoiler;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;

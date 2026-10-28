@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 55%** `███████████░░░░░░░░░` — 95 done, 1 partial, 77 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 55%** `███████████░░░░░░░░░` — 96 done, 1 partial, 77 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -132,6 +132,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/privacy.rs`, `src/backend/privacy.rs` | Privacy rule exceptions (always / never allow) and global switches: new non-contact chats, read time, who can message me; sensitive content filtering |
 | `src/app/password.rs`, `src/backend/password.rs` | Two-step verification: turning the cloud password on and off, changing it, its hint and recovery email (SRP, the code sent to the email) |
 | `src/app/polls.rs`, `src/backend/polls.rs` | "New poll" box: polls and quizzes |
+| `src/app/dice.rs`, `src/backend/dice.rs` | Emoji games (🎲 🎯 🏀 ⚽ 🎰 🎳): sending and outcomes |
 | `src/app/storage.rs`, `src/backend/storage.rs` | "Data and storage": cache usage by type, clearing, size limit |
 | `src/app/autodelete.rs`, `src/backend/autodelete.rs` | Auto-delete timers: the default for new chats, a chat's own |
 | `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |
@@ -182,6 +183,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - A link preview appears above the composer; ✕ sends the message without it.
 - Right-click "Send": send silently or schedule.
 - "Select" in the message menu turns on selection mode; Esc leaves it.
+- A message of just 🎲 🎯 🏀 ⚽ 🎰 or 🎳 is sent as a game.
 - Enter sends, Shift+Enter — new line.
 - Jump to a date: the calendar button in chat search, or click a date chip between messages.
 - Enter sends, Shift+Enter starts a new line; Settings → Chat Settings switches sending to Ctrl+Enter (Cmd+Enter on macOS) and sets the message text size and the chat list density (compact, standard, large).

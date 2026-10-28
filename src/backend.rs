@@ -71,6 +71,7 @@ mod polls;
 mod privacy;
 mod websites;
 mod storage;
+mod dice;
 pub use storage::CacheKind;
 mod autodelete;
 pub use websites::WebSession;
@@ -193,6 +194,8 @@ pub enum Cmd {
     SetHistoryTtl { peer: PeerId, period: i32 },
     /// What the local cache takes by type; answered with `Ev::CacheUsage`.
     LoadCacheUsage,
+    /// An emoji game (🎲 🎯 🏀 ⚽ 🎰 🎳); the server rolls the value.
+    SendDice { peer: PeerId, emoji: String, reply_to: Option<ReplyTo> },
     ClearCache(Vec<CacheKind>),
     /// Remove the oldest cached files over this many bytes.
     TrimCache(u64),
@@ -861,6 +864,7 @@ impl Worker {
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
             cmd @ (Cmd::Reschedule { .. } | Cmd::SendScheduledNow { .. } | Cmd::DeleteScheduled { .. }) => self.scheduled_cmd(cmd).await,
             cmd @ (Cmd::LoadDefaultTtl | Cmd::SetDefaultTtl(_) | Cmd::SetHistoryTtl { .. }) => self.autodelete_cmd(cmd).await,
+            cmd @ Cmd::SendDice { .. } => self.dice_cmd(cmd).await,
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
             cmd @ Cmd::EditMedia { .. } => self.edit_media_cmd(cmd).await,

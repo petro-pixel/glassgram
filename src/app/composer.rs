@@ -47,6 +47,12 @@ impl App {
                 self.draft = std::mem::take(&mut self.edit_stash);
                 self.send_media_edit(peer, id, text);
             }
+            // A lone game emoji is a game, as in Telegram Desktop.
+            _ if opts == SendOpts::default() && dice::game_for(&text).is_some() => {
+                let reply_to = self.take_reply();
+                let emoji = dice::game_for(&text).unwrap_or_default().to_owned();
+                self.send(Cmd::SendDice { peer, emoji, reply_to });
+            }
             // Scheduled messages go straight to the server; the rest through the send queue.
             _ => {
                 let reply_to = self.take_reply();
