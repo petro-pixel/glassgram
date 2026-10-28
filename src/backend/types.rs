@@ -67,7 +67,15 @@ impl ReplyTo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum QueuedMedia {
     /// Photos (compressed, in albums of up to 10) and documents; `as_file` sends photos as files too.
-    Files { paths: Vec<PathBuf>, as_file: bool },
+    /// `spoiler` hides photos and videos under a spoiler; `above` puts the caption above them.
+    Files {
+        paths: Vec<PathBuf>,
+        as_file: bool,
+        #[serde(default)]
+        spoiler: bool,
+        #[serde(default)]
+        above: bool,
+    },
     Voice { path: PathBuf, duration: f64, waveform: Vec<u8> },
     Round { path: PathBuf, duration: f64 },
 }
@@ -323,6 +331,8 @@ pub struct SendOpts {
     pub schedule: Option<i64>,
     /// No link preview (turned off with ✕ above the composer).
     pub no_webpage: bool,
+    /// The caption goes above the media (`invert_media`).
+    pub invert: bool,
 }
 
 impl SendOpts {
@@ -569,6 +579,12 @@ pub struct Msg {
     #[serde(default)]
     pub reply_elsewhere: Option<String>,
     pub photo: bool,
+    /// The photo or video is hidden under a spoiler until clicked.
+    #[serde(default)]
+    pub spoiler: bool,
+    /// The caption is shown above the media.
+    #[serde(default)]
+    pub invert_media: bool,
     /// (file name, size)
     pub file: Option<(String, String)>,
     /// (document id, emoji)
@@ -639,6 +655,8 @@ impl Msg {
             mentioned: false,
             reaction_unread: false,
             photo: false,
+            spoiler: false,
+            invert_media: false,
             file: None,
             sticker: None,
             spans: Vec::new(),

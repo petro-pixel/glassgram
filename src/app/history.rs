@@ -217,8 +217,9 @@ impl App {
                                     chat: Some(chat),
                                     pending: None,
                                 };
-                                let texs: Vec<_> = album.iter().map(|m| self.textures.get(&ImgKey::Photo(peer, m.id))).collect();
-                                if let Some(a) = album_bubble(ui, album, &texs, look) {
+                                let texs: Vec<_> = album.iter().map(|m| self.media_tex(peer, m)).collect();
+                                let hidden: Vec<bool> = album.iter().map(|m| self.media_hidden(peer, m)).collect();
+                                if let Some(a) = album_bubble(ui, album, &texs, &hidden, look) {
                                     action = Some(a);
                                 }
                                 ad_here(ui);
@@ -293,8 +294,11 @@ impl App {
         let animated = self.settings.autoplay && (m.video_sticker || m.lottie)
             || matches!(kind, Some(MediaKind::Gif | MediaKind::Round))
             || (kind == Some(MediaKind::Video) && self.playback.player.is(peer, m.id));
-        let clip = self.playback.clips.get(&(peer, m.id)).and_then(|c| c.tex.as_ref());
-        let photo = clip.or(self.textures.get(&ImgKey::Photo(peer, m.id)));
+        // Hidden media shows its blurred copy and doesn't play.
+        let hidden = self.media_hidden(peer, m);
+        let animated = animated && !hidden;
+        let clip = self.playback.clips.get(&(peer, m.id)).and_then(|c| c.tex.as_ref()).filter(|_| !hidden);
+        let photo = clip.or(self.media_tex(peer, m));
         let sticker = clip.or(m.sticker.as_ref().and_then(|s| self.textures.get(&ImgKey::Sticker(s.0))));
         let revealed = self.revealed.contains(&(peer, m.id));
         let bubble_top = ui.cursor().top();

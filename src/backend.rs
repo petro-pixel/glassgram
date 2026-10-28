@@ -35,6 +35,7 @@ mod updates;
 use updates::*;
 mod upload;
 use upload::*;
+pub use upload::is_image;
 mod account;
 mod topics;
 mod comments;

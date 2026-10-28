@@ -436,7 +436,8 @@ pub(super) fn album_rows(n: usize) -> Vec<usize> {
 }
 
 /// Album: a grid of photos in one bubble; the caption comes from the message that has one.
-pub(super) fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHandle>], look: Look) -> Option<Action> {
+/// `hidden`: items still under a spoiler.
+pub(super) fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHandle>], hidden: &[bool], look: Look) -> Option<Action> {
     let first = msgs[0];
     let ids: Vec<i32> = msgs.iter().map(|m| m.id).collect();
     let avail = ui.available_width();
@@ -472,6 +473,9 @@ pub(super) fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHa
                     p.rect_filled(r, 8.0, glass::veil(14));
                     icons::draw(&p, Rect::from_center_size(r.center(), vec2(26.0, 26.0)), Icon::Camera, ink_dim());
                 }
+            }
+            if hidden[k] {
+                spoiler::cover(&p, r, 8.0, ui.input(|i| i.time));
             }
             if resp.hover_pos().is_some_and(|q| r.contains(q)) {
                 hit = Some(msgs[k].id);
@@ -526,7 +530,8 @@ pub(super) fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHa
     if resp.clicked()
         && let Some(id) = hit
     {
-        action = Some(Action::View(id));
+        let k = ids.iter().position(|x| *x == id).unwrap_or(0);
+        action = Some(if hidden[k] { Action::RevealSpoiler(id) } else { Action::View(id) });
     }
     if resp.double_clicked() {
         action = Some(Action::Reply(main.id));
@@ -673,6 +678,9 @@ pub(super) fn bubble(
         None => {}
     }
     let has_block = block.y > 0.0;
+    // Caption above the media: the time moves onto the media, as when there is no caption.
+    let above = m.invert_media && has_block && img_size.is_some();
+    let hidden = m.spoiler && !revealed;
     let size = match img_size {
         Some(is) => vec2(is.x + 8.0, is.y + 8.0 + if has_block { block.y + pad.y * 2.0 - 4.0 } else { 0.0 }),
         None => block + pad * 2.0,
@@ -690,8 +698,8 @@ pub(super) fn bubble(
     glass::glass(&p, rect, g);
 
     let mut cursor = rect.min + pad;
-    if let Some(is) = img_size {
-        let ir = Rect::from_min_size(rect.min + vec2(4.0, 4.0), is);
+    let img_rect = img_size.map(|is| Rect::from_min_size(pos2(rect.left() + 4.0, if above { rect.bottom() - 4.0 - is.y } else { rect.top() + 4.0 }), is));
+    if let Some(ir) = img_rect {
         match photo {
             Some(t) => glass::image_rounded(&p, ir, 15.0, t.id(), t.size_vec2()),
             None => {
@@ -699,10 +707,12 @@ pub(super) fn bubble(
                 icons::draw(&p, Rect::from_center_size(ir.center(), vec2(30.0, 30.0)), Icon::Camera, ink_dim());
             }
         }
-        if let Some(info) = m.media.as_ref().filter(|_| video) {
+        if hidden {
+            spoiler::cover(&p, ir, 15.0, ui.input(|i| i.time));
+        } else if let Some(info) = m.media.as_ref().filter(|_| video) {
             video_overlay(&p, ir, info, look.play);
         }
-        if !has_block {
+        if !has_block || above {
             let chip = Rect::from_min_size(ir.max - meta.size() - vec2(18.0, 12.0), meta.size() + vec2(12.0, 6.0));
             p.rect_filled(chip, chip.height() / 2.0, Color32::from_black_alpha(120));
             let on_media = p.layout_no_wrap(meta.text().to_owned(), FontId::proportional(11.0), glass::ON_DARK);
@@ -710,7 +720,9 @@ pub(super) fn bubble(
             p.galley(at.min, on_media, glass::ON_DARK);
             chatview::meta_icons(&p, at, m, look, glass::ON_DARK);
         }
-        cursor.y = ir.bottom() + pad.y;
+        if !above {
+            cursor.y = ir.bottom() + pad.y;
+        }
     }
     if let Some(f) = fwd {
         let h = f.size().y;
@@ -755,7 +767,7 @@ pub(super) fn bubble(
         let top = cursor.y + body.as_ref().map_or(0.0, |b| b.size().y + 6.0);
         card_action = c.draw(ui, m, pos2(cursor.x, top), photo, quote_accent).or(card_action);
     }
-    if has_block || img_size.is_none() {
+    if (has_block && !above) || img_size.is_none() {
         let at = Rect::from_min_size(rect.max - pad - meta.size(), meta.size());
         p.galley(at.min, meta, ink());
         if let Some(failed) = look.pending {
@@ -812,7 +824,7 @@ pub(super) fn bubble(
             _ => {}
         }
     }
-    let media_rect = file_rect.or(img_size.map(|is| Rect::from_min_size(rect.min + vec2(4.0, 4.0), is)));
+    let media_rect = file_rect.or(img_rect);
     if let Some(r) = media_rect {
         let hovered = resp.hover_pos().is_some_and(|p| r.contains(p));
         if hovered {
@@ -820,6 +832,7 @@ pub(super) fn bubble(
         }
         if resp.clicked() && hovered {
             action = match kind {
+                _ if hidden => Some(Action::RevealSpoiler(m.id)),
                 _ if m.photo => Some(Action::View(m.id)),
                 Some(MediaKind::Video) => Some(Action::Play(m.id)),
                 Some(MediaKind::Gif) => None,

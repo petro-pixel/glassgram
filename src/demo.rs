@@ -73,6 +73,8 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
                 geo: None,
                 contact: None,
                 media: None,
+                spoiler: false,
+                invert_media: false,
                 video_sticker: false,
                 media_unread: false,
                 mentioned: false,
@@ -198,6 +200,8 @@ fn outgoing(peer: PeerId, markup: String, reply_to: Option<i32>) -> Msg {
         geo: None,
         contact: None,
         media: None,
+        spoiler: false,
+        invert_media: false,
         video_sticker: false,
         lottie: false,
         media_unread: false,
@@ -1204,6 +1208,8 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
             });
             msgs.push(Msg { id: 84, media: Some(MediaInfo { size: (480, 270), ..media(MediaKind::Gif, 3.0, "", "") }), ..base(25, "") });
             msgs.push(Msg { id: 85, media: Some(MediaInfo { size: (240, 240), ..media(MediaKind::Round, 5.0, "", "") }), media_unread: true, ..base(26, "Олена") });
+            msgs.push(Msg { id: 74, photo: true, spoiler: true, text: "Не відкривай, якщо не дивився фінал 🙈".into(), ..base(27, "Олена") });
+            msgs.push(Msg { id: 75, photo: true, invert_media: true, text: "Підпис над фото, як у Telegram".into(), ..base(27, "") });
         }
         9 => {
             // A long history: shows virtualization (only bubbles near the screen are drawn).
@@ -1294,14 +1300,23 @@ fn clip(id: i32) -> Option<std::path::PathBuf> {
 fn queued_media(app: &mut App, q: &Queued) {
     let (peer, reply) = (q.peer, q.reply());
     match q.media.clone() {
-        Some(QueuedMedia::Files { paths, .. }) => {
+        Some(QueuedMedia::Files { paths, as_file, spoiler, above }) => {
             for (i, path) in paths.iter().enumerate() {
                 let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 let size = std::fs::metadata(path).map(|m| crate::backend::human_size(m.len() as usize)).unwrap_or_default();
                 let text = if i == 0 { q.text.clone() } else { String::new() };
                 let mut m = replied(app, outgoing(peer, text, None), &reply);
                 m.id += i as i32;
-                app.push_event(Ev::NewMsg(Msg { file: Some((name, size)), ..m }));
+                // Pictures come back as photos, like from the server, with the options chosen.
+                let picture = (!as_file).then(|| image::open(path).ok()).flatten().map(|img| img.thumbnail(800, 800).to_rgba8());
+                match picture {
+                    Some(rgba) => {
+                        let (mid, size) = (m.id, [rgba.width() as usize, rgba.height() as usize]);
+                        app.push_event(Ev::NewMsg(Msg { photo: true, spoiler, invert_media: above, ..m }));
+                        app.push_event(Ev::Image { key: ImgKey::Photo(peer, mid), image: ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()) });
+                    }
+                    None => app.push_event(Ev::NewMsg(Msg { file: Some((name, size)), ..m })),
+                }
             }
             let _ = std::fs::remove_dir_all(crate::backend::outbox_dir(&crate::accounts::session_path(0), q.key));
         }
@@ -1370,6 +1385,8 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
         (ImgKey::Photo(id, 70), sunset(400, 300)),
         (ImgKey::Photo(id, 71), sunset(300, 300)),
         (ImgKey::Photo(id, 72), sunset(320, 420)),
+        (ImgKey::Photo(id, 74), sunset(420, 300)),
+        (ImgKey::Photo(id, 75), sunset(400, 260)),
         (ImgKey::Avatar(PeerId::user_unchecked(5)), sunset(96, 96)),
         (ImgKey::Photo(PeerId::user_unchecked(2), 5), sunset(480, 250)),
         (ImgKey::Sponsored(DEMO_AD_PHOTO), sunset(112, 112)),

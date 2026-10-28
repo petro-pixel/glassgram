@@ -108,7 +108,7 @@ pub(super) async fn send_raw(client: &Client, r: PeerRef, markup: &str, media: O
                     clear_draft: false,
                     noforwards: false,
                     update_stickersets_order: false,
-                    invert_media: false,
+                    invert_media: opts.invert,
                     allow_paid_floodskip: false,
                     peer: r.into(),
                     reply_to: reply,
@@ -160,17 +160,17 @@ pub(super) async fn send_raw(client: &Client, r: PeerRef, markup: &str, media: O
 }
 
 /// An album as our own request; photo `i` gets the `random_id` `rid + i`.
-pub(super) async fn album_raw(client: &Client, r: PeerRef, ups: Vec<Uploaded>, caption: &str, reply: Option<tl::enums::InputReplyTo>, opts: SendOpts, rid: i64) -> Result<Vec<Message>, SendError> {
+pub(super) async fn album_raw(client: &Client, r: PeerRef, ups: Vec<Uploaded>, caption: &str, reply: Option<tl::enums::InputReplyTo>, opts: SendOpts, rid: i64, spoiler: bool) -> Result<Vec<Message>, SendError> {
     let mut multi_media = Vec::new();
     let mut rids = Vec::new();
     for (i, up) in ups.into_iter().enumerate() {
         // An album takes only media already on the server.
-        let stored = client.invoke(&tl::functions::messages::UploadMedia { business_connection_id: None, peer: r.into(), media: photo(up) }).await?;
+        let stored = client.invoke(&tl::functions::messages::UploadMedia { business_connection_id: None, peer: r.into(), media: photo(up, spoiler) }).await?;
         let tl::enums::MessageMedia::Photo(tl::types::MessageMediaPhoto { photo: Some(tl::enums::Photo::Photo(p)), .. }) = stored else {
             return Err(SendError::Other(l!("Сервер не прийняв фото", "The server did not accept the photo").into()));
         };
         let media = tl::types::InputMediaPhoto {
-            spoiler: false,
+            spoiler,
             live_photo: false,
             id: tl::types::InputPhoto { id: p.id, access_hash: p.access_hash, file_reference: p.file_reference }.into(),
             ttl_seconds: None,
@@ -188,7 +188,7 @@ pub(super) async fn album_raw(client: &Client, r: PeerRef, ups: Vec<Uploaded>, c
             clear_draft: false,
             noforwards: false,
             update_stickersets_order: false,
-            invert_media: false,
+            invert_media: opts.invert,
             allow_paid_floodskip: false,
             peer: r.into(),
             reply_to: reply,
@@ -203,8 +203,8 @@ pub(super) async fn album_raw(client: &Client, r: PeerRef, ups: Vec<Uploaded>, c
     created(client, r, &updates, &rids, opts).await
 }
 
-pub(super) fn photo(up: Uploaded) -> tl::enums::InputMedia {
-    tl::types::InputMediaUploadedPhoto { spoiler: false, live_photo: false, file: up.raw, stickers: None, ttl_seconds: None, video: None }.into()
+pub(super) fn photo(up: Uploaded, spoiler: bool) -> tl::enums::InputMedia {
+    tl::types::InputMediaUploadedPhoto { spoiler, live_photo: false, file: up.raw, stickers: None, ttl_seconds: None, video: None }.into()
 }
 
 /// A document under `name`, its type guessed from the extension like grammers does.
@@ -225,4 +225,14 @@ pub(super) fn document(up: Uploaded, name: &str, mime: Option<&str>, mut attribu
         ttl_seconds: None,
     }
     .into()
+}
+
+/// Hides a video under a spoiler; other documents can't have one.
+pub(super) fn video_spoiler(mut media: tl::enums::InputMedia) -> tl::enums::InputMedia {
+    if let tl::enums::InputMedia::UploadedDocument(d) = &mut media
+        && d.mime_type.starts_with("video/")
+    {
+        d.spoiler = true;
+    }
+    media
 }

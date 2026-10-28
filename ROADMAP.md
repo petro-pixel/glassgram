@@ -88,7 +88,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P1** Custom emoji (showing — P1, sending — Premium P2)
 - ✅ Creating polls and quizzes: "Poll" in the 📎 menu (right click) opens the "New poll" box — question, up to 10 answers, anonymous voting, multiple answers, quiz mode with the correct answer and an explanation (`messages.sendMedia` + `inputMediaPoll`)
 - ⬜ **P1** Polls with participant limits and stats (2026), checklists (`appendTodoList`)
-- ⬜ **P1** Spoiler on photos and videos, caption above media, replacing the attachment while editing
+- ✅ "Send files" box as in Telegram Desktop: previews of photos and file rows (remove one with ✕, more files dropped or pasted join it), the caption, "Compress images", "Hide with spoiler" (`spoiler` on `inputMediaUploadedPhoto` / the video document) and "Caption above media" (`invert_media`); in the chat, media under a spoiler is a blurred copy with drifting dots until clicked, and a caption above the media is drawn above it
+- ⬜ **P1** Replacing the attachment while editing a message
 - ⬜ **P2** Sending as a channel (`saveDefaultSendAs`), "send when online", location and contact
 - ⬜ **P2** Spell checking (Hunspell dictionaries, works on every OS)
 - ⬜ **P3** AI text editor: translate, rewrite, tones (`composeMessageWithAI`, `aicompose.*`)

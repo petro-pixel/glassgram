@@ -631,13 +631,16 @@ impl App {
                 let cell = Rect::from_min_size(pos2(r.left() + i as f32 * (side + GAP), r.top()), vec2(side, side));
                 let resp = ui.interact(cell, ui.scope_id().with(("shared-cell", m.id)), Sense::click());
                 let p = ui.painter();
-                match self.textures.get(&ImgKey::Photo(peer, m.id)) {
+                match self.media_tex(peer, m) {
                     Some(t) => glass::image_rounded(p, cell, 10.0, t.id(), t.size_vec2()),
                     None => {
                         p.rect_filled(cell, 10.0, glass::veil(22));
                         let icon = if m.photo { Icon::Camera } else { Icon::Play };
                         icons::draw(p, Rect::from_center_size(cell.center(), vec2(24.0, 24.0)), icon, ink_dim());
                     }
+                }
+                if self.media_hidden(peer, m) {
+                    super::spoiler::cover(p, cell, 10.0, ui.input(|i| i.time));
                 }
                 if let Some(info) = &m.media {
                     // Dark chip so the label reads over any picture.

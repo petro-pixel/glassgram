@@ -220,6 +220,15 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         // `reply_to_peer_id` is set only for replies to another chat.
         reply_elsewhere: reply_header(m).and_then(|h| h.reply_to_peer_id.as_ref()).map(|p| names.lock().unwrap().get(&PeerId::from(p)).cloned().unwrap_or_default()),
         photo,
+        spoiler: match &m.raw {
+            tl::enums::Message::Message(x) => match &x.media {
+                Some(tl::enums::MessageMedia::Photo(p)) => p.spoiler,
+                Some(tl::enums::MessageMedia::Document(d)) => d.spoiler,
+                _ => false,
+            },
+            _ => false,
+        },
+        invert_media: matches!(&m.raw, tl::enums::Message::Message(x) if x.invert_media),
         file,
         sticker,
         spans,

@@ -71,7 +71,7 @@ impl<R: tokio::io::AsyncRead + Unpin> tokio::io::AsyncRead for Progress<R> {
     }
 }
 
-pub(super) fn is_image(path: &std::path::Path) -> bool {
+pub fn is_image(path: &std::path::Path) -> bool {
     let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
     matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "webp")
 }

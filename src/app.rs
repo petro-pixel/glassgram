@@ -72,6 +72,8 @@ mod quote;
 mod report;
 mod bubbles;
 use bubbles::*;
+mod sendbox;
+mod spoiler;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;
 
@@ -514,6 +516,9 @@ pub struct App {
     blocked: Option<Vec<ChatInfo>>,
     /// "New poll" box.
     poll_form: Option<polls::PollForm>,
+    /// The "Send files" box with what is about to be sent.
+    send_box: Option<sendbox::SendBox>,
+    spoilers: spoiler::Spoilers,
     /// Open mini app windows (separate WebView processes).
     web_apps: Vec<webapp::WebAppWin>,
     /// Text of the keyboard button whose mini app is being opened (for `sendWebViewData`).
@@ -770,6 +775,8 @@ impl App {
             contact_form: None,
             blocked: None,
             poll_form: None,
+            send_box: None,
+            spoilers: spoiler::Spoilers::default(),
             web_apps: Vec::new(),
             web_app_button: String::new(),
             web_app_ask: None,
@@ -886,6 +893,7 @@ impl App {
                 }
             }
             Ev::Image { key, image } => {
+                self.on_spoiler_image(key, &image);
                 let tex = self.ctx.load_texture(format!("{key:?}"), image, TextureOptions::LINEAR);
                 self.textures.insert(key, tex);
             }
@@ -1606,6 +1614,7 @@ impl eframe::App for App {
         self.web_app_ask_view(ui);
         self.contact_form_view(ui);
         self.poll_form_view(ui);
+        self.send_box_view(ui);
         self.chat_edit_view(ui);
         self.privacy_pick_view(ui);
         self.tag_rename_view(ui);

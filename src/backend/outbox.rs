@@ -77,7 +77,7 @@ impl Worker {
                 return Ok(());
             }
         };
-        let opts = SendOpts { silent: q.silent, schedule: None, no_webpage: q.no_webpage };
+        let opts = SendOpts { silent: q.silent, no_webpage: q.no_webpage, ..Default::default() };
         let reply_to = match q.reply().map(|x| self.input_reply(&x)).transpose() {
             Ok(x) => x,
             // The other chat is not known in this session yet.
@@ -207,7 +207,8 @@ async fn queued_media(client: &Client, r: PeerRef, q: &Queued, reply: Option<tl:
         return Err(SendError::Other(lf!("файл зник: {}", "the file is gone: {}", gone.display())));
     }
     let id = q.key as u64;
-    let opts = SendOpts { silent: q.silent, schedule: None, no_webpage: true };
+    let invert = matches!(media, QueuedMedia::Files { above: true, .. });
+    let opts = SendOpts { silent: q.silent, no_webpage: true, invert, ..Default::default() };
     let local = ReplyTo::local(&q.reply());
     let total: u64 = media.paths().iter().filter_map(|p| std::fs::metadata(p).ok()).map(|m| m.len()).sum();
     let mut base = 0;
@@ -244,7 +245,7 @@ async fn queued_media(client: &Client, r: PeerRef, q: &Queued, reply: Option<tl:
             let (rid, cap, reply) = step(1);
             emit(once(reply::send_raw(client, r, &cap, Some(doc), reply, opts, rid).await)?);
         }
-        QueuedMedia::Files { paths, as_file } => {
+        QueuedMedia::Files { paths, as_file, spoiler, above: _ } => {
             let (photos, docs): (Vec<&PathBuf>, Vec<&PathBuf>) = paths.iter().partition(|p| !as_file && is_image(p));
             let photos: Vec<PathBuf> = photos.into_iter().cloned().collect();
             let photos: Vec<PathBuf> = tokio::task::spawn_blocking(move || photos.into_iter().map(|p| compress_photo(&p).unwrap_or(p)).collect())
@@ -257,8 +258,8 @@ async fn queued_media(client: &Client, r: PeerRef, q: &Queued, reply: Option<tl:
                 }
                 let (rid, cap, reply) = step(ups.len());
                 match ups.len() {
-                    1 => emit(once(reply::send_raw(client, r, &cap, ups.pop().map(reply::photo), reply, opts, rid).await)?),
-                    _ => match reply::album_raw(client, r, ups, &cap, reply, opts, rid).await {
+                    1 => emit(once(reply::send_raw(client, r, &cap, ups.pop().map(|u| reply::photo(u, *spoiler)), reply, opts, rid).await)?),
+                    _ => match reply::album_raw(client, r, ups, &cap, reply, opts, rid, *spoiler).await {
                         Ok(msgs) => msgs.into_iter().for_each(|m| emit(Some(m))),
                         Err(e) if e.duplicate() => {}
                         Err(e) => return Err(e),
@@ -268,6 +269,7 @@ async fn queued_media(client: &Client, r: PeerRef, q: &Queued, reply: Option<tl:
             for path in docs {
                 let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 let doc = reply::document(up(path).await?, &name, None, Vec::new());
+                let doc = if *spoiler { reply::video_spoiler(doc) } else { doc };
                 let (rid, cap, reply) = step(1);
                 emit(once(reply::send_raw(client, r, &cap, Some(doc), reply, opts, rid).await)?);
             }

@@ -98,16 +98,6 @@ impl App {
         reply
     }
 
-    pub(super) fn send_files(&mut self, peer: PeerId, paths: Vec<PathBuf>, as_file: bool) {
-        if paths.is_empty() {
-            return;
-        }
-        let caption = if self.selected == Some(peer) { std::mem::take(&mut self.draft) } else { String::new() };
-        let reply_to = self.take_reply();
-        // Through the send queue: offline the files wait for the network, like text.
-        self.enqueue_media(peer, caption.trim().to_owned(), reply_to, QueuedMedia::Files { paths, as_file }, false);
-    }
-
     /// System file picker in a separate thread, so as not to block the UI.
     pub(super) fn pick_files(&self, peer: PeerId, as_file: bool) {
         let (tx, ctx) = (self.picked_tx.clone(), self.ctx.clone());

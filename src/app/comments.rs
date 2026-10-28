@@ -45,9 +45,10 @@ impl App {
                     Some(r) => (author(r, &self.me), quote(r)),
                     None => (l!("Відповідь", "Reply").to_owned(), l!("Коментар", "Comment").to_owned()),
                 });
-                let photo = self.textures.get(&ImgKey::Photo(m.peer, m.id));
+                let photo = self.media_tex(m.peer, m);
                 let sticker = m.sticker.as_ref().and_then(|s| self.textures.get(&ImgKey::Sticker(s.0)));
-                let look = Look { chosen: &[], group: true, revealed: false, picking: false, picked: false, play: PlayView::default(), ticks: None, chat: None, pending: None };
+                let revealed = self.revealed.contains(&(m.peer, m.id));
+                let look = Look { chosen: &[], group: true, revealed, picking: false, picked: false, play: PlayView::default(), ticks: None, chat: None, pending: None };
                 if let Some(a) = bubble(ui, m, look, reply, photo, sticker) {
                     action = Some(a);
                 }

@@ -71,7 +71,7 @@ impl App {
             Ok(to)
         };
         let kept = match media {
-            QueuedMedia::Files { paths, as_file } => paths.iter().enumerate().map(|(k, p)| keep(k, p)).collect::<Result<Vec<_>, _>>().map(|paths| QueuedMedia::Files { paths, as_file }),
+            QueuedMedia::Files { paths, as_file, spoiler, above } => paths.iter().enumerate().map(|(k, p)| keep(k, p)).collect::<Result<Vec<_>, _>>().map(|paths| QueuedMedia::Files { paths, as_file, spoiler, above }),
             QueuedMedia::Voice { path, duration, waveform } => keep(0, &path).map(|path| QueuedMedia::Voice { path, duration, waveform }),
             QueuedMedia::Round { path, duration } => keep(0, &path).map(|path| QueuedMedia::Round { path, duration }),
         };
