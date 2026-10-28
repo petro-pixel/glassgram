@@ -935,6 +935,8 @@ impl Worker {
         let proxy = crate::settings::Settings::load().proxy;
         let params = grammers_client::sender::ConnectionParams {
             proxy_url: (!proxy.is_empty() && crate::settings::proxy_error(&proxy).is_none()).then_some(proxy),
+            // Otherwise Active Sessions shows the grammers version as ours.
+            app_version: env!("CARGO_PKG_VERSION").to_owned(),
             ..Default::default()
         };
         let SenderPool { runner, updates, handle } = SenderPool::with_configuration(Arc::clone(&session), api_id, params);

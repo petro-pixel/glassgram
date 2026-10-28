@@ -182,6 +182,12 @@ and **remove** it before finishing (check: `grep -c TMP src/app.rs` gives 0).
 
 ## Releases
 
+**Versions follow the roadmap progress** (the bar at the top of the READMEs): `0.X.0` is released when
+progress reaches X0%. Until then work goes into the branch `0.X.0-alpha`, with `version = "0.X.0-alpha"`
+in `Cargo.toml` (the client reports it to Telegram, so Active Sessions shows it), in batches of five
+features, one commit each, pushed to that branch. When the bar reaches X0%, the branch is merged into
+`main`, the version becomes `0.X.0`, the tag `v0.X.0` is pushed, and the next branch `0.(X+1).0-alpha` starts.
+
 A pushed tag `v*` runs `.github/workflows/release.yml`: the Windows installer (`packaging/windows`) and the
 Flatpak bundle (`packaging/flatpak`), attached to the GitHub release. Bump `version` in `Cargo.toml` and add a
 `<release>` to the metainfo before tagging. The Telegram API keys come from the repository secrets

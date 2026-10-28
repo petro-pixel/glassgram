@@ -3,6 +3,8 @@
 ; Paths are relative to this file.
 
 #define AppVersion GetEnv("GLASSGRAM_VERSION")
+; Windows version fields take numbers only: "0.6.0-alpha" goes in as 0.6.0.
+#define NumVersion Copy(AppVersion, 1, Pos("-", AppVersion + "-") - 1)
 #if AppVersion == ""
   #define AppVersion "0.0.0"
 #endif
@@ -14,7 +16,7 @@ AppName=Glassgram
 AppVersion={#AppVersion}
 AppPublisher=petro-pixel
 ; Code signing (SignPath) checks these against the release version.
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#NumVersion}
 VersionInfoProductName=Glassgram
 VersionInfoProductVersion={#AppVersion}
 VersionInfoProductTextVersion={#AppVersion}
