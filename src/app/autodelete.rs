@@ -75,8 +75,10 @@ impl App {
         let mut set = None;
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+            // Four in one line, as wide as the page allows.
+            let w = ((ui.available_width() - 18.0) / 4.0).clamp(80.0, 120.0);
             for (secs, label) in choices() {
-                let (r, _) = ui.allocate_exact_size(vec2(110.0, 30.0), Sense::hover());
+                let (r, _) = ui.allocate_exact_size(vec2(w, 30.0), Sense::hover());
                 if glass::button(ui, r, ("default-ttl", secs), label, current == secs, true).clicked() && current != secs {
                     set = Some(secs);
                 }
