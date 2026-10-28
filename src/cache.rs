@@ -60,7 +60,7 @@ impl Cache {
         tokio::spawn(async move {
             match open(&path).await {
                 Ok(conn) => serve(conn, rx).await,
-                Err(e) => eprintln!("cache: {e}"),
+                Err(e) => crate::errlog::record(&format!("cache: {e}")),
             }
         });
         Self(tx)
@@ -148,7 +148,7 @@ async fn open(path: &Path) -> Result<Connection, libsql::Error> {
 async fn serve(conn: Connection, mut rx: mpsc::UnboundedReceiver<Op>) {
     while let Some(op) = rx.recv().await {
         if let Err(e) = apply(&conn, op).await {
-            eprintln!("cache: {e}");
+            crate::errlog::record(&format!("cache: {e}"));
         }
     }
 }

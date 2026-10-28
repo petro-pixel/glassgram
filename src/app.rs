@@ -917,6 +917,7 @@ impl App {
             }
             ev @ (Ev::Contacts(_) | Ev::ContactResults { .. } | Ev::ChatCreated(_) | Ev::ChannelUsernameCheck { .. }) => self.new_chat_event(ev),
             Ev::Error(e) => {
+                crate::errlog::record(&e);
                 if let Some(n) = &mut self.new_chat {
                     n.busy = false;
                 }

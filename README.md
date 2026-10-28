@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 56%** `███████████░░░░░░░░░` — 97 done, 1 partial, 77 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 56%** `███████████░░░░░░░░░` — 98 done, 1 partial, 76 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -132,6 +132,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/privacy.rs`, `src/backend/privacy.rs` | Privacy rule exceptions (always / never allow) and global switches: new non-contact chats, read time, who can message me; sensitive content filtering |
 | `src/app/password.rs`, `src/backend/password.rs` | Two-step verification: turning the cloud password on and off, changing it, its hint and recovery email (SRP, the code sent to the email) |
 | `src/app/polls.rs`, `src/backend/polls.rs` | "New poll" box: polls and quizzes |
+| `src/errlog.rs` | Error log file, panic hook, report for the developer |
 | `src/app/selfdestruct.rs`, `src/backend/selfdestruct.rs` | "Delete my account if away for…" |
 | `src/app/dice.rs`, `src/backend/dice.rs` | Emoji games (🎲 🎯 🏀 ⚽ 🎰 🎳): sending and outcomes |
 | `src/app/storage.rs`, `src/backend/storage.rs` | "Data and storage": cache usage by type, clearing, size limit |

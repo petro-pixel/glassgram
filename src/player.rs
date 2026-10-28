@@ -138,7 +138,7 @@ impl Player {
                 self.started = Some(Instant::now());
             }
             Err(e) => {
-                eprintln!("glassgram: ffplay: {e}");
+                crate::errlog::record(&format!("ffplay: {e}"));
                 self.current = None;
             }
         }

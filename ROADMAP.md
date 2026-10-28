@@ -210,7 +210,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Offline send queue for text messages, files, voice and round video messages: the bubble appears at once with a clock, network errors are retried with growing delays (2, 4, 8, 16 s), then a red mark with Retry / Delete in the menu (click retries); the queue lives in `chats.sqlite` and survives a restart (failed ones stay failed). Retries reuse the queue key as `random_id` (raw `messages.sendMessage`), so a lost reply can't post a message twice; the server's `RANDOM_ID_DUPLICATE` counts as sent. Files are copied into the account's `outbox/<key>/` folder first (recordings moved), uploaded with progress at every attempt and sent as our own requests whose `random_id`s come from the key; folders of messages no longer queued are pruned at start
 - ✅ Memory budget for pictures (192 MB): the least recently drawn ones that were off screen for 30 s are dropped and decoded again from the disk cache when they come back into view (`app/textures.rs`, `Cmd::ReloadImages`)
 - ⬜ **P1** Backend tests on recorded server replies, CI (Linux, Windows, macOS)
-- ⬜ **P2** Error log to a file and a report for the developer (no personal data)
+- ✅ Error log to a file (`logs/errors.log`, owner-only, rotated at 512 KB): errors shown to the user, background failures and panics, the home folder written as `~`; Settings → Advanced → "Error log" copies a report (version, system, last 60 lines), opens the folder, clears it
 - ⬜ **P2** Updating the API layer together with grammers
 
 ## 17. Platforms and distribution

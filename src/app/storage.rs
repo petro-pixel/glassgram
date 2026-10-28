@@ -48,6 +48,36 @@ impl App {
         self.send(Cmd::LoadCacheUsage);
     }
 
+    /// "Error log": how many entries, copying a report, the folder, clearing.
+    pub(super) fn error_log_section(&mut self, ui: &mut Ui) {
+        section_title(ui, l!("Журнал помилок", "Error log"));
+        let n = crate::errlog::count();
+        ui.label(egui::RichText::new(if n == 0 { l!("Помилок не було", "No errors recorded").to_owned() } else { lf!("Записів: {n}", "Entries: {n}") }).color(ink()).size(14.0));
+        let mut copied = false;
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+            let w = ((ui.available_width() - 12.0) / 3.0).clamp(100.0, 150.0);
+            let (r, _) = ui.allocate_exact_size(vec2(w, 32.0), Sense::hover());
+            if glass::button(ui, r, "errlog-copy", l!("Копіювати звіт", "Copy report"), false, true).clicked() {
+                ui.ctx().copy_text(crate::errlog::report());
+                copied = true;
+            }
+            let (r, _) = ui.allocate_exact_size(vec2(w, 32.0), Sense::hover());
+            if glass::button(ui, r, "errlog-open", l!("Відкрити теку", "Open folder"), false, true).clicked() {
+                let _ = std::fs::create_dir_all(crate::errlog::dir());
+                crate::platform::open(crate::errlog::dir());
+            }
+            let (r, _) = ui.allocate_exact_size(vec2(w, 32.0), Sense::hover());
+            if glass::button(ui, r, "errlog-clear", l!("Очистити", "Clear"), false, n > 0).clicked() {
+                crate::errlog::clear();
+            }
+        });
+        if copied {
+            self.toast = Some((l!("Звіт скопійовано", "Report copied").to_owned(), 0.0, false));
+        }
+        ui.label(egui::RichText::new(l!("Звіт містить версію, систему й останні помилки — без повідомлень, номерів і паролів. Надішліть його розробнику, якщо щось не працює.", "The report has the version, system and recent errors — no messages, numbers or passwords. Send it to the developer if something doesn't work.")).color(ink_dim()).size(12.5));
+    }
+
     pub(super) fn storage_section(&mut self, ui: &mut Ui) {
         section_title(ui, l!("Дані та сховище", "Data and storage"));
         let mut cmd = None;

@@ -1487,7 +1487,7 @@ mod tests {
 }
 
 fn log_error(e: &str) {
-    eprintln!("glassgram: {e}");
+    crate::errlog::record(e);
 }
 
 /// Files of messages no longer in this account's queue (sent before a crash, or the demo's): removed.

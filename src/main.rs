@@ -11,6 +11,7 @@ mod cache;
 mod camera;
 mod demo;
 mod emoji;
+mod errlog;
 mod export;
 mod format;
 mod i18n;
@@ -31,6 +32,7 @@ mod viewer;
 mod webview;
 
 fn main() -> eframe::Result {
+    errlog::install_panic_hook();
     // The mini app window runs as a separate process of the same executable.
     if std::env::args().any(|a| a == "--webview") {
         webview::run();

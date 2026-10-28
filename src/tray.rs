@@ -117,7 +117,7 @@ pub fn spawn(tx: Sender<TrayEv>, ctx: egui::Context, notifications: bool) -> Opt
     match imp::spawn(tx, ctx, notifications) {
         Ok(h) => Some(TrayHandle(h)),
         Err(e) => {
-            eprintln!("glassgram: tray unavailable: {e}");
+            crate::errlog::record(&format!("tray unavailable: {e}"));
             None
         }
     }
