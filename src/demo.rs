@@ -791,6 +791,15 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::LoadGlobalPrivacy => app.push_event(Ev::GlobalPrivacy(GlobalPrivacy { archive_new: true, keep_unmuted: false, keep_folders: true, hide_read: false, premium_only: false })),
         Cmd::SetGlobalPrivacy(p) => app.push_event(Ev::GlobalPrivacy(p)),
+        Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_) => {
+            use crate::backend::CacheKind as K;
+            if let Cmd::ClearCache(kinds) = &cmd {
+                DEMO_CLEARED.with_borrow_mut(|c| c.extend(kinds.iter().copied()));
+            }
+            let made_up = [(K::Photos, 184 << 20, 640), (K::Videos, 1210 << 20, 38), (K::Audio, 23 << 20, 51), (K::Stickers, 46 << 20, 412), (K::Profiles, 12 << 20, 230), (K::Other, 3 << 20, 4)];
+            let usage = made_up.into_iter().map(|(k, b, n)| if DEMO_CLEARED.with_borrow(|c| c.contains(&k)) { (k, 0, 0) } else { (k, b, n) }).collect();
+            app.push_event(Ev::CacheUsage(usage));
+        }
         Cmd::LoadDefaultTtl => app.push_event(Ev::DefaultTtl(DEMO_DEFAULT_TTL.get())),
         Cmd::SetDefaultTtl(period) => {
             DEMO_DEFAULT_TTL.set(period);
@@ -926,6 +935,8 @@ thread_local! {
     /// Demo auto-delete timers: chats changed in this run, and the default for new chats.
     static DEMO_TTL: std::cell::RefCell<HashMap<PeerId, i32>> = std::cell::RefCell::new(HashMap::new());
     static DEMO_DEFAULT_TTL: std::cell::Cell<i32> = const { std::cell::Cell::new(0) };
+    /// Demo cache types the user cleared (the real cache is never touched in the demo).
+    static DEMO_CLEARED: std::cell::RefCell<Vec<crate::backend::CacheKind>> = const { std::cell::RefCell::new(Vec::new()) };
     /// Demo websites the user disconnected.
     static DEMO_WEB_GONE: std::cell::RefCell<Vec<i64>> = const { std::cell::RefCell::new(Vec::new()) };
     /// Demo reaction tags of Saved Messages; renaming changes them.

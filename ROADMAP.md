@@ -104,7 +104,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P1** Streaming large videos (downloading in parts instead of the whole file)
 - ⬜ **P1** Animated and custom emoji in text (`getCustomEmojiDocuments`), animated reactions
 - ⬜ **P1** Sticker sets: browse, install, order, search (`searchStickerSets`), favourite and saved GIFs
-- ⬜ **P1** Media auto-download and cache management (size, clearing by type)
+- ✅ Cache management in Settings → Advanced → "Data and storage": what photos, videos and GIFs, voice and music, stickers, profile photos and stories take, clearing each type or all, a cache size limit (1, 5, 20 GB or none) kept by removing the oldest files on every connection
+- ⬜ **P1** Media auto-download settings (by chat type and file size)
 - ⬜ **P2** Music player with a queue and a playback bar; music in the profile (`saveMusic`, 2026)
 - ⬜ **P2** Simple photo editor: crop, rotate, draw; Live Photos (2026)
 - ⬜ **P3** Creating your own sticker sets (`stickers.createStickerSet`)

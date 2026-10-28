@@ -192,6 +192,7 @@ impl App {
                 self.send(Cmd::LoadPassword);
             }
             SettingsTab::Devices => self.send(Cmd::LoadSessions),
+            SettingsTab::Advanced => self.load_cache_usage(),
             SettingsTab::Folders => self.send(Cmd::LoadSuggestedFolders),
             SettingsTab::Notifications => self.load_notify_exceptions(),
             SettingsTab::Account => {
@@ -533,16 +534,15 @@ impl App {
         }
     }
 
-    /// "Advanced": connection (proxy), camera and media tools.
+    /// "Advanced": connection (proxy), data and storage, camera and media tools.
     fn advanced_page(&mut self, ui: &mut Ui) {
         let cameras = self.cameras.get_or_insert_with(camera::list).clone();
         let (can_play, can_record) = (self.playback.available, self.rec.available);
-        let s = &mut self.settings;
         egui::ScrollArea::vertical().id_salt("settings-advanced").auto_shrink(false).show(ui, |ui| {
             section_title(ui, l!("Проксі SOCKS5", "SOCKS5 proxy"));
             let r = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
-            glass::text_field(ui, r, &mut s.proxy, "socks5://127.0.0.1:1080", false);
-            match settings::proxy_error(&s.proxy) {
+            glass::text_field(ui, r, &mut self.settings.proxy, "socks5://127.0.0.1:1080", false);
+            match settings::proxy_error(&self.settings.proxy) {
                 Some(e) => ui.label(egui::RichText::new(e).color(glass::DANGER).size(12.5)),
                 None => ui.label(egui::RichText::new(l!("Діє після перезапуску програми", "Takes effect after restart")).color(ink_dim()).size(12.5)),
             };
@@ -553,11 +553,11 @@ impl App {
             }
             for (k, c) in cameras.iter().enumerate() {
                 // Without an explicit choice the first camera records.
-                let on = s.camera == c.id || (s.camera.is_empty() && k == 0);
+                let on = self.settings.camera == c.id || (self.settings.camera.is_empty() && k == 0);
                 let label = if c.name.is_empty() { c.id.clone() } else { c.name.clone() };
                 let r = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover()).0;
                 if glass::button(ui, r, ("camera", k), &label, on, true).clicked() {
-                    s.camera = c.id.clone();
+                    self.settings.camera = c.id.clone();
                 }
             }
             ui.add_space(10.0);
@@ -565,6 +565,8 @@ impl App {
             let yes_no = |ok: bool, what: &str| format!("{} {what}", if ok { "✓" } else { "✗" });
             hint(ui, &yes_no(can_play, l!("ffplay — звук голосових, аудіо й відео", "ffplay — sound for voice, audio and video")));
             hint(ui, &yes_no(can_record, l!("ffmpeg — відео в чаті й запис голосових", "ffmpeg — in-chat video and voice recording")));
+            ui.add_space(10.0);
+            self.storage_section(ui);
         });
     }
 

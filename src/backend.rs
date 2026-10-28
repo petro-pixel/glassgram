@@ -70,6 +70,8 @@ mod webapp;
 mod polls;
 mod privacy;
 mod websites;
+mod storage;
+pub use storage::CacheKind;
 mod autodelete;
 pub use websites::WebSession;
 mod password;
@@ -189,6 +191,11 @@ pub enum Cmd {
     SetDefaultTtl(i32),
     /// A chat's auto-delete timer; answered with `Ev::HistoryTtl`.
     SetHistoryTtl { peer: PeerId, period: i32 },
+    /// What the local cache takes by type; answered with `Ev::CacheUsage`.
+    LoadCacheUsage,
+    ClearCache(Vec<CacheKind>),
+    /// Remove the oldest cached files over this many bytes.
+    TrimCache(u64),
     LoadWebsites,
     LogoutWebsite(i64),
     LogoutAllWebsites,
@@ -465,6 +472,8 @@ pub enum Ev {
     /// Sensitive content: shown unfiltered, and whether the account may change that.
     ContentSettings { enabled: bool, can_change: bool },
     Websites(Vec<WebSession>),
+    /// (type, bytes, files) of the local cache.
+    CacheUsage(Vec<(CacheKind, u64, usize)>),
     DefaultTtl(i32),
     HistoryTtl { peer: PeerId, period: i32 },
     Password(PasswordState),
@@ -852,6 +861,7 @@ impl Worker {
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
             cmd @ (Cmd::Reschedule { .. } | Cmd::SendScheduledNow { .. } | Cmd::DeleteScheduled { .. }) => self.scheduled_cmd(cmd).await,
             cmd @ (Cmd::LoadDefaultTtl | Cmd::SetDefaultTtl(_) | Cmd::SetHistoryTtl { .. }) => self.autodelete_cmd(cmd).await,
+            cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
             cmd @ Cmd::EditMedia { .. } => self.edit_media_cmd(cmd).await,
             cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,
@@ -998,6 +1008,11 @@ impl Worker {
         self.client = Some(client);
         self.session = Some(session);
         self.loader = Some(loader);
+        // The cache limit from the settings, once per connection, off the async threads.
+        let limit = crate::settings::Settings::load().cache_limit_gb;
+        if limit > 0 {
+            tokio::task::spawn_blocking(move || storage::trim(u64::from(limit) << 30));
+        }
         if authorized {
             self.after_login().await
         } else {

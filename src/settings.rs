@@ -82,11 +82,13 @@ pub struct Settings {
     /// Stickers for an emoji typed alone in the field, above it.
     pub suggest_stickers: bool,
     pub density: Density,
+    /// Local cache limit in GB; 0 — no limit.
+    pub cache_limit_gb: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard }
+        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard, cache_limit_gb: 0 }
     }
 }
 
@@ -124,6 +126,7 @@ impl Settings {
                 "ctrl_enter" => s.ctrl_enter = flag,
                 "loop_stickers" => s.loop_stickers = flag,
                 "suggest_stickers" => s.suggest_stickers = flag,
+                "cache_limit_gb" => s.cache_limit_gb = v.parse().unwrap_or(0),
                 "density" => {
                     s.density = match v {
                         "compact" => Density::Compact,
@@ -142,7 +145,7 @@ impl Settings {
         let _ = std::fs::create_dir_all(&dir);
         let b = |v: bool| if v { "1" } else { "0" };
         let text = format!(
-            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\n",
+            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\ncache_limit_gb={}\n",
             self.lang.code(),
             match self.theme {
                 Theme::System => "system",
@@ -161,7 +164,8 @@ impl Settings {
             b(self.ctrl_enter),
             b(self.loop_stickers),
             b(self.suggest_stickers),
-            self.density.code()
+            self.density.code(),
+            self.cache_limit_gb
         );
         // Holds the local passcode hash, so owner-only.
         let _ = std::fs::write(dir.join("settings"), text);
