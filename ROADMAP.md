@@ -199,7 +199,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Hotkeys as in Telegram Desktop: Ctrl+F (search in chat, or chat list), Ctrl+K (chat list search), Ctrl+1…8 folder by position and Ctrl+9 the last one, Alt+↑/↓, Ctrl+Tab / Ctrl+Shift+Tab and Ctrl+PgUp/PgDn (previous/next chat), Esc (close the topmost panel → clear search → close the chat), Ctrl+E or ↑ in an empty composer (edit the last own message)
 - ⬜ **P1** Glass context menus, tooltips and popups instead of the stock egui ones
 - ⬜ **P1** Blurring chat content under the header and composer (capturing the frame into a wgpu texture)
-- ⬜ **P1** "Reduce transparency" and "Increase contrast" (as on Apple), "Reduce motion"
+- ✅ "Reduce transparency", "Increase contrast" and "Reduce motion" (Settings → Chat Settings → Accessibility): solid glass without blur, denser surfaces with clear rims and darker captions, a still background and no egui animations
 - ⬜ **P1** Animations: spring transitions, bubbles appearing, switching folders (150–350 ms)
 - ⬜ **P1** Wide mode with a third column (chat info) and a narrow mode for small windows
 - ⬜ **P2** Accessibility: AccessKit (screen readers), full keyboard navigation

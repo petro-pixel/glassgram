@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 57%** `███████████░░░░░░░░░` — 100 done, 1 partial, 74 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 58%** `████████████░░░░░░░░` — 101 done, 1 partial, 73 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -187,6 +187,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - Right-click "Send": send silently or schedule.
 - "Select" in the message menu turns on selection mode; Esc leaves it.
 - A message of just 🎲 🎯 🏀 ⚽ 🎰 or 🎳 is sent as a game.
+- Settings → Chat Settings → Accessibility: reduce transparency (solid glass), increase contrast, reduce motion (a still background).
 - Settings → Advanced → "Automatic media download" picks what loads on its own in private chats, groups and channels; other media show an arrow and load on a click.
 - Enter sends, Shift+Enter — new line.
 - Jump to a date: the calendar button in chat search, or click a date chip between messages.

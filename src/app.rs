@@ -1584,7 +1584,9 @@ impl eframe::App for App {
             settings::Theme::System => ui.ctx().system_theme() == Some(egui::Theme::Light),
         };
         glass::set_msg_font(self.settings.text_size);
-        if light != glass::is_light() {
+        let s = &self.settings;
+        let access = glass::set_access(s.reduce_transparency, s.increase_contrast, s.reduce_motion);
+        if light != glass::is_light() || access {
             apply_theme(ui.ctx(), light);
         }
 
@@ -1951,7 +1953,8 @@ fn apply_theme(ctx: &egui::Context, light: bool) {
         let v = &mut style.visuals;
         v.override_text_color = Some(ink());
         v.panel_fill = Color32::TRANSPARENT;
-        v.window_fill = if light { Color32::from_rgba_unmultiplied(250, 251, 255, 245) } else { Color32::from_rgba_unmultiplied(24, 28, 60, 235) };
+        let a = if glass::solid() { 255 } else if light { 245 } else { 235 };
+        v.window_fill = if light { Color32::from_rgba_unmultiplied(250, 251, 255, a) } else { Color32::from_rgba_unmultiplied(24, 28, 60, a) };
         v.window_corner_radius = egui::CornerRadius::same(14);
         v.menu_corner_radius = egui::CornerRadius::same(14);
         v.extreme_bg_color = Color32::TRANSPARENT;
@@ -1960,6 +1963,8 @@ fn apply_theme(ctx: &egui::Context, light: bool) {
         v.text_cursor.stroke.color = ink();
         style.spacing.scroll = egui::style::ScrollStyle::floating();
         style.spacing.scroll.bar_width = 6.0;
+        // egui's default is 1/12 s.
+        style.animation_time = if glass::calm() { 0.0 } else { 1.0 / 12.0 };
     });
 }
 

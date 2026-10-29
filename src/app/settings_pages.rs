@@ -457,6 +457,12 @@ impl App {
             let themes = [(settings::Theme::System, l!("Як у системі", "System")), (settings::Theme::Dark, l!("Темна", "Dark")), (settings::Theme::Light, l!("Світла", "Light"))];
             choice(ui, "theme", &mut s.theme, &themes, 122.0);
             ui.add_space(10.0);
+            section_title(ui, l!("Доступність", "Accessibility"));
+            ui.checkbox(&mut s.reduce_transparency, l!("Зменшити прозорість", "Reduce transparency"));
+            ui.checkbox(&mut s.increase_contrast, l!("Збільшити контраст", "Increase contrast"));
+            ui.checkbox(&mut s.reduce_motion, l!("Зменшити рух", "Reduce motion"));
+            hint(ui, l!("Скло стає суцільним, рамки й підписи — чіткішими, фон перестає рухатися.", "Glass turns solid, borders and captions get clearer, the background stops moving."));
+            ui.add_space(10.0);
             section_title(ui, l!("Розмір тексту повідомлень", "Message text size"));
             let sizes = [(13.0, l!("Малий", "Small")), (15.0, l!("Звичайний", "Standard")), (17.0, l!("Великий", "Large")), (19.0, l!("Дуже великий", "Huge"))];
             choice(ui, "text-size", &mut s.text_size, &sizes, 122.0);

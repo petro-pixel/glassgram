@@ -42,12 +42,43 @@ pub fn is_light() -> bool {
     LIGHT.load(Ordering::Relaxed)
 }
 
+/// Accessibility switches, as on Apple: "Reduce transparency", "Increase contrast", "Reduce motion".
+static SOLID: AtomicBool = AtomicBool::new(false);
+static CONTRAST: AtomicBool = AtomicBool::new(false);
+static CALM: AtomicBool = AtomicBool::new(false);
+
+/// Returns whether anything changed, so the caller restyles egui.
+pub fn set_access(solid: bool, contrast: bool, calm: bool) -> bool {
+    let changed = SOLID.swap(solid, Ordering::Relaxed) != solid;
+    let changed = (CONTRAST.swap(contrast, Ordering::Relaxed) != contrast) | changed;
+    (CALM.swap(calm, Ordering::Relaxed) != calm) | changed
+}
+
+/// Glass becomes opaque: no blur, the tint laid over the panel tone.
+pub fn solid() -> bool {
+    SOLID.load(Ordering::Relaxed)
+}
+
+fn contrast() -> bool {
+    CONTRAST.load(Ordering::Relaxed)
+}
+
+/// The background stands still and egui doesn't animate.
+pub fn calm() -> bool {
+    CALM.load(Ordering::Relaxed)
+}
+
 pub fn ink() -> Color32 {
     if is_light() { Color32::from_rgb(22, 26, 46) } else { ON_DARK }
 }
 
 pub fn ink_dim() -> Color32 {
-    if is_light() { Color32::from_rgb(88, 96, 126) } else { Color32::from_rgb(178, 186, 214) }
+    match (is_light(), contrast()) {
+        (true, false) => Color32::from_rgb(88, 96, 126),
+        (true, true) => Color32::from_rgb(48, 54, 82),
+        (false, false) => Color32::from_rgb(178, 186, 214),
+        (false, true) => Color32::from_rgb(218, 223, 242),
+    }
 }
 
 /// Tone of dense panels (input field, menus, chips).
@@ -57,6 +88,7 @@ pub fn chrome() -> Color32 {
 
 /// Subtle highlight (hover, placeholders): light on dark, dark on light.
 pub fn veil(alpha: u8) -> Color32 {
+    let alpha = if contrast() { (alpha as f32 * 1.7).min(255.0) as u8 } else { alpha };
     if is_light() { Color32::from_black_alpha((alpha as f32 * 0.6) as u8) } else { Color32::from_white_alpha(alpha) }
 }
 
@@ -267,6 +299,7 @@ fn edge_normal(rect: Rect, r: f32, p: Pos2) -> Vec2 {
 
 /// Live background: a dark gradient and slowly drifting coloured blobs.
 pub fn background(p: &Painter, rect: Rect, t: f64) {
+    let t = if calm() { 0.0 } else { t };
     if gpu() {
         p.add(crate::blur::background_callback(rect, (t % 100_000.0) as f32, is_light()));
         return;
@@ -308,13 +341,16 @@ pub fn glass(p: &Painter, rect: Rect, g: Glass) {
         let shadow = Shadow { offset: [0, 12], blur: 40, spread: 0, color: Color32::from_black_alpha(if is_light() { 34 } else { 70 }) };
         p.add(shadow.as_shape(rect, CornerRadius::same(r.min(255.0) as u8)));
     }
-    if g.blur > 0.0 && gpu() {
+    if g.blur > 0.0 && gpu() && !solid() {
         p.add(crate::blur::panel_callback(rect, r, g.blur, 16.0));
     }
 
     let ppp = p.pixels_per_point();
     let pts = rounded_points(rect, r, ppp);
     let (tr, tg, tb, ta) = g.tint.to_srgba_unmultiplied().into();
+    if solid() || contrast() {
+        return plain(p, rect, ppp, pts, g.tint);
+    }
     let lit = Color32::from_rgba_unmultiplied(
         tr.saturating_add((255 - tr) / 2),
         tg.saturating_add((255 - tg) / 2),
@@ -364,6 +400,25 @@ pub fn glass(p: &Painter, rect: Rect, g: Glass) {
             kind: StrokeKind::Inside,
         },
     ));
+}
+
+/// Opaque glass for "Reduce transparency" / "Increase contrast": the tint over the panel tone and a clear rim.
+fn plain(p: &Painter, rect: Rect, ppp: f32, pts: Vec<Pos2>, tint: Color32) {
+    let (tr, tg, tb, ta) = tint.to_srgba_unmultiplied().into();
+    let base = if solid() { chrome() } else { Color32::TRANSPARENT };
+    let a = ta as f32 / 255.0;
+    let fill = if solid() {
+        mix(base, Color32::from_rgb(tr, tg, tb), a)
+    } else {
+        // Contrast alone keeps the glass but makes it denser.
+        Color32::from_rgba_unmultiplied(tr, tg, tb, (ta as f32 * 1.6).min(255.0) as u8)
+    };
+    // A clear overlay (avatars, photos) stays clear: it only adds the rim.
+    if ta > 0 {
+        p.add(Shape::mesh(fan(&pts, rect.center(), ppp, |_| fill)));
+    }
+    let rim = if contrast() { rgba(ink(), 120) } else { veil(40) };
+    p.add(PathShape::closed_line(pts, PathStroke { width: if contrast() { 1.5 } else { 1.0 }, color: ColorMode::Solid(rim), kind: StrokeKind::Inside }));
 }
 
 /// Button content: text or a vector icon.
