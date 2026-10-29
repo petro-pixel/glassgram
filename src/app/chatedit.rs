@@ -146,7 +146,7 @@ impl App {
             }
             if let Some(on) = &mut e.more.antispam {
                 ui.checkbox(on, l!("Агресивний антиспам", "Aggressive anti-spam"));
-                ui.label(egui::RichText::new(l!("Telegram сам видалятиме більше спаму. Доступно у великих групах.", "Telegram will remove more spam on its own. Available in large groups.")).color(ink_dim()).size(12.5));
+                ui.label(egui::RichText::new(l!("Telegram сам видалятиме більше спаму.", "Telegram will remove more spam on its own.")).color(ink_dim()).size(12.5));
             }
         });
 

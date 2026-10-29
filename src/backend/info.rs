@@ -11,6 +11,8 @@ use grammers_client::tl;
 use super::{Birthday, ChatInfo, ChatRights, Cmd, Ev, ReactionMode, Worker, clock, convert, data_dir, found_chat, local, log_error, peer_title, remember_name};
 use crate::i18n::{l, lf};
 
+/// Smallest group whose member list may be hidden (`hidden_members_group_size_min` in the app config).
+const HIDDEN_MEMBERS_MIN: i32 = 100;
 /// How many members we show at once; beyond that, search.
 const MEMBERS_LIMIT: usize = 200;
 /// Shared media page size.
@@ -516,7 +518,8 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.slowmode = Some(c.slowmode_seconds.unwrap_or(0));
                 d.ttl = c.ttl_period.unwrap_or(0);
                 d.reactions = Some(ReactionMode::from_raw(c.available_reactions.as_ref()));
-                d.members_hidden = Some(c.participants_hidden);
+                // The server refuses to hide members of small groups (PARTICIPANTS_TOO_FEW).
+                d.members_hidden = (c.participants_hidden || c.participants_count.unwrap_or(0) >= HIDDEN_MEMBERS_MIN).then_some(c.participants_hidden);
                 d.antispam = Some(c.antispam);
             }
             if let Some(tl::enums::Chat::Channel(c)) = f.chats.into_iter().find(|c| c.id() == r.id.bare_id_unchecked()) {

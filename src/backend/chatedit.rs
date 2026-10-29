@@ -22,7 +22,7 @@ pub enum ReactionMode {
 impl ReactionMode {
     pub(super) fn from_raw(r: Option<&tl::enums::ChatReactions>) -> Self {
         match r {
-            Some(tl::enums::ChatReactions::None) => Self::Off,
+            Some(tl::enums::ChatReactions::All(_)) => Self::All,
             Some(tl::enums::ChatReactions::Some(s)) => Self::Some(
                 s.reactions
                     .iter()
@@ -32,8 +32,8 @@ impl ReactionMode {
                     })
                     .collect(),
             ),
-            // Not set means everything is allowed.
-            _ => Self::All,
+            // The server leaves the field out when reactions are off, as Telegram Desktop reads it.
+            _ => Self::Off,
         }
     }
 
