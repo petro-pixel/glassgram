@@ -70,12 +70,14 @@ mod webapp;
 mod polls;
 mod privacy;
 mod websites;
+mod adminlog;
 mod storage;
 mod dice;
 mod selfdestruct;
 pub use storage::CacheKind;
 mod autodelete;
 pub use websites::WebSession;
+pub use adminlog::AdminLogEntry;
 mod password;
 pub use password::{PasswordChange, PasswordState};
 mod chatedit;
@@ -411,6 +413,14 @@ pub enum Cmd {
     SetChannelUsername { peer: PeerId, name: String },
     /// Add people to a channel (`channels.inviteToChannel`).
     InviteToChannel { peer: PeerId, users: Vec<PeerId> },
+    /// "Recent actions" of a channel or supergroup, older than event `before`.
+    LoadAdminLog { peer: PeerId, before: Option<i64> },
+    /// Author signatures under channel posts (`channels.toggleSignatures`).
+    SetSignatures { peer: PeerId, on: bool },
+    /// Groups that may become this channel's discussion group.
+    LoadDiscussionGroups(PeerId),
+    /// Link a discussion group to a channel; `None` unlinks it.
+    SetDiscussionGroup { peer: PeerId, group: Option<PeerId> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -599,6 +609,8 @@ pub enum Ev {
     ContactResults { query: String, chats: Vec<ChatInfo> },
     /// A freshly created group or channel: add it to the list and open it.
     ChatCreated(ChatInfo),
+    AdminLog { peer: PeerId, entries: Vec<AdminLogEntry>, older: bool },
+    DiscussionGroups { peer: PeerId, groups: Vec<ChatInfo> },
 }
 
 /// The General forum topic.
@@ -885,6 +897,7 @@ impl Worker {
             cmd @ Cmd::SendDice { .. } => self.dice_cmd(cmd).await,
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
+            cmd @ (Cmd::LoadAdminLog { .. } | Cmd::SetSignatures { .. } | Cmd::LoadDiscussionGroups(_) | Cmd::SetDiscussionGroup { .. }) => self.admin_cmd(cmd).await,
             cmd @ Cmd::EditMedia { .. } => self.edit_media_cmd(cmd).await,
             cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,
             cmd @ (Cmd::RequestCode(..) | Cmd::SubmitCode(..) | Cmd::SubmitPassword(..) | Cmd::QrLogin | Cmd::QrPassword(..) | Cmd::QrSuccess(..) | Cmd::Logout) => self.login_cmd(cmd).await,

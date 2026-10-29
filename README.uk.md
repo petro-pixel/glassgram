@@ -5,7 +5,7 @@
 Десктопний клієнт Telegram на Rust з інтерфейсом у стилі **Liquid Glass**.
 
 <!-- progress -->
-**Готовність за дорожньою картою: 59%** `████████████░░░░░░░░` — 102 готово, 1 частково, 72 попереду ([ROADMAP.md](ROADMAP.md))
+**Готовність за дорожньою картою: 59%** `████████████░░░░░░░░` — 103 готово, 1 частково, 71 попереду ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -136,6 +136,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/app/selfdestruct.rs`, `src/backend/selfdestruct.rs` | «Видалити мій акаунт, якщо мене немає…» |
 | `src/app/dice.rs`, `src/backend/dice.rs` | Емодзі-ігри (🎲 🎯 🏀 ⚽ 🎰 🎳): надсилання й результати |
 | `src/app/storage.rs`, `src/backend/storage.rs` | «Дані та сховище»: кеш за типами, очищення, межа розміру |
+| `src/app/adminlog.rs`, `src/backend/adminlog.rs` | Журнал «Останні дії»; підписи авторів і група обговорення каналу |
 | `src/app/autodl.rs` | Автозавантаження медіа за типом чату й розміром відео; фото стримує `backend/media.rs` |
 | `src/app/autodelete.rs`, `src/backend/autodelete.rs` | Таймери автовидалення: типовий для нових чатів і власний у чату |
 | `src/app/websites.rs`, `src/backend/websites.rs` | «Вхід через Telegram»: підключені сайти, їх відключення |

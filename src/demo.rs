@@ -778,6 +778,26 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             DEMO_TTL.with_borrow_mut(|t| t.insert(peer, period));
             app.push_event(Ev::HistoryTtl { peer, period });
         }
+        Cmd::LoadAdminLog { peer, before } => {
+            let e = |id: i64, date: &str, who: &str, what: &str, detail: &str| crate::backend::AdminLogEntry { id, date: date.into(), who: who.into(), what: what.into(), detail: detail.into() };
+            let entries = if before.is_some() {
+                Vec::new()
+            } else {
+                vec![
+                    e(5, "29.10 12:40", "Олена Коваль", "закріплює повідомлення", "Реліз у п'ятницю — тестуємо до четверга"),
+                    e(4, "29.10 11:02", "Андрій", "видаляє повідомлення", "Купіть дешеві підписники!!!"),
+                    e(3, "28.10 19:15", "Олена Коваль", "змінює опис", "Обговорюємо Rust, egui і grammers. Без спаму 🦀"),
+                    e(2, "28.10 18:30", "Марія Шевченко", "приєднується", ""),
+                    e(1, "28.10 09:00", "Олена Коваль", "повільний режим", "30 с"),
+                ]
+            };
+            app.push_event(Ev::AdminLog { peer, entries, older: before.is_some() });
+        }
+        Cmd::SetSignatures { .. } | Cmd::SetDiscussionGroup { .. } => app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into())),
+        Cmd::LoadDiscussionGroups(peer) => {
+            let groups = app.demo_chats().iter().filter(|c| c.kind == ChatKind::Group).cloned().collect();
+            app.push_event(Ev::DiscussionGroups { peer, groups });
+        }
         Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites => {
             let gone = match &cmd {
                 Cmd::LogoutWebsite(h) => vec![*h],
@@ -1499,6 +1519,7 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             d.rights = Some(rights);
             d.slowmode = Some(if id == 2 { 30 } else { 0 });
             if id == 2 {
+                d.admin_log = true;
                 d.reactions = Some(crate::backend::ReactionMode::Some(vec!["👍".into(), "❤".into(), "🔥".into(), "🎉".into()]));
                 d.members_hidden = Some(false);
                 d.antispam = Some(true);
@@ -1509,6 +1530,13 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             d.username = "tech_news_demo".into();
             d.members = Some(12840);
             d.can_view_members = false;
+            // We run the news channel too: signatures, discussion group and its "Recent actions".
+            d.admin = true;
+            d.can_edit = true;
+            d.signatures = Some(false);
+            d.can_link = true;
+            d.admin_log = true;
+            d.linked = Some((PeerId::user_unchecked(2), "Команда Rust 🦀".into()));
         }
         _ => {}
     }

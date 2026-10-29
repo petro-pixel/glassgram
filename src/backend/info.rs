@@ -138,6 +138,14 @@ pub struct ChatDetails {
     pub members_hidden: Option<bool>,
     /// Aggressive anti-spam (supergroups we edit).
     pub antispam: Option<bool>,
+    /// Author signatures under posts (channels we edit).
+    pub signatures: Option<bool>,
+    /// The channel's discussion group, or the group's channel.
+    pub linked: Option<(PeerId, String)>,
+    /// We may link or unlink a discussion group (channels we edit).
+    pub can_link: bool,
+    /// "Recent actions" is there for us (admins of channels and supergroups).
+    pub admin_log: bool,
     pub notify: NotifyState,
     /// Item counts per shared media tab.
     pub counts: Vec<(SharedKind, i32)>,
@@ -521,11 +529,16 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 // The server refuses to hide members of small groups (PARTICIPANTS_TOO_FEW).
                 d.members_hidden = (c.participants_hidden || c.participants_count.unwrap_or(0) >= HIDDEN_MEMBERS_MIN).then_some(c.participants_hidden);
                 d.antispam = Some(c.antispam);
+                d.linked = c.linked_chat_id.and_then(|id| f.chats.iter().find(|x| x.id() == id)).and_then(|x| match x {
+                    tl::enums::Chat::Channel(l) => Some((PeerId::channel_unchecked(l.id), l.title.clone())),
+                    _ => None,
+                });
             }
             if let Some(tl::enums::Chat::Channel(c)) = f.chats.into_iter().find(|c| c.id() == r.id.bare_id_unchecked()) {
                 d.creator = c.creator;
                 d.admin = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.invite_users);
                 d.username = first_username(c.username, c.usernames);
+                d.admin_log = c.creator || c.admin_rights.is_some();
                 d.can_edit = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.change_info);
                 d.can_ttl = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.delete_messages);
                 if c.megagroup {
@@ -534,10 +547,12 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                     d.slowmode = None;
                     d.members_hidden = None;
                     d.antispam = None;
+                    d.signatures = Some(c.signatures);
+                    d.can_link = d.can_edit;
                 }
             }
             if !d.can_edit {
-                (d.reactions, d.members_hidden, d.antispam) = (None, None, None);
+                (d.reactions, d.members_hidden, d.antispam, d.signatures) = (None, None, None, None);
             }
         }
     }

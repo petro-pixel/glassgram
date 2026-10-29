@@ -118,7 +118,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Editing a group or channel (pencil in chat info, for admins who may change info): title, photo, description; default member permissions; slow mode in supergroups (`editTitle` / `editChatTitle`, `editChatAbout`, `editPhoto`, `editChatDefaultBannedRights`, `toggleSlowMode`)
 - ⬜ **P1** Administration: admin rights, bans and restrictions, join requests, invite link management
 - ✅ Reactions allowed in the chat (all, some from the standard set, none — `setChatAvailableReactions`); hiding the member list and aggressive anti-spam in supergroups (`toggleParticipantsHidden`, `toggleAntiSpam`), in the "Edit" box
-- ⬜ **P2** Admin action log (`getAdminLog`), linking a discussion group, author signatures in channels
+- ✅ "Recent actions" admin log (`getAdminLog`, paged), linking and unlinking a channel's discussion group (`getGroupsForDiscussion`, `setDiscussionGroup`), author signatures in channels (`toggleSignatures`) — in the "Edit" box
 - ⬜ **P2** Channel boosts (`premium.applyBoost`), transferring group ownership (2026)
 - ⬜ **P3** Channel statistics (`stats.*`), channel auto-translation, paid messages, managing sponsored messages
 

@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 59%** `████████████░░░░░░░░` — 102 done, 1 partial, 72 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 59%** `████████████░░░░░░░░` — 103 done, 1 partial, 71 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -136,6 +136,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/selfdestruct.rs`, `src/backend/selfdestruct.rs` | "Delete my account if away for…" |
 | `src/app/dice.rs`, `src/backend/dice.rs` | Emoji games (🎲 🎯 🏀 ⚽ 🎰 🎳): sending and outcomes |
 | `src/app/storage.rs`, `src/backend/storage.rs` | "Data and storage": cache usage by type, clearing, size limit |
+| `src/app/adminlog.rs`, `src/backend/adminlog.rs` | "Recent actions" admin log; author signatures and the discussion group of a channel |
 | `src/app/autodl.rs` | Automatic media download by chat type and video size; photos held back in `backend/media.rs` |
 | `src/app/autodelete.rs`, `src/backend/autodelete.rs` | Auto-delete timers: the default for new chats, a chat's own |
 | `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |

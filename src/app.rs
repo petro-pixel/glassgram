@@ -79,6 +79,7 @@ mod autodelete;
 mod storage;
 mod dice;
 mod selfdestruct;
+mod adminlog;
 mod autodl;
 mod spoiler;
 use chatlist::{Reorder, sort_chats};
@@ -569,6 +570,7 @@ pub struct App {
     bot_start: HashMap<PeerId, String>,
     /// "Edit group / channel" box and the photos picked in it.
     chat_edit: Option<chatedit::ChatEdit>,
+    admin_log: adminlog::AdminLog,
     chat_photo_tx: mpsc::Sender<(PeerId, PathBuf)>,
     chat_photo_rx: mpsc::Receiver<(PeerId, PathBuf)>,
     /// Send queue (`app/outbox.rs`) and the last local (negative) bubble id.
@@ -811,6 +813,7 @@ impl App {
             photo_tx,
             photo_rx,
             chat_edit: None,
+            admin_log: Default::default(),
             session_extras: false,
             birthdays: birthdays::Birthdays::default(),
             bot_start: HashMap::new(),
@@ -981,6 +984,8 @@ impl App {
             Ev::Sessions(list) => self.sessions = list,
             Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
             Ev::Websites(list) => self.on_websites(list),
+            Ev::AdminLog { peer, entries, older } => self.on_admin_log(peer, entries, older),
+            Ev::DiscussionGroups { peer, groups } => self.on_discussion_groups(peer, groups),
             Ev::CacheUsage(usage) => self.on_cache_usage(usage),
             Ev::AccountTtl(days) => self.on_account_ttl(days),
             Ev::DefaultTtl(period) => self.on_default_ttl(period),
@@ -1652,6 +1657,7 @@ impl eframe::App for App {
         self.poll_form_view(ui);
         self.send_box_view(ui);
         self.chat_edit_view(ui);
+        self.admin_log_view(ui);
         self.privacy_pick_view(ui);
         self.tag_rename_view(ui);
         self.toast_view(ui, now);

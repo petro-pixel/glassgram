@@ -1,5 +1,6 @@
 //! "Edit" box of a group or channel, as in Telegram Desktop: photo, title, description,
-//! default member permissions, slow mode, allowed reactions; hidden members and anti-spam (supergroups).
+//! default member permissions, slow mode, allowed reactions; hidden members and anti-spam (supergroups);
+//! author signatures and the discussion group (channels); a way into "Recent actions".
 
 use super::*;
 use crate::backend::{ChatDetails, ChatRights, ReactionMode};
@@ -19,6 +20,12 @@ pub(super) struct ChatEdit {
     /// As loaded, to send only what changed.
     was: (String, String, Option<ChatRights>, Option<i32>),
     was_more: More,
+    /// The linked discussion group (or the group's channel); changed at once, not on "Save".
+    linked: Option<(PeerId, String)>,
+    can_link: bool,
+    admin_log: bool,
+    /// Groups offered for linking, once asked for.
+    groups: Option<Vec<ChatInfo>>,
 }
 
 /// Switches shown only when we may change them.
@@ -27,6 +34,7 @@ struct More {
     reactions: Option<ReactionMode>,
     members_hidden: Option<bool>,
     antispam: Option<bool>,
+    signatures: Option<bool>,
 }
 
 fn slow_label(s: i32) -> String {
@@ -43,9 +51,16 @@ impl App {
     pub(super) fn open_chat_edit(&mut self, peer: PeerId, d: ChatDetails) {
         let title = self.chats.iter().find(|c| c.id == peer).map(|c| c.title.clone()).unwrap_or_default();
         let (about, rights, slowmode) = (d.about, d.rights, d.slowmode);
-        let more = More { reactions: d.reactions, members_hidden: d.members_hidden, antispam: d.antispam };
+        let more = More { reactions: d.reactions, members_hidden: d.members_hidden, antispam: d.antispam, signatures: d.signatures };
         let was = (title.clone(), about.clone(), rights, slowmode);
-        self.chat_edit = Some(ChatEdit { peer, title, about, rights, slowmode, was_more: more.clone(), more, was });
+        let (linked, can_link, admin_log) = (d.linked, d.can_link, d.admin_log);
+        self.chat_edit = Some(ChatEdit { peer, title, about, rights, slowmode, was_more: more.clone(), more, was, linked, can_link, admin_log, groups: None });
+    }
+
+    pub(super) fn on_discussion_groups(&mut self, peer: PeerId, groups: Vec<ChatInfo>) {
+        if let Some(e) = self.chat_edit.as_mut().filter(|e| e.peer == peer) {
+            e.groups = Some(groups);
+        }
     }
 
     fn pick_chat_photo(&self, peer: PeerId) {
@@ -86,6 +101,7 @@ impl App {
         let mut child = ui.new_child(UiBuilder::new().max_rect(body));
         child.set_clip_rect(body);
         let mut pick_photo = false;
+        let (mut link_cmd, mut recent) = (None, false);
         egui::ScrollArea::vertical().id_salt("chat-edit").auto_shrink(false).show(&mut child, |ui| {
             ui.spacing_mut().item_spacing.y = 6.0;
             let w = ui.available_width() - 8.0;
@@ -148,6 +164,19 @@ impl App {
                 ui.checkbox(on, l!("Агресивний антиспам", "Aggressive anti-spam"));
                 ui.label(egui::RichText::new(l!("Telegram сам видалятиме більше спаму.", "Telegram will remove more spam on its own.")).color(ink_dim()).size(12.5));
             }
+            if let Some(on) = &mut e.more.signatures {
+                section_title(ui, l!("Дописи", "Posts"));
+                ui.checkbox(on, l!("Підписувати повідомлення", "Sign messages"));
+                ui.label(egui::RichText::new(l!("Під дописами адміністраторів буде їхнє ім'я.", "Admins' names will be shown under their posts.")).color(ink_dim()).size(12.5));
+            }
+            if e.can_link || e.linked.is_some() {
+                link_cmd = discussion_section(ui, e, channel);
+            }
+            if e.admin_log {
+                ui.add_space(6.0);
+                let r = ui.allocate_exact_size(vec2(w, 36.0), Sense::hover()).0;
+                recent = glass::button(ui, r, "chat-edit-log", l!("Останні дії", "Recent actions"), false, true).clicked();
+            }
         });
 
         let half = (buttons.width() - 8.0) / 2.0;
@@ -157,6 +186,14 @@ impl App {
         let save = glass::button(ui, Rect::from_min_size(pos2(buttons.right() - half, buttons.top()), vec2(half, buttons.height())), "chat-edit-save", l!("Зберегти", "Save"), true, ready).clicked();
         if pick_photo {
             self.pick_chat_photo(peer);
+        }
+        if let Some(cmd) = link_cmd {
+            self.send(cmd);
+        }
+        if recent {
+            self.chat_edit = None;
+            self.open_admin_log(peer);
+            return;
         }
         if cancel || esc {
             self.chat_edit = None;
@@ -183,6 +220,9 @@ impl App {
             }
             if let Some(on) = now.antispam.filter(|a| Some(*a) != was.antispam) {
                 self.send(Cmd::SetAntiSpam { peer, on });
+            }
+            if let Some(on) = now.signatures.filter(|s| Some(*s) != was.signatures) {
+                self.send(Cmd::SetSignatures { peer, on });
             }
         }
     }
@@ -228,4 +268,50 @@ fn reactions_section(ui: &mut Ui, mode: &mut ReactionMode) {
         }
     });
     ui.label(egui::RichText::new(l!("Учасники зможуть ставити лише вибрані реакції.", "Members will be able to use only the chosen reactions.")).color(ink_dim()).size(12.5));
+}
+
+/// "Discussion": the linked group of a channel, picked from the groups that may be linked.
+fn discussion_section(ui: &mut Ui, e: &mut ChatEdit, channel: bool) -> Option<Cmd> {
+    section_title(ui, if channel { l!("Обговорення", "Discussion") } else { l!("Пов'язаний канал", "Linked channel") });
+    let w = ui.available_width() - 8.0;
+    let name = e.linked.as_ref().map_or(l!("Не додано", "Not added").to_owned(), |l| l.1.clone());
+    ui.label(egui::RichText::new(name).color(ink()).size(14.0));
+    let mut cmd = None;
+    if !e.can_link {
+        return None;
+    }
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 6.0;
+        let half = ((w - 6.0) / 2.0).min(180.0);
+        let (r, _) = ui.allocate_exact_size(vec2(half, 32.0), Sense::hover());
+        if glass::button(ui, r, "discussion-pick", l!("Вибрати групу", "Choose a group"), false, e.groups.is_none()).clicked() {
+            e.groups = Some(Vec::new());
+            cmd = Some(Cmd::LoadDiscussionGroups(e.peer));
+        }
+        let (r, _) = ui.allocate_exact_size(vec2(half, 32.0), Sense::hover());
+        if glass::button(ui, r, "discussion-unlink", l!("Відв'язати", "Unlink"), false, e.linked.is_some()).clicked() {
+            e.linked = None;
+            cmd = Some(Cmd::SetDiscussionGroup { peer: e.peer, group: None });
+        }
+    });
+    if let Some(groups) = &e.groups {
+        if groups.is_empty() {
+            ui.label(egui::RichText::new(l!("Немає груп, де ви адміністратор із правом змінювати інформацію.", "No groups where you are an admin who can change info.")).color(ink_dim()).size(12.5));
+        }
+        let mut picked = None;
+        for g in groups {
+            let r = ui.allocate_exact_size(vec2(w, 34.0), Sense::hover()).0;
+            let on = e.linked.as_ref().is_some_and(|l| l.0 == g.id);
+            if glass::button(ui, r, ("discussion-group", g.id.bot_api_dialog_id_unchecked()), &g.title, on, true).clicked() && !on {
+                picked = Some((g.id, g.title.clone()));
+            }
+        }
+        if let Some((id, title)) = picked {
+            e.linked = Some((id, title));
+            e.groups = None;
+            cmd = Some(Cmd::SetDiscussionGroup { peer: e.peer, group: Some(id) });
+        }
+    }
+    ui.label(egui::RichText::new(l!("Коментарі до дописів з'являтимуться в цій групі.", "Comments on posts will appear in this group.")).color(ink_dim()).size(12.5));
+    cmd
 }
