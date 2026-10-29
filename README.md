@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 58%** `████████████░░░░░░░░` — 101 done, 1 partial, 73 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 59%** `████████████░░░░░░░░` — 102 done, 1 partial, 72 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -107,7 +107,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/backend/account.rs`, `src/backend/outbox.rs` | Own profile, username and photo; one send attempt from the queue (text, or files uploaded in the background) |
 | `src/cache.rs` | Local cache of dialogs, messages and the send queue (SQLite via `libsql`) |
 | `src/blur.rs`, `src/glass.wgsl` | GPU blur: background into a texture → Gaussian → glass panels with refraction |
-| `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars |
+| `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars, glass behind egui menus and tooltips, accessibility modes |
 | `src/app.rs` | `App`: state, events (`push_event`), user actions (`apply`), the frame loop |
 | `src/app/history.rs`, `src/app/bubbles.rs` | The open chat: history, header, overlays; drawing bubbles, albums, media cards, reactions |
 | `src/app/composer.rs`, `src/app/recording.rs` | The message field: text, files, stickers, emoji, inline bots; voice and round video recording |

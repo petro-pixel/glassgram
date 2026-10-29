@@ -336,20 +336,26 @@ pub fn background(p: &Painter, rect: Rect, t: f64) {
 
 /// Main function: draws a glass surface.
 pub fn glass(p: &Painter, rect: Rect, g: Glass) {
+    p.extend(glass_shapes(p.pixels_per_point(), rect, g));
+}
+
+/// The shapes of a glass surface, for places that paint without a `Painter` (popup backings).
+pub fn glass_shapes(ppp: f32, rect: Rect, g: Glass) -> Vec<Shape> {
+    let mut out = Vec::with_capacity(6);
     let r = g.radius.min(rect.width() / 2.0).min(rect.height() / 2.0);
     if g.shadow {
         let shadow = Shadow { offset: [0, 12], blur: 40, spread: 0, color: Color32::from_black_alpha(if is_light() { 34 } else { 70 }) };
-        p.add(shadow.as_shape(rect, CornerRadius::same(r.min(255.0) as u8)));
+        push(&mut out, shadow.as_shape(rect, CornerRadius::same(r.min(255.0) as u8)));
     }
     if g.blur > 0.0 && gpu() && !solid() {
-        p.add(crate::blur::panel_callback(rect, r, g.blur, 16.0));
+        push(&mut out, crate::blur::panel_callback(rect, r, g.blur, 16.0));
     }
 
-    let ppp = p.pixels_per_point();
     let pts = rounded_points(rect, r, ppp);
     let (tr, tg, tb, ta) = g.tint.to_srgba_unmultiplied().into();
     if solid() || contrast() {
-        return plain(p, rect, ppp, pts, g.tint);
+        plain(&mut out, rect, ppp, pts, g.tint);
+        return out;
     }
     let lit = Color32::from_rgba_unmultiplied(
         tr.saturating_add((255 - tr) / 2),
@@ -358,7 +364,7 @@ pub fn glass(p: &Painter, rect: Rect, g: Glass) {
         ta.saturating_add((30.0 * g.shine) as u8),
     );
     let deep = Color32::from_rgba_unmultiplied(tr, tg, tb, ta);
-    p.add(Shape::mesh(fan(&pts, rect.center(), ppp, |q| {
+    push(&mut out, Shape::mesh(fan(&pts, rect.center(), ppp, |q| {
         let k = 0.3 * (q.x - rect.left()) / rect.width() + 0.7 * (q.y - rect.top()) / rect.height();
         mix(lit, deep, k)
     })));
@@ -368,13 +374,13 @@ pub fn glass(p: &Painter, rect: Rect, g: Glass) {
         let gh = (rect.height() * 0.22).min(34.0);
         let center = pos2(rect.center().x, rect.top() + gh * 0.75);
         let radii = vec2(rect.width() * 0.42 - r * 0.2, gh * 0.7);
-        p.add(Shape::mesh(radial(center, radii, Color32::from_white_alpha((22.0 * g.shine) as u8))));
+        push(&mut out, Shape::mesh(radial(center, radii, Color32::from_white_alpha((22.0 * g.shine) as u8))));
     }
 
     // Inner “refraction”: a light halo on the edge opposite the light.
     let inset = rect.shrink(2.0);
     let ir = (r - 2.0).max(0.0);
-    p.add(PathShape::closed_line(
+    push(&mut out, PathShape::closed_line(
         rounded_points(inset, ir, ppp),
         PathStroke {
             width: 3.0,
@@ -387,7 +393,7 @@ pub fn glass(p: &Painter, rect: Rect, g: Glass) {
     ));
 
     // Rim with a specular glint.
-    p.add(PathShape::closed_line(
+    push(&mut out, PathShape::closed_line(
         pts,
         PathStroke {
             width: 1.2,
@@ -400,10 +406,15 @@ pub fn glass(p: &Painter, rect: Rect, g: Glass) {
             kind: StrokeKind::Inside,
         },
     ));
+    out
+}
+
+fn push(out: &mut Vec<Shape>, s: impl Into<Shape>) {
+    out.push(s.into());
 }
 
 /// Opaque glass for "Reduce transparency" / "Increase contrast": the tint over the panel tone and a clear rim.
-fn plain(p: &Painter, rect: Rect, ppp: f32, pts: Vec<Pos2>, tint: Color32) {
+fn plain(out: &mut Vec<Shape>, rect: Rect, ppp: f32, pts: Vec<Pos2>, tint: Color32) {
     let (tr, tg, tb, ta) = tint.to_srgba_unmultiplied().into();
     let base = if solid() { chrome() } else { Color32::TRANSPARENT };
     let a = ta as f32 / 255.0;
@@ -415,10 +426,41 @@ fn plain(p: &Painter, rect: Rect, ppp: f32, pts: Vec<Pos2>, tint: Color32) {
     };
     // A clear overlay (avatars, photos) stays clear: it only adds the rim.
     if ta > 0 {
-        p.add(Shape::mesh(fan(&pts, rect.center(), ppp, |_| fill)));
+        push(out, Shape::mesh(fan(&pts, rect.center(), ppp, |_| fill)));
     }
     let rim = if contrast() { rgba(ink(), 120) } else { veil(40) };
-    p.add(PathShape::closed_line(pts, PathStroke { width: if contrast() { 1.5 } else { 1.0 }, color: ColorMode::Solid(rim), kind: StrokeKind::Inside }));
+    push(out, PathShape::closed_line(pts, PathStroke { width: if contrast() { 1.5 } else { 1.0 }, color: ColorMode::Solid(rim), kind: StrokeKind::Inside }));
+}
+
+/// Stock egui popups (context menus, submenus, combo lists, tooltips) get a glass backing in place of
+/// their flat frame. Called at the end of the frame, when every popup has been painted.
+pub fn glass_popups(ctx: &egui::Context) {
+    let fill = ctx.global_style().visuals.window_fill;
+    let ppp = ctx.pixels_per_point();
+    let layers: Vec<egui::LayerId> = ctx.memory(|m| m.layer_ids().filter(|l| matches!(l.order, egui::Order::Foreground | egui::Order::Tooltip)).collect());
+    ctx.graphics_mut(|g| {
+        for layer in layers {
+            let Some(list) = g.get_mut(layer) else { continue };
+            // The frame is reserved first, before the popup's content.
+            for k in 0..list.next_idx().0.min(3) {
+                list.mutate_shape(egui::layers::ShapeIdx(k), |cs| {
+                    if let Some((rect, r)) = popup_frame(&cs.shape, fill) {
+                        let g = Glass::tinted(r, chrome(), if is_light() { 225 } else { 215 }).frosted(1.0).with_shadow();
+                        cs.shape = Shape::Vec(glass_shapes(ppp, rect, g));
+                    }
+                });
+            }
+        }
+    });
+}
+
+/// An egui popup frame: a rectangle with the window fill, maybe after its shadow.
+fn popup_frame(shape: &Shape, fill: Color32) -> Option<(Rect, f32)> {
+    match shape {
+        Shape::Rect(r) if r.fill == fill => Some((r.rect, r.corner_radius.nw as f32)),
+        Shape::Vec(v) => v.iter().find_map(|s| popup_frame(s, fill)),
+        _ => None,
+    }
 }
 
 /// Button content: text or a vector icon.

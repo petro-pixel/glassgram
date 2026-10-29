@@ -1656,6 +1656,7 @@ impl eframe::App for App {
         self.tag_rename_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);
+        glass::glass_popups(ui.ctx());
     }
 }
 
