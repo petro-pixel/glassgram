@@ -156,8 +156,11 @@ impl App {
         items
     }
 
-    fn folder_menu(ui: &mut Ui, id: Option<i32>, menu: &mut Option<FolderMenu>) {
+    fn folder_menu(ui: &mut Ui, id: Option<i32>, shared: bool, menu: &mut Option<FolderMenu>) {
         if let Some(fid) = id.filter(|x| *x != ARCHIVE) {
+            if shared && glass::menu_button(ui, Icon::Reload, l!("Перевірити нові чати", "Check for new chats")).clicked() {
+                *menu = Some(FolderMenu::Updates(fid));
+            }
             if glass::menu_button(ui, Icon::Pencil, l!("Редагувати папку", "Edit folder")).clicked() {
                 *menu = Some(FolderMenu::Edit(fid));
             }
@@ -178,7 +181,8 @@ impl App {
                     self.folder_edit = Some(FolderEdit { folder: f.clone(), new: false, query: String::new() });
                 }
             }
-            Some(FolderMenu::Delete(id)) => self.send(Cmd::DeleteFolder(id)),
+            Some(FolderMenu::Delete(id)) => self.delete_folder(id),
+            Some(FolderMenu::Updates(id)) => self.send(Cmd::CheckChatlistUpdates(id)),
             None => {}
         }
     }
@@ -207,6 +211,8 @@ impl App {
     /// Folder tabs above the list; folders can be dragged.
     pub(super) fn folder_tabs(&mut self, ui: &mut Ui, rect: Rect) {
         let items = self.folder_items();
+        let shared_ids: Vec<i32> = self.folders.iter().filter(|f| f.shared).map(|f| f.id).collect();
+        let shared = |id: Option<i32>| id.is_some_and(|i| shared_ids.contains(&i));
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect.expand2(vec2(0.0, 4.0)));
         let mut chosen = None;
@@ -240,7 +246,7 @@ impl App {
                         if resp.clicked() {
                             chosen = Some(*id);
                         }
-                        resp.context_menu(|ui| Self::folder_menu(ui, *id, &mut menu));
+                        resp.context_menu(|ui| Self::folder_menu(ui, *id, shared(*id), &mut menu));
                     }
                     let (r, _) = ui.allocate_exact_size(vec2(TABS_H, TABS_H), Sense::hover());
                     if glass::icon_button(ui, r, "folder-new", Icon::Plus, false, true).on_hover_text(l!("Нова папка", "New folder")).clicked() {
@@ -284,6 +290,8 @@ impl App {
     pub(super) fn folder_column(&mut self, ui: &mut Ui, rect: Rect) {
         glass::glass(ui.painter(), rect, Glass::panel(24.0));
         let items = self.folder_items();
+        let shared_ids: Vec<i32> = self.folders.iter().filter(|f| f.shared).map(|f| f.id).collect();
+        let shared = |id: Option<i32>| id.is_some_and(|i| shared_ids.contains(&i));
         let inner = rect.shrink2(vec2(6.0, 12.0));
         let add = Rect::from_center_size(pos2(inner.center().x, inner.bottom() - 20.0), vec2(40.0, 40.0));
         let list = Rect::from_min_max(inner.min, pos2(inner.right(), add.top() - 8.0));
@@ -317,7 +325,7 @@ impl App {
                     if resp.clicked() {
                         chosen = Some(*id);
                     }
-                    resp.context_menu(|ui| Self::folder_menu(ui, *id, &mut menu));
+                    resp.context_menu(|ui| Self::folder_menu(ui, *id, shared(*id), &mut menu));
                 }
                 if let Some((id, title, unread, slot)) = lifted {
                     let gid = ui.scope_id().with(("cell-y", id));

@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 59%** `████████████░░░░░░░░` — 103 done, 1 partial, 71 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 60%** `████████████░░░░░░░░` — 104 done, 1 partial, 70 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -137,6 +137,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/dice.rs`, `src/backend/dice.rs` | Emoji games (🎲 🎯 🏀 ⚽ 🎰 🎳): sending and outcomes |
 | `src/app/storage.rs`, `src/backend/storage.rs` | "Data and storage": cache usage by type, clearing, size limit |
 | `src/app/adminlog.rs`, `src/backend/adminlog.rs` | "Recent actions" admin log; author signatures and the discussion group of a channel |
+| `src/app/chatlists.rs`, `src/backend/chatlists.rs` | Shared folders by link: adding, new chats, leaving |
 | `src/app/autodl.rs` | Automatic media download by chat type and video size; photos held back in `backend/media.rs` |
 | `src/app/autodelete.rs`, `src/backend/autodelete.rs` | Auto-delete timers: the default for new chats, a chat's own |
 | `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |
@@ -188,6 +189,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - Right-click "Send": send silently or schedule.
 - "Select" in the message menu turns on selection mode; Esc leaves it.
 - A message of just 🎲 🎯 🏀 ⚽ 🎰 or 🎳 is sent as a game.
+- A `t.me/addlist/…` link adds a shared folder; its right-click menu checks for new chats, and deleting it offers to leave its chats.
 - Settings → Chat Settings → Accessibility: reduce transparency (solid glass), increase contrast, reduce motion (a still background).
 - Settings → Advanced → "Automatic media download" picks what loads on its own in private chats, groups and channels; other media show an arrow and load on a click.
 - Enter sends, Shift+Enter — new line.

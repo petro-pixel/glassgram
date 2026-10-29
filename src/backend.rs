@@ -71,6 +71,7 @@ mod polls;
 mod privacy;
 mod websites;
 mod adminlog;
+mod chatlists;
 mod storage;
 mod dice;
 mod selfdestruct;
@@ -78,6 +79,7 @@ pub use storage::CacheKind;
 mod autodelete;
 pub use websites::WebSession;
 pub use adminlog::AdminLogEntry;
+pub use chatlists::{Chatlist, ChatlistAction};
 mod password;
 pub use password::{PasswordChange, PasswordState};
 mod chatedit;
@@ -421,6 +423,14 @@ pub enum Cmd {
     LoadDiscussionGroups(PeerId),
     /// Link a discussion group to a channel; `None` unlinks it.
     SetDiscussionGroup { peer: PeerId, group: Option<PeerId> },
+    /// What a `t.me/addlist/<slug>` link offers (`chatlists.checkChatlistInvite`).
+    CheckChatlist(String),
+    /// Chats added to a shared folder since we joined it.
+    CheckChatlistUpdates(i32),
+    /// Which chats leaving a shared folder would leave too.
+    AskLeaveChatlist(i32),
+    /// Join, update or leave a shared folder with the ticked chats.
+    ApplyChatlist { action: ChatlistAction, peers: Vec<PeerId> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -611,6 +621,8 @@ pub enum Ev {
     ChatCreated(ChatInfo),
     AdminLog { peer: PeerId, entries: Vec<AdminLogEntry>, older: bool },
     DiscussionGroups { peer: PeerId, groups: Vec<ChatInfo> },
+    /// A shared folder box to show.
+    Chatlist(Chatlist),
 }
 
 /// The General forum topic.
@@ -898,6 +910,7 @@ impl Worker {
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
             cmd @ (Cmd::LoadAdminLog { .. } | Cmd::SetSignatures { .. } | Cmd::LoadDiscussionGroups(_) | Cmd::SetDiscussionGroup { .. }) => self.admin_cmd(cmd).await,
+            cmd @ (Cmd::CheckChatlist(_) | Cmd::CheckChatlistUpdates(_) | Cmd::AskLeaveChatlist(_) | Cmd::ApplyChatlist { .. }) => self.chatlists_cmd(cmd).await,
             cmd @ Cmd::EditMedia { .. } => self.edit_media_cmd(cmd).await,
             cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,
             cmd @ (Cmd::RequestCode(..) | Cmd::SubmitCode(..) | Cmd::SubmitPassword(..) | Cmd::QrLogin | Cmd::QrPassword(..) | Cmd::QrSuccess(..) | Cmd::Logout) => self.login_cmd(cmd).await,

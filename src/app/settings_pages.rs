@@ -537,7 +537,7 @@ impl App {
             self.folder_edit = Some(FolderEdit { folder: f.clone(), new: false, query: String::new() });
         }
         if let Some(id) = delete {
-            self.send(Cmd::DeleteFolder(id));
+            self.delete_folder(id);
         }
     }
 

@@ -80,6 +80,7 @@ mod storage;
 mod dice;
 mod selfdestruct;
 mod adminlog;
+mod chatlists;
 mod autodl;
 mod spoiler;
 use chatlist::{Reorder, sort_chats};
@@ -336,6 +337,8 @@ enum FolderMenu {
     New,
     Edit(i32),
     Delete(i32),
+    /// A shared folder: look for chats its owner added.
+    Updates(i32),
 }
 
 /// Longest folder name Telegram accepts.
@@ -571,6 +574,7 @@ pub struct App {
     /// "Edit group / channel" box and the photos picked in it.
     chat_edit: Option<chatedit::ChatEdit>,
     admin_log: adminlog::AdminLog,
+    chatlist_box: Option<chatlists::ChatlistBox>,
     chat_photo_tx: mpsc::Sender<(PeerId, PathBuf)>,
     chat_photo_rx: mpsc::Receiver<(PeerId, PathBuf)>,
     /// Send queue (`app/outbox.rs`) and the last local (negative) bubble id.
@@ -814,6 +818,7 @@ impl App {
             photo_rx,
             chat_edit: None,
             admin_log: Default::default(),
+            chatlist_box: None,
             session_extras: false,
             birthdays: birthdays::Birthdays::default(),
             bot_start: HashMap::new(),
@@ -986,6 +991,7 @@ impl App {
             Ev::Websites(list) => self.on_websites(list),
             Ev::AdminLog { peer, entries, older } => self.on_admin_log(peer, entries, older),
             Ev::DiscussionGroups { peer, groups } => self.on_discussion_groups(peer, groups),
+            Ev::Chatlist(list) => self.on_chatlist(list),
             Ev::CacheUsage(usage) => self.on_cache_usage(usage),
             Ev::AccountTtl(days) => self.on_account_ttl(days),
             Ev::DefaultTtl(period) => self.on_default_ttl(period),
@@ -1400,6 +1406,11 @@ impl App {
                         self.open_bot_start(username, param);
                     }
                 }
+                _ if chatlists::tme_addlist(&target).is_some() => {
+                    if let Some(slug) = chatlists::tme_addlist(&target) {
+                        self.send(Cmd::CheckChatlist(slug));
+                    }
+                }
                 _ if tme_web_app(&target).is_some() => {
                     if let Some((username, app, start_param)) = tme_web_app(&target) {
                         self.open_web_app_link(username, app, start_param);
@@ -1658,6 +1669,7 @@ impl eframe::App for App {
         self.send_box_view(ui);
         self.chat_edit_view(ui);
         self.admin_log_view(ui);
+        self.chatlist_view(ui);
         self.privacy_pick_view(ui);
         self.tag_rename_view(ui);
         self.toast_view(ui, now);

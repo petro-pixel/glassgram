@@ -794,6 +794,18 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::AdminLog { peer, entries, older: before.is_some() });
         }
         Cmd::SetSignatures { .. } | Cmd::SetDiscussionGroup { .. } => app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into())),
+        Cmd::CheckChatlist(_) | Cmd::CheckChatlistUpdates(_) | Cmd::AskLeaveChatlist(_) => {
+            use crate::backend::{Chatlist, ChatlistAction};
+            let action = match cmd {
+                Cmd::CheckChatlist(slug) => ChatlistAction::Join(slug),
+                Cmd::CheckChatlistUpdates(id) => ChatlistAction::Update(id),
+                Cmd::AskLeaveChatlist(id) => ChatlistAction::Leave(id),
+                _ => return,
+            };
+            let chats = app.demo_chats().iter().filter(|c| matches!(c.kind, ChatKind::Group | ChatKind::Channel)).map(|c| (c.id, c.title.clone())).collect();
+            app.push_event(Ev::Chatlist(Chatlist { action, title: "Rust-спільнота".into(), emoticon: "🦀".into(), chats, already: 0 }));
+        }
+        Cmd::ApplyChatlist { .. } => app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into())),
         Cmd::LoadDiscussionGroups(peer) => {
             let groups = app.demo_chats().iter().filter(|c| c.kind == ChatKind::Group).cloned().collect();
             app.push_event(Ev::DiscussionGroups { peer, groups });
