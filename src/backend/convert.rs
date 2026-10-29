@@ -86,6 +86,17 @@ pub(super) fn peer_kind(peer: &Peer) -> ChatKind {
     }
 }
 
+/// The chat's kind for a message, from its peer or, when that isn't cached, from the id.
+pub(super) fn chat_kind(peer: PeerId, m: &Message) -> ChatKind {
+    use grammers_client::session::types::PeerKind;
+    match (m.peer(), peer.kind()) {
+        (Some(p), _) => peer_kind(p),
+        (None, PeerKind::Channel) => ChatKind::Channel,
+        (None, PeerKind::User) => ChatKind::User,
+        (None, _) => ChatKind::Group,
+    }
+}
+
 pub(super) fn media_label(m: &Message) -> Option<&'static str> {
     Some(match m.media()? {
         Media::Photo(_) => l!("📷 Фото", "📷 Photo"),
@@ -424,6 +435,7 @@ pub(super) fn media_info(m: &Message) -> Option<MediaInfo> {
         title: d.name().unwrap_or_default().to_owned(),
         performer: String::new(),
         waveform: Vec::new(),
+        bytes: doc.size.max(0) as u64,
     };
     let mut kind = None;
     let animated = doc.attributes.iter().any(|a| matches!(a, tl::enums::DocumentAttribute::Animated));

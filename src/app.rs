@@ -79,6 +79,7 @@ mod autodelete;
 mod storage;
 mod dice;
 mod selfdestruct;
+mod autodl;
 mod spoiler;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;
@@ -136,6 +137,8 @@ enum Action {
     Copy(String),
     Delete(i32),
     Download(i32),
+    /// Download held-back media into the cache (auto-download is off for it).
+    Fetch(i32),
     /// Click on a link, mention, hashtag or bot command.
     Open(String),
     /// A link whose text differs from its address: asks before opening.
@@ -216,6 +219,8 @@ struct Look<'a> {
     chat: Option<&'a ChatInfo>,
     /// Queued message: `Some(false)` — sending (clock), `Some(true)` — failed (red mark).
     pending: Option<bool>,
+    /// The media waits for a click: auto-download is off for it.
+    manual: bool,
 }
 
 /// Playback state for a media card.
@@ -625,6 +630,7 @@ impl App {
     fn start_backend(&mut self) {
         let session = accounts::session_path(self.accounts.active);
         self.backend = Some(backend::spawn(self.ctx.clone(), session));
+        self.send_autodl();
         if let Some((id, hash)) = backend::saved_credentials() {
             // The built-in keys stay out of the form: an offline fallback to the key screen would show them.
             if !backend::is_builtin(id, &hash) {
@@ -726,6 +732,7 @@ impl App {
                 loading: HashSet::new(),
                 clips: HashMap::new(),
                 clip_wanted: RefCell::new(Vec::new()),
+                prefetch: RefCell::new(Vec::new()),
             },
             rec: recording::Recording {
                 voice: None,
@@ -1301,6 +1308,7 @@ impl App {
                 }
             }
             Action::View(id) => self.open_viewer(peer, id),
+            Action::Fetch(id) => self.fetch_media(peer, id),
             Action::OpenMap(lat, lon) => {
                 let url = format!("https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=16/{lat}/{lon}");
                 self.open_link(&url);

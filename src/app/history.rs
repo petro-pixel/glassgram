@@ -216,6 +216,7 @@ impl App {
                                     ticks: ticks(m),
                                     chat: Some(chat),
                                     pending: None,
+                                    manual: album.iter().any(|m| self.media_manual(peer, chat, m)),
                                 };
                                 let texs: Vec<_> = album.iter().map(|m| self.media_tex(peer, m)).collect();
                                 let hidden: Vec<bool> = album.iter().map(|m| self.media_hidden(peer, m)).collect();
@@ -291,8 +292,9 @@ impl App {
             (None, None) => (l!("Відповідь", "Reply").to_owned(), quoted.unwrap_or_else(|| l!("Повідомлення", "Message").to_owned())),
         });
         let kind = m.media.as_ref().map(|i| i.kind);
+        let manual = self.media_manual(peer, chat, m);
         let animated = self.settings.autoplay && (m.video_sticker || m.lottie)
-            || matches!(kind, Some(MediaKind::Gif | MediaKind::Round))
+            || (matches!(kind, Some(MediaKind::Gif | MediaKind::Round)) && !manual)
             || (kind == Some(MediaKind::Video) && self.playback.player.is(peer, m.id));
         // Hidden media shows its blurred copy and doesn't play.
         let hidden = self.media_hidden(peer, m);
@@ -313,6 +315,7 @@ impl App {
             ticks: ticks(m).filter(|_| m.id > 0),
             chat: Some(chat),
             pending: self.pending_state(m.id),
+            manual,
         };
         if let Some(a) = bubble(ui, m, look, reply, photo, sticker) {
             action = Some(a);
@@ -325,8 +328,11 @@ impl App {
                 action = Some(Action::Comments(m.id));
             }
         }
-        if animated && ui.is_rect_visible(Rect::from_x_y_ranges(ui.max_rect().x_range(), bubble_top..=ui.cursor().top())) {
-            self.playback.clip_wanted.borrow_mut().push((peer, m.id));
+        if ui.is_rect_visible(Rect::from_x_y_ranges(ui.max_rect().x_range(), bubble_top..=ui.cursor().top())) {
+            if animated {
+                self.playback.clip_wanted.borrow_mut().push((peer, m.id));
+            }
+            self.want_prefetch(peer, chat, m);
         }
         if let Some((_, id, start)) = jump
             && id == m.id

@@ -48,7 +48,7 @@ impl App {
                 let photo = self.media_tex(m.peer, m);
                 let sticker = m.sticker.as_ref().and_then(|s| self.textures.get(&ImgKey::Sticker(s.0)));
                 let revealed = self.revealed.contains(&(m.peer, m.id));
-                let look = Look { chosen: &[], group: true, revealed, picking: false, picked: false, play: PlayView::default(), ticks: None, chat: None, pending: None };
+                let look = Look { chosen: &[], group: true, revealed, picking: false, picked: false, play: PlayView::default(), ticks: None, chat: None, pending: None, manual: false };
                 if let Some(a) = bubble(ui, m, look, reply, photo, sticker) {
                     action = Some(a);
                 }

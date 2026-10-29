@@ -41,6 +41,23 @@ impl Worker {
                 });
                 Ok(())
             }
+            Cmd::SetAutoDownload(a) => {
+                self.autodl = a;
+                Ok(())
+            }
+            Cmd::LoadPhoto { peer, id } => {
+                let client = self.client()?;
+                let r = self.peer_ref(peer)?;
+                let loader = self.loader.clone().ok_or(l!("Немає з'єднання", "No connection"))?;
+                tokio::spawn(async move {
+                    if let Ok(msgs) = client.get_messages_by_id(r, &[id]).await
+                        && let Some(Some(m)) = msgs.into_iter().next()
+                    {
+                        loader.message_photo(peer, &m);
+                    }
+                });
+                Ok(())
+            }
             Cmd::LoadMedia { peer, id } => {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;

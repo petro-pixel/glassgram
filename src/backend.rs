@@ -222,6 +222,10 @@ pub enum Cmd {
     LoadStickers,
     LoadStickerThumbs(Vec<i64>),
     Download { peer: PeerId, id: i32 },
+    /// What downloads without a click; photos are held back here, the rest in the UI.
+    SetAutoDownload(crate::settings::AutoDownload),
+    /// A message photo held back by the auto-download settings, now asked for.
+    LoadPhoto { peer: PeerId, id: i32 },
     /// Open a chat and load history up to and including message `id`.
     OpenAt { peer: PeerId, id: i32 },
     SetPinned { peer: PeerId, pinned: bool },
@@ -737,6 +741,7 @@ struct Worker {
     bots: HashMap<String, PeerRef>,
     /// Category notification defaults, to tell which chats are muted.
     notifs: notify::Notifs,
+    autodl: crate::settings::AutoDownload,
 }
 
 impl Worker {
@@ -760,6 +765,7 @@ impl Worker {
             docs: HashMap::new(),
             bots: HashMap::new(),
             notifs: Arc::default(),
+            autodl: Default::default(),
         }
     }
 
@@ -864,7 +870,7 @@ impl Worker {
             cmd @ (Cmd::StoreQueued(..) | Cmd::DropQueued(..)) => self.queue_cmd(cmd).await,
             cmd @ (Cmd::LoadPrivacy | Cmd::SetPrivacy { .. }) => self.privacy_rules_cmd(cmd).await,
             cmd @ (Cmd::SearchPublic(..) | Cmd::ResolveUsername(..)) => self.search_cmd(cmd).await,
-            cmd @ (Cmd::LoadFullPhoto { .. } | Cmd::Download { .. } | Cmd::LoadMedia { .. } | Cmd::MarkListened { .. } | Cmd::LoadStickerThumbs(..)) => self.media_cmd(cmd).await,
+            cmd @ (Cmd::LoadFullPhoto { .. } | Cmd::LoadPhoto { .. } | Cmd::SetAutoDownload(_) | Cmd::Download { .. } | Cmd::LoadMedia { .. } | Cmd::MarkListened { .. } | Cmd::LoadStickerThumbs(..)) => self.media_cmd(cmd).await,
             cmd @ (Cmd::OpenChat(..) | Cmd::OpenAt { .. } | Cmd::LoadOlder { .. } | Cmd::Typing(..)) => self.history_cmd(cmd).await,
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
             cmd @ (Cmd::Reschedule { .. } | Cmd::SendScheduledNow { .. } | Cmd::DeleteScheduled { .. }) => self.scheduled_cmd(cmd).await,
@@ -1325,7 +1331,9 @@ impl Worker {
     /// Converts a history message, also queuing the photo, avatar and author name.
     fn convert_loaded(&self, peer: PeerId, m: &Message) -> Msg {
         if let Some(loader) = &self.loader {
-            loader.message_photo(peer, m);
+            if !matches!(m.media(), Some(Media::Photo(_))) || self.autodl.kinds(chat_kind(peer, m)).photos {
+                loader.message_photo(peer, m);
+            }
             if let Some(s) = m.sender() {
                 loader.avatar(s);
             }

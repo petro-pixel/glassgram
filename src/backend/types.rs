@@ -364,6 +364,9 @@ pub struct MediaInfo {
     pub performer: String,
     /// Voice message waveform (values 0..31).
     pub waveform: Vec<u8>,
+    /// File size; 0 when unknown (older cache).
+    #[serde(default)]
+    pub bytes: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

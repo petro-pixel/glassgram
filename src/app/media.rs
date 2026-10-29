@@ -18,6 +18,8 @@ pub(super) struct Playback {
     pub(super) clips: HashMap<(PeerId, i32), Clip>,
     /// Messages with video visible in this frame (filled during drawing).
     pub(super) clip_wanted: RefCell<Vec<(PeerId, i32)>>,
+    /// Visible videos and audio allowed to download on their own (filled during drawing).
+    pub(super) prefetch: RefCell<Vec<(PeerId, i32)>>,
 }
 
 impl App {
@@ -53,7 +55,8 @@ impl App {
                     self.playback.player.stop();
                     self.playback.wanted.retain(|_, ext| *ext);
                 }
-                if self.playback.wanted.insert((peer, id), external).is_none() {
+                // Already downloading on its own: `MediaReady` plays it.
+                if self.playback.wanted.insert((peer, id), external).is_none() && !self.playback.loading.contains(&(peer, id)) {
                     self.send(Cmd::LoadMedia { peer, id });
                 }
             }
@@ -88,6 +91,7 @@ impl App {
 
     /// Starts, syncs with audio and removes video clips according to the visible list.
     pub(super) fn update_clips(&mut self, now: f64) {
+        self.prefetch_media();
         let wanted = std::mem::take(self.playback.clip_wanted.get_mut());
         self.playback.clips.retain(|k, _| wanted.contains(k));
         let ppp = self.ctx.pixels_per_point();
@@ -156,6 +160,10 @@ impl App {
         }
         if !self.textures.contains_key(&ImgKey::Full(peer, id)) {
             self.send(Cmd::LoadFullPhoto { peer, id });
+        }
+        // A photo held back by auto-download: its preview in the bubble comes too.
+        if !self.textures.contains_key(&ImgKey::Photo(peer, id)) {
+            self.send(Cmd::LoadPhoto { peer, id });
         }
     }
 

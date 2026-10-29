@@ -1,6 +1,6 @@
 //! App settings: a simple `key=value` file in the data folder.
 
-use crate::backend::data_dir;
+use crate::backend::{ChatKind, MediaInfo, MediaKind, data_dir};
 use crate::i18n::{l};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -54,6 +54,76 @@ impl Density {
     }
 }
 
+/// What downloads on its own in one kind of chat.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct AutoKinds {
+    pub photos: bool,
+    /// Videos, GIFs and round videos up to `AutoDownload::video_mb`.
+    pub videos: bool,
+    /// Voice messages and music.
+    pub audio: bool,
+}
+
+/// "Automatic media download", as in Telegram Desktop: by chat type, videos with a size limit.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct AutoDownload {
+    pub private: AutoKinds,
+    pub groups: AutoKinds,
+    pub channels: AutoKinds,
+    /// Largest video downloaded on its own, in MB; 0 — any size.
+    pub video_mb: u32,
+}
+
+impl Default for AutoDownload {
+    fn default() -> Self {
+        let all = AutoKinds { photos: true, videos: true, audio: true };
+        Self { private: all, groups: all, channels: all, video_mb: 10 }
+    }
+}
+
+impl AutoDownload {
+    pub fn kinds(&self, chat: ChatKind) -> AutoKinds {
+        match chat {
+            ChatKind::Group => self.groups,
+            ChatKind::Channel => self.channels,
+            ChatKind::User | ChatKind::Bot | ChatKind::Saved => self.private,
+        }
+    }
+
+    /// Whether a video, GIF, voice message or track in this chat downloads without a click.
+    pub fn media(&self, chat: ChatKind, info: &MediaInfo) -> bool {
+        let k = self.kinds(chat);
+        match info.kind {
+            MediaKind::Audio | MediaKind::Voice => k.audio,
+            // Size 0 comes from an older cache: let it through as before.
+            _ => k.videos && (self.video_mb == 0 || info.bytes <= u64::from(self.video_mb) << 20),
+        }
+    }
+
+    /// `111,111,011,10`: photos, videos and audio for private chats, groups, channels; the video limit.
+    fn code(&self) -> String {
+        let b = |v: bool| if v { '1' } else { '0' };
+        let k = |k: AutoKinds| [b(k.photos), b(k.videos), b(k.audio)].iter().collect::<String>();
+        format!("{},{},{},{}", k(self.private), k(self.groups), k(self.channels), self.video_mb)
+    }
+
+    fn parse(v: &str) -> Self {
+        let mut s = Self::default();
+        let parts: Vec<&str> = v.split(',').collect();
+        let k = |p: &str, d: AutoKinds| match p.as_bytes() {
+            [a, b, c] => AutoKinds { photos: *a == b'1', videos: *b == b'1', audio: *c == b'1' },
+            _ => d,
+        };
+        if let [p, g, c, mb] = parts[..] {
+            s.private = k(p, s.private);
+            s.groups = k(g, s.groups);
+            s.channels = k(c, s.channels);
+            s.video_mb = mb.parse().unwrap_or(s.video_mb);
+        }
+        s
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
     pub theme: Theme,
@@ -84,11 +154,12 @@ pub struct Settings {
     pub density: Density,
     /// Local cache limit in GB; 0 — no limit.
     pub cache_limit_gb: u32,
+    pub autodl: AutoDownload,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard, cache_limit_gb: 0 }
+        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard, cache_limit_gb: 0, autodl: AutoDownload::default() }
     }
 }
 
@@ -127,6 +198,7 @@ impl Settings {
                 "loop_stickers" => s.loop_stickers = flag,
                 "suggest_stickers" => s.suggest_stickers = flag,
                 "cache_limit_gb" => s.cache_limit_gb = v.parse().unwrap_or(0),
+                "autodl" => s.autodl = AutoDownload::parse(v),
                 "density" => {
                     s.density = match v {
                         "compact" => Density::Compact,
@@ -145,7 +217,7 @@ impl Settings {
         let _ = std::fs::create_dir_all(&dir);
         let b = |v: bool| if v { "1" } else { "0" };
         let text = format!(
-            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\ncache_limit_gb={}\n",
+            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\ncache_limit_gb={}\nautodl={}\n",
             self.lang.code(),
             match self.theme {
                 Theme::System => "system",
@@ -165,7 +237,8 @@ impl Settings {
             b(self.loop_stickers),
             b(self.suggest_stickers),
             self.density.code(),
-            self.cache_limit_gb
+            self.cache_limit_gb,
+            self.autodl.code()
         );
         // Holds the local passcode hash, so owner-only.
         let _ = std::fs::write(dir.join("settings"), text);
@@ -189,7 +262,17 @@ pub fn proxy_error(url: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::proxy_error;
+    use super::{AutoDownload, proxy_error};
+
+    #[test]
+    fn autodl_round_trip() {
+        let mut a = AutoDownload::default();
+        a.channels.videos = false;
+        a.groups.photos = false;
+        a.video_mb = 50;
+        assert_eq!(AutoDownload::parse(&a.code()), a);
+        assert_eq!(AutoDownload::parse("junk"), AutoDownload::default());
+    }
 
     #[test]
     fn proxy_validation() {

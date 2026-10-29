@@ -472,7 +472,7 @@ pub(super) fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHa
                 Some(t) => glass::image_rounded(&p, r, 8.0, t.id(), t.size_vec2()),
                 None => {
                     p.rect_filled(r, 8.0, glass::veil(14));
-                    icons::draw(&p, Rect::from_center_size(r.center(), vec2(26.0, 26.0)), Icon::Camera, ink_dim());
+                    icons::draw(&p, Rect::from_center_size(r.center(), vec2(26.0, 26.0)), placeholder_icon(look.manual), ink_dim());
                 }
             }
             if hidden[k] {
@@ -708,13 +708,13 @@ pub(super) fn bubble(
             Some(t) => glass::image_rounded(&p, ir, 15.0, t.id(), t.size_vec2()),
             None => {
                 p.rect_filled(ir, 15.0, glass::veil(14));
-                icons::draw(&p, Rect::from_center_size(ir.center(), vec2(30.0, 30.0)), Icon::Camera, ink_dim());
+                icons::draw(&p, Rect::from_center_size(ir.center(), vec2(30.0, 30.0)), placeholder_icon(look.manual), ink_dim());
             }
         }
         if hidden {
             spoiler::cover(&p, ir, 15.0, ui.input(|i| i.time));
         } else if let Some(info) = m.media.as_ref().filter(|_| video) {
-            video_overlay(&p, ir, info, look.play);
+            video_overlay(&p, ir, info, look.play, look.manual);
         }
         if !has_block || above {
             let chip = Rect::from_min_size(ir.max - meta.size() - vec2(18.0, 12.0), meta.size() + vec2(12.0, 6.0));
@@ -839,6 +839,7 @@ pub(super) fn bubble(
                 _ if hidden => Some(Action::RevealSpoiler(m.id)),
                 _ if m.photo => Some(Action::View(m.id)),
                 Some(MediaKind::Video) => Some(Action::Play(m.id)),
+                Some(MediaKind::Gif) if look.manual => Some(Action::Fetch(m.id)),
                 Some(MediaKind::Gif) => None,
                 _ => Some(Action::Download(m.id)),
             };
@@ -851,21 +852,30 @@ pub(super) fn bubble(
 }
 
 /// Duration and play button over the video frame.
-pub(super) fn video_overlay(p: &egui::Painter, r: Rect, info: &backend::MediaInfo, play: PlayView) {
+/// An empty media frame: a camera while it loads, an arrow when it waits for a click.
+fn placeholder_icon(manual: bool) -> Icon {
+    if manual { Icon::Download } else { Icon::Camera }
+}
+
+/// Duration and play button over the video frame; held-back media show their size and an arrow.
+pub(super) fn video_overlay(p: &egui::Painter, r: Rect, info: &backend::MediaInfo, play: PlayView, manual: bool) {
     let label = match info.kind {
         MediaKind::Gif => "GIF".to_owned(),
         _ if play.current => player::clock(info.duration - play.position),
+        _ if manual && info.bytes > 0 => format!("{} · {}", player::clock(info.duration), backend::human_size(info.bytes as usize)),
         _ => player::clock(info.duration),
     };
     let g = p.layout_no_wrap(label, FontId::proportional(11.5), glass::ON_DARK);
     let chip = Rect::from_min_size(r.min + vec2(8.0, 8.0), g.size() + vec2(12.0, 6.0));
     p.rect_filled(chip, chip.height() / 2.0, Color32::from_black_alpha(120));
     p.galley(chip.min + vec2(6.0, 3.0), g, glass::ON_DARK);
-    if info.kind == MediaKind::Video && !play.playing {
+    if (info.kind == MediaKind::Video && !play.playing) || manual {
         let c = Rect::from_center_size(r.center(), vec2(54.0, 54.0));
         glass::glass(p, c, Glass::tinted(27.0, glass::chrome(), 140).frosted(1.0));
         if play.loading {
             spinner(p, c.center(), 13.0);
+        } else if manual {
+            icons::draw(p, Rect::from_center_size(c.center(), vec2(22.0, 22.0)), Icon::Download, ink());
         } else {
             icons::draw(p, Rect::from_center_size(c.center() + vec2(2.0, 0.0), vec2(22.0, 22.0)), Icon::Play, ink());
         }
@@ -905,6 +915,11 @@ pub(super) fn round_bubble(ui: &mut Ui, m: &Msg, tex: Option<&TextureHandle>, lo
         }
     }
     let play = look.play;
+    if look.manual && !play.loading {
+        let c = Rect::from_center_size(r.center(), vec2(54.0, 54.0));
+        glass::glass(p, c, Glass::tinted(27.0, glass::chrome(), 140).frosted(1.0));
+        icons::draw(p, Rect::from_center_size(c.center(), vec2(22.0, 22.0)), Icon::Download, ink());
+    }
     if play.loading {
         spinner(p, r.center(), 16.0);
     }
@@ -915,7 +930,7 @@ pub(super) fn round_bubble(ui: &mut Ui, m: &Msg, tex: Option<&TextureHandle>, lo
         if pts.len() > 1 {
             p.add(egui::Shape::line(pts, egui::Stroke::new(3.0, ink())));
         }
-    } else if !play.loading {
+    } else if !play.loading && !look.manual {
         // Muted: a speaker-off icon at the bottom.
         let c = Rect::from_center_size(pos2(r.center().x, r.bottom() - 22.0), vec2(26.0, 26.0));
         p.circle_filled(c.center(), 13.0, Color32::from_black_alpha(170));

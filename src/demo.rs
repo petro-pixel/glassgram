@@ -400,6 +400,12 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::PrivacyExceptions(key, ex));
         }
         Cmd::Download { .. } => app.push_event(Ev::Notice("У демо-режимі файли не завантажуються".into())),
+        Cmd::SetAutoDownload(_) => {}
+        Cmd::LoadPhoto { peer, id } => {
+            if let Some((key, image)) = images().into_iter().find(|(k, _)| *k == ImgKey::Photo(peer, id)) {
+                app.push_event(Ev::Image { key, image });
+            }
+        }
         // The cat sticker is animated: a small Lottie file of our own.
         Cmd::LoadMedia { peer, id } if app.demo_history().any(|(p, _, msgs)| p == peer && msgs.iter().any(|m| m.id == id && m.lottie)) => match demo_tgs() {
             Some(path) => app.push_event(Ev::MediaReady { peer, id, path }),
@@ -1218,6 +1224,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
                 title: title.into(),
                 performer: performer.into(),
                 waveform: (0..63u32).map(|i| ((i * 7 % 13) as f32 * 1.6 + (i as f32 * 0.4).sin().abs() * 12.0) as u8).collect(),
+                bytes: 0,
             };
             msgs.push(Msg { id: 80, media: Some(media(MediaKind::Voice, 4.0, "", "")), ..base(22, "Олена") });
             msgs.push(Msg { id: 81, media: Some(media(MediaKind::Voice, 3.0, "", "")), media_unread: true, ..base(22, "Олена") });
@@ -1344,7 +1351,7 @@ fn queued_media(app: &mut App, q: &Queued) {
             let _ = std::fs::remove_dir_all(crate::backend::outbox_dir(&crate::accounts::session_path(0), q.key));
         }
         Some(QueuedMedia::Voice { path, duration, waveform }) => {
-            let info = MediaInfo { kind: MediaKind::Voice, duration, size: (0, 0), title: String::new(), performer: String::new(), waveform };
+            let info = MediaInfo { kind: MediaKind::Voice, duration, size: (0, 0), title: String::new(), performer: String::new(), waveform, bytes: 0 };
             let m = Msg { media: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply) };
             let mid = m.id;
             app.push_event(Ev::NewMsg(m));
@@ -1352,7 +1359,7 @@ fn queued_media(app: &mut App, q: &Queued) {
             app.push_event(Ev::MediaReady { peer, id: mid, path });
         }
         Some(QueuedMedia::Round { path, duration }) => {
-            let info = MediaInfo { kind: MediaKind::Round, duration, size: (384, 384), title: String::new(), performer: String::new(), waveform: Vec::new() };
+            let info = MediaInfo { kind: MediaKind::Round, duration, size: (384, 384), title: String::new(), performer: String::new(), waveform: Vec::new(), bytes: 0 };
             let m = Msg { media: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply) };
             let mid = m.id;
             app.push_event(Ev::NewMsg(m));

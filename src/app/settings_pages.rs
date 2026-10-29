@@ -567,6 +567,8 @@ impl App {
             hint(ui, &yes_no(can_play, l!("ffplay — звук голосових, аудіо й відео", "ffplay — sound for voice, audio and video")));
             hint(ui, &yes_no(can_record, l!("ffmpeg — відео в чаті й запис голосових", "ffmpeg — in-chat video and voice recording")));
             ui.add_space(10.0);
+            self.autodl_section(ui);
+            ui.add_space(10.0);
             self.storage_section(ui);
             ui.add_space(10.0);
             self.error_log_section(ui);
