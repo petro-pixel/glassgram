@@ -1,5 +1,5 @@
 //! Editing a group or channel, as in Telegram Desktop's "Edit" box: title, description, photo,
-//! default permissions of members and slow mode.
+//! default permissions of members, slow mode, allowed reactions, hidden members and anti-spam.
 
 use std::path::PathBuf;
 
@@ -8,6 +8,46 @@ use grammers_client::tl;
 
 use super::{Cmd, Ev, Worker};
 use crate::i18n::{l, lf};
+
+/// Which reactions members may leave on messages.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum ReactionMode {
+    #[default]
+    All,
+    /// Only these emoji.
+    Some(Vec<String>),
+    Off,
+}
+
+impl ReactionMode {
+    pub(super) fn from_raw(r: Option<&tl::enums::ChatReactions>) -> Self {
+        match r {
+            Some(tl::enums::ChatReactions::None) => Self::Off,
+            Some(tl::enums::ChatReactions::Some(s)) => Self::Some(
+                s.reactions
+                    .iter()
+                    .filter_map(|r| match r {
+                        tl::enums::Reaction::Emoji(e) => Some(e.emoticon.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+            ),
+            // Not set means everything is allowed.
+            _ => Self::All,
+        }
+    }
+
+    fn raw(&self) -> tl::enums::ChatReactions {
+        match self {
+            Self::All => tl::types::ChatReactionsAll { allow_custom: false }.into(),
+            Self::Off => tl::enums::ChatReactions::None,
+            Self::Some(list) => tl::types::ChatReactionsSome {
+                reactions: list.iter().map(|e| tl::types::ReactionEmoji { emoticon: e.clone() }.into()).collect(),
+            }
+            .into(),
+        }
+    }
+}
 
 /// What members may do by default (`true` — allowed); the inverse of `chatBannedRights`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -103,6 +143,22 @@ impl Worker {
             Cmd::SetSlowMode { peer, seconds } => {
                 let r = self.peer_ref(peer)?;
                 client.invoke(&tl::functions::channels::ToggleSlowMode { channel: r.into(), seconds }).await.map_err(err)?;
+                self.after_edit(peer);
+            }
+            Cmd::SetChatReactions { peer, mode } => {
+                let r = self.peer_ref(peer)?;
+                let req = tl::functions::messages::SetChatAvailableReactions { peer: r.into(), available_reactions: mode.raw(), reactions_limit: None, paid_enabled: None };
+                client.invoke(&req).await.map_err(err)?;
+                self.after_edit(peer);
+            }
+            Cmd::SetMembersHidden { peer, hidden } => {
+                let r = self.peer_ref(peer)?;
+                client.invoke(&tl::functions::channels::ToggleParticipantsHidden { channel: r.into(), enabled: hidden }).await.map_err(err)?;
+                self.after_edit(peer);
+            }
+            Cmd::SetAntiSpam { peer, on } => {
+                let r = self.peer_ref(peer)?;
+                client.invoke(&tl::functions::channels::ToggleAntiSpam { channel: r.into(), enabled: on }).await.map_err(err)?;
                 self.after_edit(peer);
             }
             _ => {}

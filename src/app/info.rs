@@ -395,7 +395,7 @@ impl App {
             Do::CreateInvite => self.send(Cmd::ExportInvite(peer)),
             Do::Edit => {
                 let d = self.info.as_ref().and_then(|i| i.details.clone()).unwrap_or_default();
-                self.open_chat_edit(peer, d.about, d.rights, d.slowmode);
+                self.open_chat_edit(peer, d);
             }
             Do::AddContact => self.open_contact_form(Some((peer, &chat.title))),
             Do::Unblock => self.send(Cmd::Block { peer, blocked: false }),

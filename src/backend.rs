@@ -92,7 +92,7 @@ pub use report::ReportStep;
 pub use gifts::Gift;
 pub use stories::{Story, StoryPeer};
 pub use birthdays::Birthday;
-pub use chatedit::ChatRights;
+pub use chatedit::{ChatRights, ReactionMode};
 pub use privacy::{GlobalPrivacy, PrivacyExceptions};
 pub use polls::NewPoll;
 pub use webapp::{WebAppKind, WebAppOpened};
@@ -279,6 +279,12 @@ pub enum Cmd {
     SetChatPhoto { peer: PeerId, path: PathBuf },
     /// Default permissions of group members.
     SetChatRights { peer: PeerId, rights: ChatRights },
+    /// Which reactions members may leave (`messages.setChatAvailableReactions`).
+    SetChatReactions { peer: PeerId, mode: ReactionMode },
+    /// Hide a supergroup's member list from members (`channels.toggleParticipantsHidden`).
+    SetMembersHidden { peer: PeerId, hidden: bool },
+    /// Telegram's aggressive anti-spam in a supergroup (`channels.toggleAntiSpam`).
+    SetAntiSpam { peer: PeerId, on: bool },
     /// Slow mode of a supergroup, in seconds (0 — off).
     SetSlowMode { peer: PeerId, seconds: i32 },
     /// Decode again pictures the UI dropped to save memory.
@@ -921,7 +927,7 @@ impl Worker {
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
-            cmd @ (Cmd::EditChat { .. } | Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. }) => self.chat_edit_cmd(cmd).await,
+            cmd @ (Cmd::EditChat { .. } | Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. } | Cmd::SetChatReactions { .. } | Cmd::SetMembersHidden { .. } | Cmd::SetAntiSpam { .. }) => self.chat_edit_cmd(cmd).await,
             cmd @ (Cmd::LoadGlobalPrivacy | Cmd::SetGlobalPrivacy(_) | Cmd::LoadContentSettings | Cmd::SetSensitive(_)) => self.global_privacy_cmd(cmd).await,
             cmd @ (Cmd::LoadPassword | Cmd::CheckPassword(_) | Cmd::UpdatePassword { .. } | Cmd::ConfirmPasswordEmail(_) | Cmd::ResendPasswordEmail | Cmd::CancelPasswordEmail) => self.password_cmd(cmd).await,
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } | Cmd::BotWriteAccess { .. } | Cmd::SharePhone { .. }) => self.webapp_cmd(cmd).await,

@@ -117,7 +117,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ **P0** Leave a group or channel, clear history, delete chat with confirmation and "also for the other side" (`leaveChannel`, `deleteChatUser`, `deleteHistory`, `channels.deleteHistory`); the owner gets "Delete group" / "Delete channel" instead of "Leave", for everyone (`channels.deleteChannel`, `messages.deleteChat`)
 - ✅ Editing a group or channel (pencil in chat info, for admins who may change info): title, photo, description; default member permissions; slow mode in supergroups (`editTitle` / `editChatTitle`, `editChatAbout`, `editPhoto`, `editChatDefaultBannedRights`, `toggleSlowMode`)
 - ⬜ **P1** Administration: admin rights, bans and restrictions, join requests, invite link management
-- ⬜ **P1** Reactions allowed in the chat; hiding the member list; anti-spam
+- ✅ Reactions allowed in the chat (all, some from the standard set, none — `setChatAvailableReactions`); hiding the member list and aggressive anti-spam in supergroups (`toggleParticipantsHidden`, `toggleAntiSpam`), in the "Edit" box
 - ⬜ **P2** Admin action log (`getAdminLog`), linking a discussion group, author signatures in channels
 - ⬜ **P2** Channel boosts (`premium.applyBoost`), transferring group ownership (2026)
 - ⬜ **P3** Channel statistics (`stats.*`), channel auto-translation, paid messages, managing sponsored messages

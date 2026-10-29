@@ -3,6 +3,12 @@
 /// Reactions available in most chats (Telegram's standard ones).
 pub const QUICK_REACTIONS: [&str; 10] = ["👍", "❤", "🔥", "😂", "😮", "😢", "🎉", "🙏", "👏", "👎"];
 
+/// Telegram's standard reactions offered when a chat allows only some, in the official order.
+pub const STANDARD_REACTIONS: [&str; 36] = [
+    "👍", "👎", "❤", "🔥", "🥰", "👏", "😁", "🤔", "🤯", "😱", "🤬", "😢", "🎉", "🤩", "🤮", "💩", "🙏", "👌",
+    "🤡", "🥱", "😍", "🐳", "💯", "🤣", "🍌", "🏆", "💔", "🤨", "😐", "🍓", "🍾", "💋", "😈", "😴", "😭", "👀",
+];
+
 use crate::i18n::l;
 
 /// (title, emoji): the title is a function so it follows the UI language.

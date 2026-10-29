@@ -1,8 +1,8 @@
 //! "Edit" box of a group or channel, as in Telegram Desktop: photo, title, description,
-//! default member permissions and slow mode (supergroups).
+//! default member permissions, slow mode, allowed reactions; hidden members and anti-spam (supergroups).
 
 use super::*;
-use crate::backend::ChatRights;
+use crate::backend::{ChatDetails, ChatRights, ReactionMode};
 
 /// Slow mode steps of the official clients, in seconds.
 const SLOW_MODES: [i32; 7] = [0, 10, 30, 60, 300, 900, 3600];
@@ -15,8 +15,18 @@ pub(super) struct ChatEdit {
     about: String,
     rights: Option<ChatRights>,
     slowmode: Option<i32>,
+    more: More,
     /// As loaded, to send only what changed.
     was: (String, String, Option<ChatRights>, Option<i32>),
+    was_more: More,
+}
+
+/// Switches shown only when we may change them.
+#[derive(Clone, PartialEq)]
+struct More {
+    reactions: Option<ReactionMode>,
+    members_hidden: Option<bool>,
+    antispam: Option<bool>,
 }
 
 fn slow_label(s: i32) -> String {
@@ -30,9 +40,12 @@ fn slow_label(s: i32) -> String {
 
 impl App {
     /// Opens the box with what the info panel has loaded.
-    pub(super) fn open_chat_edit(&mut self, peer: PeerId, about: String, rights: Option<ChatRights>, slowmode: Option<i32>) {
+    pub(super) fn open_chat_edit(&mut self, peer: PeerId, d: ChatDetails) {
         let title = self.chats.iter().find(|c| c.id == peer).map(|c| c.title.clone()).unwrap_or_default();
-        self.chat_edit = Some(ChatEdit { peer, title: title.clone(), about: about.clone(), rights, slowmode, was: (title, about, rights, slowmode) });
+        let (about, rights, slowmode) = (d.about, d.rights, d.slowmode);
+        let more = More { reactions: d.reactions, members_hidden: d.members_hidden, antispam: d.antispam };
+        let was = (title.clone(), about.clone(), rights, slowmode);
+        self.chat_edit = Some(ChatEdit { peer, title, about, rights, slowmode, was_more: more.clone(), more, was });
     }
 
     fn pick_chat_photo(&self, peer: PeerId) {
@@ -121,6 +134,20 @@ impl App {
                 });
                 ui.label(egui::RichText::new(l!("Учасники зможуть писати одне повідомлення за вибраний проміжок.", "Members will be able to send one message per chosen interval.")).color(ink_dim()).size(12.5));
             }
+            if let Some(mode) = &mut e.more.reactions {
+                reactions_section(ui, mode);
+            }
+            if e.more.members_hidden.is_some() || e.more.antispam.is_some() {
+                section_title(ui, l!("Учасники", "Members"));
+            }
+            if let Some(on) = &mut e.more.members_hidden {
+                ui.checkbox(on, l!("Приховати учасників", "Hide members"));
+                ui.label(egui::RichText::new(l!("Список учасників бачитимуть лише адміністратори.", "Only admins will see the list of members.")).color(ink_dim()).size(12.5));
+            }
+            if let Some(on) = &mut e.more.antispam {
+                ui.checkbox(on, l!("Агресивний антиспам", "Aggressive anti-spam"));
+                ui.label(egui::RichText::new(l!("Telegram сам видалятиме більше спаму. Доступно у великих групах.", "Telegram will remove more spam on its own. Available in large groups.")).color(ink_dim()).size(12.5));
+            }
         });
 
         let half = (buttons.width() - 8.0) / 2.0;
@@ -147,6 +174,58 @@ impl App {
             if let Some(seconds) = e.slowmode.filter(|s| Some(*s) != e.was.3) {
                 self.send(Cmd::SetSlowMode { peer, seconds });
             }
+            let (now, was) = (e.more, e.was_more);
+            if let Some(mode) = now.reactions.filter(|m| Some(m) != was.reactions.as_ref()) {
+                self.send(Cmd::SetChatReactions { peer, mode });
+            }
+            if let Some(hidden) = now.members_hidden.filter(|h| Some(*h) != was.members_hidden) {
+                self.send(Cmd::SetMembersHidden { peer, hidden });
+            }
+            if let Some(on) = now.antispam.filter(|a| Some(*a) != was.antispam) {
+                self.send(Cmd::SetAntiSpam { peer, on });
+            }
         }
     }
+}
+
+/// "Reactions": all, some (picked from the standard set) or none, as in Telegram Desktop.
+fn reactions_section(ui: &mut Ui, mode: &mut ReactionMode) {
+    section_title(ui, l!("Реакції", "Reactions"));
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+        let w = ((ui.available_width() - 20.0) / 3.0).clamp(90.0, 130.0);
+        let picked = match mode {
+            ReactionMode::All => 0,
+            ReactionMode::Some(_) => 1,
+            ReactionMode::Off => 2,
+        };
+        let labels = [l!("Усі", "All"), l!("Деякі", "Some"), l!("Жодних", "None")];
+        for (k, label) in labels.into_iter().enumerate() {
+            let (r, _) = ui.allocate_exact_size(vec2(w, 30.0), Sense::hover());
+            if glass::button(ui, r, ("reactions-mode", k), label, picked == k, true).clicked() && picked != k {
+                *mode = match k {
+                    0 => ReactionMode::All,
+                    // Starts from the quick set, which every chat knows.
+                    1 => ReactionMode::Some(emoji::QUICK_REACTIONS.iter().map(|e| (*e).to_owned()).collect()),
+                    _ => ReactionMode::Off,
+                };
+            }
+        }
+    });
+    let ReactionMode::Some(list) = mode else { return };
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
+        for e in emoji::STANDARD_REACTIONS {
+            let on = list.iter().any(|x| x == e);
+            let (r, _) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::hover());
+            if glass::button(ui, r, ("reaction-pick", e), e, on, true).clicked() {
+                if on {
+                    list.retain(|x| x != e);
+                } else {
+                    list.push(e.to_owned());
+                }
+            }
+        }
+    });
+    ui.label(egui::RichText::new(l!("Учасники зможуть ставити лише вибрані реакції.", "Members will be able to use only the chosen reactions.")).color(ink_dim()).size(12.5));
 }

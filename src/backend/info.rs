@@ -8,7 +8,7 @@ use grammers_client::peer::Peer;
 use grammers_client::session::types::{PeerId, PeerKind, PeerRef};
 use grammers_client::tl;
 
-use super::{Birthday, ChatInfo, ChatRights, Cmd, Ev, Worker, clock, convert, data_dir, found_chat, local, log_error, peer_title, remember_name};
+use super::{Birthday, ChatInfo, ChatRights, Cmd, Ev, ReactionMode, Worker, clock, convert, data_dir, found_chat, local, log_error, peer_title, remember_name};
 use crate::i18n::{l, lf};
 
 /// How many members we show at once; beyond that, search.
@@ -130,6 +130,12 @@ pub struct ChatDetails {
     pub rights: Option<ChatRights>,
     /// Slow mode in seconds (supergroups only).
     pub slowmode: Option<i32>,
+    /// Allowed reactions, when we may change them.
+    pub reactions: Option<ReactionMode>,
+    /// Member list hidden from members (supergroups we edit).
+    pub members_hidden: Option<bool>,
+    /// Aggressive anti-spam (supergroups we edit).
+    pub antispam: Option<bool>,
     pub notify: NotifyState,
     /// Item counts per shared media tab.
     pub counts: Vec<(SharedKind, i32)>,
@@ -477,6 +483,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.notify = NotifyState::from_raw(&c.notify_settings);
                 d.invite = invite_link(c.exported_invite);
                 d.ttl = c.ttl_period.unwrap_or(0);
+                d.reactions = Some(ReactionMode::from_raw(c.available_reactions.as_ref()));
                 if let tl::enums::ChatParticipants::Participants(p) = &c.participants {
                     d.members = Some(p.participants.len() as i32);
                     d.admins = Some(p.participants.iter().filter(|x| !matches!(x, tl::enums::ChatParticipant::Participant(_))).count() as i32);
@@ -488,6 +495,9 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.can_edit = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.change_info);
                 d.can_ttl = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.delete_messages);
                 d.rights = Some(ChatRights::from_banned(c.default_banned_rights.as_ref()));
+            }
+            if !d.can_edit {
+                d.reactions = None;
             }
             d.can_view_members = true;
         }
@@ -505,6 +515,9 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.can_view_members = c.can_view_participants;
                 d.slowmode = Some(c.slowmode_seconds.unwrap_or(0));
                 d.ttl = c.ttl_period.unwrap_or(0);
+                d.reactions = Some(ReactionMode::from_raw(c.available_reactions.as_ref()));
+                d.members_hidden = Some(c.participants_hidden);
+                d.antispam = Some(c.antispam);
             }
             if let Some(tl::enums::Chat::Channel(c)) = f.chats.into_iter().find(|c| c.id() == r.id.bare_id_unchecked()) {
                 d.creator = c.creator;
@@ -516,7 +529,12 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                     d.rights = Some(ChatRights::from_banned(c.default_banned_rights.as_ref()));
                 } else {
                     d.slowmode = None;
+                    d.members_hidden = None;
+                    d.antispam = None;
                 }
+            }
+            if !d.can_edit {
+                (d.reactions, d.members_hidden, d.antispam) = (None, None, None);
             }
         }
     }

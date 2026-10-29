@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 57%** `███████████░░░░░░░░░` — 99 done, 1 partial, 75 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 57%** `███████████░░░░░░░░░` — 100 done, 1 partial, 74 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -115,7 +115,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/login.rs`, `src/app/accounts_ui.rs` | Sign-in screens and the passcode lock; the account menu and the other accounts in the background |
 | `src/app/forum.rs`, `src/app/comments.rs`, `src/app/folders.rs` | Forum topics, channel comments, folder editor with tag colours, folder tags on chat rows, recommended folders |
 | `src/app/chatview.rs`, `src/backend/chatview.rs` | Chat view extras: pinned bar and list, jump buttons (down / mentions / reactions), "Seen by", view counters, protected content |
-| `src/app/chatedit.rs`, `src/backend/chatedit.rs` | "Edit group / channel": photo, title, description, member permissions, slow mode |
+| `src/app/chatedit.rs`, `src/backend/chatedit.rs` | "Edit group / channel": photo, title, description, member permissions, slow mode, allowed reactions, hidden members, anti-spam |
 | `src/app/birthdays.rs`, `src/backend/birthdays.rs` | Birthdays: reminder above the chat list, birthday in user info and in My Account |
 | `src/app/botstart.rs`, `src/backend/botstart.rs` | Bot deep links `t.me/<bot>?start=…`: Start bar with the parameter |
 | `src/app/similar.rs`, `src/backend/similar.rs` | "Similar channels" tab in a channel's info |

@@ -818,7 +818,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             }
             app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into()));
         }
-        Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. } => app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into())),
+        Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. } | Cmd::SetChatReactions { .. } | Cmd::SetMembersHidden { .. } | Cmd::SetAntiSpam { .. } => app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into())),
         Cmd::SetBirthday(birthday) => app.push_event(Ev::Profile(Profile { birthday, ..app.demo_profile() })),
         Cmd::ToggleUsername { name, active } => {
             let mut p = app.demo_profile();
@@ -1498,6 +1498,11 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             rights.change_info = false;
             d.rights = Some(rights);
             d.slowmode = Some(if id == 2 { 30 } else { 0 });
+            if id == 2 {
+                d.reactions = Some(crate::backend::ReactionMode::Some(vec!["👍".into(), "❤".into(), "🔥".into(), "🎉".into()]));
+                d.members_hidden = Some(false);
+                d.antispam = Some(true);
+            }
         }
         Some(ChatKind::Channel) => {
             d.about = "Головні новини технологій щодня.".into();
