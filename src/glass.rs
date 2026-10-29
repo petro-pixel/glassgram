@@ -603,7 +603,8 @@ pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: e
         .min_size(inner.size())
         .desired_width(inner.width());
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
-    child.set_clip_rect(inner.expand(2.0));
+    // Inside a scrolled box the field must stay clipped by it too.
+    child.set_clip_rect(inner.expand(2.0).intersect(ui.clip_rect()));
     let resp = egui::ScrollArea::vertical()
         .id_salt(("area-scroll", hint))
         .max_height(inner.height())
