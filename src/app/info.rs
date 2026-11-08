@@ -91,6 +91,10 @@ enum Do {
     Confirm(Confirm),
     /// The "Edit" box of a group or channel.
     Edit,
+    /// A page of the "Manage" box.
+    Manage(super::manage::Page),
+    /// Promote, restrict or remove a member, from their menu.
+    ManageMember(Member, super::manage::Pick),
     AddContact,
     Unblock,
     /// A new auto-delete timer, in seconds.
@@ -150,6 +154,14 @@ impl App {
             None => self.info = None,
             _ => {}
         }
+    }
+
+    /// Roles changed: the members tab asks again.
+    pub(super) fn reload_info_members(&mut self, peer: PeerId) {
+        let Some(i) = self.info.as_mut().filter(|i| i.peer == peer) else { return };
+        i.members_loaded = false;
+        let (query, admins) = i.requested.clone();
+        self.send(Cmd::LoadMembers { peer, query, admins });
     }
 
     pub(super) fn select_info_tab(&mut self, tab: Tab) {
@@ -300,6 +312,12 @@ impl App {
             if glass::icon_button(ui, edit, "info-edit", Icon::Pencil, false, true).on_hover_text(l!("Редагувати", "Edit")).clicked() {
                 todo.push(Do::Edit);
             }
+        } else if info.details.as_ref().is_some_and(|d| !super::manage::pages_for(d, chat.kind == ChatKind::Channel).is_empty()) {
+            // Admins who may not edit the chat still manage links, requests and members.
+            let manage = close.translate(vec2(-44.0, 0.0));
+            if glass::icon_button(ui, manage, "info-manage", Icon::Users, false, true).on_hover_text(l!("Керування", "Management")).clicked() {
+                todo.push(Do::Manage(super::manage::Page::Home));
+            }
         }
 
         let body = Rect::from_min_max(pos2(rect.left() + 8.0, top.bottom()), pos2(rect.right() - 8.0, rect.bottom() - 10.0));
@@ -397,6 +415,8 @@ impl App {
                 let d = self.info.as_ref().and_then(|i| i.details.clone()).unwrap_or_default();
                 self.open_chat_edit(peer, d);
             }
+            Do::Manage(page) => self.open_manage(peer, page),
+            Do::ManageMember(m, pick) => self.manage_member(peer, &m, pick),
             Do::AddContact => self.open_contact_form(Some((peer, &chat.title))),
             Do::Unblock => self.send(Cmd::Block { peer, blocked: false }),
             Do::Confirm(c) => {
@@ -497,6 +517,12 @@ impl App {
         if chat.kind == ChatKind::Saved {
             return;
         }
+        if d.requests > 0 && d.my_rights.is_some_and(|r| r.invite_users) {
+            let n = d.requests;
+            if info_row(ui, Icon::User, &lf!("Заявок на вступ: {n}", "{n} join requests"), l!("Чекають на схвалення", "Waiting for approval")).clicked() {
+                todo.push(Do::Manage(super::manage::Page::Requests));
+            }
+        }
         let icon = if d.notify.muted() { Icon::Muted } else { Icon::Bell };
         if info_row(ui, icon, l!("Сповіщення", "Notifications"), &d.notify.label()).clicked() {
             info.notify_open = !info.notify_open;
@@ -552,9 +578,19 @@ impl App {
         if info.members.is_empty() {
             empty(ui, l!("Нікого не знайдено", "Nobody found"));
         }
+        let channel = self.chats.iter().any(|c| c.id == info.peer && c.kind == ChatKind::Channel);
         for m in &info.members {
-            if self.member_row(ui, m).clicked() && m.chat.kind != ChatKind::Saved {
+            let resp = self.member_row(ui, m);
+            if resp.clicked() && m.chat.kind != ChatKind::Saved {
                 todo.push(Do::Member(m.chat.clone()));
+            }
+            // Admins act on members from the menu, as in Telegram Desktop.
+            if let Some(d) = info.details.as_ref().filter(|d| d.my_rights.is_some() && m.chat.kind != ChatKind::Saved) {
+                resp.context_menu(|ui| {
+                    if let Some(pick) = super::manage::member_menu(ui, m, d, channel) {
+                        todo.push(Do::ManageMember(m.clone(), pick));
+                    }
+                });
             }
         }
     }
@@ -869,7 +905,7 @@ pub(super) fn menu_row(ui: &mut Ui, label: &str, on: bool) -> egui::Response {
     resp
 }
 
-fn danger_row(ui: &mut Ui, label: &str) -> egui::Response {
+pub(super) fn danger_row(ui: &mut Ui, label: &str) -> egui::Response {
     action_row(ui, label, glass::danger())
 }
 

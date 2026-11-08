@@ -97,6 +97,10 @@ pub use gifts::Gift;
 pub use stories::{Story, StoryPeer};
 pub use birthdays::Birthday;
 pub use chatedit::{ChatRights, ReactionMode};
+mod manage;
+pub use manage::{AdminRights, PartList, Participant};
+mod invites;
+pub use invites::{InviteDraft, InviteLink, JoinRequest};
 pub use privacy::{GlobalPrivacy, PrivacyExceptions};
 pub use polls::NewPoll;
 pub use webapp::{WebAppKind, WebAppOpened};
@@ -423,6 +427,29 @@ pub enum Cmd {
     LoadDiscussionGroups(PeerId),
     /// Link a discussion group to a channel; `None` unlinks it.
     SetDiscussionGroup { peer: PeerId, group: Option<PeerId> },
+    /// Admins, restricted or removed members, or a member search (`channels.getParticipants`).
+    LoadParticipants { peer: PeerId, list: PartList },
+    /// Promote or change an admin; `None` dismisses (`channels.editAdmin`, `messages.editChatAdmin`).
+    EditAdmin { peer: PeerId, user: PeerId, rights: Option<AdminRights>, rank: String },
+    /// Personal restrictions of a member until `until` (0 — forever) (`channels.editBanned`).
+    RestrictMember { peer: PeerId, user: PeerId, rights: ChatRights, until: i32 },
+    /// Remove and ban a member (`channels.editBanned`; basic groups: `messages.deleteChatUser`).
+    BanMember { peer: PeerId, user: PeerId },
+    /// Lift a member's restrictions or ban.
+    UnbanMember { peer: PeerId, user: PeerId },
+    /// Our invite links, active and revoked (`messages.getExportedChatInvites`).
+    LoadInviteLinks(PeerId),
+    /// Create a link (`link: None`) or edit one (`exportChatInvite`, `editExportedChatInvite`).
+    SaveInviteLink { peer: PeerId, link: Option<String>, draft: InviteDraft },
+    RevokeInviteLink { peer: PeerId, link: String },
+    /// Delete a revoked link (`deleteExportedChatInvite`).
+    DeleteInviteLink { peer: PeerId, link: String },
+    /// Delete all our revoked links (`deleteRevokedExportedChatInvites`).
+    DeleteRevokedInvites(PeerId),
+    /// People asking to join (`getChatInviteImporters` with `requested`).
+    LoadJoinRequests(PeerId),
+    /// Approve or dismiss one request, or all of them with `user: None`.
+    AnswerJoinRequest { peer: PeerId, user: Option<PeerId>, approve: bool },
     /// What a `t.me/addlist/<slug>` link offers (`chatlists.checkChatlistInvite`).
     CheckChatlist(String),
     /// Chats added to a shared folder since we joined it.
@@ -621,6 +648,11 @@ pub enum Ev {
     ChatCreated(ChatInfo),
     AdminLog { peer: PeerId, entries: Vec<AdminLogEntry>, older: bool },
     DiscussionGroups { peer: PeerId, groups: Vec<ChatInfo> },
+    Participants { peer: PeerId, list: PartList, items: Vec<Participant> },
+    /// An admin, restriction or ban changed: lists showing members should reload.
+    ParticipantsChanged(PeerId),
+    InviteLinks { peer: PeerId, links: Vec<InviteLink> },
+    JoinRequests { peer: PeerId, list: Vec<JoinRequest> },
     /// A shared folder box to show.
     Chatlist(Chatlist),
 }
@@ -910,6 +942,8 @@ impl Worker {
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
             cmd @ (Cmd::LoadAdminLog { .. } | Cmd::SetSignatures { .. } | Cmd::LoadDiscussionGroups(_) | Cmd::SetDiscussionGroup { .. }) => self.admin_cmd(cmd).await,
+            cmd @ (Cmd::LoadParticipants { .. } | Cmd::EditAdmin { .. } | Cmd::RestrictMember { .. } | Cmd::BanMember { .. } | Cmd::UnbanMember { .. }) => self.manage_cmd(cmd).await,
+            cmd @ (Cmd::LoadInviteLinks(_) | Cmd::SaveInviteLink { .. } | Cmd::RevokeInviteLink { .. } | Cmd::DeleteInviteLink { .. } | Cmd::DeleteRevokedInvites(_) | Cmd::LoadJoinRequests(_) | Cmd::AnswerJoinRequest { .. }) => self.invites_cmd(cmd).await,
             cmd @ (Cmd::CheckChatlist(_) | Cmd::CheckChatlistUpdates(_) | Cmd::AskLeaveChatlist(_) | Cmd::ApplyChatlist { .. }) => self.chatlists_cmd(cmd).await,
             cmd @ Cmd::EditMedia { .. } => self.edit_media_cmd(cmd).await,
             cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,

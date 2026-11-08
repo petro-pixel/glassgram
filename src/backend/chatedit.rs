@@ -81,6 +81,11 @@ impl ChatRights {
     }
 
     fn banned(self) -> tl::enums::ChatBannedRights {
+        self.banned_until(0)
+    }
+
+    /// For one member: the same switches, lifted at `until_date` (0 — never).
+    pub(super) fn banned_until(self, until_date: i32) -> tl::enums::ChatBannedRights {
         // Media covers every kind of file, as the media switch in the official clients does.
         let media = !self.send_media;
         tl::types::ChatBannedRights {
@@ -107,7 +112,7 @@ impl ChatRights {
             edit_rank: false,
             send_reactions: false,
             manage_linked_peers: false,
-            until_date: 0,
+            until_date,
         }
         .into()
     }

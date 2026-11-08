@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{SavedTag, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{AdminRights, InviteDraft, InviteLink, JoinRequest, PartList, Participant, SavedTag, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -824,6 +824,8 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::LoadContentSettings => app.push_event(Ev::ContentSettings { enabled: false, can_change: true }),
         Cmd::SetSensitive(enabled) => app.push_event(Ev::ContentSettings { enabled, can_change: true }),
+        cmd @ (Cmd::LoadParticipants { .. } | Cmd::EditAdmin { .. } | Cmd::RestrictMember { .. } | Cmd::BanMember { .. } | Cmd::UnbanMember { .. }) => manage(app, cmd),
+        cmd @ (Cmd::LoadInviteLinks(_) | Cmd::SaveInviteLink { .. } | Cmd::RevokeInviteLink { .. } | Cmd::DeleteInviteLink { .. } | Cmd::DeleteRevokedInvites(_) | Cmd::LoadJoinRequests(_) | Cmd::AnswerJoinRequest { .. }) => invites(app, cmd),
         cmd @ (Cmd::LoadPassword | Cmd::CheckPassword(_) | Cmd::UpdatePassword { .. } | Cmd::ConfirmPasswordEmail(_) | Cmd::ResendPasswordEmail | Cmd::CancelPasswordEmail) => password(app, cmd),
         Cmd::EditMedia { peer, id, text, path, as_file, spoiler, above } => {
             let Some(old) = app.demo_history().find(|(p, _, _)| *p == peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == id)).cloned() else { return };
@@ -951,6 +953,8 @@ thread_local! {
         "demo".into(),
         PasswordState { has_password: true, hint: "demo".into(), has_recovery: false, email_pending: None },
     ));
+    /// Demo administration, the same for every chat we run.
+    static MANAGE: std::cell::RefCell<Option<DemoManage>> = const { std::cell::RefCell::new(None) };
     /// Demo blocked list: starts with one spammer, follows Block / Unblock.
     static BLOCKED: std::cell::RefCell<Vec<ChatInfo>> = std::cell::RefCell::new(vec![person(50, "Спам-розсилка", "", Presence::None)]);
 }
@@ -1532,6 +1536,8 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             d.slowmode = Some(if id == 2 { 30 } else { 0 });
             if id == 2 {
                 d.admin_log = true;
+                d.my_rights = Some(AdminRights { anonymous: false, ..AdminRights::all() });
+                d.requests = MANAGE.with_borrow_mut(|m| demo_manage(m).requests.len() as i32);
                 d.reactions = Some(crate::backend::ReactionMode::Some(vec!["👍".into(), "❤".into(), "🔥".into(), "🎉".into()]));
                 d.members_hidden = Some(false);
                 d.antispam = Some(true);
@@ -1549,6 +1555,7 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             d.can_link = true;
             d.admin_log = true;
             d.linked = Some((PeerId::user_unchecked(2), "Команда Rust 🦀".into()));
+            d.my_rights = Some(AdminRights::all());
         }
         _ => {}
     }
@@ -1564,6 +1571,7 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
         d.admins = Some(1);
         d.can_view_members = true;
         d.can_edit = true;
+        d.my_rights = Some(AdminRights::all());
     }
     // Channel 4 starts muted, as in the chat list.
     if id == 4 {
@@ -1662,4 +1670,147 @@ fn password(app: &mut App, cmd: Cmd) {
         _ => {}
     });
     app.push_event(Ev::Password(PASSWORD.with_borrow(|(_, s)| s.clone())));
+}
+
+/// Admins (with rights and titles), restrictions, removed people, join requests and our links.
+struct DemoManage {
+    admins: Vec<(i64, AdminRights, String)>,
+    restricted: Vec<(i64, ChatRights, i32)>,
+    removed: Vec<i64>,
+    requests: Vec<(i64, &'static str)>,
+    links: Vec<InviteLink>,
+}
+
+fn demo_manage(m: &mut Option<DemoManage>) -> &mut DemoManage {
+    m.get_or_insert_with(|| {
+        let now = jiff::Timestamp::now().as_second() as i32;
+        let mut no_media = ChatRights::from_banned(None);
+        (no_media.send_media, no_media.send_stickers) = (false, false);
+        let link = |link: &str, title: &str, usage, usage_limit, expire, requested, request_needed, revoked, permanent| InviteLink { link: link.into(), title: title.into(), usage, usage_limit, expire, requested, request_needed, revoked, permanent };
+        DemoManage {
+            admins: vec![(5, AdminRights { add_admins: false, ..AdminRights::new_admin() }, "модератор".into())],
+            restricted: vec![(103, no_media, now + 86400)],
+            removed: vec![104],
+            requests: vec![(105, "Пишу на Rust третій рік, хочу допомагати з egui"), (106, "")],
+            links: vec![
+                link("https://t.me/+GlassgramDemo", "", 14, 0, 0, 0, false, false, true),
+                link("https://t.me/+RustMeetup2026", "Мітап у Львові", 23, 50, now + 5 * 86400, 0, false, false, false),
+                link("https://t.me/+ApplyToTeam", "Заявки в команду", 3, 0, 0, 2, true, false, false),
+                link("https://t.me/+OldSpring", "Весняна розсилка", 41, 0, 0, 0, false, true, false),
+            ],
+        }
+    })
+}
+
+/// Demo people outside the chat list: removed members and those asking to join.
+fn demo_person(id: i64) -> ChatInfo {
+    let name = match id {
+        104 => "Богдан Ткач",
+        105 => "Наталія Гуменюк",
+        106 => "Віктор Савчук",
+        _ => return demo_members().into_iter().find(|m| m.chat.id == PeerId::user_unchecked(id)).map(|m| m.chat).unwrap_or_else(|| person(id, "?", "", Presence::None)),
+    };
+    person(id, name, "", Presence::Recently)
+}
+
+fn manage(app: &mut App, cmd: Cmd) {
+    let saved = |app: &mut App, peer| {
+        app.push_event(Ev::Notice(crate::i18n::l!("Зміни збережено", "Changes saved").into()));
+        app.push_event(Ev::ParticipantsChanged(peer));
+    };
+    let uid = |p: PeerId| p.bare_id_unchecked();
+    match cmd {
+        Cmd::LoadParticipants { peer, list } => {
+            let items = MANAGE.with_borrow_mut(|m| {
+                let m = demo_manage(m);
+                let part = |id: i64| Participant { chat: demo_person(id), owner: id == 1, rank: String::new(), admin: None, can_edit: false, restricted: None, by: String::new() };
+                let admin = |id: i64| match m.admins.iter().find(|a| a.0 == id) {
+                    Some(a) => Participant { admin: Some(a.1), rank: a.2.clone(), can_edit: true, by: "Олена Коваль".into(), ..part(id) },
+                    None if id == 1 => Participant { admin: Some(AdminRights::all()), ..part(id) },
+                    None => part(id),
+                };
+                match &list {
+                    PartList::Admins => std::iter::once(1).chain(m.admins.iter().map(|a| a.0)).map(admin).collect::<Vec<_>>(),
+                    PartList::Restricted => m.restricted.iter().map(|r| Participant { restricted: Some((r.1, r.2)), by: "Андрій".into(), ..part(r.0) }).collect(),
+                    PartList::Removed => m.removed.iter().map(|id| Participant { by: "Андрій".into(), ..part(*id) }).collect(),
+                    PartList::Search(q) => {
+                        let q = q.to_lowercase();
+                        let ids: Vec<i64> = demo_members().into_iter().filter(|x| x.chat.title.to_lowercase().contains(&q)).map(|x| uid(x.chat.id)).collect();
+                        ids.into_iter().filter(|id| !m.removed.contains(id)).map(admin).collect()
+                    }
+                }
+            });
+            app.push_event(Ev::Participants { peer, list, items });
+        }
+        Cmd::EditAdmin { peer, user, rights, rank } => {
+            MANAGE.with_borrow_mut(|m| {
+                let m = demo_manage(m);
+                m.admins.retain(|a| a.0 != uid(user));
+                if let Some(r) = rights {
+                    m.admins.push((uid(user), r, rank));
+                }
+            });
+            saved(app, peer);
+        }
+        Cmd::RestrictMember { peer, user, rights, until } => {
+            MANAGE.with_borrow_mut(|m| {
+                let m = demo_manage(m);
+                m.restricted.retain(|r| r.0 != uid(user));
+                m.restricted.push((uid(user), rights, until));
+            });
+            saved(app, peer);
+        }
+        Cmd::BanMember { peer, user } | Cmd::UnbanMember { peer, user } => {
+            let ban = matches!(cmd, Cmd::BanMember { .. });
+            MANAGE.with_borrow_mut(|m| {
+                let m = demo_manage(m);
+                m.restricted.retain(|r| r.0 != uid(user));
+                m.removed.retain(|r| *r != uid(user));
+                if ban {
+                    m.removed.push(uid(user));
+                }
+            });
+            saved(app, peer);
+        }
+        _ => {}
+    }
+}
+
+fn invites(app: &mut App, cmd: Cmd) {
+    let peer = match &cmd {
+        Cmd::LoadInviteLinks(p) | Cmd::DeleteRevokedInvites(p) | Cmd::LoadJoinRequests(p) => *p,
+        Cmd::SaveInviteLink { peer, .. } | Cmd::RevokeInviteLink { peer, .. } | Cmd::DeleteInviteLink { peer, .. } | Cmd::AnswerJoinRequest { peer, .. } => *peer,
+        _ => return,
+    };
+    let requests = matches!(cmd, Cmd::LoadJoinRequests(_) | Cmd::AnswerJoinRequest { .. });
+    MANAGE.with_borrow_mut(|m| {
+        let m = demo_manage(m);
+        match cmd {
+            Cmd::SaveInviteLink { link: None, draft, .. } => {
+                let n = m.links.len();
+                m.links.insert(1, InviteLink { link: format!("https://t.me/+DemoLink{n}"), ..demo_link(draft) });
+            }
+            Cmd::SaveInviteLink { link: Some(link), draft, .. } => {
+                if let Some(l) = m.links.iter_mut().find(|l| l.link == link) {
+                    *l = InviteLink { link, usage: l.usage, requested: l.requested, ..demo_link(draft) };
+                }
+            }
+            Cmd::RevokeInviteLink { link, .. } => m.links.iter_mut().filter(|l| l.link == link).for_each(|l| l.revoked = true),
+            Cmd::DeleteInviteLink { link, .. } => m.links.retain(|l| l.link != link),
+            Cmd::DeleteRevokedInvites(_) => m.links.retain(|l| !l.revoked),
+            Cmd::AnswerJoinRequest { user, .. } => m.requests.retain(|r| user.is_some_and(|u| u.bare_id_unchecked() != r.0)),
+            _ => {}
+        }
+    });
+    if requests {
+        let list = MANAGE.with_borrow_mut(|m| demo_manage(m).requests.iter().map(|(id, about)| JoinRequest { chat: demo_person(*id), date: "28.10 18:20".into(), about: (*about).into() }).collect());
+        app.push_event(Ev::JoinRequests { peer, list });
+    } else {
+        let links = MANAGE.with_borrow_mut(|m| demo_manage(m).links.clone());
+        app.push_event(Ev::InviteLinks { peer, links });
+    }
+}
+
+fn demo_link(d: InviteDraft) -> InviteLink {
+    InviteLink { title: d.title, usage_limit: d.usage_limit, expire: d.expire, request_needed: d.request_needed, ..Default::default() }
 }

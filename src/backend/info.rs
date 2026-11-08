@@ -8,7 +8,7 @@ use grammers_client::peer::Peer;
 use grammers_client::session::types::{PeerId, PeerKind, PeerRef};
 use grammers_client::tl;
 
-use super::{Birthday, ChatInfo, ChatRights, Cmd, Ev, ReactionMode, Worker, clock, convert, data_dir, found_chat, local, log_error, peer_title, remember_name};
+use super::{AdminRights, Birthday, ChatInfo, ChatRights, Cmd, Ev, ReactionMode, Worker, clock, convert, data_dir, found_chat, local, log_error, peer_title, remember_name};
 use crate::i18n::{l, lf};
 
 /// Smallest group whose member list may be hidden (`hidden_members_group_size_min` in the app config).
@@ -153,6 +153,12 @@ pub struct ChatDetails {
     pub ttl: i32,
     /// We may change that timer.
     pub can_ttl: bool,
+    /// Our admin rights here (the owner has them all); `None` for members.
+    pub my_rights: Option<AdminRights>,
+    /// A basic group: admins have no separate rights, members no restrictions.
+    pub basic_group: bool,
+    /// Join requests waiting for approval (admins who may invite).
+    pub requests: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -493,6 +499,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.notify = NotifyState::from_raw(&c.notify_settings);
                 d.invite = invite_link(c.exported_invite);
                 d.ttl = c.ttl_period.unwrap_or(0);
+                d.requests = c.requests_pending.unwrap_or(0);
                 d.reactions = Some(ReactionMode::from_raw(c.available_reactions.as_ref()));
                 if let tl::enums::ChatParticipants::Participants(p) = &c.participants {
                     d.members = Some(p.participants.len() as i32);
@@ -505,7 +512,9 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.can_edit = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.change_info);
                 d.can_ttl = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.delete_messages);
                 d.rights = Some(ChatRights::from_banned(c.default_banned_rights.as_ref()));
+                d.my_rights = AdminRights::of_chat(c.creator, c.admin_rights.as_ref());
             }
+            d.basic_group = true;
             if !d.can_edit {
                 d.reactions = None;
             }
@@ -525,6 +534,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.can_view_members = c.can_view_participants;
                 d.slowmode = Some(c.slowmode_seconds.unwrap_or(0));
                 d.ttl = c.ttl_period.unwrap_or(0);
+                d.requests = c.requests_pending.unwrap_or(0);
                 d.reactions = Some(ReactionMode::from_raw(c.available_reactions.as_ref()));
                 // The server refuses to hide members of small groups (PARTICIPANTS_TOO_FEW).
                 d.members_hidden = (c.participants_hidden || c.participants_count.unwrap_or(0) >= HIDDEN_MEMBERS_MIN).then_some(c.participants_hidden);
@@ -539,6 +549,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 d.admin = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.invite_users);
                 d.username = first_username(c.username, c.usernames);
                 d.admin_log = c.creator || c.admin_rights.is_some();
+                d.my_rights = AdminRights::of_chat(c.creator, c.admin_rights.as_ref());
                 d.can_edit = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.change_info);
                 d.can_ttl = c.creator || matches!(&c.admin_rights, Some(tl::enums::ChatAdminRights::Rights(a)) if a.delete_messages);
                 if c.megagroup {
