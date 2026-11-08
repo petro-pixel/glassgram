@@ -38,6 +38,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.6.0" date="2026-11-08">
+      <description>
+        <p>Chat list density, sensitive content filter, connected websites, auto-delete timers, data and storage with cache limits, emoji games, account self-destruct, an error log, media auto-download by chat type, chat reactions and anti-spam for admins, accessibility options (reduce transparency, increase contrast, reduce motion), glass context menus and tooltips, recent actions and author signatures in channels, shared folders by link.</p>
+      </description>
+    </release>
     <release version="0.5.1" date="2026-10-27">
       <description>
         <p>Bugfix: pinned chats and folders open on click again instead of being dragged, and their context menus work. The Windows executable carries a manifest and full version information.</p>
