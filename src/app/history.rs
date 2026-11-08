@@ -604,9 +604,8 @@ impl App {
         });
         if glass::icon_button(ui, sticker_btn, "stickers", Icon::Smile, self.stickers.open, true).on_hover_text(l!("Стікери", "Stickers")).clicked() {
             self.stickers.open = !self.stickers.open;
-            if self.stickers.open && !self.stickers.requested {
-                self.stickers.requested = true;
-                self.send(Cmd::LoadStickers);
+            if self.stickers.open {
+                self.request_stickers();
             }
         }
         if n_scheduled > 0 {
@@ -616,7 +615,7 @@ impl App {
             }
         }
         if self.stickers.open {
-            let panel = Rect::from_min_max(pos2((send_btn.right() - 380.0).max(rect.left()), above - 340.0), pos2(send_btn.right(), above));
+            let panel = Rect::from_min_max(pos2((send_btn.right() - 380.0).max(rect.left()), (above - 380.0).max(header.bottom() + 8.0)), pos2(send_btn.right(), above));
             self.sticker_view(ui, peer, panel);
         }
         if self.scheduled_open && n_scheduled > 0 {

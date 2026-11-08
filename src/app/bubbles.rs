@@ -56,6 +56,17 @@ pub(super) fn message_menu(ui: &mut Ui, m: &Msg, chat: Option<&ChatInfo>, action
     {
         *action = Some(Action::OpenExternal(m.id));
     }
+    if m.sticker.is_some() && m.id > 0 {
+        if glass::menu_button(ui, Icon::Smile, l!("Переглянути набір", "View sticker set")).clicked() {
+            *action = Some(Action::StickerSet(m.id));
+        }
+        if glass::menu_button(ui, Icon::Star, l!("Додати в обрані", "Add to Favourites")).clicked() {
+            *action = Some(Action::FaveSticker(m.id));
+        }
+    }
+    if !protected && m.id > 0 && m.media.as_ref().is_some_and(|i| i.kind == MediaKind::Gif) && glass::menu_button(ui, Icon::Bookmark, l!("Зберегти GIF", "Save GIF")).clicked() {
+        *action = Some(Action::SaveGif(m.id));
+    }
     if !protected && glass::menu_button(ui, Icon::Forward, l!("Переслати", "Forward")).clicked() {
         *action = Some(Action::Forward(m.id));
     }
@@ -142,8 +153,15 @@ pub(super) fn sticker_bubble(ui: &mut Ui, m: &Msg, emoji: &str, tex: Option<&Tex
         action = reaction_chips(ui, m.id, &m.reactions, r.left(), m.out, r.right());
     }
     resp.context_menu(|ui| message_menu(ui, m, look.chat, &mut action));
+    // A click on the sticker opens its set, as in Telegram Desktop.
+    let on_sticker = resp.hover_pos().is_some_and(|q| r.contains(q));
+    if on_sticker && m.id > 0 {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
     if resp.double_clicked() {
         action = Some(Action::Reply(m.id));
+    } else if resp.clicked() && on_sticker && m.id > 0 {
+        action = Some(Action::StickerSet(m.id));
     }
     action
 }

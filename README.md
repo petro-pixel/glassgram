@@ -138,6 +138,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/storage.rs`, `src/backend/storage.rs` | "Data and storage": cache usage by type, clearing, size limit |
 | `src/app/adminlog.rs`, `src/backend/adminlog.rs` | "Recent actions" admin log; author signatures and the discussion group of a channel |
 | `src/app/chatlists.rs`, `src/backend/chatlists.rs` | Shared folders by link: adding, new chats, leaving |
+| `src/app/stickers.rs`, `src/backend/stickers.rs` | The sticker panel, the sticker set box, set search and order, favourite stickers, saved GIFs |
 | `src/app/autodl.rs` | Automatic media download by chat type and video size; photos held back in `backend/media.rs` |
 | `src/app/autodelete.rs`, `src/backend/autodelete.rs` | Auto-delete timers: the default for new chats, a chat's own |
 | `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |
@@ -168,7 +169,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/icons.rs`, `assets/icons/` | Vector icons: Lucide SVG files (24×24), parsed with `roxmltree` and flattened with `kurbo` |
 | `src/i18n.rs`, `locales/` | UI language: `l!`/`lf!` for Ukrainian and English, JSON localisation files for the rest |
 | `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |
-| `src/demo.rs` | Demo data |
+| `src/demo.rs`, `src/demo/` | Demo data |
 | `build.rs` | Telegram API keys from the build environment (masked), the Windows exe icon |
 | `packaging/`, `.github/workflows/release.yml` | Windows installer (Inno Setup), Flatpak manifest, `.desktop`, metainfo, icons; release builds |
 
@@ -178,7 +179,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - Double-click — reply. Click the reply bar above the field to quote a part of the message or to reply in another chat.
 - Esc cancels a reply or edit and closes the sticker panel.
 - 📎 — send files (or drag them into the window, or paste them): a box shows what goes, with the caption (the composer text), "Compress images", "Hide with spoiler" and "Caption above media"; more files dropped on it join it. Right click on 📎: send without compression, create a poll or quiz. A photo or video under a spoiler opens with a click. Editing a photo or file ("Edit" in its menu): ⟳ in the "Editing" bar replaces it (right click — without compression), or drop a file on the chat.
-- 🙂 — sticker panel. An emoji typed alone offers matching stickers above the field.
+- 🙂 — sticker panel: emoji, GIF (saved GIFs), 🔍 (search sticker sets; empty — trending), ★ favourite and 🕒 recent stickers, then the installed sets; ⚙ — your sets: order (↑/↓) and removing. Right click on a sticker: add to / remove from favourites, view its set. A click on a sticker in a chat (or a `t.me/addstickers/…` link) opens its set: all stickers, "Add" / "Remove", copy link; right click on a sticker in a chat — "View sticker set", "Add to Favourites", on a GIF — "Save GIF". An emoji typed alone offers matching stickers above the field.
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.
 - Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat), shared media tabs, leave / clear history / delete chat.

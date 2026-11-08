@@ -554,14 +554,6 @@ impl Folder {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct StickerSetInfo {
-    pub id: i64,
-    pub title: String,
-    /// (document id, emoji)
-    pub stickers: Vec<(i64, String)>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Msg {
     pub id: i32,
