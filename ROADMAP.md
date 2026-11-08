@@ -3,7 +3,8 @@
 The goal is a full everyday Telegram client: everything the official apps can do, with a
 "liquid glass" interface. The list follows the MTProto API schema (layer 230: `messages`,
 `account`, `payments`, `stories`, `bots`, `phone`, `wallet`, `communities`…) and Telegram's
-updates up to autumn 2026 (rich text, AI editor, communities, gift crafting and so on).
+updates up to November 2026 (rich text, AI editor, communities, gift crafting, search tabs,
+HTML widgets in bots — Telegram Desktop 7.4).
 
 **Interface principle.** The structure of screens, menus and settings is copied from the official
 clients: they have been tuned on millions of people for years, and with as many settings as
@@ -32,6 +33,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P2** Name colour and profile background, emoji status (`account.updateColor`, `updateEmojiStatus`; partly Premium)
 - ✅ Account self-destruct when inactive: 1, 3, 6, 12, 18 or 24 months in Privacy and Security (`account.getAccountTTL` / `setAccountTTL`)
 - ⬜ **P2** Change number, delete account
+- ⬜ **P2** QR code of our public username with a choice of designs, to show or save (Telegram Desktop 7.3.2)
 - ✅ Connected websites in Privacy and Security → "Logged in with Telegram": site, its bot, browser, region and IP, last use; disconnect one or all (`account.getWebAuthorizations`, `resetWebAuthorization(s)`)
 - ⬜ **P3** Telegram Passport
 
@@ -52,6 +54,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Contact birthday reminders (`contacts.getBirthdays`): a card above the main list opens the chat, hidden until tomorrow with ×
 - ✅ Shared folders by link: `t.me/addlist/…` opens a box to add the folder with the ticked chats, "Check for new chats" in a shared folder's menu, deleting it offers the chats to leave (`chatlists.*`). Sharing our own folders by link is not done yet
 - ⬜ **P2** Communities (2026): linked groups, channels and bots as one structure (`communities.*`)
+- ⬜ **P1** Search tabs in global search (Telegram Desktop 7.3.4): chats, channels, apps (bots with mini apps, `getPopularAppBots`), public posts (`searchPosts`), media
 - ✅ Similar channels in a channel's info (`channels.getChannelRecommendations`): a tab with subscriber counts, a click opens the channel without joining, the Premium-only rest is counted
 - ✅ List density: compact, standard and large chat rows (Settings → Chat Settings → Chat list)
 
@@ -74,6 +77,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Reply quoting part of the text and reply in another chat, as in Telegram Desktop: a click on the reply bar opens the message to select the quote (with its formatting: `quote_text`, `quote_entities`, `quote_offset`) or to pick another chat (`reply_to_peer_id`). Works for text (queued and scheduled), photos, albums, files, voice and round messages, stickers, polls and inline results; such replies go as our own `sendMessage` / `sendMedia` / `sendMultiMedia`, plain ones keep the grammers path. Received quotes and replies to other chats are shown in the reply header; a quote the server rejects (the message was edited) falls back to a plain reply
 - ⬜ **P2** Chat wallpapers and themes, including custom and gift ones (`setChatWallPaper`, `setChatTheme`)
 - ⬜ **P2** Instant View for articles; 2026 rich text messages (`getRichMessage`, `translateRichMessage`)
+- ⬜ **P2** Rich message content (autumn 2026): inline documents, files and music in the text (music plays as a playlist), buttons inside messages with the link in a tooltip, quote replies to rich messages
+- ⬜ **P1** Messages we can't show yet: a placeholder with "Update the app" instead of an empty bubble (as the official apps since August 2026)
 - ⬜ **P2** AI summaries of long posts (`summarizeText`), voice transcription (`transcribeAudio`, Premium)
 - ⬜ **P2** Message effects (`availableEffects`), timed and view-once messages
 - ⬜ **P2** Member tags (2026), fact checks (`getFactCheck`), greeting messages and buttons in messages (August 2026)
@@ -95,6 +100,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Editing media messages: the caption (may be left empty), and the photo or file replaced from the "Editing" bar (right click — without compression) or by dropping a file on the chat; keeps the spoiler and caption position (`messages.editMessage` with `media`), the old cached pictures and files are dropped
 - ⬜ **P2** Sending as a channel (`saveDefaultSendAs`), "send when online", location and contact
 - ⬜ **P2** Spell checking (Hunspell dictionaries, works on every OS)
+- ⬜ **P2** Dropping a folder or several files sends them as one archive (Telegram Desktop 7.2.6)
+- ⬜ **P2** Emoji up to Unicode 17 in the panel, suggestions and big-emoji messages
 - ⬜ **P3** AI text editor: translate, rewrite, tones (`composeMessageWithAI`, `aicompose.*`)
 - ⬜ **P3** Paid messages (`updatePaidMessagesPrice`, `allow_paid_stars`)
 
@@ -109,8 +116,8 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Cache management in Settings → Advanced → "Data and storage": what photos, videos and GIFs, voice and music, stickers, profile photos and stories take, clearing each type or all, a cache size limit (1, 5, 20 GB or none) kept by removing the oldest files on every connection
 - ✅ Media auto-download (Settings → Advanced): photos, videos and audio separately for private chats, groups and channels, videos and GIFs up to 10 / 50 / 200 MB or any size; held-back media show a download arrow and load on a click. Not by network type (a desktop has no metered-network signal on every OS)
 - ⬜ **P2** Music player with a queue and a playback bar; music in the profile (`saveMusic`, 2026)
-- ⬜ **P2** Simple photo editor: crop, rotate, draw; Live Photos (2026)
-- ⬜ **P3** Creating your own sticker sets (`stickers.createStickerSet`)
+- ⬜ **P2** Simple photo editor: crop, rotate, draw, text with fonts and styles; editing GIFs before sending; Live Photos (2026)
+- ⬜ **P3** Creating your own sticker sets (`stickers.createStickerSet`), custom emoji made from video stickers
 
 ## 6. Groups and channels
 - ✅ **P0** Chat info column (click the header): description/bio, @username, phone, invite link (`exportChatInvite`), member and admin list with search, click opens a private chat (`getFullUser` / `getFullChat` / `getFullChannel`, `channels.getParticipants`)
@@ -121,6 +128,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ "Recent actions" admin log (`getAdminLog`, paged), linking and unlinking a channel's discussion group (`getGroupsForDiscussion`, `setDiscussionGroup`), author signatures in channels (`toggleSignatures`) — in the "Edit" box
 - ⬜ **P2** Channel boosts (`premium.applyBoost`), transferring group ownership (2026)
 - ⬜ **P3** Channel statistics (`stats.*`), channel auto-translation, paid messages, managing sponsored messages
+- ⬜ **P3** AI guardians that screen new members, chat automation rules (2026)
 
 ## 7. Bots and mini apps
 - ✅ Inline mode, callback and URL buttons, regular bot keyboard
@@ -133,6 +141,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P2** Bots in the attachment menu (`getAttachMenuBots`), logging in to websites via Telegram (`requestUrlAuth`)
 - ⬜ **P2** Payments in bots: invoices, payment form, Stars (`payments.getPaymentForm`, `sendStarsForm`)
 - ⬜ **P2** Guest AI bots that can be mentioned in any chat (2026); ephemeral bot replies in groups (`ephemeral.*`)
+- ⬜ **P2** HTML widgets in bot messages (Telegram Desktop 7.4, November 2026)
 - ⬜ **P3** Games (`setGameScore`), business bots, verification by bots, referral programs
 
 ## 8. Stories
@@ -145,7 +154,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Gifts in profiles: a "Gifts" tab with the gift stickers, price or collectible number, sender and note on hover (`getSavedStarGifts`)
 - ⬜ **P2** Stars balance, transaction history, top-up via invoice (`getStarsStatus`, `getStarsTransactions`)
 - ⬜ **P2** Sending gifts (`getStarGifts`, `checkCanSendGift`), paid ⭐ reactions and paid media
-- ⬜ **P3** Unique gifts: upgrading, transferring, reselling, collections, auctions, crafting (2026)
+- ⬜ **P3** Unique gifts: upgrading, transferring, reselling, collections, auctions, crafting, signed marketplace gifts (2026); moving them to a TON Money card — with the wallet review
 - ⬜ **P3** Giveaways, Premium gift codes, channel subscriptions for Stars
 - ⬜ **P3** TON wallet and Fragment collectible usernames (`wallet.*`, `fragment.*`) — only after a separate security review
 
@@ -154,7 +163,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ⬜ **P1** 1-on-1 voice calls: `phone.requestCall` / `acceptCall` / `confirmCall`, DH key exchange, call window, incoming call as a notification
 - ⬜ **P2** Video calls and screen sharing
 - ⬜ **P2** Group calls and live streams in channels (`phone.joinGroupCall`); end-to-end encrypted conference calls (`createConferenceCall`)
-- ⬜ **P2** Call log, quality rating
+- ⬜ **P2** Call log, rating a finished call with stars in the call panel
 - ⬜ **P3** RTMP streams, call recording
 
 ## 11. Privacy and security
@@ -169,7 +178,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Hardening against untrusted content (audit 2026-10): links open only https/http/mailto/tg; sender file names can't leave Downloads; received programs and scripts are shown in their folder, not run; mini apps can't open local paths, read the clipboard or navigate to `file:`; recordings live in an owner-only temp folder
 - ✅ Confirmation for hidden links whose text differs from the target (`[text](url)`): the real address in a tooltip and in the "Open this link?" box, as in Telegram Desktop
 - ✅ Warning before opening a received program or script: "Run this file?" with "Show in folder" as the safe default
-- ⬜ **P2** Mini app permissions asked from the user: clipboard, location, contact, biometry (`requestWriteAccess`, `requestContact`)
+- ⬜ **P2** Mini app permissions asked from the user: clipboard, location, contact, biometry, camera and microphone (Telegram Desktop 7.3.5) (`requestWriteAccess`, `requestContact`)
 
 ## 12. Notifications
 - ✅ System notifications, counter in the title, tray with an unread dot
