@@ -86,6 +86,8 @@ mod chatedit;
 mod birthdays;
 mod botstart;
 mod similar;
+mod searchtabs;
+pub use searchtabs::PostsFlood;
 mod saved;
 pub use saved::SavedTag;
 mod stories;
@@ -177,6 +179,15 @@ pub enum Cmd {
     ResolveUsername(String),
     /// Search public groups, channels and bots by name.
     SearchPublic(String),
+    /// Channels search tab: public broadcast channels by name (`contacts.search`).
+    SearchChannels(String),
+    /// Apps search tab: popular mini app bots (`bots.getPopularAppBots`) matching the query,
+    /// plus bots found by name.
+    SearchApps(String),
+    /// Posts search tab: the free daily quota for this query (`channels.checkSearchPostsFlood`).
+    CheckPostsFlood(String),
+    /// Posts search tab: public channel posts (`channels.searchPosts`); never paid with Stars.
+    SearchPosts(String),
     /// Join a public group or channel.
     Join(PeerId),
     LoadSessions,
@@ -501,6 +512,14 @@ pub enum Ev {
     /// A public chat found by username (may not be in the dialog list).
     ChatFound(ChatInfo),
     PublicResults { query: String, chats: Vec<ChatInfo> },
+    /// Channels search tab results.
+    ChannelResults { query: String, chats: Vec<ChatInfo> },
+    /// Apps search tab results: bots with mini apps.
+    AppResults { query: String, bots: Vec<ChatInfo> },
+    /// Free public post searches left for `query`.
+    PostsFlood { query: String, flood: PostsFlood },
+    /// Public posts; `error` is the server's refusal (limits, Premium), shown in the tab.
+    PostResults { query: String, hits: Vec<SearchHit>, flood: Option<PostsFlood>, error: Option<String> },
     Joined(PeerId),
     Sessions(Vec<Session>),
     Privacy(PrivacyKey, PrivacyState),
@@ -900,6 +919,7 @@ impl Worker {
             cmd @ (Cmd::StoreQueued(..) | Cmd::DropQueued(..)) => self.queue_cmd(cmd).await,
             cmd @ (Cmd::LoadPrivacy | Cmd::SetPrivacy { .. }) => self.privacy_rules_cmd(cmd).await,
             cmd @ (Cmd::SearchPublic(..) | Cmd::ResolveUsername(..)) => self.search_cmd(cmd).await,
+            cmd @ (Cmd::SearchChannels(..) | Cmd::SearchApps(..) | Cmd::CheckPostsFlood(..) | Cmd::SearchPosts(..)) => self.search_tabs_cmd(cmd).await,
             cmd @ (Cmd::LoadFullPhoto { .. } | Cmd::LoadPhoto { .. } | Cmd::SetAutoDownload(_) | Cmd::Download { .. } | Cmd::LoadMedia { .. } | Cmd::MarkListened { .. } | Cmd::LoadStickerThumbs(..)) => self.media_cmd(cmd).await,
             cmd @ (Cmd::OpenChat(..) | Cmd::OpenAt { .. } | Cmd::LoadOlder { .. } | Cmd::Typing(..)) => self.history_cmd(cmd).await,
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
@@ -1444,9 +1464,16 @@ impl Worker {
             }
             None => {
                 let mut iter = client.search_all_messages().query(&query).limit(SEARCH_LIMIT);
+                // The Media search tab: photos and videos from all chats, drawn as a grid.
+                if let Some(k) = kind {
+                    iter = iter.filter(k.filter());
+                }
                 while let Some(m) = iter.next().await.map_err(err)? {
                     if let Ok(Some(r)) = m.peer_ref().await {
                         self.refs.lock().unwrap().entry(r.id).or_insert(r);
+                    }
+                    if let (Some(_), Some(loader)) = (kind, &self.loader) {
+                        loader.message_photo(m.peer_id(), &m);
                     }
                     let (chat, kind) = m.peer().map_or_else(|| (String::new(), ChatKind::User), |p| (peer_title(p), peer_kind(p)));
                     hits.push(SearchHit { chat, kind, msg: convert(&m, &self.names) });

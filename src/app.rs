@@ -81,6 +81,7 @@ mod dice;
 mod selfdestruct;
 mod adminlog;
 mod chatlists;
+mod searchtabs;
 mod autodl;
 mod spoiler;
 use chatlist::{Reorder, sort_chats};
@@ -575,6 +576,7 @@ pub struct App {
     chat_edit: Option<chatedit::ChatEdit>,
     admin_log: adminlog::AdminLog,
     chatlist_box: Option<chatlists::ChatlistBox>,
+    search_tabs: searchtabs::SearchTabs,
     chat_photo_tx: mpsc::Sender<(PeerId, PathBuf)>,
     chat_photo_rx: mpsc::Receiver<(PeerId, PathBuf)>,
     /// Send queue (`app/outbox.rs`) and the last local (negative) bubble id.
@@ -819,6 +821,7 @@ impl App {
             chat_edit: None,
             admin_log: Default::default(),
             chatlist_box: None,
+            search_tabs: Default::default(),
             session_extras: false,
             birthdays: birthdays::Birthdays::default(),
             bot_start: HashMap::new(),
@@ -871,6 +874,7 @@ impl App {
 
     fn handle_event(&mut self, ev: Ev) {
         match ev {
+            ev @ (Ev::ChannelResults { .. } | Ev::AppResults { .. } | Ev::PostsFlood { .. } | Ev::PostResults { .. } | Ev::SearchResults { peer: None, kind: Some(_), .. }) => self.search_tabs_event(ev),
             ev @ (Ev::Dialogs(..) | Ev::Folders(..) | Ev::PublicResults { .. } | Ev::ChatFound(..) | Ev::Joined(..) | Ev::ChatTitle { .. } | Ev::SearchResults { .. }) => self.list_event(ev),
             ev @ (Ev::Exported { .. } | Ev::ExportProgress { .. } | Ev::Scheduled { .. }) => self.dialogs_event(ev),
             ev @ (Ev::InlineResults { .. } | Ev::Stickers(..) | Ev::UploadProgress { .. } | Ev::UploadDone(..)) => self.composer_event(ev),

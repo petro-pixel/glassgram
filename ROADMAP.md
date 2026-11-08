@@ -39,6 +39,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Dialogs: unread, pinned, archive, search by name, cached avatars
 - ✅ Folders: showing, creating, editing, deleting
 - ✅ Global message search; public chats by name, @mention or t.me link; "Join"
+- ✅ **P1** Search tabs in global search (Telegram Desktop 7.3): glass capsules under the search field — Chats, Channels (ours plus public ones, `contacts.search` with `broadcasts`), Apps (popular mini app bots, `bots.getPopularAppBots`, plus bots by name), Posts (public channel posts, `channels.searchPosts`, `#hashtag` too; started with Enter or the button since searches are counted, the free daily quota from `checkSearchPostsFlood`, never paid with Stars), Media (`messages.searchGlobal` with the photo/video filter as a grid). Opening an app's main mini app directly and loading more pages are not done yet
 - ✅ Pin, mute, read / unread, archive from the menu
 - ✅ Synced drafts, "typing…", "online" / "last seen…"
 - ✅ Forums and topics (list, create, rename, close); channel comments
