@@ -55,7 +55,6 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Contact birthday reminders (`contacts.getBirthdays`): a card above the main list opens the chat, hidden until tomorrow with ×
 - ✅ Shared folders by link: `t.me/addlist/…` opens a box to add the folder with the ticked chats, "Check for new chats" in a shared folder's menu, deleting it offers the chats to leave (`chatlists.*`). Sharing our own folders by link is not done yet
 - ⬜ **P2** Communities (2026): linked groups, channels and bots as one structure (`communities.*`)
-- ⬜ **P1** Search tabs in global search (Telegram Desktop 7.3.4): chats, channels, apps (bots with mini apps, `getPopularAppBots`), public posts (`searchPosts`), media
 - ✅ Similar channels in a channel's info (`channels.getChannelRecommendations`): a tab with subscriber counts, a click opens the channel without joining, the Premium-only rest is counted
 - ✅ List density: compact, standard and large chat rows (Settings → Chat Settings → Chat list)
 
