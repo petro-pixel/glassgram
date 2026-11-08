@@ -26,6 +26,8 @@ pub(super) struct ChatEdit {
     admin_log: bool,
     /// Groups offered for linking, once asked for.
     groups: Option<Vec<ChatInfo>>,
+    /// Sections of the "Manage" box our rights allow, and waiting join requests.
+    manage: (Vec<super::manage::Page>, i32),
 }
 
 /// Switches shown only when we may change them.
@@ -50,11 +52,13 @@ impl App {
     /// Opens the box with what the info panel has loaded.
     pub(super) fn open_chat_edit(&mut self, peer: PeerId, d: ChatDetails) {
         let title = self.chats.iter().find(|c| c.id == peer).map(|c| c.title.clone()).unwrap_or_default();
+        let channel = self.chats.iter().any(|c| c.id == peer && c.kind == ChatKind::Channel);
+        let manage = (super::manage::pages_for(&d, channel), d.requests);
         let (about, rights, slowmode) = (d.about, d.rights, d.slowmode);
         let more = More { reactions: d.reactions, members_hidden: d.members_hidden, antispam: d.antispam, signatures: d.signatures };
         let was = (title.clone(), about.clone(), rights, slowmode);
         let (linked, can_link, admin_log) = (d.linked, d.can_link, d.admin_log);
-        self.chat_edit = Some(ChatEdit { peer, title, about, rights, slowmode, was_more: more.clone(), more, was, linked, can_link, admin_log, groups: None });
+        self.chat_edit = Some(ChatEdit { peer, title, about, rights, slowmode, was_more: more.clone(), more, was, linked, can_link, admin_log, groups: None, manage });
     }
 
     pub(super) fn on_discussion_groups(&mut self, peer: PeerId, groups: Vec<ChatInfo>) {
@@ -101,7 +105,7 @@ impl App {
         let mut child = ui.new_child(UiBuilder::new().max_rect(body));
         child.set_clip_rect(body);
         let mut pick_photo = false;
-        let (mut link_cmd, mut recent) = (None, false);
+        let (mut link_cmd, mut recent, mut manage) = (None, false, None);
         egui::ScrollArea::vertical().id_salt("chat-edit").auto_shrink(false).show(&mut child, |ui| {
             ui.spacing_mut().item_spacing.y = 6.0;
             let w = ui.available_width() - 8.0;
@@ -172,6 +176,15 @@ impl App {
             if e.can_link || e.linked.is_some() {
                 link_cmd = discussion_section(ui, e, channel);
             }
+            if !e.manage.0.is_empty() {
+                section_title(ui, l!("Керування", "Management"));
+            }
+            for p in &e.manage.0 {
+                let r = ui.allocate_exact_size(vec2(w, 36.0), Sense::hover()).0;
+                if glass::button(ui, r, ("chat-edit-manage", p.label(false, 0)), &p.label(channel, e.manage.1), false, true).clicked() {
+                    manage = Some(*p);
+                }
+            }
             if e.admin_log {
                 ui.add_space(6.0);
                 let r = ui.allocate_exact_size(vec2(w, 36.0), Sense::hover()).0;
@@ -193,6 +206,11 @@ impl App {
         if recent {
             self.chat_edit = None;
             self.open_admin_log(peer);
+            return;
+        }
+        if let Some(page) = manage {
+            self.chat_edit = None;
+            self.open_manage(peer, page);
             return;
         }
         if cancel || esc {

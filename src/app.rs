@@ -81,6 +81,8 @@ mod storage;
 mod dice;
 mod selfdestruct;
 mod adminlog;
+mod manage;
+mod invites;
 mod chatlists;
 mod stickers;
 mod searchtabs;
@@ -591,6 +593,7 @@ pub struct App {
     /// "Edit group / channel" box and the photos picked in it.
     chat_edit: Option<chatedit::ChatEdit>,
     admin_log: adminlog::AdminLog,
+    manage: manage::Manage,
     chatlist_box: Option<chatlists::ChatlistBox>,
     search_tabs: searchtabs::SearchTabs,
     chat_photo_tx: mpsc::Sender<(PeerId, PathBuf)>,
@@ -830,6 +833,7 @@ impl App {
             photo_rx,
             chat_edit: None,
             admin_log: Default::default(),
+            manage: Default::default(),
             chatlist_box: None,
             search_tabs: Default::default(),
             session_extras: false,
@@ -1007,6 +1011,7 @@ impl App {
             Ev::Websites(list) => self.on_websites(list),
             Ev::AdminLog { peer, entries, older } => self.on_admin_log(peer, entries, older),
             Ev::DiscussionGroups { peer, groups } => self.on_discussion_groups(peer, groups),
+            ev @ (Ev::Participants { .. } | Ev::ParticipantsChanged(_) | Ev::InviteLinks { .. } | Ev::JoinRequests { .. }) => self.manage_event(ev),
             Ev::Chatlist(list) => self.on_chatlist(list),
             Ev::CacheUsage(usage) => self.on_cache_usage(usage),
             Ev::AccountTtl(days) => self.on_account_ttl(days),
@@ -1693,6 +1698,7 @@ impl eframe::App for App {
         self.send_box_view(ui);
         self.chat_edit_view(ui);
         self.admin_log_view(ui);
+        self.manage_view(ui);
         self.chatlist_view(ui);
         self.sticker_set_box(ui);
         self.privacy_pick_view(ui);

@@ -139,6 +139,8 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/dice.rs`, `src/backend/dice.rs` | Emoji games (🎲 🎯 🏀 ⚽ 🎰 🎳): sending and outcomes |
 | `src/app/storage.rs`, `src/backend/storage.rs` | "Data and storage": cache usage by type, clearing, size limit |
 | `src/app/adminlog.rs`, `src/backend/adminlog.rs` | "Recent actions" admin log; author signatures and the discussion group of a channel |
+| `src/app/manage.rs`, `src/backend/manage.rs` | "Manage" box: administrators and their rights and titles, restricted and removed members |
+| `src/app/invites.rs`, `src/backend/invites.rs` | Invite links (name, expiry, limit, approval; revoke, delete) and join requests |
 | `src/app/chatlists.rs`, `src/backend/chatlists.rs` | Shared folders by link: adding, new chats, leaving |
 | `src/app/stickers.rs`, `src/backend/stickers.rs` | The sticker panel, the sticker set box, set search and order, favourite stickers, saved GIFs |
 | `src/app/autodl.rs` | Automatic media download by chat type and video size; photos held back in `backend/media.rs` |
@@ -184,7 +186,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - 🙂 — sticker panel: emoji, GIF (saved GIFs), 🔍 (search sticker sets; empty — trending), ★ favourite and 🕒 recent stickers, then the installed sets; ⚙ — your sets: order (↑/↓) and removing. Right click on a sticker: add to / remove from favourites, view its set. A click on a sticker in a chat (or a `t.me/addstickers/…` link) opens its set: all stickers, "Add" / "Remove", copy link; right click on a sticker in a chat — "View sticker set", "Add to Favourites", on a GIF — "Save GIF". An emoji typed alone offers matching stickers above the field.
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.
-- Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat), shared media tabs, leave / clear history / delete chat.
+- Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat; admins right-click a member to promote, restrict or remove them), shared media tabs, leave / clear history / delete chat. Admins open invite links, join requests, administrators, restricted and removed users from the "Edit" box (pencil) or, without the right to edit, from the people icon in the header.
 - Composer markup: `**bold**`, `__italic__`, `~~strike~~`, `||spoiler||`, `` `code` ``, ```` ```block``` ````, `[text](https://…)`.
 - Clicking a hashtag searches for it in the chat; clicking a bot command sends it.
 - `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way.
