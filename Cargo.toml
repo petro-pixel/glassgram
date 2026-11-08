@@ -75,3 +75,13 @@ no-key-screen = []
 [build-dependencies]
 # The exe icon on Windows (MSVC resource compiler); pure Rust, does nothing elsewhere.
 winresource = "0.1"
+
+# Smaller, stripped release binaries. `strip` removes symbol names (no readable function
+# names in the shipped exe); LTO + one codegen unit + size-level opt shrink the code; `abort`
+# drops the unwinding tables (the panic hook in errlog.rs still runs, we never catch_unwind).
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
