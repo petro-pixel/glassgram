@@ -640,6 +640,9 @@ pub struct Msg {
     /// In Saved Messages: the chat it was saved from. Not cached: source tabs load their own pages.
     #[serde(skip)]
     pub saved_from: Option<PeerId>,
+    /// Content we can't draw yet (games, invoices, giveaways…): the bubble offers an update.
+    #[serde(default)]
+    pub unsupported: bool,
 }
 
 impl Msg {
@@ -685,6 +688,7 @@ impl Msg {
             noforwards: false,
             webpage: None,
             saved_from: None,
+            unsupported: false,
         }
     }
 

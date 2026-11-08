@@ -31,6 +31,9 @@ mod video;
 mod viewer;
 mod webview;
 
+/// Where new versions are published; the "Check for updates" button opens it.
+pub const RELEASES_URL: &str = "https://github.com/petro-pixel/glassgram/releases/latest";
+
 fn main() -> eframe::Result {
     errlog::install_panic_hook();
     // The mini app window runs as a separate process of the same executable.

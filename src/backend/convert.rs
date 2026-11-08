@@ -195,10 +195,17 @@ pub(super) fn forwarded(m: &Message, names: &Names) -> Option<String> {
     })
 }
 
+/// Media kinds without a bubble of their own yet; the newest server types arrive as `Unsupported`.
+fn unsupported(m: &Message) -> bool {
+    use tl::enums::MessageMedia as M;
+    matches!(&m.raw, tl::enums::Message::Message(x) if matches!(x.media,
+        Some(M::Unsupported | M::Game(_) | M::Invoice(_) | M::Story(_) | M::Giveaway(_) | M::GiveawayResults(_) | M::PaidMedia(_) | M::VideoStream(_))))
+}
+
 pub(super) fn convert(m: &Message, names: &Names) -> Msg {
     let photo = matches!(m.media(), Some(Media::Photo(_)));
     // Polls, places and contacts are drawn as cards: no label needed in the text.
-    let card = matches!(m.media(), Some(Media::Poll(_) | Media::Geo(_) | Media::GeoLive(_) | Media::Venue(_) | Media::Contact(_)));
+    let card = unsupported(m) || matches!(m.media(), Some(Media::Poll(_) | Media::Geo(_) | Media::GeoLive(_) | Media::Venue(_) | Media::Contact(_)));
     let text = match (media_label(m), m.text().is_empty()) {
         _ if photo || card => m.text().to_owned(),
         (Some(label), true) => label.to_owned(),
@@ -294,10 +301,11 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         noforwards: matches!(&m.raw, tl::enums::Message::Message(x) if x.noforwards),
         webpage: suggest::message_web_page(m),
         saved_from: saved::saved_from(&m.raw),
+        unsupported: unsupported(m),
     };
     // Hidden by Telegram for everyone (or for desktop apps): show why instead of the content.
     match restriction(&m.raw) {
-        Some(reason) => Msg { text: reason, spans: Vec::new(), photo: false, file: None, sticker: None, media: None, poll: None, geo: None, contact: None, webpage: None, buttons: Vec::new(), video_sticker: false, lottie: false, ..msg },
+        Some(reason) => Msg { text: reason, spans: Vec::new(), photo: false, file: None, sticker: None, media: None, poll: None, geo: None, contact: None, webpage: None, buttons: Vec::new(), video_sticker: false, lottie: false, unsupported: false, ..msg },
         None => msg,
     }
 }

@@ -78,7 +78,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P2** Chat wallpapers and themes, including custom and gift ones (`setChatWallPaper`, `setChatTheme`)
 - ⬜ **P2** Instant View for articles; 2026 rich text messages (`getRichMessage`, `translateRichMessage`)
 - ⬜ **P2** Rich message content (autumn 2026): inline documents, files and music in the text (music plays as a playlist), buttons inside messages with the link in a tooltip, quote replies to rich messages
-- ⬜ **P1** Messages we can't show yet: a placeholder with "Update the app" instead of an empty bubble (as the official apps since August 2026)
+- ✅ Messages we can't show yet (`messageMediaUnsupported`, games, invoices, giveaways, paid media, forwarded stories, streams): a card "Glassgram can't show this message yet" with "Check for updates" (the releases page) instead of an empty bubble, as the official apps do
 - ⬜ **P2** AI summaries of long posts (`summarizeText`), voice transcription (`transcribeAudio`, Premium)
 - ⬜ **P2** Message effects (`availableEffects`), timed and view-once messages
 - ⬜ **P2** Member tags (2026), fact checks (`getFactCheck`), greeting messages and buttons in messages (August 2026)

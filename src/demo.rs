@@ -1272,6 +1272,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
             msgs.push(Msg { id: 73, dice: Some(("🎰".into(), 64)), ..base(27, "Олена") });
             msgs.push(Msg { id: 74, photo: true, spoiler: true, text: "Не відкривай, якщо не дивився фінал 🙈".into(), ..base(27, "Олена") });
             msgs.push(Msg { id: 75, photo: true, invert_media: true, text: "Підпис над фото, як у Telegram".into(), ..base(27, "") });
+            msgs.push(Msg { id: 76, unsupported: true, ..base(27, "Олена") });
         }
         9 => {
             // A long history: shows virtualization (only bubbles near the screen are drawn).

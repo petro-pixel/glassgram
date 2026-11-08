@@ -195,6 +195,9 @@ pub(super) fn card_height(ui: &Ui, m: &Msg, w: f32, chosen: &[Vec<u8>]) -> f32 {
     if m.contact.is_some() {
         return 52.0 * card_k();
     }
+    if m.unsupported {
+        return 84.0 * card_k();
+    }
     0.0
 }
 
@@ -301,6 +304,17 @@ pub(super) fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<
         }
         if resp.clicked() {
             action = Some(Action::Copy2(phone.clone(), l!("Номер скопійовано", "Number copied")));
+        }
+    } else if m.unsupported {
+        // As the official apps do for content their version can't show.
+        icons::draw(&p, Rect::from_min_size(rect.min + vec2(0.0, 2.0 * k), vec2(20.0 * k, 20.0 * k)), Icon::Info, rgba(ink(), 200));
+        let x = 28.0 * k;
+        let note = l!("Glassgram поки не вміє показувати це повідомлення.", "Glassgram can't show this message yet.");
+        let g = p.layout(note.to_owned(), FontId::proportional(14.0 * k), ink(), rect.width() - x);
+        p.galley(pos2(rect.left() + x, rect.top() + 2.0 * k), g, ink());
+        let b = Rect::from_min_size(pos2(rect.left(), rect.bottom() - 34.0 * k), vec2(rect.width(), 34.0 * k));
+        if glass::button(ui, b, ("update", m.id), l!("Перевірити оновлення", "Check for updates"), false, true).clicked() {
+            action = Some(Action::Open(crate::RELEASES_URL.to_owned()));
         }
     }
     action
