@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{SavedTag, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit};
+use crate::backend::{SavedTag, PostsFlood, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 mod stickers;
@@ -428,6 +428,10 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 let title = app.demo_chat(p).map(|c| (c.title.clone(), c.kind)).unwrap_or((String::new(), ChatKind::User));
                 hits = demo_shared(app, p, k).into_iter().filter(|m| m.text.to_lowercase().contains(&q)).map(|m| SearchHit { chat: title.0.clone(), kind: title.1, msg: m }).collect();
             }
+            // The Media search tab: photos and videos of every chat, by caption or chat name.
+            if let (Some(k), None) = (kind, peer) {
+                hits = search_media(app, k, &q);
+            }
             // Demo messages carry only the sender's name: match it against the member picked.
             if let Some((_, name, _, _)) = from.and_then(|f| MENTIONABLE.into_iter().find(|m| PeerId::user_unchecked(m.0) == f)) {
                 let first = name.split(' ').next().unwrap_or_default();
@@ -642,6 +646,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             ];
             app.push_event(Ev::Gifts { peer, gifts, total: 5 });
         }
+        cmd @ (Cmd::SearchChannels(_) | Cmd::SearchApps(_) | Cmd::CheckPostsFlood(_) | Cmd::SearchPosts(_)) => search_tabs(app, cmd),
         Cmd::LoadSimilarChannels(peer) => {
             let chats = [(61, "Rust Weekly", "12 480"), (62, "Дизайн щодня", "8 115"), (63, "Open Source UA", "3 902")]
                 .into_iter()
@@ -1659,4 +1664,75 @@ fn password(app: &mut App, cmd: Cmd) {
         _ => {}
     });
     app.push_event(Ev::Password(PASSWORD.with_borrow(|(_, s)| s.clone())));
+}
+
+/// Media search tab: shared photos and videos of all demo chats; with no match, all of them.
+fn search_media(app: &mut App, kind: SharedKind, q: &str) -> Vec<SearchHit> {
+    let all: Vec<SearchHit> = app
+        .demo_history()
+        .map(|(p, (title, k), _)| (p, title.to_owned(), k))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .flat_map(|(p, title, k)| demo_shared(app, p, kind).into_iter().map(move |msg| SearchHit { chat: title.clone(), kind: k, msg }))
+        .collect();
+    let matching: Vec<SearchHit> = all.iter().filter(|h| h.msg.text.to_lowercase().contains(q) || h.chat.to_lowercase().contains(q)).cloned().collect();
+    let hits = if matching.is_empty() { all } else { matching };
+    let images = images();
+    for h in &hits {
+        if let Some((key, image)) = images.iter().find(|(k, _)| *k == ImgKey::Photo(h.msg.peer, h.msg.id)) {
+            app.push_event(Ev::Image { key: key.clone(), image: image.clone() });
+        }
+    }
+    hits
+}
+
+/// Channels, apps and posts tabs of the global search, without the network.
+fn search_tabs(app: &mut App, cmd: Cmd) {
+    let channel = |id: i64, title: &str, label: String| ChatInfo { id: PeerId::channel_unchecked(id), kind: ChatKind::Channel, contact: false, joined: false, can_post: false, ..person(0, title, &label, Presence::None) };
+    let matches = |title: &str, q: &str| title.to_lowercase().contains(&q.to_lowercase());
+    match cmd {
+        Cmd::SearchChannels(query) => {
+            let chats = [(61, "Rust Weekly", "@rustweekly", "12 480"), (62, "Дизайн щодня", "@design_daily", "8 115"), (63, "Open Source UA", "@opensource_ua", "3 902"), (64, "Технології без шуму", "@tech_calm", "21 300")]
+                .into_iter()
+                .filter(|(_, title, user, _)| matches(title, &query) || matches(user, &query) || query.chars().count() <= 2)
+                .map(|(id, title, user, n)| channel(id, title, crate::i18n::lf!("{user} · підписників: {n}", "{user} · {n} subscribers")))
+                .collect();
+            app.push_event(Ev::ChannelResults { query, chats });
+        }
+        Cmd::SearchApps(query) => {
+            let bots = [(81, "Glass Weather", "1 204 000"), (82, "Pixel Farm", "860 400"), (83, "Quiz Night", "312 900"), (84, "Daily Puzzle", "95 120"), (HELPER_BOT, "GlassHelperBot", "4 210")]
+                .into_iter()
+                .filter(|(_, title, _)| matches(title, &query))
+                .map(|(id, title, n)| ChatInfo { kind: ChatKind::Bot, contact: false, ..person(id, title, &crate::i18n::lf!("{n} користувачів на місяць", "{n} monthly users"), Presence::None) })
+                .collect();
+            app.push_event(Ev::AppResults { query, bots });
+        }
+        // Three free searches a day; the quota counts down as in Telegram.
+        Cmd::CheckPostsFlood(query) => {
+            let remains = POSTS_LEFT.get();
+            app.push_event(Ev::PostsFlood { query, flood: PostsFlood { free: false, total: 3, remains, wait_till: None, stars: 10 } });
+        }
+        Cmd::SearchPosts(query) => {
+            let remains = (POSTS_LEFT.get() - 1).max(0);
+            POSTS_LEFT.set(remains);
+            let post = |id: i64, title: &str, mid: i32, text: String| SearchHit {
+                chat: title.to_owned(),
+                kind: ChatKind::Channel,
+                msg: Msg { id: mid, out: false, text, time: "09:30".into(), day: "02.11".into(), ..Msg::placeholder(PeerId::channel_unchecked(id)) },
+            };
+            let hits = vec![
+                post(61, "Rust Weekly", 812, format!("Цього тижня: {query} у новому релізі, async closures і швидша збірка")),
+                post(62, "Дизайн щодня", 450, format!("Підбірка: як «рідке скло» змінює {query} в інтерфейсах")),
+                post(64, "Технології без шуму", 1203, format!("Коротко про {query}: що варто знати перед оновленням")),
+            ];
+            let flood = PostsFlood { free: false, total: 3, remains, wait_till: Some((jiff::Timestamp::now().as_second() + 5 * 3600) as i32), stars: 10 };
+            app.push_event(Ev::PostResults { query, hits, flood: Some(flood), error: None });
+        }
+        _ => {}
+    }
+}
+
+thread_local! {
+    /// Free post searches left today in the demo.
+    static POSTS_LEFT: std::cell::Cell<i32> = const { std::cell::Cell::new(3) };
 }

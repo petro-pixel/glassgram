@@ -64,9 +64,7 @@ impl App {
         }
         // Inside an open chat Esc goes through the overlay chain (`chat_overlays`).
         if k.esc && !in_chat {
-            if !self.search.query.is_empty() {
-                self.search = Search::default();
-            } else if self.selected.is_some() {
+            if !self.clear_search() && self.selected.is_some() {
                 self.close_chat();
             }
         }
@@ -74,9 +72,7 @@ impl App {
 
     /// The last of the chain: nothing else to close — clear the search, then close the chat.
     pub(super) fn esc_fallback(&mut self) {
-        if !self.search.query.is_empty() {
-            self.search = Search::default();
-        } else {
+        if !self.clear_search() {
             self.close_chat();
         }
     }

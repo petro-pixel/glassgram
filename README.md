@@ -18,7 +18,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **MTProto**: [grammers](https://codeberg.org/Lonami/grammers): sign-in by phone number or QR code, 2FA, chats, history, replies, editing and deleting, live updates
 - **Media**: avatars, photos, stickers with a disk cache (`~/.local/share/glassgram/cache`); sending files and stickers; voice and audio with a waveform, seeking and speed; videos, GIFs, round videos and webm stickers right in the chat; voice recording (needs ffmpeg with `ffplay`)
 - **Chats**: forums with topics, channel comments, folders and archive, pinning, muting, drafts, "online" and "typing…" statuses
-- **Search**: global (the field above the chat list) and in-chat (🔍 in the header)
+- **Search**: global (the field above the chat list, with Chats, Channels, Apps, Posts and Media tabs) and in-chat (🔍 in the header)
 - **Formatting**: Telegram entities are shown, markup is converted when sending
 - **Messages**: forwarding, multi-select, silent and scheduled sending, bot buttons, pasting from the clipboard, file progress
 - **Notifications**: system ones on Linux, Windows and macOS, a counter in the window title, a tray icon
@@ -121,6 +121,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/similar.rs`, `src/backend/similar.rs` | "Similar channels" tab in a channel's info |
 | `src/app/saved.rs`, `src/backend/saved.rs` | Saved Messages split by source: "All" and one tab per chat; reaction tags as filters, renaming them |
 | `src/app/chatsearch.rs` | In-chat search panel: type and sender filters, results |
+| `src/app/searchtabs.rs`, `src/backend/searchtabs.rs` | Global search tabs: channels, apps (popular mini app bots), public posts, media |
 | `src/app/stories.rs`, `src/backend/stories.rs` | Stories: strip above the chat list and the viewer (video with sound, replies, reactions) |
 | `src/app/confirm.rs` | "Open this link?" for hidden links and "Run this file?" for received programs |
 | `src/app/gifts.rs`, `src/backend/gifts.rs` | "Gifts" tab in a profile |
@@ -201,6 +202,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - Folders: "+" to the right of the tabs (or at the bottom of the column) — new; right-click a folder — edit or delete; dragging changes the order. Tabs on top or a column on the left — in Settings.
 - Pinned chats can be dragged to change their order (in folders and in the archive too).
 - ✎ next to search — "New group", "New channel", "Contacts".
+- Typing in the chat list search shows tabs under it: Chats, Channels, Apps, Posts, Media. Posts are searched with Enter or the "Search posts" button (free searches a day are limited); Esc clears the search and returns to Chats.
 - Ctrl+V with an image or copied files sends them.
 - ▶ on a voice or audio message plays it; clicking the waveform seeks, the "1×" chip changes the speed. Clicking a video plays it in the bubble; "Open in player" is in the menu.
 - 🎤 (the "Send" button when the composer is empty) starts voice recording; ➤ sends, ■ stops for review, Esc cancels.

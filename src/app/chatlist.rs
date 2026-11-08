@@ -4,7 +4,7 @@
 use eframe::egui::{self, Align2, Color32, FontId, Id, Rect, Sense, Ui, UiBuilder, pos2, vec2};
 use grammers_client::session::types::PeerId;
 
-use super::{App, ARCHIVE, FolderMenu, FolderEdit, TABS_H, chat_row, elided, section_title};
+use super::{App, ARCHIVE, FolderMenu, FolderEdit, TABS_H, chat_row, elided, searchtabs, section_title};
 use crate::backend::{ChatInfo, Cmd, Ev, Folder, ImgKey};
 use crate::glass::{self, ACCENT, Glass, ink, ink_dim, rgba};
 use crate::i18n::l;
@@ -573,7 +573,12 @@ impl App {
         if search_resp.changed() {
             self.search.edited_at = now;
         }
-        if let Some(query) = self.search.due(now) {
+        if search_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            self.search_tabs_enter();
+        }
+        self.search_tabs_due(now);
+        let tabs_shown = self.search_tabs_shown();
+        if let Some(query) = self.search.due(now).filter(|_| self.search_tabs.tab == searchtabs::Tab::Chats) {
             self.search.requested = (query.clone(), None, None);
             self.public_hits.clear();
             if query.chars().count() >= 3 && !self.demo {
@@ -583,12 +588,20 @@ impl App {
         }
 
         let mut list_top = search.bottom() + 10.0;
-        if !self.settings.folders_side && self.has_folder_bar() {
+        if tabs_shown {
+            let tabs = Rect::from_min_size(pos2(inner.left(), list_top), vec2(inner.width(), 32.0));
+            self.search_tab_bar(ui, tabs);
+            list_top = tabs.bottom() + 8.0;
+        } else if !self.settings.folders_side && self.has_folder_bar() {
             let tabs = Rect::from_min_size(pos2(inner.left(), list_top), vec2(inner.width(), TABS_H));
             self.folder_tabs(ui, tabs);
             list_top = tabs.bottom() + 8.0;
         }
         let list_rect = Rect::from_min_max(pos2(inner.left() - 6.0, list_top), pos2(inner.right() + 6.0, inner.bottom()));
+        if self.search_tabs.tab != searchtabs::Tab::Chats {
+            self.search_tab_view(ui, list_rect);
+            return;
+        }
         let query = self.search.query.trim().to_lowercase();
         let mut clicked = None;
         let mut jump = None;
