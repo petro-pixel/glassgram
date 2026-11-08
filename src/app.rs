@@ -44,6 +44,7 @@ mod translate;
 mod contacts;
 mod webapp;
 mod polls;
+mod todo;
 mod privacy;
 mod password;
 mod chatedit;
@@ -165,6 +166,14 @@ enum Action {
     OpenMap(f64, f64),
     /// Tick an option in a multiple-answer poll.
     TogglePoll(i32, Vec<u8>),
+    /// Voters per answer of a public poll.
+    PollResults(i32),
+    /// Add our own answer to a poll open for them.
+    AddPollAnswer(i32),
+    /// Tick or untick a checklist item: (message, item).
+    ToggleTodo(i32, i32),
+    /// Add items to a checklist.
+    AppendTodo(i32),
     Copy2(String, &'static str),
     /// Play / pause media (video opens in the system player).
     Play(i32),
@@ -535,8 +544,10 @@ pub struct App {
     contact_form: Option<contacts::ContactForm>,
     /// Blocked users for Privacy and Security (`None` — not loaded).
     blocked: Option<Vec<ChatInfo>>,
-    /// "New poll" box.
-    poll_form: Option<polls::PollForm>,
+    /// Poll boxes: "New poll", "View results", "Add an answer".
+    polls: polls::Polls,
+    /// Checklist boxes: "New checklist", "Add items".
+    todo: todo::Todo,
     /// The "Send files" box with what is about to be sent.
     send_box: Option<sendbox::SendBox>,
     spoilers: spoiler::Spoilers,
@@ -799,7 +810,8 @@ impl App {
             translate_to: None,
             contact_form: None,
             blocked: None,
-            poll_form: None,
+            polls: polls::Polls::default(),
+            todo: todo::Todo::default(),
             send_box: None,
             spoilers: spoiler::Spoilers::default(),
             edit_media: editmedia::EditMedia::default(),
@@ -916,6 +928,7 @@ impl App {
             }
             Ev::NewMsg(m) => self.on_new_message(m),
             Ev::MediaReplaced(m) => self.on_media_replaced(m),
+            Ev::PollVotes { peer, id, more, voters, next } => self.on_poll_votes(peer, id, more, voters, next),
             Ev::Edited(m) => {
                 if let Some(x) = self.history.get_mut(&m.peer).and_then(|l| l.iter_mut().find(|x| x.id == m.id)) {
                     *x = m;
@@ -1296,6 +1309,8 @@ impl App {
                     None => v.push(opt),
                 }
             }
+            a @ (Action::PollResults(_) | Action::AddPollAnswer(_)) => self.poll_action(peer, a),
+            a @ (Action::ToggleTodo(..) | Action::AppendTodo(_)) => self.todo_action(peer, a),
             Action::Delete(id) => self.send(Cmd::Delete { peer, ids: vec![id] }),
             Action::Download(id) => self.send(Cmd::Download { peer, id }),
             Action::RevealSpoiler(id) => {
@@ -1673,7 +1688,8 @@ impl eframe::App for App {
         self.opening_view(ui);
         self.web_app_ask_view(ui);
         self.contact_form_view(ui);
-        self.poll_form_view(ui);
+        self.polls_view(ui);
+        self.todo_view(ui);
         self.send_box_view(ui);
         self.chat_edit_view(ui);
         self.admin_log_view(ui);

@@ -68,6 +68,7 @@ mod translate;
 mod contacts;
 mod webapp;
 mod polls;
+mod todo;
 mod privacy;
 mod websites;
 mod adminlog;
@@ -102,7 +103,8 @@ pub use stories::{Story, StoryPeer};
 pub use birthdays::Birthday;
 pub use chatedit::{ChatRights, ReactionMode};
 pub use privacy::{GlobalPrivacy, PrivacyExceptions};
-pub use polls::NewPoll;
+pub use polls::{NewPoll, PollVoter};
+pub use todo::NewTodo;
 pub use webapp::{WebAppKind, WebAppOpened};
 pub use notify::{NotifyException, NotifyScope};
 
@@ -359,6 +361,16 @@ pub enum Cmd {
     LoadBirthdays,
     /// Send a new poll or quiz.
     SendPoll { peer: PeerId, poll: NewPoll, reply_to: Option<ReplyTo> },
+    /// Who voted for what in a public poll, a page after `offset`; answered with `Ev::PollVotes`.
+    PollVotes { peer: PeerId, id: i32, offset: Option<String> },
+    /// Add our own answer to a poll open for them.
+    AddPollAnswer { peer: PeerId, id: i32, text: String },
+    /// Send a new checklist (Premium on the server side).
+    SendTodo { peer: PeerId, todo: NewTodo, reply_to: Option<ReplyTo> },
+    /// Tick and untick checklist items by id.
+    ToggleTodo { peer: PeerId, id: i32, completed: Vec<i32>, incompleted: Vec<i32> },
+    /// Add items to a checklist: (new item id, title).
+    AppendTodo { peer: PeerId, id: i32, items: Vec<(i32, String)> },
     /// Translate a message's text into `to` (a language code).
     Translate { peer: PeerId, id: i32, to: String },
     /// Find the first message sent at or after `date` (unix time), for the calendar.
@@ -484,6 +496,8 @@ pub enum Ev {
     History { peer: PeerId, msgs: Vec<Msg>, older: bool },
     NewMsg(Msg),
     Edited(Msg),
+    /// A page of poll voters; `more`: it continues the list already shown.
+    PollVotes { peer: PeerId, id: i32, more: bool, voters: Vec<PollVoter>, next: Option<String> },
     /// A message whose media was replaced: its old pictures and files are stale.
     MediaReplaced(Msg),
     /// `peer: None`: deletion not tied to a channel (private chats and small groups).
@@ -987,7 +1001,8 @@ impl Worker {
                 self.chat_view_cmd(cmd).await
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
-            Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
+            cmd @ (Cmd::SendPoll { .. } | Cmd::PollVotes { .. } | Cmd::AddPollAnswer { .. }) => self.polls_cmd(cmd).await,
+            cmd @ (Cmd::SendTodo { .. } | Cmd::ToggleTodo { .. } | Cmd::AppendTodo { .. }) => self.todo_cmd(cmd).await,
             Cmd::ReloadImages(keys) => {
                 if let Some(l) = &self.loader {
                     l.reload(keys);

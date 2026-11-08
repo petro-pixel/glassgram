@@ -196,16 +196,16 @@ fn card_k() -> f32 {
     glass::msg_font() / 15.0
 }
 
-/// Height of the poll / location / contact card (0 means no card).
+/// Height of the poll / checklist / location / contact card (0 means no card).
 pub(super) fn card_height(ui: &Ui, m: &Msg, w: f32, chosen: &[Vec<u8>]) -> f32 {
     if m.media.as_ref().is_some_and(|i| matches!(i.kind, MediaKind::Voice | MediaKind::Audio)) {
         return MEDIA_H;
     }
     if let Some(poll) = &m.poll {
-        let k = card_k();
-        let q = ui.painter().layout(poll.question.clone(), FontId::new(15.0 * k, egui::FontFamily::Name(format::BOLD.into())), ink(), w);
-        let button = poll.multiple && !poll.voted() && !poll.closed && !chosen.is_empty();
-        return q.size().y + (22.0 + poll.answers.len() as f32 * 40.0 + 20.0) * k + if button { 40.0 } else { 0.0 };
+        return polls::card_height(ui, poll, w, card_k(), chosen);
+    }
+    if let Some(t) = &m.todo {
+        return todo::card_height(ui, m, t, w, card_k());
     }
     if m.geo.is_some() {
         return 150.0 * card_k();
@@ -228,64 +228,9 @@ pub(super) fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<
     }
     let k = card_k();
     if let Some(poll) = &m.poll {
-        let bold = FontId::new(15.0 * k, egui::FontFamily::Name(format::BOLD.into()));
-        let q = p.layout(poll.question.clone(), bold, ink(), rect.width());
-        let mut y = rect.top();
-        let qh = q.size().y;
-        p.galley(pos2(rect.left(), y), q, ink());
-        y += qh + 2.0;
-        let kind = match (poll.quiz, poll.multiple) {
-            (true, _) => l!("Вікторина", "Quiz"),
-            (_, true) => l!("Кілька відповідей", "Multiple answers"),
-            _ => l!("Опитування", "Poll"),
-        };
-        p.text(pos2(rect.left(), y), Align2::LEFT_TOP, kind, FontId::proportional(12.0 * k), rgba(ink(), 160));
-        y += 20.0 * k;
-        let show = poll.voted() || poll.closed;
-        for a in &poll.answers {
-            let r = Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), 36.0 * k));
-            if show {
-                let pct = if poll.total > 0 { a.voters as f32 / poll.total as f32 } else { 0.0 };
-                p.text(pos2(r.left(), r.top() + 2.0), Align2::LEFT_TOP, format!("{:.0}%", pct * 100.0), FontId::proportional(13.0 * k), ink());
-                let label = format!("{}{}", a.text, if a.chosen { "  ✓" } else { "" });
-                let x = 44.0 * k;
-                p.galley(pos2(r.left() + x, r.top() + 2.0), elided(ui, &label, 14.0 * k, ink(), r.width() - x), ink());
-                let bar = Rect::from_min_size(pos2(r.left() + x, r.bottom() - 9.0), vec2((r.width() - x) * pct.max(0.02), 4.0));
-                let col = if poll.quiz && a.correct { Color32::from_rgb(70, 220, 120) } else if a.chosen { ink() } else { rgba(ink(), 140) };
-                p.rect_filled(bar, 2.0, col);
-            } else {
-                let resp = ui.interact(r, ui.scope_id().with(("poll", m.id, &a.option)), Sense::click());
-                if resp.hovered() {
-                    p.rect_filled(r, 10.0, glass::veil(18));
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                }
-                let c = pos2(r.left() + 12.0 * k, r.center().y);
-                let on = chosen.contains(&a.option);
-                if on {
-                    p.circle_filled(c, 8.0 * k, ink());
-                } else {
-                    p.circle_stroke(c, 8.0 * k, egui::Stroke::new(1.5, rgba(ink(), 180)));
-                }
-                let label = elided(ui, &a.text, 14.5 * k, ink(), r.width() - 34.0 * k);
-                p.galley(pos2(r.left() + 30.0 * k, r.center().y - label.size().y / 2.0), label, ink());
-                if resp.clicked() {
-                    action = Some(if poll.multiple { Action::TogglePoll(m.id, a.option.clone()) } else { Action::Vote(m.id, vec![a.option.clone()]) });
-                }
-            }
-            y += 40.0 * k;
-        }
-        if poll.multiple && !show && !chosen.is_empty() {
-            let b = Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), 34.0));
-            if glass::button(ui, b, ("vote", m.id), l!("Голосувати", "Vote"), true, true).clicked() {
-                action = Some(Action::Vote(m.id, chosen.to_vec()));
-            }
-            y += 40.0;
-        }
-        let votes = match poll.total {
-            0 => l!("Ще немає голосів", "No votes yet").to_owned(),
-            n => format!("{}{}", lf!("Голосів: {n}", "Votes: {n}"), if poll.closed { l!(" · завершено", " · closed") } else { "" }),
-        };
-        p.text(pos2(rect.left(), y), Align2::LEFT_TOP, votes, FontId::proportional(12.0 * k), rgba(ink(), 160));
+        action = polls::draw_card(ui, m, poll, rect, k, chosen);
+    } else if let Some(t) = &m.todo {
+        action = todo::draw_card(ui, m, t, rect, k);
     } else if let Some(g) = &m.geo {
         // Stylized "map": a street grid and a pin; a click opens OpenStreetMap.
         let map = Rect::from_min_size(rect.min, vec2(rect.width(), 100.0 * k));

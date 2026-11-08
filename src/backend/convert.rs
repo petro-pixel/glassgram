@@ -128,7 +128,9 @@ pub(super) fn media_label(m: &Message) -> Option<&'static str> {
 
 pub(super) fn preview_text(m: &Message) -> String {
     let text = m.text().replace('\n', " ");
-    match (media_label(m), text.is_empty()) {
+    let todo = matches!(&m.raw, tl::enums::Message::Message(x) if matches!(x.media, Some(tl::enums::MessageMedia::ToDo(_))));
+    let label = if todo { Some(l!("☑️ Чеклист", "☑️ Checklist")) } else { media_label(m) };
+    match (label, text.is_empty()) {
         (Some(label), true) => label.to_owned(),
         (Some(label), false) => format!("{label} · {text}"),
         (None, true) if m.action().is_some() => l!("Сервісне повідомлення", "Service message").to_owned(),
@@ -273,6 +275,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
             Some(Media::Poll(p)) => Some(poll_info(&p)),
             _ => None,
         },
+        todo: todo::todo_info(&m.raw, names),
         geo: geo_info(m),
         contact: match m.media() {
             Some(Media::Contact(c)) => Some((format!("{} {}", c.first_name(), c.last_name()).trim().to_owned(), c.phone_number().to_owned())),
@@ -305,7 +308,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
     };
     // Hidden by Telegram for everyone (or for desktop apps): show why instead of the content.
     match restriction(&m.raw) {
-        Some(reason) => Msg { text: reason, spans: Vec::new(), photo: false, file: None, sticker: None, media: None, poll: None, geo: None, contact: None, webpage: None, buttons: Vec::new(), video_sticker: false, lottie: false, unsupported: false, ..msg },
+        Some(reason) => Msg { text: reason, spans: Vec::new(), photo: false, file: None, sticker: None, media: None, poll: None, todo: None, geo: None, contact: None, webpage: None, buttons: Vec::new(), video_sticker: false, lottie: false, unsupported: false, ..msg },
         None => msg,
     }
 }
@@ -548,6 +551,12 @@ pub(super) fn poll_info(p: &grammers_client::media::Poll) -> PollInfo {
         closed: p.closed(),
         quiz: p.is_quiz(),
         multiple: p.raw.multiple_choice,
+        public: p.raw.public_voters,
+        open_answers: p.raw.open_answers,
+        final_vote: p.raw.revoting_disabled,
+        hide_results: p.raw.hide_results_until_close,
+        close_date: p.raw.close_date.map(i64::from),
+        solution: p.raw_results.solution.clone().filter(|s| !s.is_empty()),
     }
 }
 

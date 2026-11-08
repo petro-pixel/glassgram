@@ -132,7 +132,8 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/newchat.rs`, `src/backend/newchat.rs` | "New chat": contacts, new group, new channel with its type, link and subscribers |
 | `src/app/privacy.rs`, `src/backend/privacy.rs` | Privacy rule exceptions (always / never allow) and global switches: new non-contact chats, read time, who can message me; sensitive content filtering |
 | `src/app/password.rs`, `src/backend/password.rs` | Two-step verification: turning the cloud password on and off, changing it, its hint and recovery email (SRP, the code sent to the email) |
-| `src/app/polls.rs`, `src/backend/polls.rs` | "New poll" box: polls and quizzes |
+| `src/app/polls.rs`, `src/backend/polls.rs` | Polls: the card, the "New poll" box (polls and quizzes), voters per answer, adding answers |
+| `src/app/todo.rs`, `src/backend/todo.rs` | Checklists: the card, ticking and adding items, the "New checklist" box |
 | `src/errlog.rs` | Error log file, panic hook, report for the developer |
 | `src/app/selfdestruct.rs`, `src/backend/selfdestruct.rs` | "Delete my account if away for…" |
 | `src/app/dice.rs`, `src/backend/dice.rs` | Emoji games (🎲 🎯 🏀 ⚽ 🎰 🎳): sending and outcomes |
@@ -179,7 +180,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - Right-click a message for the menu: reply, copy, edit, delete.
 - Double-click — reply. Click the reply bar above the field to quote a part of the message or to reply in another chat.
 - Esc cancels a reply or edit and closes the sticker panel.
-- 📎 — send files (or drag them into the window, or paste them): a box shows what goes, with the caption (the composer text), "Compress images", "Hide with spoiler" and "Caption above media"; more files dropped on it join it. Right click on 📎: send without compression, create a poll or quiz. A photo or video under a spoiler opens with a click. Editing a photo or file ("Edit" in its menu): ⟳ in the "Editing" bar replaces it (right click — without compression), or drop a file on the chat.
+- 📎 — send files (or drag them into the window, or paste them): a box shows what goes, with the caption (the composer text), "Compress images", "Hide with spoiler" and "Caption above media"; more files dropped on it join it. Right click on 📎: send without compression, create a poll or quiz, create a checklist. A click on a checklist item ticks it; "View results" under a public poll lists who voted for what. A photo or video under a spoiler opens with a click. Editing a photo or file ("Edit" in its menu): ⟳ in the "Editing" bar replaces it (right click — without compression), or drop a file on the chat.
 - 🙂 — sticker panel: emoji, GIF (saved GIFs), 🔍 (search sticker sets; empty — trending), ★ favourite and 🕒 recent stickers, then the installed sets; ⚙ — your sets: order (↑/↓) and removing. Right click on a sticker: add to / remove from favourites, view its set. A click on a sticker in a chat (or a `t.me/addstickers/…` link) opens its set: all stickers, "Add" / "Remove", copy link; right click on a sticker in a chat — "View sticker set", "Add to Favourites", on a GIF — "Save GIF". An emoji typed alone offers matching stickers above the field.
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.
