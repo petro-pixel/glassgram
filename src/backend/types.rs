@@ -376,7 +376,7 @@ pub struct Reaction {
     pub mine: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct PollOption {
     pub text: String,
     pub option: Vec<u8>,
@@ -385,7 +385,7 @@ pub struct PollOption {
     pub correct: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct PollInfo {
     pub question: String,
     pub answers: Vec<PollOption>,
@@ -393,6 +393,41 @@ pub struct PollInfo {
     pub closed: bool,
     pub quiz: bool,
     pub multiple: bool,
+    /// Voters are visible: "View results" lists them.
+    #[serde(default)]
+    pub public: bool,
+    /// Voters may add their own answers.
+    #[serde(default)]
+    pub open_answers: bool,
+    /// A vote can't be taken back.
+    #[serde(default)]
+    pub final_vote: bool,
+    /// Results stay hidden until the poll closes.
+    #[serde(default)]
+    pub hide_results: bool,
+    /// When it closes by itself (unix time).
+    #[serde(default)]
+    pub close_date: Option<i64>,
+    /// Quiz explanation, shown once answered.
+    #[serde(default)]
+    pub solution: Option<String>,
+}
+
+/// A checklist (`messageMediaToDo`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct TodoInfo {
+    pub title: String,
+    pub items: Vec<TodoTask>,
+    pub others_can_append: bool,
+    pub others_can_complete: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct TodoTask {
+    pub id: i32,
+    pub title: String,
+    /// Who ticked it and when (unix time); `None` while open.
+    pub done: Option<(String, i64)>,
 }
 
 impl PollInfo {
@@ -605,6 +640,8 @@ pub struct Msg {
     pub group: Option<i64>,
     pub reactions: Vec<Reaction>,
     pub poll: Option<PollInfo>,
+    #[serde(default)]
+    pub todo: Option<TodoInfo>,
     pub geo: Option<GeoInfo>,
     /// (name, phone)
     pub contact: Option<(String, String)>,
@@ -672,6 +709,7 @@ impl Msg {
             group: None,
             reactions: Vec::new(),
             poll: None,
+            todo: None,
             geo: None,
             contact: None,
             media: None,

@@ -601,6 +601,10 @@ impl App {
             if can_poll && glass::menu_button(ui, Icon::Poll, l!("Опитування", "Poll")).clicked() {
                 self.open_poll_form(peer);
             }
+            // Checklists go anywhere, private chats included.
+            if glass::menu_button(ui, Icon::Todo, l!("Чеклист", "Checklist")).clicked() {
+                self.open_todo_form(peer);
+            }
         });
         if glass::icon_button(ui, sticker_btn, "stickers", Icon::Smile, self.stickers.open, true).on_hover_text(l!("Стікери", "Stickers")).clicked() {
             self.stickers.open = !self.stickers.open;

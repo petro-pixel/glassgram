@@ -88,6 +88,8 @@ pub enum Icon {
     Calendar,
     Translate,
     Poll,
+    /// Checklist.
+    Todo,
     Cake,
     Megaphone,
 }
@@ -157,6 +159,7 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Calendar => include_str!("../assets/icons/calendar.svg"),
         Icon::Translate => include_str!("../assets/icons/languages.svg"),
         Icon::Poll => include_str!("../assets/icons/chart-bar.svg"),
+        Icon::Todo => include_str!("../assets/icons/list-todo.svg"),
         Icon::Cake => include_str!("../assets/icons/cake.svg"),
         Icon::Megaphone => include_str!("../assets/icons/megaphone.svg"),
         Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
@@ -307,7 +310,7 @@ mod tests {
             Icon::Copy, Icon::Download, Icon::Clock, Icon::Location, Icon::ChevronLeft, Icon::ChevronRight, Icon::Bell, Icon::Mic,
             Icon::Gear, Icon::Lock, Icon::ChevronDown, Icon::ChevronUp, Icon::At, Icon::Heart, Icon::Eye, Icon::List, Icon::Link, Icon::Commands,
             Icon::Info, Icon::Phone, Icon::User, Icon::Chat, Icon::Folder, Icon::Globe, Icon::Laptop, Icon::Chats, Icon::Users,
-            Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle, Icon::Flag, Icon::Calendar, Icon::Translate, Icon::Poll, Icon::Cake, Icon::Megaphone,
+            Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle, Icon::Flag, Icon::Calendar, Icon::Translate, Icon::Poll, Icon::Todo, Icon::Cake, Icon::Megaphone,
         ];
         for icon in all {
             let text = svg(icon).unwrap_or_else(|| panic!("{icon:?} has no SVG"));

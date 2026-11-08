@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{SavedTag, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{SavedTag, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollVoter, TodoInfo, TodoTask, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
 use crate::format;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
@@ -750,9 +750,55 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 .enumerate()
                 .map(|(i, o)| PollOption { text: o.clone(), option: vec![i as u8], voters: 0, chosen: false, correct: poll.quiz == Some(i) })
                 .collect();
-            let info = PollInfo { question: poll.question, answers, total: 0, closed: false, quiz: poll.quiz.is_some(), multiple: poll.multiple };
+            let info = PollInfo {
+                question: poll.question,
+                answers,
+                quiz: poll.quiz.is_some(),
+                multiple: poll.multiple,
+                public: !poll.anonymous,
+                open_answers: poll.open_answers,
+                final_vote: poll.final_vote,
+                hide_results: poll.hide_results,
+                close_date: poll.close_period.map(|p| jiff::Timestamp::now().as_second() + p as i64),
+                solution: Some(poll.solution).filter(|s| !s.is_empty()),
+                ..PollInfo::default()
+            };
             app.push_event(Ev::NewMsg(Msg { id: rand_ish(), poll: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
         }
+        Cmd::PollVotes { peer, id, .. } => {
+            // A few made-up voters per answer, newest first.
+            let names = ["Тарас", "Ірина", "Олена", "Андрій", "Марко", "Софія"];
+            let poll = app.demo_history().find(|(p, _, _)| *p == peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == id)?.poll.clone());
+            let now = jiff::Timestamp::now().as_second();
+            let voters = poll
+                .iter()
+                .flat_map(|p| p.answers.iter())
+                .enumerate()
+                .flat_map(|(k, a)| (0..a.voters.min(3) as usize).map(move |i| (k, i, a.option.clone())))
+                .map(|(k, i, option)| {
+                    let n = (k * 2 + i) % names.len();
+                    PollVoter { peer: PeerId::user_unchecked(900 + n as i64), name: names[n].into(), options: vec![option], ts: now - (k * 3 + i) as i64 * 1700 }
+                })
+                .collect();
+            app.push_event(Ev::PollVotes { peer, id, more: false, voters, next: None });
+        }
+        Cmd::AddPollAnswer { peer, id, text } => {
+            let msg = app.demo_history().find(|(p, _, _)| *p == peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == id).cloned());
+            if let Some(mut m) = msg
+                && let Some(poll) = &mut m.poll
+            {
+                let option = vec![poll.answers.len() as u8];
+                poll.answers.push(PollOption { text, option, ..PollOption::default() });
+                app.push_event(Ev::Edited(m));
+            }
+        }
+        Cmd::SendTodo { peer, todo, reply_to } => {
+            let items = todo.items.into_iter().enumerate().map(|(i, title)| TodoTask { id: i as i32 + 1, title, done: None }).collect();
+            let info = TodoInfo { title: todo.title, items, others_can_append: todo.others_can_append, others_can_complete: todo.others_can_complete };
+            app.push_event(Ev::NewMsg(Msg { id: rand_ish(), todo: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
+        }
+        // The app ticks and adds items on its own; there is no server to confirm.
+        Cmd::ToggleTodo { .. } | Cmd::AppendTodo { .. } => {}
         Cmd::LoadGlobalPrivacy => app.push_event(Ev::GlobalPrivacy(GlobalPrivacy { archive_new: true, keep_unmuted: false, keep_folders: true, hide_read: false, premium_only: false })),
         Cmd::SetGlobalPrivacy(p) => app.push_event(Ev::GlobalPrivacy(p)),
         Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_) => {
@@ -1230,12 +1276,31 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
                     question: "Коли робимо реліз?".into(),
                     answers: vec![opt("У п'ятницю", 4, 0), opt("Наступного тижня", 2, 1), opt("Коли буде готово 🦀", 5, 2)],
                     total: 11,
-                    closed: false,
-                    quiz: false,
-                    multiple: false,
+                    public: true,
+                    open_answers: true,
+                    close_date: Some(jiff::Timestamp::now().as_second() + 5 * 3600),
+                    ..PollInfo::default()
                 }),
                 pinned: true,
                 ..base(10, "Тарас")
+            });
+            // A shared checklist, partly done.
+            let task = |id: i32, title: &str, done: Option<(&str, i64)>| TodoTask { id, title: title.into(), done: done.map(|(w, t)| (w.to_owned(), t)) };
+            let ts = jiff::Timestamp::now().as_second();
+            msgs.push(Msg {
+                id: 52,
+                todo: Some(TodoInfo {
+                    title: "Перед релізом".into(),
+                    items: vec![
+                        task(1, "Оновити README", Some(("Ірина", ts - 7200))),
+                        task(2, "Прогнати тести на Windows", Some(("Тарас", ts - 3600))),
+                        task(3, "Зібрати Flatpak", None),
+                        task(4, "Написати нотатки до випуску", None),
+                    ],
+                    others_can_append: true,
+                    others_can_complete: true,
+                }),
+                ..base(11, "Ірина")
             });
             msgs.push(Msg {
                 id: 51,

@@ -100,6 +100,8 @@ pub(super) fn pin_menu(ui: &mut Ui, m: &Msg, chat: &ChatInfo, action: &mut Optio
 fn preview(m: &Msg) -> String {
     let label = if let Some(poll) = &m.poll {
         format!("📊 {}", poll.question)
+    } else if let Some(t) = &m.todo {
+        format!("☑️ {}", t.title)
     } else if let Some(g) = &m.geo {
         format!("📍 {}", if g.title.is_empty() { l!("Місце", "Location") } else { g.title.as_str() })
     } else if let Some((name, _)) = &m.contact {
