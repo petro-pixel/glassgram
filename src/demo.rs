@@ -7,8 +7,10 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{SavedTag, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit, StickerSetInfo};
+use crate::backend::{SavedTag, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit};
 use crate::format;
+
+mod stickers;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -277,22 +279,16 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             };
             app.push_event(Ev::BotAnswer { text: text.into(), alert: false });
         }
-        Cmd::LoadStickers => {
-            let set = |id: i64, title: &str, emojis: &str| StickerSetInfo {
-                id,
-                title: title.into(),
-                stickers: emojis.chars().enumerate().map(|(i, c)| (id * 100 + i as i64, c.to_string())).collect(),
-            };
-            app.push_event(Ev::Stickers(vec![
-                set(1, "Нещодавні", "🐱👍😂🔥❤🎉"),
-                set(2, "Котики", "🐱😺😸😹😻😼😽🙀😿😾🐈"),
-                set(3, "Емоції", "😀😃😄😁😆😅🤣😂🙂🙃😉😊😇🥰😍🤩😘"),
-            ]));
-        }
-        Cmd::SendSticker { peer, doc, reply_to } => {
-            let emoji = ["🐱", "😺", "😀", "👍", "🔥"][doc as usize % 5].to_owned();
-            app.push_event(Ev::NewMsg(Msg { sticker: Some((doc, emoji)), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
-        }
+        cmd @ (Cmd::LoadStickers
+        | Cmd::OpenStickerSet(_)
+        | Cmd::InstallStickerSet { .. }
+        | Cmd::SearchStickerSets(_)
+        | Cmd::ReorderStickerSets(_)
+        | Cmd::FaveSticker { .. }
+        | Cmd::LoadSavedGifs
+        | Cmd::SaveGif { .. }
+        | Cmd::LoadStickerThumbs(_)
+        | Cmd::SendSticker { .. }) => stickers::handle(app, cmd),
         Cmd::SendDice { peer, emoji, reply_to } => {
             let top = match emoji.as_str() {
                 "🎰" => 64,

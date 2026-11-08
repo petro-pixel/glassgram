@@ -90,6 +90,8 @@ mod saved;
 pub use saved::SavedTag;
 mod stories;
 mod gifts;
+mod stickers;
+pub use stickers::{DocRef, FAVED_SET, RECENT_SET, StickerSetInfo, StickerSetRef, addstickers_name};
 mod emojikw;
 mod report;
 pub use report::ReportStep;
@@ -222,8 +224,21 @@ pub enum Cmd {
     Forward { from: PeerId, ids: Vec<i32>, to: PeerId },
     /// An inline button with callback data was pressed.
     PressButton { peer: PeerId, id: i32, data: Vec<u8> },
+    /// A listed sticker or saved GIF.
     SendSticker { peer: PeerId, doc: i64, reply_to: Option<ReplyTo> },
+    /// Favourite and recent stickers and the installed sets, for the panel.
     LoadStickers,
+    /// A set with all its stickers, for the box.
+    OpenStickerSet(StickerSetRef),
+    /// Add a listed set to the installed ones or remove it.
+    InstallStickerSet { id: i64, install: bool },
+    /// Sets by name; an empty query gives the trending ones.
+    SearchStickerSets(String),
+    /// The new order of the installed sets.
+    ReorderStickerSets(Vec<i64>),
+    FaveSticker { doc: DocRef, unfave: bool },
+    LoadSavedGifs,
+    SaveGif { doc: DocRef, unsave: bool },
     LoadStickerThumbs(Vec<i64>),
     Download { peer: PeerId, id: i32 },
     /// What downloads without a click; photos are held back here, the rest in the UI.
@@ -469,6 +484,15 @@ pub enum Ev {
     /// Recommended folders with their descriptions.
     SuggestedFolders(Vec<(Folder, String)>),
     Stickers(Vec<StickerSetInfo>),
+    /// A set opened in the box.
+    StickerSet(StickerSetInfo),
+    /// A set was installed (with its stickers) or removed (`installed: false`).
+    StickerSetChanged(StickerSetInfo),
+    /// Found sets, or trending ones for an empty query.
+    FoundStickerSets { query: String, sets: Vec<StickerSetInfo> },
+    FavedStickers(Vec<(i64, String)>),
+    /// Saved GIFs, newest first; previews come by `ImgKey::Sticker`.
+    SavedGifs(Vec<i64>),
     UploadProgress { id: u64, done: u64, total: u64 },
     UploadDone(u64),
     /// `unread`: someone else's reaction to our message we haven't seen yet.
@@ -767,6 +791,8 @@ struct Worker {
     refs: Refs,
     names: Names,
     docs: HashMap<i64, tl::types::Document>,
+    /// Access hashes of the sticker sets we have listed.
+    set_hashes: HashMap<i64, i64>,
     /// Bots for inline mode, by username.
     bots: HashMap<String, PeerRef>,
     /// Category notification defaults, to tell which chats are muted.
@@ -793,6 +819,7 @@ impl Worker {
             refs: Arc::default(),
             names: Arc::default(),
             docs: HashMap::new(),
+            set_hashes: HashMap::new(),
             bots: HashMap::new(),
             notifs: Arc::default(),
             autodl: Default::default(),
@@ -931,7 +958,9 @@ impl Worker {
                 self.cache_dialogs(chats);
                 Ok(())
             }
-            Cmd::LoadStickers => self.load_stickers().await,
+            cmd @ (Cmd::LoadStickers | Cmd::OpenStickerSet(_) | Cmd::InstallStickerSet { .. } | Cmd::SearchStickerSets(_) | Cmd::ReorderStickerSets(_) | Cmd::FaveSticker { .. } | Cmd::LoadSavedGifs | Cmd::SaveGif { .. }) => {
+                self.stickers_cmd(cmd).await
+            }
             Cmd::LoadScheduled(peer) => self.load_scheduled(peer).await,
             Cmd::Search { peer, query, kind, from } => self.search(peer, query, kind, from).await,
             cmd @ (Cmd::LoadPinned(_) | Cmd::PinMessage { .. } | Cmd::UnpinAll(_) | Cmd::LoadUnreadMarks { .. } | Cmd::ReadMarks { .. } | Cmd::LoadReadBy { .. } | Cmd::JumpToDate { .. } | Cmd::LoadMediaDays { .. }) => {
@@ -1185,66 +1214,6 @@ impl Worker {
         let folders = res.filters.iter().filter_map(folders::folder_from).collect();
         self.out.send(Ev::Folders(folders));
         Ok(())
-    }
-
-    async fn load_stickers(&mut self) -> Result<(), String> {
-        let client = self.client()?;
-        let mut sets = Vec::new();
-        if let Ok(tl::enums::messages::RecentStickers::Stickers(r)) =
-            client.invoke(&tl::functions::messages::GetRecentStickers { attached: false, hash: 0 }).await
-        {
-            let stickers = self.remember_docs(r.stickers);
-            if !stickers.is_empty() {
-                sets.push(StickerSetInfo { id: 0, title: l!("Нещодавні", "Recent").into(), stickers });
-            }
-        }
-        let all = client
-            .invoke(&tl::functions::messages::GetAllStickers { hash: 0 })
-            .await
-            .map_err(|e| lf!("Стікери: {e}", "Stickers: {e}"))?;
-        let tl::enums::messages::AllStickers::Stickers(all) = all else {
-            self.out.send(Ev::Stickers(sets));
-            return Ok(());
-        };
-        for set in all.sets.into_iter().take(24) {
-            let tl::enums::StickerSet::Set(set) = set;
-            if set.archived || set.masks || set.emojis {
-                continue;
-            }
-            let input = tl::types::InputStickerSetId { id: set.id, access_hash: set.access_hash };
-            let Ok(tl::enums::messages::StickerSet::Set(full)) = client
-                .invoke(&tl::functions::messages::GetStickerSet { stickerset: input.into(), hash: 0 })
-                .await
-            else {
-                continue;
-            };
-            let stickers = self.remember_docs(full.documents);
-            sets.push(StickerSetInfo { id: set.id, title: set.title, stickers });
-        }
-        self.out.send(Ev::Stickers(sets));
-        Ok(())
-    }
-
-    fn remember_docs(&mut self, docs: Vec<tl::enums::Document>) -> Vec<(i64, String)> {
-        docs.into_iter()
-            .filter_map(|d| match d {
-                tl::enums::Document::Document(d) => Some(d),
-                _ => None,
-            })
-            .map(|d| {
-                let emoji = d
-                    .attributes
-                    .iter()
-                    .find_map(|a| match a {
-                        tl::enums::DocumentAttribute::Sticker(s) => Some(s.alt.clone()),
-                        _ => None,
-                    })
-                    .unwrap_or_default();
-                let id = d.id;
-                self.docs.insert(id, d);
-                (id, emoji)
-            })
-            .collect()
     }
 
     async fn load_dialogs(&mut self) -> Result<(), String> {

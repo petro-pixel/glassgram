@@ -81,6 +81,7 @@ mod dice;
 mod selfdestruct;
 mod adminlog;
 mod chatlists;
+mod stickers;
 mod autodl;
 mod spoiler;
 use chatlist::{Reorder, sort_chats};
@@ -184,6 +185,10 @@ enum Action {
     /// Queued message: send again / drop without sending.
     Retry(i32),
     Discard(i32),
+    /// Open the set of a sticker in a message.
+    StickerSet(i32),
+    FaveSticker(i32),
+    SaveGif(i32),
 }
 
 /// What is being scheduled: a draft from the input field or an already scheduled message (time change).
@@ -444,7 +449,7 @@ pub struct App {
     folder_meta: folders::FolderMeta,
     folder: Option<i32>,
     /// The sticker and emoji panel: sets, the open set, thumbnails asked for.
-    stickers: composer::StickerPanel,
+    stickers: stickers::StickerPanel,
     uploads: Vec<Upload>,
     /// Selected messages of the open chat.
     picked: Vec<i32>,
@@ -706,14 +711,7 @@ impl App {
             folders: Vec::new(),
             folder_meta: folders::FolderMeta::default(),
             folder: None,
-            stickers: composer::StickerPanel {
-                sets: Vec::new(),
-                open: false,
-                set: 0,
-                thumbs: HashSet::new(),
-                requested: false,
-                emoji_tab: true,
-            },
+            stickers: stickers::StickerPanel::default(),
             uploads: Vec::new(),
             picked: Vec::new(),
             forward: None,
@@ -873,7 +871,8 @@ impl App {
         match ev {
             ev @ (Ev::Dialogs(..) | Ev::Folders(..) | Ev::PublicResults { .. } | Ev::ChatFound(..) | Ev::Joined(..) | Ev::ChatTitle { .. } | Ev::SearchResults { .. }) => self.list_event(ev),
             ev @ (Ev::Exported { .. } | Ev::ExportProgress { .. } | Ev::Scheduled { .. }) => self.dialogs_event(ev),
-            ev @ (Ev::InlineResults { .. } | Ev::Stickers(..) | Ev::UploadProgress { .. } | Ev::UploadDone(..)) => self.composer_event(ev),
+            ev @ (Ev::InlineResults { .. } | Ev::UploadProgress { .. } | Ev::UploadDone(..)) => self.composer_event(ev),
+            ev @ (Ev::Stickers(..) | Ev::StickerSet(..) | Ev::StickerSetChanged(..) | Ev::FoundStickerSets { .. } | Ev::FavedStickers(..) | Ev::SavedGifs(..)) => self.stickers_event(ev),
             ev @ (Ev::MediaReady { .. } | Ev::Listened { .. }) => self.media_event(ev),
             ev @ Ev::Comments { .. } => self.comments_event(ev),
             ev @ (Ev::Topics { .. } | Ev::TopicHistory { .. }) => self.forum_event(ev),
@@ -1406,6 +1405,11 @@ impl App {
                         self.open_bot_start(username, param);
                     }
                 }
+                _ if crate::backend::addstickers_name(&target).is_some() => {
+                    if let Some(name) = crate::backend::addstickers_name(&target) {
+                        self.open_sticker_set(crate::backend::StickerSetRef::Name(name));
+                    }
+                }
                 _ if chatlists::tme_addlist(&target).is_some() => {
                     if let Some(slug) = chatlists::tme_addlist(&target) {
                         self.send(Cmd::CheckChatlist(slug));
@@ -1426,7 +1430,7 @@ impl App {
                 }
             },
             // Handled by `chat_view_action`.
-            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Report(_) => {}
+            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_) => {}
         }
     }
 
@@ -1670,6 +1674,7 @@ impl eframe::App for App {
         self.chat_edit_view(ui);
         self.admin_log_view(ui);
         self.chatlist_view(ui);
+        self.sticker_set_box(ui);
         self.privacy_pick_view(ui);
         self.tag_rename_view(ui);
         self.toast_view(ui, now);

@@ -321,7 +321,7 @@ impl App {
     pub(super) fn chat_view_action(&mut self, peer: PeerId, action: Action) -> Option<Action> {
         let blocked = match &action {
             Action::Copy(_) => self.protected(peer, &[]),
-            Action::Forward(id) | Action::Download(id) | Action::OpenExternal(id) => self.protected(peer, &[*id]),
+            Action::Forward(id) | Action::Download(id) | Action::OpenExternal(id) | Action::SaveGif(id) => self.protected(peer, &[*id]),
             Action::ForwardMany(ids) => self.protected(peer, ids),
             _ => false,
         };
@@ -338,6 +338,7 @@ impl App {
             }
             Action::Translate(id) => self.open_translate(peer, id),
             Action::Report(id) => self.start_report(peer, vec![id]),
+            a @ (Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_)) => self.sticker_msg_action(peer, a),
             a => return Some(a),
         }
         None

@@ -105,7 +105,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P1** Full-screen video player: seeking, volume, speed, picture-in-picture
 - ⬜ **P1** Streaming large videos (downloading in parts instead of the whole file)
 - ⬜ **P1** Animated and custom emoji in text (`getCustomEmojiDocuments`), animated reactions
-- ⬜ **P1** Sticker sets: browse, install, order, search (`searchStickerSets`), favourite and saved GIFs
+- ✅ Sticker sets as in Telegram Desktop: the panel's row of tabs (emoji, saved GIFs, set search, favourite and recent stickers, then the installed sets), the set box from a sticker in a chat or a `t.me/addstickers/…` link with Add / Remove and its link (`getStickerSet`, `installStickerSet`, `uninstallStickerSet`), search and trending sets (`searchStickerSets`, `getFeaturedStickers`), the order of installed sets (`reorderStickerSets`), favourite stickers from a sticker's menu (`getFavedStickers`, `faveSticker`), saved GIFs as still previews: sending, saving from a chat, removing (`getSavedGifs`, `saveGif`)
 - ✅ Cache management in Settings → Advanced → "Data and storage": what photos, videos and GIFs, voice and music, stickers, profile photos and stories take, clearing each type or all, a cache size limit (1, 5, 20 GB or none) kept by removing the oldest files on every connection
 - ✅ Media auto-download (Settings → Advanced): photos, videos and audio separately for private chats, groups and channels, videos and GIFs up to 10 / 50 / 200 MB or any size; held-back media show a download arrow and load on a click. Not by network type (a desktop has no metered-network signal on every OS)
 - ⬜ **P2** Music player with a queue and a playback bar; music in the profile (`saveMusic`, 2026)
