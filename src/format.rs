@@ -290,6 +290,9 @@ pub fn char_to_byte(text: &str, chars: usize) -> usize {
     text.char_indices().nth(chars).map_or(text.len(), |(i, _)| i)
 }
 
+/// Ubuntu Bold, also drawn on the CPU (the username QR picture).
+pub const UBUNTU_BOLD: &[u8] = include_bytes!("../assets/fonts/Ubuntu-Bold.ttf");
+
 /// Ubuntu font (Ubuntu Font Licence, `assets/fonts/UFL.txt`), embedded in the program.
 /// The default egui fonts stay as fallbacks, for emoji and symbols missing from Ubuntu.
 pub fn install_fonts(ctx: &eframe::egui::Context) {
@@ -297,7 +300,7 @@ pub fn install_fonts(ctx: &eframe::egui::Context) {
     use std::sync::Arc;
     const FACES: [(&str, &[u8]); 4] = [
         ("ubuntu", include_bytes!("../assets/fonts/Ubuntu-Regular.ttf")),
-        (BOLD, include_bytes!("../assets/fonts/Ubuntu-Bold.ttf")),
+        (BOLD, UBUNTU_BOLD),
         (ITALIC, include_bytes!("../assets/fonts/Ubuntu-Italic.ttf")),
         (BOLD_ITALIC, include_bytes!("../assets/fonts/Ubuntu-BoldItalic.ttf")),
     ];

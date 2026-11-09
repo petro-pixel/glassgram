@@ -99,6 +99,8 @@ enum Do {
     Unblock,
     /// A new auto-delete timer, in seconds.
     Ttl(i32),
+    /// The QR code box of this username.
+    Qr(String),
 }
 
 fn has_members(kind: ChatKind) -> bool {
@@ -419,6 +421,7 @@ impl App {
             Do::ManageMember(m, pick) => self.manage_member(peer, &m, pick),
             Do::AddContact => self.open_contact_form(Some((peer, &chat.title))),
             Do::Unblock => self.send(Cmd::Block { peer, blocked: false }),
+            Do::Qr(username) => self.open_user_qr(&username, false),
             Do::Confirm(c) => {
                 if let Some(i) = &mut self.info {
                     i.confirm = Some(c);
@@ -482,7 +485,12 @@ impl App {
             } else {
                 (format!("https://t.me/{}", d.username), l!("Посилання", "Link").to_owned())
             };
-            if info_row(ui, Icon::At, &text, &caption).clicked() {
+            let row = info_row_with(ui, Icon::At, &text, &caption, 44.0);
+            // The QR button at the row's end, as in Telegram Desktop.
+            let qr = Rect::from_center_size(pos2(row.rect.right() - 26.0, row.rect.top() + 26.0), vec2(36.0, 36.0));
+            if glass::icon_button(ui, qr, "info-qr", Icon::QrCode, false, true).on_hover_text(l!("QR-код", "QR code")).clicked() {
+                todo.push(Do::Qr(d.username.clone()));
+            } else if row.clicked() {
                 todo.push(Do::Copy(text));
             }
         }
@@ -866,9 +874,14 @@ fn info_actions(ui: &mut Ui, chat: &ChatInfo, creator: bool, blocked: Option<boo
 
 /// Icon, wrapped value and a caption under it; click copies.
 pub(super) fn info_row(ui: &mut Ui, icon: Icon, text: &str, caption: &str) -> egui::Response {
+    info_row_with(ui, icon, text, caption, 0.0)
+}
+
+/// `info_row` that keeps `reserve` points free at its end, for a button there.
+fn info_row_with(ui: &mut Ui, icon: Icon, text: &str, caption: &str, reserve: f32) -> egui::Response {
     let w = ui.available_width();
     let x = 52.0;
-    let job = LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), ink(), w - x - 12.0);
+    let job = LayoutJob::simple(text.to_owned(), FontId::proportional(14.0), ink(), w - x - 12.0 - reserve);
     let g = ui.painter().layout_job(job);
     let h = g.size().y + 36.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(w, h.max(52.0)), Sense::click());
@@ -879,7 +892,8 @@ pub(super) fn info_row(ui: &mut Ui, icon: Icon, text: &str, caption: &str) -> eg
     }
     icons::draw(p, Rect::from_center_size(pos2(rect.left() + 26.0, rect.top() + 22.0), vec2(20.0, 20.0)), icon, ink_dim());
     p.galley(pos2(rect.left() + x, rect.top() + 9.0), g.clone(), ink());
-    p.text(pos2(rect.left() + x, rect.top() + 13.0 + g.size().y), Align2::LEFT_TOP, caption, FontId::proportional(12.5), ink_dim());
+    let caption = elided(ui, caption, 12.5, ink_dim(), w - x - 12.0 - reserve);
+    p.galley(pos2(rect.left() + x, rect.top() + 13.0 + g.size().y), caption, ink_dim());
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }

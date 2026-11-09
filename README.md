@@ -25,7 +25,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Languages**: Ukrainian and English built into the code, German and any other language from localisation files (`locales/*.json`, see below)
 - **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
 - **Settings** (⚙): language, theme (dark, light, system), interface scale, notifications, autoplay, SOCKS5 proxy, privacy, active sessions, local passcode; stored in `~/.local/share/glassgram/settings`
-- **Settings layout** as in Telegram Desktop: My Account (name, bio, username with availability check, profile photo) · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language
+- **Settings layout** as in Telegram Desktop: My Account (name, bio, username with availability check and its QR code, profile photo) · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language
 - **Send queue**: text messages, files, voice and round video messages show up at once (clock), are retried while offline and survive a restart; failed ones get a red mark with Retry / Delete
 - **Glass**: real blur via a wgpu shader (`src/blur.rs`, `src/glass.wgsl`); without wgpu — a vector fallback
 - **UI**: egui / eframe (wgpu), our own glass renderer — `src/glass.rs`
@@ -157,6 +157,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/suggest.rs`, `src/backend/suggest.rs` | Link previews (in bubbles and above the composer), @mention and bot command suggestions, "Start" for bots |
 | `src/app/info.rs`, `src/backend/info.rs` | Chat info column: profile, members, shared media, per-chat notifications, leave / clear / delete |
 | `src/app/settings_pages.rs` | Settings pages (Telegram Desktop layout), My Account editor |
+| `src/app/userqr.rs` | QR code of a public username in six designs, drawn on the CPU (`vello_cpu`): copy, save as PNG |
 | `src/app/hotkeys.rs` | Keyboard shortcuts |
 | `src/app/outbox.rs` | Send queue: pending/failed bubbles, retries with backoff |
 | `src/app/chatlist.rs` | Folder column and tabs, dragging pinned chats and folders |

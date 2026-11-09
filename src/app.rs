@@ -88,6 +88,7 @@ mod stickers;
 mod searchtabs;
 mod autodl;
 mod spoiler;
+mod userqr;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;
 
@@ -584,6 +585,8 @@ pub struct App {
     stories: stories::Stories,
     /// The "Report" box for messages.
     report: Option<report::ReportBox>,
+    /// The QR code box of a public username.
+    user_qr: userqr::UserQr,
     /// Picking a quote for the reply, and the chosen one.
     quoting: quote::Quoting,
     /// A hidden link or a received program waiting for "Open anyway".
@@ -841,6 +844,7 @@ impl App {
             bot_start: HashMap::new(),
             opening: None,
             report: None,
+            user_qr: Default::default(),
             quoting: Default::default(),
             stories: stories::Stories::default(),
             saved: saved::Saved::default(),
@@ -1703,6 +1707,7 @@ impl eframe::App for App {
         self.sticker_set_box(ui);
         self.privacy_pick_view(ui);
         self.tag_rename_view(ui);
+        self.user_qr_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);
         glass::glass_popups(ui.ctx());
