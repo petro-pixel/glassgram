@@ -93,6 +93,8 @@ mod saved;
 pub use saved::SavedTag;
 mod stories;
 mod gifts;
+mod stars;
+pub use stars::{StarsDir, StarsTx};
 mod stickers;
 pub use stickers::{DocRef, FAVED_SET, RECENT_SET, StickerSetInfo, StickerSetRef, addstickers_name};
 mod emojikw;
@@ -229,6 +231,9 @@ pub enum Cmd {
     LoadWebsites,
     LogoutWebsite(i64),
     LogoutAllWebsites,
+    /// A page of the own Stars history (`offset` empty — the first, which also refreshes the balance);
+    /// answered with `Ev::StarsBalance` and `Ev::StarsHistory`. Read only: nothing here spends Stars.
+    LoadStars { dir: StarsDir, offset: String },
     SetSensitive(bool),
     /// Two-step verification state (`account.getPassword`); answered with `Ev::Password`.
     LoadPassword,
@@ -593,6 +598,10 @@ pub enum Ev {
     /// Sensitive content: shown unfiltered, and whether the account may change that.
     ContentSettings { enabled: bool, can_change: bool },
     Websites(Vec<WebSession>),
+    /// The own Stars balance in whole Stars plus the fraction.
+    StarsBalance { stars: i64, nanos: i32 },
+    /// A page of Stars transactions; `next` is the offset of the next page (empty — no more).
+    StarsHistory { dir: StarsDir, list: Vec<StarsTx>, next: String, append: bool },
     /// (type, bytes, files) of the local cache.
     CacheUsage(Vec<(CacheKind, u64, usize)>),
     DefaultTtl(i32),
@@ -1001,6 +1010,7 @@ impl Worker {
             cmd @ (Cmd::LoadAccountTtl | Cmd::SetAccountTtl(_)) => self.self_destruct_cmd(cmd).await,
             cmd @ Cmd::SendDice { .. } => self.dice_cmd(cmd).await,
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
+            cmd @ Cmd::LoadStars { .. } => self.stars_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
             cmd @ (Cmd::LoadAdminLog { .. } | Cmd::SetSignatures { .. } | Cmd::LoadDiscussionGroups(_) | Cmd::SetDiscussionGroup { .. }) => self.admin_cmd(cmd).await,
             cmd @ (Cmd::LoadParticipants { .. } | Cmd::EditAdmin { .. } | Cmd::RestrictMember { .. } | Cmd::BanMember { .. } | Cmd::UnbanMember { .. }) => self.manage_cmd(cmd).await,

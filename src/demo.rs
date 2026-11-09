@@ -11,6 +11,7 @@ use crate::backend::{AdminRights, InviteDraft, InviteLink, JoinRequest, PartList
 use crate::format;
 
 mod stickers;
+mod stars;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -857,6 +858,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let groups = app.demo_chats().iter().filter(|c| c.kind == ChatKind::Group).cloned().collect();
             app.push_event(Ev::DiscussionGroups { peer, groups });
         }
+        cmd @ Cmd::LoadStars { .. } => stars::handle(app, cmd),
         Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites => {
             let gone = match &cmd {
                 Cmd::LogoutWebsite(h) => vec![*h],

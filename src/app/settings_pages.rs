@@ -107,6 +107,7 @@ impl SettingsTab {
             SettingsTab::Advanced => l!("Додатково", "Advanced"),
             SettingsTab::Devices => l!("Пристрої", "Devices"),
             SettingsTab::Language => "Мова · Language",
+            SettingsTab::Stars => l!("Мої зірки", "My Stars"),
         }
     }
 
@@ -121,12 +122,13 @@ impl SettingsTab {
             SettingsTab::Advanced => Icon::Gear,
             SettingsTab::Devices => Icon::Laptop,
             SettingsTab::Language => Icon::Globe,
+            SettingsTab::Stars => Icon::Star,
         }
     }
 }
 
 /// Section order on the main page, as in Telegram Desktop.
-const SECTIONS: [SettingsTab; 8] = [
+const SECTIONS: [SettingsTab; 9] = [
     SettingsTab::Account,
     SettingsTab::Notifications,
     SettingsTab::Privacy,
@@ -135,6 +137,7 @@ const SECTIONS: [SettingsTab; 8] = [
     SettingsTab::Advanced,
     SettingsTab::Devices,
     SettingsTab::Language,
+    SettingsTab::Stars,
 ];
 
 /// Row of the section list: icon, title and a chevron.
@@ -193,6 +196,7 @@ impl App {
                 self.send(Cmd::LoadPassword);
             }
             SettingsTab::Devices => self.send(Cmd::LoadSessions),
+            SettingsTab::Stars => self.open_stars(),
             SettingsTab::Advanced => self.load_cache_usage(),
             SettingsTab::Folders => self.send(Cmd::LoadSuggestedFolders),
             SettingsTab::Notifications => self.load_notify_exceptions(),
@@ -216,6 +220,7 @@ impl App {
             SettingsTab::Advanced => self.advanced_page(ui),
             SettingsTab::Devices => self.devices_tab(ui),
             SettingsTab::Language => self.language_page(ui),
+            SettingsTab::Stars => self.stars_page(ui),
         }
     }
 
@@ -237,6 +242,7 @@ impl App {
         let mut open = None;
         let name = self.profile_name();
         let lang = self.settings.lang.name();
+        let stars = self.stars_label();
         let devices = if self.sessions.is_empty() { String::new() } else { self.sessions.len().to_string() };
         let avatar = self.profile.id.and_then(|id| self.textures.get(&ImgKey::Avatar(id)));
         let s = &mut self.settings;
@@ -268,6 +274,7 @@ impl App {
                 let value = match tab {
                     SettingsTab::Language => lang.as_str(),
                     SettingsTab::Devices => devices.as_str(),
+                    SettingsTab::Stars => stars.as_str(),
                     _ => "",
                 };
                 if nav_row(ui, tab, value).clicked() {
