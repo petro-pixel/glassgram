@@ -137,6 +137,12 @@ fn convert(t: tl::enums::StarsTransaction, names: &HashMap<PeerId, String>) -> S
     }
 }
 
+/// On failure the tab still gets an (empty) answer, so it leaves the loading state and can retry.
+fn failed(out: &Emitter, dir: StarsDir, offset: String, msg: String) {
+    out.send(Ev::Error(msg));
+    out.send(Ev::StarsHistory { dir, list: Vec::new(), next: offset, append: true });
+}
+
 impl Worker {
     pub(super) async fn stars_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
         let Cmd::LoadStars { dir, offset } = cmd else { return Ok(()) };
@@ -151,7 +157,7 @@ impl Worker {
                         let (stars, nanos) = amount(s.balance);
                         out.send(Ev::StarsBalance { stars, nanos });
                     }
-                    Err(e) => return out.send(Ev::Error(lf!("Зірки: {e}", "Stars: {e}"))),
+                    Err(e) => return failed(&out, dir, offset, lf!("Зірки: {e}", "Stars: {e}")),
                 }
             }
             let req = tl::functions::payments::GetStarsTransactions {
@@ -166,7 +172,7 @@ impl Worker {
             };
             let tl::enums::payments::StarsStatus::Status(s) = match client.invoke(&req).await {
                 Ok(s) => s,
-                Err(e) => return out.send(Ev::Error(lf!("Історія зірок: {e}", "Stars history: {e}"))),
+                Err(e) => return failed(&out, dir, offset, lf!("Історія зірок: {e}", "Stars history: {e}")),
             };
             let names = names(&client, s.chats, s.users);
             let list = s.history.unwrap_or_default().into_iter().map(|t| convert(t, &names)).collect();
