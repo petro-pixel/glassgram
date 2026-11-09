@@ -76,6 +76,7 @@ use bubbles::*;
 mod sendbox;
 mod editmedia;
 mod websites;
+mod stars;
 mod autodelete;
 mod storage;
 mod dice;
@@ -343,6 +344,7 @@ enum SettingsTab {
     Advanced,
     Devices,
     Language,
+    Stars,
 }
 
 /// Auto-lock options in minutes (0 means only at startup).
@@ -555,6 +557,7 @@ pub struct App {
     spoilers: spoiler::Spoilers,
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
+    stars: stars::Stars,
     autodelete: autodelete::AutoDelete,
     storage: storage::Storage,
     self_destruct: selfdestruct::SelfDestruct,
@@ -819,6 +822,7 @@ impl App {
             spoilers: spoiler::Spoilers::default(),
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
+            stars: stars::Stars::default(),
             autodelete: autodelete::AutoDelete::default(),
             storage: storage::Storage::default(),
             self_destruct: selfdestruct::SelfDestruct::default(),
@@ -1009,6 +1013,8 @@ impl App {
             Ev::Sessions(list) => self.sessions = list,
             Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
             Ev::Websites(list) => self.on_websites(list),
+            Ev::StarsBalance { stars, nanos } => self.on_stars_balance(stars, nanos),
+            Ev::StarsHistory { dir, list, next, append } => self.on_stars_history(dir, list, next, append),
             Ev::AdminLog { peer, entries, older } => self.on_admin_log(peer, entries, older),
             Ev::DiscussionGroups { peer, groups } => self.on_discussion_groups(peer, groups),
             ev @ (Ev::Participants { .. } | Ev::ParticipantsChanged(_) | Ev::InviteLinks { .. } | Ev::JoinRequests { .. }) => self.manage_event(ev),

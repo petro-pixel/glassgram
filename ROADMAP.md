@@ -152,7 +152,7 @@ Time estimate — [at the end of the file](#time-estimate).
 
 ## 9. Gifts, Stars, Premium
 - ✅ Gifts in profiles: a "Gifts" tab with the gift stickers, price or collectible number, sender and note on hover (`getSavedStarGifts`)
-- ⬜ **P2** Stars balance, transaction history, top-up via invoice (`getStarsStatus`, `getStarsTransactions`)
+- 🟡 **P2** Stars balance, transaction history, top-up via invoice (`getStarsStatus`, `getStarsTransactions`): Settings → My Stars shows the balance and the history with All / Incoming / Outgoing tabs, paged with "Show more"; each row has the source (bot, chat, Fragment, App Store…), title, date and the signed amount, a click opens the details (amount, source, date, status incl. refunds, description, ID with Copy, the blockchain link of a withdrawal). Left: top-up via invoice — after the payments security review
 - ⬜ **P2** Sending gifts (`getStarGifts`, `checkCanSendGift`), paid ⭐ reactions and paid media
 - ⬜ **P3** Unique gifts: upgrading, transferring, reselling, collections, auctions, crafting, signed marketplace gifts (2026); moving them to a TON Money card — with the wallet review
 - ⬜ **P3** Giveaways, Premium gift codes, channel subscriptions for Stars
