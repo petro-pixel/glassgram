@@ -96,6 +96,7 @@ mod gifts;
 mod stickers;
 pub use stickers::{DocRef, FAVED_SET, RECENT_SET, StickerSetInfo, StickerSetRef, addstickers_name};
 mod emojikw;
+mod custom_emoji;
 mod report;
 pub use report::ReportStep;
 pub use gifts::Gift;
@@ -119,6 +120,8 @@ pub const PAGE: usize = 50;
 const AVATAR_PT: f32 = 48.0;
 const PHOTO_PT: f32 = 420.0;
 const STICKER_PT: f32 = 160.0;
+/// Custom emoji in text and reactions.
+const EMOJI_PT: f32 = 36.0;
 const FULL_PT: f32 = 1600.0;
 /// Photos larger than this (px on the long side) are compressed before sending, like Telegram Desktop.
 const SEND_PHOTO_PX: u32 = 2560;
@@ -353,6 +356,8 @@ pub enum Cmd {
     Report { peer: PeerId, ids: Vec<i32>, option: Vec<u8>, message: String },
     /// Emoji keywords of a language (`en`, `uk`…) for `:word` suggestions.
     LoadEmojiKeywords(String),
+    /// Pictures of custom emoji by document id; they come as `ImgKey::Emoji`.
+    LoadCustomEmoji(Vec<i64>),
     /// Channels similar to this one, for its profile.
     LoadSimilarChannels(PeerId),
     /// `t.me/<bot>?start=<param>`: open the bot chat ready to start with the parameter.
@@ -511,6 +516,8 @@ pub enum ImgKey {
     Sponsored(i64),
     /// A story picture or a video story's cover.
     Story(PeerId, i32),
+    /// A custom emoji (by document id) drawn inside text.
+    Emoji(i64),
 }
 
 pub enum Ev {
@@ -1048,6 +1055,7 @@ impl Worker {
             cmd @ Cmd::LoadGifts(_) => self.gifts_cmd(cmd).await,
             cmd @ Cmd::Report { .. } => self.report_cmd(cmd).await,
             cmd @ Cmd::LoadEmojiKeywords(_) => self.emoji_keywords_cmd(cmd).await,
+            cmd @ Cmd::LoadCustomEmoji(_) => self.custom_emoji_cmd(cmd).await,
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,

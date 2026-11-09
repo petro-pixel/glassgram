@@ -127,6 +127,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/gifts.rs`, `src/backend/gifts.rs` | "Gifts" tab in a profile |
 | `src/app/textures.rs` | Pictures on the GPU with a memory budget; dropped ones come back from the disk cache |
 | `src/app/emojikw.rs`, `src/backend/emojikw.rs` | Emoji suggestions while typing `:word` |
+| `src/app/custom_emoji.rs`, `src/backend/custom_emoji.rs` | Custom emoji in message text: pictures drawn over the fallback emoji |
 | `src/app/report.rs`, `src/backend/report.rs` | "Report" box for messages |
 | `src/app/quote.rs`, `src/backend/reply.rs` | Replies with a quote and in another chat |
 | `src/app/newchat.rs`, `src/backend/newchat.rs` | "New chat": contacts, new group, new channel with its type, link and subscribers |

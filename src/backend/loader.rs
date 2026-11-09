@@ -181,6 +181,12 @@ pub(super) fn best_thumb(photo: &Photo) -> Option<grammers_client::media::PhotoS
 }
 
 pub(super) fn decode(bytes: &[u8], max_px: u32) -> Option<ColorImage> {
+    // A gzipped `.tgs` (animated custom emoji): its first frame stands for it.
+    if bytes.starts_with(&[0x1f, 0x8b]) {
+        let side = max_px.clamp(16, 256);
+        let rgba = crate::lottie::Lottie::load(bytes, side as u16).ok()?.frame(0.0);
+        return Some(ColorImage::from_rgba_unmultiplied([side as usize, side as usize], &rgba));
+    }
     let img = image::load_from_memory(bytes).ok()?;
     let img = if img.width() > max_px || img.height() > max_px {
         // Lanczos gives clean downscaling without moiré on fine details.

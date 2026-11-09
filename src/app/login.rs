@@ -247,6 +247,7 @@ impl App {
                 self.chats.clear();
                 self.history.clear();
                 self.textures.clear();
+                self.custom_emoji.clear();
                 self.selected = None;
                 self.screen = Screen::Login(Step::Creds);
             }
