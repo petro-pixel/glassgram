@@ -39,6 +39,8 @@ vello_cpu = "0.2"
 flate2 = "1"
 open = "5"
 qrcode = { version = "0.14", default-features = false }
+# Glyph outlines for text in pictures drawn on the CPU (the username QR); already in the build, pure Rust.
+ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
 rfd = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -1586,7 +1586,7 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
                     contact: false,
                     joined: false,
                     can_post: false,
-                    ..person(0, "Олена про дизайн", &{ let n = "2 310"; crate::i18n::lf!("підписників: {n}", "{n} subscribers") }, Presence::None)
+                    ..person(71, "Олена про дизайн", &{ let n = "2 310"; crate::i18n::lf!("підписників: {n}", "{n} subscribers") }, Presence::None)
                 });
             }
             if id == 5 {

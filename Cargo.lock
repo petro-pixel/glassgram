@@ -2128,6 +2128,7 @@ dependencies = [
  "tao",
  "tokio",
  "tray-icon",
+ "ttf-parser",
  "velato",
  "vello_cpu",
  "windows-sys 0.61.2",

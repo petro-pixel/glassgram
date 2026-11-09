@@ -240,6 +240,7 @@ impl App {
     /// Main page: profile card, sections, interface scale (as in Telegram Desktop).
     fn settings_main(&mut self, ui: &mut Ui) {
         let mut open = None;
+        let mut qr = false;
         let name = self.profile_name();
         let lang = self.settings.lang.name();
         let stars = self.stars_label();
@@ -265,8 +266,11 @@ impl App {
                 sub.push('@');
                 sub.push_str(&self.profile.username);
             }
-            p.galley(pos2(x, card.top() + 42.0), elided(ui, &sub, 13.0, ink_dim(), card.width() - 100.0), ink());
-            if resp.clicked() {
+            p.galley(pos2(x, card.top() + 42.0), elided(ui, &sub, 13.0, ink_dim(), card.width() - 140.0), ink());
+            let qr_button = Rect::from_center_size(pos2(card.right() - 30.0, card.center().y), vec2(40.0, 40.0));
+            if glass::icon_button(ui, qr_button, "settings-qr", Icon::QrCode, false, true).on_hover_text(l!("QR-код", "QR code")).clicked() {
+                qr = true;
+            } else if resp.clicked() {
                 open = Some(SettingsTab::Account);
             }
             ui.add_space(8.0);
@@ -289,6 +293,10 @@ impl App {
         });
         if let Some(tab) = open {
             self.open_settings_page(tab);
+        }
+        if qr {
+            let username = self.profile.username.clone();
+            self.open_user_qr(&username, true);
         }
     }
 
@@ -350,6 +358,7 @@ impl App {
         let mut save_username = None;
         let mut other_usernames = None;
         let mut bday_cmd = None;
+        let mut show_qr = false;
         egui::ScrollArea::vertical().id_salt("settings-account").auto_shrink(false).show(ui, |ui| {
             let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 96.0), Sense::hover());
             let name = format!("{} {}", e.first, e.last);
@@ -415,8 +424,15 @@ impl App {
             ui.add_space(8.0);
             let can = !same && problem.is_none() && (name.is_empty() || state == Some(UsernameState::Free));
             let r = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
-            if glass::button(ui, r, "username-save", l!("Зберегти ім'я користувача", "Save username"), true, can).clicked() && can {
+            // The QR code of the saved username, beside the save button.
+            let (save_r, qr_r) = if p.username.is_empty() { (r, None) } else { (Rect::from_min_max(r.min, pos2(r.right() - 44.0, r.bottom())), Some(Rect::from_min_max(pos2(r.right() - 36.0, r.top()), r.max))) };
+            if glass::button(ui, save_r, "username-save", l!("Зберегти ім'я користувача", "Save username"), true, can).clicked() && can {
                 save_username = Some(Ok(name));
+            }
+            if let Some(qr_r) = qr_r
+                && glass::icon_button(ui, qr_r, "username-qr", Icon::QrCode, false, true).on_hover_text(l!("QR-код", "QR code")).clicked()
+            {
+                show_qr = true;
             }
 
             other_usernames = usernames_section(ui, &p.usernames);
@@ -443,6 +459,10 @@ impl App {
             Some(Ok(name)) => self.send(Cmd::SetUsername(name)),
             Some(Err(name)) => self.send(Cmd::CheckUsername(name)),
             None => {}
+        }
+        if show_qr {
+            let username = self.profile.username.clone();
+            self.open_user_qr(&username, true);
         }
     }
 
@@ -651,8 +671,8 @@ impl App {
                 t.set_notifications(self.settings.notifications);
             }
         }
-        // Esc goes back to the main page first; the folder window on top handles its own Esc.
-        let esc = self.folder_edit.is_none() && ui.input(|i| i.key_pressed(Key::Escape));
+        // Esc goes back to the main page first; the windows on top handle their own Esc.
+        let esc = self.folder_edit.is_none() && !self.user_qr.is_open() && ui.input(|i| i.key_pressed(Key::Escape));
         if back || esc || done {
             self.two_step.reset();
         }

@@ -33,7 +33,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P2** Name colour and profile background, emoji status (`account.updateColor`, `updateEmojiStatus`; partly Premium)
 - ✅ Account self-destruct when inactive: 1, 3, 6, 12, 18 or 24 months in Privacy and Security (`account.getAccountTTL` / `setAccountTTL`)
 - ⬜ **P2** Change number, delete account
-- ⬜ **P2** QR code of our public username with a choice of designs, to show or save (Telegram Desktop 7.3.2)
+- ✅ QR code of a public username (Telegram Desktop 7.3.2): from the profile card in Settings, "My account" and the username row in any chat's info; `https://t.me/<name>` at error correction H with rounded modules, Telegram's logo in the middle and the username under it, six gradient designs; copy the link, copy the image, or save it as a PNG in Downloads (drawn on the CPU at 960×1200, not a screen capture). Without a username the box explains and offers to set one
 - ✅ Connected websites in Privacy and Security → "Logged in with Telegram": site, its bot, browser, region and IP, last use; disconnect one or all (`account.getWebAuthorizations`, `resetWebAuthorization(s)`)
 - ⬜ **P3** Telegram Passport
 

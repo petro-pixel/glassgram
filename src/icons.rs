@@ -101,6 +101,7 @@ pub enum Icon {
     Minimize,
     /// Picture-in-picture.
     Pip,
+    QrCode,
 }
 
 /// The Lucide SVG file of an icon; `None` for our own filled icons.
@@ -176,6 +177,7 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Maximize => include_str!("../assets/icons/maximize.svg"),
         Icon::Minimize => include_str!("../assets/icons/minimize.svg"),
         Icon::Pip => include_str!("../assets/icons/picture-in-picture-2.svg"),
+        Icon::QrCode => include_str!("../assets/icons/qr-code.svg"),
         Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
     })
 }
