@@ -94,6 +94,7 @@ pub enum Icon {
     Megaphone,
     /// Favourite stickers.
     Star,
+    Image,
 }
 
 /// The Lucide SVG file of an icon; `None` for our own filled icons.
@@ -165,6 +166,7 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Cake => include_str!("../assets/icons/cake.svg"),
         Icon::Megaphone => include_str!("../assets/icons/megaphone.svg"),
         Icon::Star => include_str!("../assets/icons/star.svg"),
+        Icon::Image => include_str!("../assets/icons/image.svg"),
         Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
     })
 }

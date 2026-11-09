@@ -161,11 +161,13 @@ pub struct Settings {
     pub increase_contrast: bool,
     /// A still background and no interface animations.
     pub reduce_motion: bool,
+    /// The background under every chat without one of its own.
+    pub wallpaper: crate::wallpaper::Spec,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard, cache_limit_gb: 0, autodl: AutoDownload::default(), reduce_transparency: false, increase_contrast: false, reduce_motion: false }
+        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard, cache_limit_gb: 0, autodl: AutoDownload::default(), reduce_transparency: false, increase_contrast: false, reduce_motion: false, wallpaper: crate::wallpaper::Spec::Live }
     }
 }
 
@@ -208,6 +210,7 @@ impl Settings {
                 "reduce_transparency" => s.reduce_transparency = flag,
                 "increase_contrast" => s.increase_contrast = flag,
                 "reduce_motion" => s.reduce_motion = flag,
+                "wallpaper" => s.wallpaper = crate::wallpaper::Spec::parse(v),
                 "density" => {
                     s.density = match v {
                         "compact" => Density::Compact,
@@ -226,7 +229,7 @@ impl Settings {
         let _ = std::fs::create_dir_all(&dir);
         let b = |v: bool| if v { "1" } else { "0" };
         let text = format!(
-            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\ncache_limit_gb={}\nautodl={}\nreduce_transparency={}\nincrease_contrast={}\nreduce_motion={}\n",
+            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\ncache_limit_gb={}\nautodl={}\nreduce_transparency={}\nincrease_contrast={}\nreduce_motion={}\nwallpaper={}\n",
             self.lang.code(),
             match self.theme {
                 Theme::System => "system",
@@ -250,7 +253,8 @@ impl Settings {
             self.autodl.code(),
             b(self.reduce_transparency),
             b(self.increase_contrast),
-            b(self.reduce_motion)
+            b(self.reduce_motion),
+            self.wallpaper.code()
         );
         // Holds the local passcode hash, so owner-only.
         let _ = std::fs::write(dir.join("settings"), text);

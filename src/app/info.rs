@@ -99,6 +99,8 @@ enum Do {
     Unblock,
     /// A new auto-delete timer, in seconds.
     Ttl(i32),
+    /// The chat's wallpaper and theme box.
+    Wallpaper,
 }
 
 fn has_members(kind: ChatKind) -> bool {
@@ -396,6 +398,7 @@ impl App {
             Do::Jump(msg) => self.jump_to(&SearchHit { chat: chat.title.clone(), kind: chat.kind, msg }),
             Do::Tab(tab) => self.select_info_tab(tab),
             Do::Ttl(period) => self.send(Cmd::SetHistoryTtl { peer, period }),
+            Do::Wallpaper => self.open_wallpapers(Some(peer)),
             Do::Notify(mute_until, silent) => {
                 if let Some(i) = &mut self.info {
                     i.notify_open = false;
@@ -546,6 +549,9 @@ impl App {
         }
         if let Some(period) = super::autodelete::ttl_rows(ui, &d, &mut info.ttl_open) {
             todo.push(Do::Ttl(period));
+        }
+        if chat.kind == ChatKind::User && info_row(ui, Icon::Image, &self.wallpaper_label(chat.id), l!("Фон і тема чату", "Chat wallpaper and theme")).clicked() {
+            todo.push(Do::Wallpaper);
         }
     }
 
