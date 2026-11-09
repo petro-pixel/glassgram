@@ -165,3 +165,42 @@ fn fs_panel(in: VsOut) -> @location(0) vec4<f32> {
     let a = mask * panel.opacity;
     return vec4<f32>(outc * a, a);
 }
+
+// ───────────── Chat wallpaper ─────────────
+// Painted into the background texture before the blur, so glass over the chat refracts it.
+
+struct WallU {
+    rect: vec4<f32>,      // min.x, min.y, max.x, max.y in pixels
+    screen: vec2<f32>,
+    radius: f32,
+    _pad: f32,
+    veil: vec4<f32>,
+};
+@group(0) @binding(7) var wall_tex: texture_2d<f32>;
+@group(0) @binding(8) var wall_smp: sampler;
+@group(0) @binding(9) var<uniform> wall: WallU;
+
+@vertex
+fn vs_wall(@builtin(vertex_index) i: u32) -> VsOut {
+    let corners = array<vec2<f32>, 6>(
+        vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0), vec2<f32>(0.0, 1.0),
+        vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 1.0));
+    let c = corners[i];
+    let px = mix(wall.rect.xy, wall.rect.zw, c);
+    var o: VsOut;
+    o.pos = vec4<f32>(px.x / wall.screen.x * 2.0 - 1.0, 1.0 - px.y / wall.screen.y * 2.0, 0.0, 1.0);
+    o.uv = c;
+    return o;
+}
+
+@fragment
+fn fs_wall(in: VsOut) -> @location(0) vec4<f32> {
+    let c = (wall.rect.xy + wall.rect.zw) * 0.5;
+    let b = (wall.rect.zw - wall.rect.xy) * 0.5;
+    let r = min(wall.radius, min(b.x, b.y));
+    let q = abs(in.pos.xy - c) - b + r;
+    let d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - r;
+    let mask = clamp(0.5 - d, 0.0, 1.0);
+    let col = mix(textureSample(wall_tex, wall_smp, in.uv).rgb, wall.veil.rgb, wall.veil.a);
+    return vec4<f32>(col * mask, mask);
+}

@@ -6,6 +6,7 @@
 
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 
 use bytemuck::{Pod, Zeroable};
 use eframe::egui::{self, Rect};
@@ -44,6 +45,41 @@ struct PanelU {
     _pad: [f32; 2],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct WallU {
+    rect: [f32; 4],
+    screen: [f32; 2],
+    radius: f32,
+    _pad: f32,
+    /// Colour the wallpaper is mixed towards (alpha — how far), so text stays readable.
+    veil: [f32; 4],
+}
+
+/// A chat wallpaper painted into the background before the blur, so glass over it refracts it.
+#[derive(Clone)]
+pub struct WallLayer {
+    pub rect: Rect,
+    pub radius: f32,
+    pub image: Arc<egui::ColorImage>,
+    /// Changes whenever the image does, so the texture is uploaded once.
+    pub id: u64,
+    pub veil: egui::Color32,
+}
+
+/// This frame's wallpaper: set while the UI is laid out, read when the frame is rendered.
+static WALL: Mutex<Option<WallLayer>> = Mutex::new(None);
+
+pub fn set_wallpaper(layer: Option<WallLayer>) {
+    *WALL.lock().unwrap_or_else(|e| e.into_inner()) = layer;
+}
+
+/// The uploaded wallpaper texture and its bind group.
+struct WallTex {
+    id: u64,
+    bind: wgpu::BindGroup,
+}
+
 struct Targets {
     size: [u32; 2],
     full: wgpu::TextureView,
@@ -72,6 +108,10 @@ pub struct GlassGpu {
     panel_ubuf: wgpu::Buffer,
     targets: Option<Targets>,
     panel_count: u32,
+    wall_pipe: wgpu::RenderPipeline,
+    wall_layout: wgpu::BindGroupLayout,
+    wall_ubuf: wgpu::Buffer,
+    wall: Option<WallTex>,
 }
 
 /// Registers GPU resources in the egui renderer. Returns `false` if wgpu is unavailable.
@@ -149,6 +189,12 @@ impl GlassGpu {
             entries: &[p0, p1, uniform_entry(6, true, size_of::<PanelU>() as u64)],
         });
 
+        let [w0, w1] = tex_entries(7);
+        let wall_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("glass-wall"),
+            entries: &[w0, w1, uniform_entry(9, false, size_of::<WallU>() as u64)],
+        });
+
         let pipe = |label: &str, layout: &wgpu::BindGroupLayout, vs: &str, fs: &str, format, blend| {
             let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some(label),
@@ -183,6 +229,7 @@ impl GlassGpu {
         let blur_pipe = pipe("glass-blur", &tex_layout, "vs_full", "fs_blur", OFF_FORMAT, None);
         let screen_pipe = pipe("glass-screen", &tex_layout, "vs_full", "fs_copy", target, None);
         let panel_pipe = pipe("glass-panel", &panel_layout, "vs_panel", "fs_panel", target, premul);
+        let wall_pipe = pipe("glass-wall", &wall_layout, "vs_wall", "fs_wall", OFF_FORMAT, premul);
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("glass-linear"),
@@ -216,7 +263,47 @@ impl GlassGpu {
             panel_ubuf: ubuf("glass-panel-u", PANEL_STRIDE * MAX_PANELS as u64),
             targets: None,
             panel_count: 0,
+            wall_pipe,
+            wall_layout,
+            wall_ubuf: ubuf("glass-wall-u", size_of::<WallU>() as u64),
+            wall: None,
         }
+    }
+
+    /// Uploads the wallpaper image when it changed.
+    fn ensure_wall(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layer: &WallLayer) {
+        if self.wall.as_ref().is_some_and(|w| w.id == layer.id) {
+            return;
+        }
+        let [w, h] = [layer.image.size[0] as u32, layer.image.size[1] as u32];
+        let size = wgpu::Extent3d { width: w.max(1), height: h.max(1), depth_or_array_layers: 1 };
+        let tex = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("glass-wall"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: OFF_FORMAT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo { texture: &tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+            layer.image.as_raw(),
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(4 * w), rows_per_image: Some(h) },
+            size,
+        );
+        let view = tex.create_view(&Default::default());
+        let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &self.wall_layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(&view) },
+                wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                wgpu::BindGroupEntry { binding: 9, resource: self.wall_ubuf.as_entire_binding() },
+            ],
+        });
+        self.wall = Some(WallTex { id: layer.id, bind });
     }
 
     fn ensure_targets(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, size: [u32; 2]) {
@@ -324,8 +411,30 @@ impl CallbackTrait for BgCallback {
         gpu.ensure_targets(device, queue, screen.size_in_pixels);
         let size = screen.size_in_pixels;
         queue.write_buffer(&gpu.bg_ubuf, 0, bytemuck::bytes_of(&BgU { size: [size[0] as f32, size[1] as f32], time: self.time, light: if self.light { 1.0 } else { 0.0 } }));
-        let t = gpu.targets.as_ref().unwrap();
+        let layer = WALL.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        if let Some(layer) = &layer {
+            gpu.ensure_wall(device, queue, layer);
+            let (r, ppp) = (layer.rect, screen.pixels_per_point);
+            let u = WallU { rect: [r.min.x * ppp, r.min.y * ppp, r.max.x * ppp, r.max.y * ppp], screen: [size[0] as f32, size[1] as f32], radius: layer.radius * ppp, _pad: 0.0, veil: layer.veil.to_srgba_unmultiplied().map(|c| c as f32 / 255.0) };
+            queue.write_buffer(&gpu.wall_ubuf, 0, bytemuck::bytes_of(&u));
+        }
+        let Some(t) = gpu.targets.as_ref() else { return Vec::new() };
         fullscreen_pass(enc, &t.full, &gpu.bg_pipe, &t.bg_bind);
+        if let (Some(_), Some(w)) = (&layer, &gpu.wall) {
+            let mut rp = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("glass-wall"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &t.full,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                })],
+                ..Default::default()
+            });
+            rp.set_pipeline(&gpu.wall_pipe);
+            rp.set_bind_group(0, &w.bind, &[]);
+            rp.draw(0..6, 0..1);
+        }
         fullscreen_pass(enc, &t.a, &gpu.copy_pipe, &t.full_bind);
         for _ in 0..2 {
             fullscreen_pass(enc, &t.b, &gpu.blur_pipe, &t.a_h_bind);

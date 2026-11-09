@@ -78,6 +78,8 @@ mod dice;
 mod selfdestruct;
 pub use storage::CacheKind;
 mod autodelete;
+mod wallpapers;
+pub use wallpapers::{ChatTheme, ThemeKey, WallPaper, white_mask};
 pub use websites::WebSession;
 pub use adminlog::AdminLogEntry;
 pub use chatlists::{Chatlist, ChatlistAction};
@@ -221,6 +223,18 @@ pub enum Cmd {
     SetDefaultTtl(i32),
     /// A chat's auto-delete timer; answered with `Ev::HistoryTtl`.
     SetHistoryTtl { peer: PeerId, period: i32 },
+    /// The background gallery (`account.getWallPapers`); answered with `Ev::WallPapers`.
+    LoadWallPapers,
+    /// Emoji and owned gift chat themes; answered with `Ev::ChatThemes`.
+    LoadChatThemes,
+    /// A chat's own wallpaper and theme from its full info; `Ev::ChatWallPaper` and `Ev::ChatTheme`.
+    LoadChatWallPaper(PeerId),
+    /// A wallpaper's picture or pattern into `wallpapers/`; answered with `Ev::WallPaperFile`.
+    DownloadWallPaper(WallPaper),
+    /// A chat's own wallpaper for us (`messages.setChatWallPaper`); `None` removes it.
+    SetChatWallPaper { peer: PeerId, wall: Option<WallPaper> },
+    /// A private chat's theme (`messages.setChatTheme`); `None` removes it.
+    SetChatTheme { peer: PeerId, theme: Option<ThemeKey> },
     /// What the local cache takes by type; answered with `Ev::CacheUsage`.
     /// Days away before the account deletes itself; answered with `Ev::AccountTtl`.
     LoadAccountTtl,
@@ -523,6 +537,8 @@ pub enum ImgKey {
     Story(PeerId, i32),
     /// A custom emoji (by document id) drawn inside text.
     Emoji(i64),
+    /// A wallpaper's gallery thumbnail (by document id).
+    Wall(i64),
 }
 
 pub enum Ev {
@@ -614,6 +630,14 @@ pub enum Ev {
     DefaultTtl(i32),
     AccountTtl(i32),
     HistoryTtl { peer: PeerId, period: i32 },
+    WallPapers(Vec<WallPaper>),
+    ChatThemes(Vec<ChatTheme>),
+    /// A wallpaper document is on disk.
+    WallPaperFile { doc: i64, path: PathBuf },
+    /// A chat's own wallpaper (`None` — it has none).
+    ChatWallPaper { peer: PeerId, wall: Option<WallPaper> },
+    /// A chat's theme; one known only by its key is looked up in `Ev::ChatThemes`.
+    ChatTheme { peer: PeerId, theme: Option<ChatTheme> },
     Password(PasswordState),
     /// The current password was right; the recovery email it is bound to.
     PasswordChecked { email: String },
@@ -1014,6 +1038,7 @@ impl Worker {
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
             cmd @ (Cmd::Reschedule { .. } | Cmd::SendScheduledNow { .. } | Cmd::DeleteScheduled { .. }) => self.scheduled_cmd(cmd).await,
             cmd @ (Cmd::LoadDefaultTtl | Cmd::SetDefaultTtl(_) | Cmd::SetHistoryTtl { .. }) => self.autodelete_cmd(cmd).await,
+            cmd @ (Cmd::LoadWallPapers | Cmd::LoadChatThemes | Cmd::LoadChatWallPaper(_) | Cmd::DownloadWallPaper(_) | Cmd::SetChatWallPaper { .. } | Cmd::SetChatTheme { .. }) => self.wallpapers_cmd(cmd).await,
             cmd @ (Cmd::LoadAccountTtl | Cmd::SetAccountTtl(_)) => self.self_destruct_cmd(cmd).await,
             cmd @ Cmd::SendDice { .. } => self.dice_cmd(cmd).await,
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,

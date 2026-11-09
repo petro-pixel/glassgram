@@ -110,6 +110,26 @@ pub fn danger() -> Color32 {
 /// Folder tag colours as Telegram numbers them: red, orange, violet, green, cyan, blue, pink.
 pub const TAG_COLORS: usize = 7;
 
+/// A chat wallpaper under the messages: content, so no glass of its own. On the GPU it goes into the
+/// background before the blur, so the glass header and field over it refract the wallpaper.
+pub fn wallpaper(p: &Painter, rect: Rect, radius: f32, tex: &egui::TextureHandle, layer: crate::blur::WallLayer) {
+    if gpu() {
+        crate::blur::set_wallpaper(Some(layer));
+        return;
+    }
+    let shape = egui::epaint::RectShape::filled(rect, radius, Color32::WHITE).with_texture(tex.id(), Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)));
+    p.add(shape);
+    p.rect_filled(rect, radius, layer.veil);
+}
+
+/// What a wallpaper of mean luminance `lum` (0–1) is mixed towards, so text in the current theme
+/// stays readable: a light picture darkens in the dark theme, a dark one lightens in the light theme.
+pub fn wallpaper_veil(lum: f32) -> Color32 {
+    let (target, base) = if is_light() { (0.5f32, 255u8) } else { (0.28, 0) };
+    let a = if is_light() { (target - lum) / (1.0 - lum).max(0.01) } else { 1.0 - target / lum.max(0.01) };
+    Color32::from_rgba_unmultiplied(base, base, base, (a.clamp(0.0, 0.75) * 255.0) as u8)
+}
+
 /// A folder tag's colour, deeper on light backgrounds so the small text stays readable.
 pub fn tag_color(id: i32) -> Color32 {
     const DARK: [(u8, u8, u8); TAG_COLORS] = [(255, 110, 110), (255, 165, 80), (185, 140, 255), (110, 215, 130), (90, 210, 230), (110, 165, 255), (255, 120, 190)];
@@ -300,6 +320,8 @@ fn edge_normal(rect: Rect, r: f32, p: Pos2) -> Vec2 {
 /// Live background: a dark gradient and slowly drifting coloured blobs.
 pub fn background(p: &Painter, rect: Rect, t: f64) {
     let t = if calm() { 0.0 } else { t };
+    // The chat sets this frame's wallpaper again while it is laid out.
+    crate::blur::set_wallpaper(None);
     if gpu() {
         p.add(crate::blur::background_callback(rect, (t % 100_000.0) as f32, is_light()));
         return;

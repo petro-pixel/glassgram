@@ -148,6 +148,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/stickers.rs`, `src/backend/stickers.rs` | The sticker panel, the sticker set box, set search and order, favourite stickers, saved GIFs |
 | `src/app/autodl.rs` | Automatic media download by chat type and video size; photos held back in `backend/media.rs` |
 | `src/app/autodelete.rs`, `src/backend/autodelete.rs` | Auto-delete timers: the default for new chats, a chat's own |
+| `src/app/wallpapers.rs`, `src/backend/wallpapers.rs`, `src/wallpaper.rs` | Chat backgrounds and themes: the gallery, a picture from a file, a chat's own wallpaper and theme; fills and patterns drawn on the CPU |
 | `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |
 | `src/app/editmedia.rs`, `src/backend/editmedia.rs` | Editing media messages: caption, replacing the photo or file |
 | `src/app/sendbox.rs`, `src/app/spoiler.rs` | "Send files" box (previews, caption, compression, spoiler, caption above); spoiler cover over hidden media |
@@ -199,6 +200,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - "Select" in the message menu turns on selection mode; Esc leaves it.
 - A message of just 🎲 🎯 🏀 ⚽ 🎰 or 🎳 is sent as a game.
 - A `t.me/addlist/…` link adds a shared folder; its right-click menu checks for new chats, and deleting it offers to leave its chats.
+- Settings → Chat Settings → Chat background: the server gallery (pictures, patterns, colours and gradients), a picture from a file, or the live background; a private chat's info → "Chat wallpaper and theme" sets that chat's own wallpaper and emoji or gift theme.
 - Settings → Chat Settings → Accessibility: reduce transparency (solid glass), increase contrast, reduce motion (a still background).
 - Settings → Advanced → "Automatic media download" picks what loads on its own in private chats, groups and channels; other media show an arrow and load on a click.
 - Enter sends, Shift+Enter — new line.

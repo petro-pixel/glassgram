@@ -86,6 +86,7 @@ mod manage;
 mod invites;
 mod chatlists;
 mod stickers;
+mod wallpapers;
 mod searchtabs;
 mod autodl;
 mod spoiler;
@@ -563,6 +564,8 @@ pub struct App {
     websites: websites::Websites,
     stars: stars::Stars,
     autodelete: autodelete::AutoDelete,
+    /// Chat backgrounds and themes.
+    wallpapers: wallpapers::Wallpapers,
     storage: storage::Storage,
     self_destruct: selfdestruct::SelfDestruct,
     /// Open mini app windows (separate WebView processes).
@@ -833,6 +836,7 @@ impl App {
             websites: websites::Websites::default(),
             stars: stars::Stars::default(),
             autodelete: autodelete::AutoDelete::default(),
+            wallpapers: wallpapers::Wallpapers::default(),
             storage: storage::Storage::default(),
             self_destruct: selfdestruct::SelfDestruct::default(),
             web_apps: Vec::new(),
@@ -1034,6 +1038,7 @@ impl App {
             Ev::CacheUsage(usage) => self.on_cache_usage(usage),
             Ev::AccountTtl(days) => self.on_account_ttl(days),
             Ev::DefaultTtl(period) => self.on_default_ttl(period),
+            ev @ (Ev::WallPapers(_) | Ev::ChatThemes(_) | Ev::WallPaperFile { .. } | Ev::ChatWallPaper { .. } | Ev::ChatTheme { .. }) => self.wallpapers_event(ev),
             Ev::HistoryTtl { peer, period } => self.on_history_ttl(peer, period),
             Ev::ContentSettings { enabled, can_change } => self.privacy.sensitive = Some((enabled, can_change)),
             Ev::Password(state) => self.on_password(state),
@@ -1709,6 +1714,7 @@ impl eframe::App for App {
         if self.export_ask.is_some() {
             self.export_view(ui);
         }
+        self.wallpaper_picker_view(ui);
         self.info_confirm_view(ui);
         self.opening_view(ui);
         self.web_app_ask_view(ui);

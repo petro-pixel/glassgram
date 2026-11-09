@@ -13,6 +13,7 @@ use crate::format;
 mod stickers;
 mod stars;
 mod custom_emoji;
+mod wallpapers;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -291,6 +292,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         | Cmd::SaveGif { .. }
         | Cmd::LoadStickerThumbs(_)
         | Cmd::SendSticker { .. }) => stickers::handle(app, cmd),
+        cmd @ (Cmd::LoadWallPapers | Cmd::LoadChatThemes | Cmd::LoadChatWallPaper(_) | Cmd::DownloadWallPaper(_) | Cmd::SetChatWallPaper { .. } | Cmd::SetChatTheme { .. }) => wallpapers::handle(app, cmd),
         Cmd::SendDice { peer, emoji, reply_to } => {
             let top = match emoji.as_str() {
                 "🎰" => 64,

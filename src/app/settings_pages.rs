@@ -478,12 +478,14 @@ impl App {
     }
 
     fn chats_page(&mut self, ui: &mut Ui) {
-        let s = &mut self.settings;
         egui::ScrollArea::vertical().id_salt("settings-chats").auto_shrink(false).show(ui, |ui| {
             section_title(ui, l!("Тема", "Theme"));
             let themes = [(settings::Theme::System, l!("Як у системі", "System")), (settings::Theme::Dark, l!("Темна", "Dark")), (settings::Theme::Light, l!("Світла", "Light"))];
-            choice(ui, "theme", &mut s.theme, &themes, 122.0);
+            choice(ui, "theme", &mut self.settings.theme, &themes, 122.0);
             ui.add_space(10.0);
+            self.background_section(ui);
+            ui.add_space(10.0);
+            let s = &mut self.settings;
             section_title(ui, l!("Доступність", "Accessibility"));
             ui.checkbox(&mut s.reduce_transparency, l!("Зменшити прозорість", "Reduce transparency"));
             ui.checkbox(&mut s.increase_contrast, l!("Збільшити контраст", "Increase contrast"));
@@ -672,7 +674,7 @@ impl App {
             }
         }
         // Esc goes back to the main page first; the windows on top handle their own Esc.
-        let esc = self.folder_edit.is_none() && !self.user_qr.is_open() && ui.input(|i| i.key_pressed(Key::Escape));
+        let esc = self.folder_edit.is_none() && !self.user_qr.is_open() && self.wallpapers.picker.is_none() && ui.input(|i| i.key_pressed(Key::Escape));
         if back || esc || done {
             self.two_step.reset();
         }

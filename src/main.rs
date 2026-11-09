@@ -29,6 +29,7 @@ mod settings;
 mod tray;
 mod video;
 mod viewer;
+mod wallpaper;
 mod webview;
 
 /// Where new versions are published; the "Check for updates" button opens it.

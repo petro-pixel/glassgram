@@ -84,6 +84,7 @@ impl App {
     }
 
     pub(super) fn chat_area(&mut self, ui: &mut Ui, rect: Rect) {
+        self.wallpaper_bg(ui, self.selected, rect);
         let Some(peer) = self.selected else {
             let pill = Rect::from_center_size(rect.center(), vec2(230.0, 44.0));
             glass::glass(ui.painter(), pill, Glass::panel(22.0));
