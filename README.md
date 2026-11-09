@@ -16,7 +16,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/K8Z3299QVD)
 
 - **MTProto**: [grammers](https://codeberg.org/Lonami/grammers): sign-in by phone number or QR code, 2FA, chats, history, replies, editing and deleting, live updates
-- **Media**: avatars, photos, stickers with a disk cache (`~/.local/share/glassgram/cache`); sending files and stickers; voice and audio with a waveform, seeking and speed; videos, GIFs, round videos and webm stickers right in the chat; voice recording (needs ffmpeg with `ffplay`)
+- **Media**: avatars, photos, stickers with a disk cache (`~/.local/share/glassgram/cache`); sending files and stickers; voice and audio with a waveform, seeking and speed; GIFs, round videos and webm stickers right in the chat, a video player with full screen and picture-in-picture; voice recording (needs ffmpeg with `ffplay`)
 - **Chats**: forums with topics, channel comments, folders and archive, pinning, muting, drafts, "online" and "typing…" statuses
 - **Search**: global (the field above the chat list, with Chats, Channels, Apps, Posts and Media tabs) and in-chat (🔍 in the header)
 - **Formatting**: Telegram entities are shown, markup is converted when sending
@@ -112,6 +112,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/history.rs`, `src/app/bubbles.rs` | The open chat: history, header, overlays; drawing bubbles, albums, media cards, reactions |
 | `src/app/composer.rs`, `src/app/recording.rs` | The message field: text, files, stickers, emoji, inline bots; voice and round video recording |
 | `src/app/media.rs`, `src/app/dialogs.rs` | Audio player, video clips, photo viewer; export, forward, schedule boxes |
+| `src/app/videoplayer.rs` | Video player: seek bar, volume, speed, full screen, picture-in-picture |
 | `src/app/login.rs`, `src/app/accounts_ui.rs` | Sign-in screens and the passcode lock; the account menu and the other accounts in the background |
 | `src/app/forum.rs`, `src/app/comments.rs`, `src/app/folders.rs` | Forum topics, channel comments, folder editor with tag colours, folder tags on chat rows, recommended folders |
 | `src/app/chatview.rs`, `src/backend/chatview.rs` | Chat view extras: pinned bar and list, jump buttons (down / mentions / reactions), "Seen by", view counters, protected content |
@@ -162,7 +163,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/hotkeys.rs` | Keyboard shortcuts |
 | `src/app/outbox.rs` | Send queue: pending/failed bubbles, retries with backoff |
 | `src/app/chatlist.rs` | Folder column and tabs, dragging pinned chats and folders |
-| `src/player.rs` | Voice and audio player via `ffplay`: pause, seeking, speed |
+| `src/player.rs` | Voice, audio and video sound via `ffplay`: pause, seeking, speed, volume |
 | `src/video.rs` | Video frames via `ffmpeg` into an egui texture: GIFs, round videos, videos, webm stickers; `.tgs` stickers from `src/lottie.rs` |
 | `src/lottie.rs` | Animated (Lottie) stickers drawn on the CPU: `velato` + `vello_cpu`, with limits for untrusted files |
 | `src/camera.rs` | Video message recording: camera + microphone → MP4, round preview; the microphone for all recordings (`Mic`) |
@@ -209,7 +210,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - ✎ next to search — "New group", "New channel", "Contacts".
 - Typing in the chat list search shows tabs under it: Chats, Channels, Apps, Posts, Media. Posts are searched with Enter or the "Search posts" button (free searches a day are limited); Esc clears the search and returns to Chats.
 - Ctrl+V with an image or copied files sends them.
-- ▶ on a voice or audio message plays it; clicking the waveform seeks, the "1×" chip changes the speed. Clicking a video plays it in the bubble; "Open in player" is in the menu.
+- ▶ on a voice or audio message plays it; clicking the waveform seeks, the "1×" chip changes the speed. Clicking a video opens the player: the seek bar, volume, speed (0.5–2×), full screen and picture-in-picture (a small window in a corner that keeps playing while you browse chats; drag it to another corner). Keys: Space — play/pause, ←/→ — 5 s back/forward, F — full screen, Esc — leave full screen, then close. "Open in player" (the system one) is in the menu.
 - 🎤 (the "Send" button when the composer is empty) starts voice recording; ➤ sends, ■ stops for review, Esc cancels.
 - Right-click the microphone — record a video message (camera — in Settings or `GLASSGRAM_CAMERA`).
 

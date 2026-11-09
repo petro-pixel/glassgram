@@ -21,13 +21,15 @@ pub struct Player {
     started: Option<Instant>,
     child: Option<Child>,
     pub speed: f32,
+    /// Loudness 0..1, set from the video player.
+    pub volume: f32,
     /// Run counter: video restarts its frames when it changes.
     run: u64,
 }
 
 impl Player {
     pub fn new() -> Self {
-        Self { current: None, path: PathBuf::new(), duration: 0.0, offset: 0.0, started: None, child: None, speed: 1.0, run: 0 }
+        Self { current: None, path: PathBuf::new(), duration: 0.0, offset: 0.0, started: None, child: None, speed: 1.0, volume: 1.0, run: 0 }
     }
 
     pub fn is(&self, peer: PeerId, id: i32) -> bool {
@@ -56,11 +58,16 @@ impl Player {
 
     /// Start a new message from the beginning.
     pub fn play(&mut self, peer: PeerId, id: i32, path: &Path, duration: f64) {
+        self.play_at(peer, id, path, duration, 0.0);
+    }
+
+    /// Start a message from second `from`.
+    pub fn play_at(&mut self, peer: PeerId, id: i32, path: &Path, duration: f64, from: f64) {
         self.stop();
         self.current = Some((peer, id));
         self.path = path.to_owned();
         self.duration = duration;
-        self.offset = 0.0;
+        self.offset = from.clamp(0.0, duration.max(0.0));
         self.spawn();
     }
 
@@ -88,10 +95,24 @@ impl Player {
     /// Next speed in the cycle 1× → 1.5× → 2×.
     pub fn cycle_speed(&mut self) {
         let i = SPEEDS.iter().position(|s| *s == self.speed).unwrap_or(0);
+        self.set_speed(SPEEDS[(i + 1) % SPEEDS.len()]);
+    }
+
+    /// `atempo` takes 0.5..2 in one pass, which covers every speed we offer.
+    pub fn set_speed(&mut self, speed: f32) {
+        self.restart(|p| p.speed = speed.clamp(0.5, 2.0));
+    }
+
+    pub fn set_volume(&mut self, volume: f32) {
+        self.restart(|p| p.volume = volume.clamp(0.0, 1.0));
+    }
+
+    /// ffplay takes speed and volume only at start: continue from the same spot with new ones.
+    fn restart(&mut self, change: impl FnOnce(&mut Self)) {
         let was = self.playing();
         self.offset = self.position();
         self.kill();
-        self.speed = SPEEDS[(i + 1) % SPEEDS.len()];
+        change(self);
         if was {
             self.spawn();
         }
@@ -126,6 +147,9 @@ impl Player {
         cmd.args(["-nodisp", "-autoexit", "-vn", "-loglevel", "quiet"]);
         if self.offset > 0.05 {
             cmd.arg("-ss").arg(format!("{:.2}", self.offset));
+        }
+        if self.volume < 1.0 {
+            cmd.arg("-volume").arg(format!("{:.0}", self.volume * 100.0));
         }
         if self.speed != 1.0 {
             cmd.arg("-af").arg(format!("atempo={}", self.speed));
