@@ -29,6 +29,11 @@ impl App {
             return;
         }
         let Some(info) = self.find(peer, id).and_then(|m| m.media.clone()) else { return };
+        // Videos open in the player, as in Telegram Desktop.
+        if info.kind == MediaKind::Video {
+            self.open_video(peer, id);
+            return;
+        }
         // Our own voice message is marked as listened by the other side, not by us.
         if let Some(m) = self.find_mut(peer, id).filter(|m| m.media_unread && !m.out) {
             m.media_unread = false;
@@ -97,6 +102,10 @@ impl App {
         let ppp = self.ctx.pixels_per_point();
         for key in wanted {
             let Some(m) = self.find(key.0, key.1) else { continue };
+            if self.video.shows(key) {
+                self.playback.clips.remove(&key);
+                continue;
+            }
             let info = m.media.clone();
             let kind = info.as_ref().map(|i| i.kind);
             let sound = self.playback.player.is(key.0, key.1) && matches!(kind, Some(MediaKind::Video | MediaKind::Round));

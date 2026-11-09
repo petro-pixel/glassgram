@@ -88,6 +88,7 @@ mod stickers;
 mod searchtabs;
 mod autodl;
 mod spoiler;
+mod videoplayer;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;
 
@@ -582,6 +583,8 @@ pub struct App {
     saved: saved::Saved,
     /// The story strip and the story being watched.
     stories: stories::Stories,
+    /// Full-screen video player and its picture-in-picture window.
+    video: videoplayer::VideoPlayer,
     /// The "Report" box for messages.
     report: Option<report::ReportBox>,
     /// Picking a quote for the reply, and the chosen one.
@@ -843,6 +846,7 @@ impl App {
             report: None,
             quoting: Default::default(),
             stories: stories::Stories::default(),
+            video: videoplayer::VideoPlayer::default(),
             saved: saved::Saved::default(),
             chat_photo_tx,
             chat_photo_rx,
@@ -1672,6 +1676,7 @@ impl eframe::App for App {
         if self.viewer.is_some() {
             self.viewer_view(ui);
         }
+        self.video_view(ui);
         if self.stories.view.is_some() {
             self.story_viewer(ui);
         }
