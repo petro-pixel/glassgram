@@ -17,6 +17,8 @@ pub enum Style {
     Quote,
     /// Links, mentions, hashtags, etc.: everything highlighted with the accent.
     Link,
+    /// A custom emoji drawn over its fallback text; `target` holds the document id.
+    CustomEmoji,
 }
 
 /// A formatting span in byte offsets of the `Msg::text` string.
@@ -27,6 +29,16 @@ pub struct Span {
     pub style: Style,
     /// Where a click leads: a URL, `#hashtag` or `@mention`.
     pub target: Option<String>,
+}
+
+impl Span {
+    /// The document id of a custom emoji span.
+    pub fn emoji_id(&self) -> Option<i64> {
+        if self.style != Style::CustomEmoji {
+            return None;
+        }
+        self.target.as_deref()?.parse().ok()
+    }
 }
 
 /// Font family names registered in `install_fonts`.
@@ -76,6 +88,7 @@ pub fn from_entities(text: &str, entities: &[tl::enums::MessageEntity], shift: u
                 E::Cashtag(x) => (x.offset, x.length, Style::Link, Some(String::new())),
                 E::BotCommand(x) => (x.offset, x.length, Style::Link, Some(String::new())),
                 E::Phone(x) => (x.offset, x.length, Style::Link, None),
+                E::CustomEmoji(x) => (x.offset, x.length, Style::CustomEmoji, Some(x.document_id.to_string())),
                 _ => return None,
             };
             let start = utf16_to_byte(body, offset.max(0) as usize);
@@ -125,6 +138,10 @@ fn entity(style: Style, offset: i32, length: i32, url: Option<String>) -> tl::en
         (Style::Spoiler, _) => t::MessageEntitySpoiler { offset, length }.into(),
         (Style::Quote, _) => t::MessageEntityBlockquote { collapsed: false, offset, length }.into(),
         (Style::Link, None) => t::MessageEntityUnknown { offset, length }.into(),
+        (Style::CustomEmoji, id) => match id.and_then(|id| id.parse().ok()) {
+            Some(document_id) => t::MessageEntityCustomEmoji { offset, length, document_id }.into(),
+            None => t::MessageEntityUnknown { offset, length }.into(),
+        },
     }
 }
 
@@ -190,7 +207,7 @@ pub fn to_markup(text: &str, spans: &[Span]) -> String {
             }
             _ => None,
         },
-        Style::Underline | Style::Quote => None,
+        Style::Underline | Style::Quote | Style::CustomEmoji => None,
     };
     let mut inserts: Vec<(usize, bool, String)> = Vec::new();
     for s in spans {
@@ -372,6 +389,20 @@ mod tests {
         assert_eq!(&text[spans[1].start..spans[1].end], "сайт");
         assert_eq!(spans[1].target.as_deref(), Some("https://x.ua"));
         assert_eq!(to_markup(&text, &spans), "🦀 **жир** [сайт](https://x.ua) `код`");
+    }
+
+    #[test]
+    fn custom_emoji_entities() {
+        let text = "так 🦀 і 🔥";
+        let ents = vec![
+            tl::types::MessageEntityCustomEmoji { offset: 4, length: 2, document_id: 77 }.into(),
+            tl::types::MessageEntityCustomEmoji { offset: 9, length: 2, document_id: 78 }.into(),
+        ];
+        let spans = from_entities(text, &ents, 0);
+        assert_eq!(&text[spans[0].start..spans[0].end], "🦀");
+        assert_eq!(spans.iter().map(|s| s.emoji_id()).collect::<Vec<_>>(), vec![Some(77), Some(78)]);
+        // Editing keeps the fallback emoji as plain text.
+        assert_eq!(to_markup(text, &spans), text);
     }
 
     #[test]

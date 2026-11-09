@@ -426,7 +426,7 @@ pub(super) fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHa
     let grid_h: f32 = heights.iter().sum::<f32>() + gap * (rows.len() as f32 - 1.0);
     let cap = msgs.iter().find(|m| !m.text.is_empty()).copied();
     let p = ui.painter().clone();
-    let body = cap.map(|c| p.layout_job(format::layout(&c.text, &c.spans, glass::msg_font(), ink(), glass::link(false), w - 20.0, false)));
+    let body = cap.map(|c| custom_emoji::galley(&p, format::layout(&c.text, &c.spans, glass::msg_font(), ink(), glass::link(false), w - 20.0, false), &c.spans, false));
     let last = msgs[msgs.len() - 1];
     let meta = p.layout_no_wrap(last.time.clone(), FontId::proportional(11.0), rgba(ink(), 170));
     let text_h = body.as_ref().map_or(0.0, |b| b.size().y + meta.size().y + 22.0);
@@ -463,7 +463,8 @@ pub(super) fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHa
         }
         y += h + gap;
     }
-    if let Some(b) = body {
+    if let (Some(b), Some(c)) = (body, cap) {
+        custom_emoji::paint(&p, &b, pos2(rect.left() + 14.0, y + 6.0), &c.text, &c.spans, false);
         p.galley(pos2(rect.left() + 14.0, y + 6.0), b, ink());
         p.galley(rect.max - vec2(14.0, 9.0) - meta.size(), meta, ink());
     } else {
@@ -588,7 +589,7 @@ pub(super) fn bubble(
     let text_w = img_size.map_or(max_w, |s| s.x) - pad.x * 2.0;
 
     let link = glass::link(m.out);
-    let body = (!m.text.is_empty()).then(|| p.layout_job(format::layout(&m.text, &m.spans, glass::msg_font(), ink(), link, text_w, revealed)));
+    let body = (!m.text.is_empty()).then(|| custom_emoji::galley(&p, format::layout(&m.text, &m.spans, glass::msg_font(), ink(), link, text_w, revealed), &m.spans, revealed));
     // Trailing spaces leave room for the ticks drawn on top.
     let meta = format!("{}{}{}{}", chatview::views_label(m, look), if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
     let meta = p.layout_no_wrap(meta, FontId::proportional(11.0), rgba(ink(), 170));
@@ -742,6 +743,7 @@ pub(super) fn bubble(
     }
     if let Some(body) = &body {
         p.galley(cursor, body.clone(), ink());
+        custom_emoji::paint(&p, body, cursor, &m.text, &m.spans, revealed);
         body_pos = Some(cursor);
     }
     if let Some(c) = web {

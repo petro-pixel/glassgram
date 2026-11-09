@@ -12,6 +12,7 @@ use crate::format;
 
 mod stickers;
 mod stars;
+mod custom_emoji;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -627,6 +628,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             };
             app.push_event(Ev::ReportStep { peer, ids, step });
         }
+        Cmd::LoadCustomEmoji(ids) => custom_emoji::load(app, ids),
         Cmd::LoadEmojiKeywords(lang) => {
             let w = |k: &str, e: &[&str]| (k.to_owned(), e.iter().map(|x| x.to_string()).collect());
             let words = if lang == "uk" {
@@ -1345,6 +1347,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
             msgs.push(Msg { id: 74, photo: true, spoiler: true, text: "Не відкривай, якщо не дивився фінал 🙈".into(), ..base(27, "Олена") });
             msgs.push(Msg { id: 75, photo: true, invert_media: true, text: "Підпис над фото, як у Telegram".into(), ..base(27, "") });
             msgs.push(Msg { id: 76, unsupported: true, ..base(27, "Олена") });
+            msgs.push(custom_emoji::message(base(28, "Олена")));
         }
         9 => {
             // A long history: shows virtualization (only bubbles near the screen are drawn).

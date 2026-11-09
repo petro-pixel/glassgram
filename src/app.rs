@@ -89,6 +89,7 @@ mod stickers;
 mod searchtabs;
 mod autodl;
 mod spoiler;
+mod custom_emoji;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;
 
@@ -555,6 +556,7 @@ pub struct App {
     /// The "Send files" box with what is about to be sent.
     send_box: Option<sendbox::SendBox>,
     spoilers: spoiler::Spoilers,
+    custom_emoji: custom_emoji::CustomEmoji,
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
     stars: stars::Stars,
@@ -820,6 +822,7 @@ impl App {
             todo: todo::Todo::default(),
             send_box: None,
             spoilers: spoiler::Spoilers::default(),
+            custom_emoji: custom_emoji::CustomEmoji::default(),
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
             stars: stars::Stars::default(),
@@ -952,6 +955,7 @@ impl App {
             Ev::Image { key, image } => {
                 self.on_spoiler_image(key, &image);
                 let tex = self.ctx.load_texture(format!("{key:?}"), image, TextureOptions::LINEAR);
+                self.custom_emoji.on_image(key, &tex);
                 self.textures.insert(key, tex);
             }
             ev @ (Ev::Contacts(_) | Ev::ContactResults { .. } | Ev::ChatCreated(_) | Ev::ChannelUsernameCheck { .. }) => self.new_chat_event(ev),
@@ -1610,6 +1614,7 @@ impl eframe::App for App {
         if !reload.is_empty() {
             self.send(Cmd::ReloadImages(reload));
         }
+        self.custom_emoji_frame(ui.ctx());
         let events: Vec<Ev> = self.backend.as_ref().map(|b| b.rx.try_iter().collect()).unwrap_or_default();
         let account = self.accounts.active;
         self.poll_web_apps();

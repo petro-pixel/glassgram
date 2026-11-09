@@ -128,6 +128,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/app/stars.rs`, `src/backend/stars.rs` | Налаштування → Мої зірки: баланс та історія операцій (лише перегляд) |
 | `src/app/textures.rs` | Зображення на GPU з лімітом пам'яті; вивантажені повертаються з дискового кешу |
 | `src/app/emojikw.rs`, `src/backend/emojikw.rs` | Підказки емодзі під час набору `:слово` |
+| `src/app/custom_emoji.rs`, `src/backend/custom_emoji.rs` | Власні емодзі в тексті повідомлень: картинки поверх запасного емодзі |
 | `src/app/report.rs`, `src/backend/report.rs` | Вікно «Поскаржитися» для повідомлень |
 | `src/app/quote.rs`, `src/backend/reply.rs` | Відповіді з цитатою та в іншому чаті |
 | `src/app/newchat.rs`, `src/backend/newchat.rs` | «Новий чат»: контакти, нова група, новий канал із типом, посиланням і підписниками |
