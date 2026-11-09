@@ -42,8 +42,9 @@ impl Lottie {
         } else {
             json = data.to_vec();
         }
-        let value: serde_json::Value = serde_json::from_slice(&json).map_err(|e| e.to_string())?;
+        let mut value: serde_json::Value = serde_json::from_slice(&json).map_err(|e| e.to_string())?;
         check(&value)?;
+        patch(&mut value)?;
         let comp = Composition::from_json(value).map_err(|e| e.to_string())?;
         if comp.width == 0 || comp.height == 0 || comp.frame_rate <= 0.0 || comp.frames.end <= comp.frames.start {
             return Err("empty animation".into());
@@ -92,6 +93,36 @@ fn check(v: &serde_json::Value) -> Result<(), String> {
                 stack.extend(m.values());
             }
             serde_json::Value::Array(a) => stack.extend(a),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// velato hits `todo!()` on a few valid Lottie forms, and the release build aborts on panic, so a
+/// sticker from the network must never reach them: fill in what it assumes, refuse what it can't draw.
+fn patch(v: &mut serde_json::Value) -> Result<(), String> {
+    use serde_json::{Value, json};
+    let mut stack = vec![v];
+    while let Some(v) = stack.pop() {
+        match v {
+            Value::Object(m) => {
+                // A layer transform without a rotation.
+                if let Some(Value::Object(ks)) = m.get_mut("ks") {
+                    ks.entry("r").or_insert_with(|| json!({"a": 0, "k": 0}));
+                }
+                // Split rotations, and split positions in shape transforms.
+                let split = |v: Option<&Value>| v.is_some_and(|v| v.get("k").is_none() && (v.get("x").is_some() || v.get("s").is_some()));
+                if split(m.get("r")) || (m.get("ty").and_then(Value::as_str) == Some("tr") && split(m.get("p"))) {
+                    return Err("unsupported sticker transform".into());
+                }
+                // Blend modes velato leaves unimplemented: Add and Hard mix.
+                if matches!(m.get("bm").and_then(Value::as_u64), Some(16 | 17)) {
+                    m.insert("bm".into(), json!(0));
+                }
+                stack.extend(m.values_mut());
+            }
+            Value::Array(a) => stack.extend(a.iter_mut()),
             _ => {}
         }
     }
@@ -177,5 +208,17 @@ mod tests {
     fn refuses_runaway_repeaters() {
         let evil = SQUARE.replace(r#"{"ty":"fl""#, r#"{"ty":"rp","c":{"a":0,"k":100000}},{"ty":"fl""#);
         assert!(Lottie::load(evil.as_bytes(), 32).is_err());
+    }
+
+    /// Forms velato would panic on (and abort the app): patched or refused, never drawn as is.
+    #[test]
+    fn survives_unimplemented_forms() {
+        let no_rotation = SQUARE.replace(r#""r":{"a":0,"k":0},"p":{"a":0,"k":[50,50,0]}"#, r#""p":{"a":0,"k":[50,50,0]}"#);
+        assert!(!no_rotation.contains(r#""ks":{"o":{"a":0,"k":100},"r""#));
+        Lottie::load(no_rotation.as_bytes(), 32).expect("rotation filled in").frame(0.5);
+        let add = SQUARE.replace(r#""ty":4,"#, r#""ty":4,"bm":16,"#);
+        Lottie::load(add.as_bytes(), 32).expect("blend mode replaced").frame(0.5);
+        let split = SQUARE.replace(r#"{"ty":"fl""#, r#"{"ty":"tr","p":{"s":true,"x":{"a":0,"k":0},"y":{"a":0,"k":0}}},{"ty":"fl""#);
+        assert!(Lottie::load(split.as_bytes(), 32).is_err());
     }
 }
