@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{AdminRights, InviteDraft, InviteLink, JoinRequest, PartList, Participant, SavedTag, PostsFlood, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollVoter, TodoInfo, TodoTask, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit};
+use crate::backend::{AdminRights, InviteDraft, InviteLink, JoinRequest, PartList, Participant, SavedTag, PostsFlood, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, Ringtone, ReactFrom, ReactionNotify, Sound, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollVoter, TodoInfo, TodoTask, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit};
 use crate::format;
 
 mod stickers;
@@ -467,7 +467,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 .demo_chats()
                 .iter()
                 .filter(|c| NotifyScope::of(c.kind) == scope && c.muted != default.muted())
-                .map(|c| NotifyException { peer: c.id, title: c.title.clone(), state: NotifyState { mute_until: if c.muted { MUTE_FOREVER } else { 0 }, silent: false, inherit: false } })
+                .map(|c| NotifyException { peer: c.id, title: c.title.clone(), state: NotifyState { mute_until: if c.muted { MUTE_FOREVER } else { 0 }, silent: false, inherit: false, sound: None } })
                 .collect();
             app.push_event(Ev::NotifyExceptions { scope, list });
         }
@@ -672,7 +672,24 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let msgs = if before.is_some() { Vec::new() } else { demo_shared(app, peer, kind) };
             app.push_event(Ev::Shared { peer, kind, msgs, older: before.is_some() });
         }
-        Cmd::SetNotify { peer, mute_until, silent } => app.push_event(Ev::Notify { peer, state: NotifyState { mute_until, silent, inherit: false } }),
+        Cmd::SetNotify { peer, mute_until, silent, sound } => app.push_event(Ev::Notify { peer, state: NotifyState { mute_until, silent, inherit: false, sound } }),
+        Cmd::LoadRingtones => {
+            // No files: listening falls back to the built-in chime.
+            let list = app.demo_ringtones().unwrap_or_else(|| vec![Ringtone { id: 7001, title: "Marimba".into(), duration: 2.0 }, Ringtone { id: 7002, title: "Glass bell".into(), duration: 3.0 }]);
+            app.push_event(Ev::Ringtones(list));
+        }
+        Cmd::UploadRingtone(path) => {
+            let mut list = app.demo_ringtones().unwrap_or_default();
+            let title = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+            list.push(Ringtone { id: 7000 + list.len() as i64 + 10, title, duration: 4.0 });
+            app.push_event(Ev::Ringtones(list));
+        }
+        Cmd::DeleteRingtone(id) => {
+            let list = app.demo_ringtones().unwrap_or_default().into_iter().filter(|r| r.id != id).collect();
+            app.push_event(Ev::Ringtones(list));
+        }
+        Cmd::LoadReactionNotify => app.push_event(Ev::ReactionNotify(app.demo_reaction_notify().unwrap_or(ReactionNotify { messages: ReactFrom::All, stories: ReactFrom::Contacts, polls: ReactFrom::All, previews: true, sound: Sound::Default }))),
+        Cmd::SetReactionNotify(s) => app.push_event(Ev::ReactionNotify(s)),
         Cmd::LeaveChat(peer) | Cmd::DeleteChat { peer, .. } => app.push_event(Ev::ChatRemoved(peer)),
         Cmd::ClearHistory { peer, .. } => app.push_event(Ev::HistoryCleared(peer)),
         Cmd::LoadProfile => {

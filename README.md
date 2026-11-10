@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 62%** `████████████░░░░░░░░` — 110 done, 6 partial, 67 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 63%** `█████████████░░░░░░░` — 111 done, 6 partial, 65 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -21,7 +21,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Search**: global (the field above the chat list, with Chats, Channels, Apps, Posts and Media tabs) and in-chat (🔍 in the header)
 - **Formatting**: Telegram entities are shown, markup is converted when sending
 - **Messages**: forwarding, multi-select, silent and scheduled sending, bot buttons, pasting from the clipboard, file progress
-- **Notifications**: system ones on Linux, Windows and macOS, a counter in the window title, a tray icon
+- **Notifications**: system ones on Linux, Windows and macOS, sounds with the account's ringtones and a chat's own sound, a counter in the window title, a tray icon
 - **Languages**: Ukrainian and English built into the code, German and any other language from localisation files (`locales/*.json`, see below)
 - **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
 - **Settings** (⚙): language, theme (dark, light, system), interface scale, notifications, autoplay, SOCKS5 proxy, privacy, active sessions, local passcode; stored in `~/.local/share/glassgram/settings`
@@ -157,6 +157,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/translate.rs`, `src/backend/translate.rs` | "Translate" window from the message menu |
 | `src/app/calendar.rs` | "Jump to date" calendar over the chat (the request is `Cmd::JumpToDate` in `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Notifications for chats: private / groups / channels defaults, exceptions, resolving a chat's mute state from its category |
+| `src/app/sounds.rs`, `src/backend/sounds.rs` | Notification sounds: the built-in chime, saved ringtones (list, add, delete, cached files), a chat's own sound, reaction notification settings |
 | `src/app/sponsored.rs`, `src/backend/sponsored.rs` | Sponsored messages in channel history (after the newest post and between posts, media ads): "Ad" bubble, view and click reports, "About this ad", reporting, hiding for Premium |
 | `src/app/suggest.rs`, `src/backend/suggest.rs` | Link previews (in bubbles and above the composer), @mention and bot command suggestions, "Start" for bots |
 | `src/app/info.rs`, `src/backend/info.rs` | Chat info column: profile, members, shared media, per-chat notifications, leave / clear / delete |

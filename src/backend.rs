@@ -64,6 +64,8 @@ pub use info::{ChatDetails, MUTE_FOREVER, Member, MemberRole, NotifyState, SHARE
 mod sponsored;
 pub use sponsored::{Sponsored, SponsoredReport};
 mod notify;
+mod sounds;
+pub use sounds::{RINGTONE_EXTS, ReactFrom, ReactionNotify, Ringtone, Sound};
 mod translate;
 mod contacts;
 mod webapp;
@@ -421,6 +423,15 @@ pub enum Cmd {
     LoadNotifyExceptions(NotifyScope),
     /// Drop a chat's own notification settings: it follows its category again.
     ResetNotify(PeerId),
+    /// The account's saved ringtones, then their files into the cache.
+    LoadRingtones,
+    /// Upload an audio file as a new ringtone (`account.uploadRingtone`).
+    UploadRingtone(PathBuf),
+    /// Remove a saved ringtone by document id.
+    DeleteRingtone(i64),
+    /// Whose reactions notify (`account.getReactionsNotifySettings`).
+    LoadReactionNotify,
+    SetReactionNotify(ReactionNotify),
     /// Preview for the link being typed (`messages.getWebPagePreview`).
     WebPreview(String),
     /// Chat members for the @mention popup.
@@ -435,8 +446,9 @@ pub enum Cmd {
     ExportInvite(PeerId),
     /// One tab of a chat's shared media; `before` loads older items.
     LoadShared { peer: PeerId, kind: SharedKind, before: Option<i32> },
-    /// Chat notifications: `mute_until` is unix time (0 = on, `i32::MAX` = forever).
-    SetNotify { peer: PeerId, mute_until: i32, silent: bool },
+    /// Chat notifications: `mute_until` is unix time (0 = on, `i32::MAX` = forever);
+    /// `sound: None` keeps the category's sound.
+    SetNotify { peer: PeerId, mute_until: i32, silent: bool, sound: Option<Sound> },
     /// Leave a group or channel.
     LeaveChat(PeerId),
     /// Clear history; `revoke` also clears it for the other side (private chats only).
@@ -714,6 +726,15 @@ pub enum Ev {
     /// Default notification settings of a category (at start and when changed anywhere).
     NotifyDefault { scope: NotifyScope, state: NotifyState },
     NotifyExceptions { scope: NotifyScope, list: Vec<NotifyException> },
+    /// Chats with a sound of their own or silent notifications, from a dialog load.
+    ChatSounds(Vec<(PeerId, NotifyState)>),
+    Ringtones(Vec<Ringtone>),
+    /// A ringtone's file is in the cache.
+    RingtoneFile { id: i64, path: PathBuf },
+    RingtoneUploadFailed,
+    /// The saved ringtones changed on another device.
+    RingtonesChanged,
+    ReactionNotify(ReactionNotify),
     /// `page: None`: the text has no link with a preview.
     WebPreview { text: String, page: Option<WebPageInfo> },
     Mentions { peer: PeerId, query: String, members: Vec<Mentionable> },
@@ -1100,6 +1121,7 @@ impl Worker {
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } | Cmd::BotWriteAccess { .. } | Cmd::SharePhone { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
+            cmd @ (Cmd::LoadRingtones | Cmd::UploadRingtone(_) | Cmd::DeleteRingtone(_) | Cmd::LoadReactionNotify | Cmd::SetReactionNotify(_)) => self.sounds_cmd(cmd).await,
             cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. } | Cmd::SetAdsEnabled(_)) => self.sponsored_cmd(cmd).await,
             Cmd::WebPreview(text) => self.web_preview(text),
             Cmd::LoadMentions { peer, query } => self.load_members(peer, query),
@@ -1334,6 +1356,7 @@ impl Worker {
         let mut iter = client.iter_dialogs();
         let mut chats = Vec::new();
         let mut peers = Vec::new();
+        let mut sounds = Vec::new();
         while chats.len() < DIALOG_LIMIT {
             let Some(d) = iter.next().await.map_err(|e| lf!("Чати: {e}", "Chats: {e}"))? else {
                 break;
@@ -1344,8 +1367,12 @@ impl Worker {
                 tl::enums::Dialog::Dialog(x) => {
                     let mut notifs = self.notifs.lock().unwrap();
                     notifs.remember(peer);
-                    let muted = notifs.resolve(peer.id(), NotifyState::from_raw(&x.notify_settings)).muted();
+                    let state = notifs.resolve(peer.id(), NotifyState::from_raw(&x.notify_settings));
                     drop(notifs);
+                    if state.silent || state.sound.is_some() {
+                        sounds.push((peer.id(), state));
+                    }
+                    let muted = state.muted();
                     (x.unread_count, x.pinned, muted, x.folder_id == Some(1), x.unread_mark, draft_text(&x.draft), (x.read_outbox_max_id, x.read_inbox_max_id))
                 }
                 _ => (0, false, false, false, false, String::new(), (0, 0)),
@@ -1402,6 +1429,7 @@ impl Worker {
         }
         self.cache_dialogs(chats.clone());
         self.out.send(Ev::Dialogs(chats));
+        self.out.send(Ev::ChatSounds(sounds));
         if let Err(e) = self.load_folders().await {
             log_error(&e);
         }

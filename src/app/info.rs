@@ -7,7 +7,7 @@ use eframe::egui::{self, Align2, Color32, FontId, Rect, Sense, Ui, UiBuilder, po
 use grammers_client::session::types::PeerId;
 
 use super::{App, SEARCH_DELAY, elided, kind_icon};
-use crate::backend::{ChatDetails, ChatInfo, ChatKind, Cmd, Ev, ImgKey, MUTE_FOREVER, MediaKind, Member, MemberRole, Msg, SHARED_PAGE, SearchHit, SharedKind};
+use crate::backend::{ChatDetails, ChatInfo, Sound, ChatKind, Cmd, Ev, ImgKey, MUTE_FOREVER, MediaKind, Member, MemberRole, Msg, SHARED_PAGE, SearchHit, SharedKind};
 use crate::format::Style;
 use crate::glass::{self, ACCENT, Glass, ink, ink_dim};
 use crate::i18n::{l, lf};
@@ -67,6 +67,8 @@ pub(super) struct InfoPanel {
     /// Gifts and how many there are in all; `None` until loaded.
     gifts: Option<(Vec<crate::backend::Gift>, i32)>,
     pub(super) notify_open: bool,
+    /// The sound list under the notification menu is unfolded.
+    sound_open: bool,
     /// The auto-delete timers are unfolded.
     ttl_open: bool,
     pub(super) confirm: Option<Confirm>,
@@ -86,6 +88,9 @@ enum Do {
     Jump(Msg),
     Tab(Tab),
     Notify(i32, bool),
+    Sound(crate::backend::Sound),
+    /// The sound list was unfolded: it needs the saved ringtones.
+    Ringtones,
     More(SharedKind),
     CreateInvite,
     Confirm(Confirm),
@@ -137,6 +142,7 @@ impl App {
             similar: None,
             gifts: None,
             notify_open: false,
+            sound_open: false,
             ttl_open: false,
             confirm: None,
             revoke: false,
@@ -248,6 +254,7 @@ impl App {
             }
             Ev::Notify { peer, state } => {
                 self.notify_changed(peer, state);
+                self.chat_sound_changed(peer, state);
                 if let Some(c) = self.chat_mut(peer) {
                     c.muted = state.muted();
                 }
@@ -402,10 +409,19 @@ impl App {
             Do::Ttl(period) => self.send(Cmd::SetHistoryTtl { peer, period }),
             Do::Wallpaper => self.open_wallpapers(Some(peer)),
             Do::Notify(mute_until, silent) => {
-                if let Some(i) = &mut self.info {
+                let sound = self.info.as_mut().and_then(|i| {
                     i.notify_open = false;
-                }
-                self.send(Cmd::SetNotify { peer, mute_until, silent });
+                    i.details.as_ref().and_then(|d| d.notify.sound)
+                });
+                self.send(Cmd::SetNotify { peer, mute_until, silent, sound });
+            }
+            Do::Ringtones => self.load_ringtones(),
+            Do::Sound(sound) => {
+                let state = self.info.as_mut().and_then(|i| {
+                    i.sound_open = false;
+                    i.details.as_ref().map(|d| d.notify)
+                });
+                self.set_chat_sound(peer, state.unwrap_or_default(), sound);
             }
             Do::More(kind) => {
                 let before = self.info.as_mut().and_then(|i| {
@@ -554,6 +570,24 @@ impl App {
             opt(ui, l!("Вимкнути назавжди", "Mute forever"), false, Do::Notify(MUTE_FOREVER, silent));
             // Keep the current mute deadline, flip only the sound.
             opt(ui, l!("Без звуку", "Silent"), silent, Do::Notify(if muted { d.notify.mute_until } else { 0 }, !silent));
+            let ringtones = self.ringtones();
+            let current = d.notify.sound.unwrap_or_default();
+            let label = lf!("Звук: {}", "Sound: {}", super::sounds::sound_label(Some(current), ringtones));
+            if menu_row(ui, &label, false).clicked() {
+                info.sound_open = !info.sound_open;
+                if info.sound_open {
+                    todo.push(Do::Ringtones);
+                }
+            }
+            if info.sound_open {
+                let mut sounds = vec![(Sound::Default, super::sounds::sound_label(None, ringtones)), (Sound::None, super::sounds::sound_label(Some(Sound::None), ringtones))];
+                sounds.extend(ringtones.iter().map(|r| (Sound::Ringtone(r.id), r.title.clone())));
+                for (s, name) in sounds {
+                    if menu_row(ui, &format!("    {name}"), s == current).clicked() {
+                        todo.push(Do::Sound(s));
+                    }
+                }
+            }
         }
         if let Some(period) = super::autodelete::ttl_rows(ui, &d, &mut info.ttl_open) {
             todo.push(Do::Ttl(period));

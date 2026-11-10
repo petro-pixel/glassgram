@@ -185,7 +185,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ **P0** Per-chat notifications in chat info: mute for 1 h / 8 h / 2 days / forever, unmute, silent, current state (`updateNotifySettings`, `getNotifySettings`)
 - ✅ Notifications for chats in Settings → Notifications, as in Telegram Desktop: private chats, groups and channels on / off (`inputNotifyUsers` / `Chats` / `Broadcasts`), the exceptions of each with "Remove exception" (`getNotifyExceptions`); chats without their own setting follow their category, live `updateNotifySettings` from other devices. (MTProto has no per-chat "mentions only" mode.)
 - ⬜ **P1** Reply and "mark as read" right from the notification (where the OS allows), grouping by chat
-- ⬜ **P1** Notification sounds and custom ringtones (`saveRingtone`), reaction notification settings
+- ✅ **P1** Notification sounds and custom ringtones: "Play sound" in Settings → Notifications, a built-in chime synthesised in code (no third-party audio), one ring for messages arriving together; the account's saved ringtones with listening, adding an MP3/OGG up to 300 KB (`account.uploadRingtone`) and deleting (`saveRingtone`), files cached; a chat's own sound (Default / No sound / a ringtone, `other_sound`) in its notification menu, silent chats stay quiet. Reaction notification settings shared with the account: whose reactions to messages and stories and poll votes notify, previews, sound (`account.setReactionsNotifySettings`)
 - ⬜ **P2** Unread badge on the taskbar icon (Windows, macOS, Unity)
 
 ## 13. Telegram Business
@@ -198,7 +198,6 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Localisation files: `locales/<code>.json` keyed by the English string, built-in or dropped into the data folder, picked in Settings → Language, English fallback, generated template; German built in
 - ⬜ **P1** Interface in every language Telegram Desktop offers: language list from the server (`langpack.getLanguages`, incl. beta/community packs from translations.telegram.org), strings from `langpack.getLangPack` / `getDifference`, cached on disk, live switching without restart. Map our `l!`/`lf!` strings to official tdesktop keys so translations come from Telegram; built-in uk/en stay as the offline fallback; plural forms per language (CLDR rules)
 - ⬜ **P1** MTProto proxy (obfuscated transport), several proxies with quick switching
-- ⬜ **P1** Storage usage and cache limits, auto-download by network type
 - ⬜ **P2** Full account data export (`account.initTakeoutSession`), importing history from other messengers (`initHistoryImport`)
 - ✅ Exporting a single chat's history (HTML and JSON)
 

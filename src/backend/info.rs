@@ -64,6 +64,8 @@ pub struct NotifyState {
     pub silent: bool,
     /// The chat has no mute setting of its own and follows its category.
     pub inherit: bool,
+    /// The chat's own sound; `None` follows its category.
+    pub sound: Option<super::Sound>,
 }
 
 impl NotifyState {
@@ -91,7 +93,9 @@ impl NotifyState {
 
     pub(super) fn from_raw(raw: &tl::enums::PeerNotifySettings) -> Self {
         let tl::enums::PeerNotifySettings::Settings(n) = raw;
-        Self { mute_until: n.mute_until.unwrap_or(0), silent: n.silent.unwrap_or(false), inherit: n.mute_until.is_none() }
+        // Desktops read `other_sound`; the phone ones have their own.
+        let sound = n.other_sound.as_ref().map(super::Sound::from_raw);
+        Self { mute_until: n.mute_until.unwrap_or(0), silent: n.silent.unwrap_or(false), inherit: n.mute_until.is_none(), sound }
     }
 }
 
@@ -329,7 +333,7 @@ impl Worker {
                     out.send(Ev::Shared { peer, kind, msgs, older: before.is_some() });
                 });
             }
-            Cmd::SetNotify { peer, mute_until, silent } => {
+            Cmd::SetNotify { peer, mute_until, silent, sound } => {
                 let r = self.peer_ref(peer)?;
                 let req = tl::functions::account::UpdateNotifySettings {
                     peer: tl::types::InputNotifyPeer { peer: r.into() }.into(),
@@ -337,7 +341,8 @@ impl Worker {
                         show_previews: None,
                         silent: Some(silent),
                         mute_until: Some(mute_until),
-                        sound: None,
+                        // Sent every time: settings without it would drop the chat's sound.
+                        sound: sound.map(super::Sound::to_raw),
                         stories_muted: None,
                         stories_hide_sender: None,
                         stories_sound: None,
@@ -349,7 +354,7 @@ impl Worker {
                 let get = tl::functions::account::GetNotifySettings { peer: tl::types::InputNotifyPeer { peer: r.into() }.into() };
                 let state = match client.invoke(&get).await {
                     Ok(raw) => self.notifs.lock().unwrap().resolve(peer, NotifyState::from_raw(&raw)),
-                    Err(_) => NotifyState { mute_until, silent, inherit: false },
+                    Err(_) => NotifyState { mute_until, silent, inherit: false, sound },
                 };
                 out.send(Ev::Notify { peer, state });
             }

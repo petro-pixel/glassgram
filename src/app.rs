@@ -77,6 +77,7 @@ mod sendbox;
 mod editmedia;
 mod websites;
 mod stars;
+mod sounds;
 mod autodelete;
 mod storage;
 mod dice;
@@ -563,6 +564,7 @@ pub struct App {
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
     stars: stars::Stars,
+    sounds: sounds::Sounds,
     autodelete: autodelete::AutoDelete,
     /// Chat backgrounds and themes.
     wallpapers: wallpapers::Wallpapers,
@@ -835,6 +837,7 @@ impl App {
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
             stars: stars::Stars::default(),
+            sounds: sounds::Sounds::default(),
             autodelete: autodelete::AutoDelete::default(),
             wallpapers: wallpapers::Wallpapers::default(),
             storage: storage::Storage::default(),
@@ -1060,6 +1063,7 @@ impl App {
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. } | Ev::BotWriteAccess { .. } | Ev::PhoneShared { .. }) => self.web_app_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
+            ev @ (Ev::ChatSounds(_) | Ev::Ringtones(_) | Ev::RingtoneFile { .. } | Ev::RingtoneUploadFailed | Ev::RingtonesChanged | Ev::ReactionNotify(_)) => self.sounds_event(ev),
             ev @ (Ev::ChatDetails { .. } | Ev::AvatarVideo { .. } | Ev::SimilarChannels { .. } | Ev::Gifts { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
                 self.info_event(ev)
             }
@@ -1086,10 +1090,13 @@ impl App {
         }
         let open = self.selected == Some(m.peer);
         let focused = self.ctx.input(|i| i.viewport().focused.unwrap_or(true));
+        let alert = !m.out && (!open || !focused) && self.chats.iter().any(|c| c.id == m.peer && !c.muted);
+        if alert {
+            self.message_sound(m.peer);
+        }
         if self.settings.notifications
-            && !m.out
-            && (!open || !focused)
-            && let Some(chat) = self.chats.iter().find(|c| c.id == m.peer && !c.muted)
+            && alert
+            && let Some(chat) = self.chats.iter().find(|c| c.id == m.peer)
         {
             // Under a local passcode, don't show who sent what.
             if self.lock.on {

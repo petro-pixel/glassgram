@@ -131,6 +131,8 @@ pub struct Settings {
     /// UI scale (multiplier on top of screen density).
     pub scale: f32,
     pub notifications: bool,
+    /// A sound for new messages (`app/sounds.rs`).
+    pub sound: bool,
     /// GIFs, round videos and video stickers autoplay.
     pub autoplay: bool,
     /// SOCKS5 proxy (`socks5://[user:password@]host:port`), empty means no proxy.
@@ -167,7 +169,7 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard, cache_limit_gb: 0, autodl: AutoDownload::default(), reduce_transparency: false, increase_contrast: false, reduce_motion: false, wallpaper: crate::wallpaper::Spec::Live }
+        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, sound: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard, cache_limit_gb: 0, autodl: AutoDownload::default(), reduce_transparency: false, increase_contrast: false, reduce_motion: false, wallpaper: crate::wallpaper::Spec::Live }
     }
 }
 
@@ -195,6 +197,7 @@ impl Settings {
                 }
                 "scale" => s.scale = v.parse().unwrap_or(1.0f32).clamp(0.5, 2.0),
                 "notifications" => s.notifications = flag,
+                "sound" => s.sound = flag,
                 "autoplay" => s.autoplay = flag,
                 "proxy" => s.proxy = v.to_owned(),
                 "passcode" => s.passcode = v.to_owned(),
@@ -229,7 +232,7 @@ impl Settings {
         let _ = std::fs::create_dir_all(&dir);
         let b = |v: bool| if v { "1" } else { "0" };
         let text = format!(
-            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\ncache_limit_gb={}\nautodl={}\nreduce_transparency={}\nincrease_contrast={}\nreduce_motion={}\nwallpaper={}\n",
+            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\ncache_limit_gb={}\nautodl={}\nreduce_transparency={}\nincrease_contrast={}\nreduce_motion={}\nwallpaper={}\nsound={}\n",
             self.lang.code(),
             match self.theme {
                 Theme::System => "system",
@@ -254,7 +257,8 @@ impl Settings {
             b(self.reduce_transparency),
             b(self.increase_contrast),
             b(self.reduce_motion),
-            self.wallpaper.code()
+            self.wallpaper.code(),
+            b(self.sound)
         );
         // Holds the local passcode hash, so owner-only.
         let _ = std::fs::write(dir.join("settings"), text);

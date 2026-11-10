@@ -158,7 +158,7 @@ fn nav_row(ui: &mut Ui, tab: SettingsTab, value: &str) -> egui::Response {
 }
 
 /// Pick-one row of capsule buttons.
-fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, value: &mut T, options: &[(T, &str)], width: f32) {
+pub(super) fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, value: &mut T, options: &[(T, &str)], width: f32) {
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
         for (k, (v, label)) in options.iter().enumerate() {
@@ -199,7 +199,10 @@ impl App {
             SettingsTab::Stars => self.open_stars(),
             SettingsTab::Advanced => self.load_cache_usage(),
             SettingsTab::Folders => self.send(Cmd::LoadSuggestedFolders),
-            SettingsTab::Notifications => self.load_notify_exceptions(),
+            SettingsTab::Notifications => {
+                self.load_notify_exceptions();
+                self.load_sounds();
+            }
             SettingsTab::Account => {
                 self.profile_edit = Some(ProfileEdit::from(&self.profile));
                 self.birthdays.edit = None;
@@ -471,9 +474,14 @@ impl App {
             section_title(ui, l!("Сповіщення на робочому столі", "Desktop notifications"));
             ui.checkbox(&mut self.settings.notifications, l!("Системні сповіщення про нові повідомлення", "System notifications for new messages"));
             hint(ui, l!("Те саме перемикає дзвіночок над списком чатів і меню в треї.", "The bell above the chat list and the tray menu toggle the same."));
+            ui.checkbox(&mut self.settings.sound, l!("Звук", "Play sound"));
             hint(ui, l!("Чати без звуку сповіщень не показують; перемикач — у меню чату.", "Muted chats don't notify; the toggle is in the chat menu."));
             ui.add_space(10.0);
             self.notify_scopes(ui);
+            ui.add_space(10.0);
+            self.ringtones_section(ui);
+            ui.add_space(10.0);
+            self.reactions_section(ui);
         });
     }
 
