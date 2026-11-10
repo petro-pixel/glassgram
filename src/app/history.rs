@@ -481,7 +481,7 @@ impl App {
         let bot_menu = self.bot_menu_width(peer, chat.kind);
         let input_left = attach_btn.right() + 8.0 + bot_menu;
         let rows = {
-            let job = LayoutJob::simple(self.draft.clone(), FontId::proportional(glass::AREA_FONT), ink(), (input_right - input_left - 40.0).max(40.0));
+            let job = format::markup_layout(&self.draft, glass::AREA_FONT, ink(), ink(), ink(), (input_right - input_left - 40.0).max(40.0));
             ui.painter().layout_job(job).rows.len().clamp(1, COMPOSER_ROWS)
         };
         let line_h = ui.fonts_mut(|f| f.row_height(&FontId::proportional(glass::AREA_FONT)));
@@ -518,7 +518,8 @@ impl App {
         glass::glass(ui.painter(), input, Glass::tinted((input.height() / 2.0).min(25.0), glass::chrome(), 110).with_shadow().frosted(0.96));
         let arrow_edit = self.can_edit_by_arrow() && ui.input(|i| i.key_pressed(Key::ArrowUp) && i.modifiers.is_none());
         let send_mods = self.send_mods();
-        let (resp, submitted) = glass::text_area(ui, input, &mut self.draft, l!("Повідомлення", "Message"), send_mods);
+        self.format_keys(ui, l!("Повідомлення", "Message"));
+        let (resp, submitted) = glass::rich_area(ui, input, &mut self.draft, l!("Повідомлення", "Message"), send_mods);
         if self.take_composer_focus() {
             resp.request_focus();
         }
@@ -590,6 +591,7 @@ impl App {
             self.schedule_view(ui, panel);
         }
         self.chat_overlays(ui, peer, rect, header, above);
+        self.format_bar(ui, Rect::from_min_max(pos2(rect.left(), header.bottom()), pos2(send_btn.right(), rect.bottom())));
     }
 
     /// Attach (with its menu), stickers and the scheduled list, and their panels.

@@ -32,6 +32,8 @@ impl App {
         if !matches!(self.screen, Screen::Main) || self.modal_open() {
             return;
         }
+        // With text selected in the message field Ctrl+K makes a link (`richtext`).
+        let link_key = self.composer_selection(ctx);
         let k = ctx.input_mut(|i| {
             // Shift variants first: `consume_key` ignores an extra Shift.
             let prev = i.consume_key(Modifiers::CTRL | Modifiers::SHIFT, Key::Tab)
@@ -40,7 +42,7 @@ impl App {
             let next = i.consume_key(Modifiers::CTRL, Key::Tab) || i.consume_key(Modifiers::ALT, Key::ArrowDown) || i.consume_key(Modifiers::CTRL, Key::PageDown);
             Pressed {
                 search_chat: i.consume_key(Modifiers::COMMAND, Key::F),
-                search_all: i.consume_key(Modifiers::COMMAND, Key::K),
+                search_all: !link_key && i.consume_key(Modifiers::COMMAND, Key::K),
                 edit_last: i.consume_key(Modifiers::COMMAND, Key::E),
                 prev,
                 next,

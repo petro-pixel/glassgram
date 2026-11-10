@@ -603,6 +603,21 @@ pub const AREA_FONT: f32 = 15.5;
 /// `send`: the modifiers that send with Enter (`NONE`: Enter sends, Shift+Enter breaks the line;
 /// `COMMAND`: Ctrl/Cmd+Enter sends, Enter breaks the line).
 pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modifiers) -> (Response, bool) {
+    area(ui, rect, text, hint, send, false)
+}
+
+/// The message field: like `text_area`, but the markup shows as it will look (bold bold, markers
+/// faded), and the selection's place on screen is kept for the formatting bar (`selection_rect`).
+pub fn rich_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modifiers) -> (Response, bool) {
+    area(ui, rect, text, hint, send, true)
+}
+
+/// Where the selected text of the `rich_area` with this hint was drawn last frame, if any is selected.
+pub fn selection_rect(ctx: &egui::Context, edit_id: egui::Id) -> Option<Rect> {
+    ctx.data(|d| d.get_temp::<Option<Rect>>(edit_id.with("selection")).flatten())
+}
+
+fn area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modifiers, rich: bool) -> (Response, bool) {
     let edit_id = ui.scope_id().with(("edit", hint));
     let focus = ui.ctx().animate_bool(ui.scope_id().with(("field", hint)), ui.memory(|m| m.has_focus(edit_id)));
     let radius = (rect.height() / 2.0).min(25.0);
@@ -615,7 +630,11 @@ pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: e
     let has_focus = ui.memory(|m| m.has_focus(edit_id));
     let submitted = has_focus && ui.input_mut(|i| i.consume_key(send, egui::Key::Enter));
     let inner = rect.shrink2(vec2(20.0, 13.0));
-    let edit = TextEdit::multiline(text)
+    let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| {
+        let job = crate::format::markup_layout(buf.as_str(), AREA_FONT, ink(), rgba(ink_dim(), 120), link(false), wrap);
+        ui.fonts_mut(|f| f.layout_job(job))
+    };
+    let mut edit = TextEdit::multiline(text)
         .id(edit_id)
         .hint_text(hint)
         .frame(egui::Frame::NONE)
@@ -624,6 +643,9 @@ pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: e
         .desired_rows(1)
         .min_size(inner.size())
         .desired_width(inner.width());
+    if rich {
+        edit = edit.layouter(&mut layouter);
+    }
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
     // Inside a scrolled box the field must stay clipped by it too.
     child.set_clip_rect(inner.expand(2.0).intersect(ui.clip_rect()));
@@ -631,9 +653,17 @@ pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: e
         .id_salt(("area-scroll", hint))
         .max_height(inner.height())
         .stick_to_bottom(true)
-        .show(&mut child, |ui| ui.add(edit))
+        .show(&mut child, |ui| edit.show(ui))
         .inner;
-    (resp, submitted)
+    if rich {
+        let sel = resp.cursor_range.filter(|r| !r.is_empty()).map(|r| {
+            let [a, b] = r.sorted_cursors();
+            let (a, b) = (resp.galley.pos_from_cursor(a), resp.galley.pos_from_cursor(b));
+            a.union(b).translate(resp.galley_pos.to_vec2())
+        });
+        ui.data_mut(|d| d.insert_temp(edit_id.with("selection"), sel));
+    }
+    (resp.response.response, submitted)
 }
 
 const PALETTE: [(Color32, Color32); 7] = [

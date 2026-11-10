@@ -34,6 +34,7 @@ mod chatview;
 mod suggest;
 mod info;
 mod hotkeys;
+mod richtext;
 mod outbox;
 mod settings_pages;
 mod chatlist;
@@ -570,6 +571,7 @@ pub struct App {
     stars: stars::Stars,
     sounds: sounds::Sounds,
     alerts: alerts::Alerts,
+    richtext: richtext::RichText,
     autodelete: autodelete::AutoDelete,
     /// Chat backgrounds and themes.
     wallpapers: wallpapers::Wallpapers,
@@ -845,6 +847,7 @@ impl App {
             stars: stars::Stars::default(),
             sounds: sounds::Sounds::default(),
             alerts: alerts::Alerts::default(),
+            richtext: richtext::RichText::default(),
             autodelete: autodelete::AutoDelete::default(),
             wallpapers: wallpapers::Wallpapers::default(),
             storage: storage::Storage::default(),

@@ -246,30 +246,7 @@ pub fn layout(text: &str, spans: &[Span], size: f32, color: Color32, link: Color
             continue;
         }
         let has = |st: Style| spans.iter().any(|s| s.style == st && s.start <= a && s.end >= b);
-        let mono = has(Style::Code) || has(Style::Pre);
-        let italic = has(Style::Italic) || has(Style::Quote);
-        let family = match (mono, has(Style::Bold), italic) {
-            (true, ..) => FontFamily::Monospace,
-            (false, true, true) => FontFamily::Name(BOLD_ITALIC.into()),
-            (false, true, false) => FontFamily::Name(BOLD.into()),
-            (false, false, true) => FontFamily::Name(ITALIC.into()),
-            (false, false, false) => FontFamily::Proportional,
-        };
-        let mut f = TextFormat::simple(FontId::new(if mono { size - 1.0 } else { size }, family), color);
-        if has(Style::Link) {
-            f.color = link;
-        }
-        if mono {
-            let light = crate::glass::is_light();
-            f.color = if light { Color32::from_rgb(178, 70, 20) } else { Color32::from_rgb(255, 196, 140) };
-            f.background = Color32::from_black_alpha(if light { 16 } else { 70 });
-        }
-        if has(Style::Underline) {
-            f.underline = Stroke::new(1.0, f.color);
-        }
-        if has(Style::Strike) {
-            f.strikethrough = Stroke::new(1.0, f.color);
-        }
+        let mut f = segment_format(&has, size, color, link);
         if has(Style::Spoiler) && !revealed {
             f.color = Color32::TRANSPARENT;
             f.background = crate::glass::veil(70);
@@ -277,6 +254,122 @@ pub fn layout(text: &str, spans: &[Span], size: f32, color: Color32, link: Color
             f.strikethrough = Stroke::NONE;
         }
         job.append(&text[a..b], 0.0, f);
+    }
+    job
+}
+
+/// How a piece of text covered by the styles `has` reports looks.
+fn segment_format(has: &dyn Fn(Style) -> bool, size: f32, color: Color32, link: Color32) -> TextFormat {
+    let mono = has(Style::Code) || has(Style::Pre);
+    let italic = has(Style::Italic) || has(Style::Quote);
+    let family = match (mono, has(Style::Bold), italic) {
+        (true, ..) => FontFamily::Monospace,
+        (false, true, true) => FontFamily::Name(BOLD_ITALIC.into()),
+        (false, true, false) => FontFamily::Name(BOLD.into()),
+        (false, false, true) => FontFamily::Name(ITALIC.into()),
+        (false, false, false) => FontFamily::Proportional,
+    };
+    let mut f = TextFormat::simple(FontId::new(if mono { size - 1.0 } else { size }, family), color);
+    if has(Style::Link) {
+        f.color = link;
+    }
+    if mono {
+        let light = crate::glass::is_light();
+        f.color = if light { Color32::from_rgb(178, 70, 20) } else { Color32::from_rgb(255, 196, 140) };
+        f.background = Color32::from_black_alpha(if light { 16 } else { 70 });
+    }
+    if has(Style::Underline) {
+        f.underline = Stroke::new(1.0, f.color);
+    }
+    if has(Style::Strike) {
+        f.strikethrough = Stroke::new(1.0, f.color);
+    }
+    f
+}
+
+/// Where the markup in the input field is: styled stretches and the markers themselves, both in
+/// byte offsets of the raw input. Follows `parse_into` exactly, so the field shows what will be sent.
+pub fn markup_ranges(input: &str) -> (Vec<Span>, Vec<(usize, usize)>) {
+    let (mut spans, mut marks) = (Vec::new(), Vec::new());
+    scan_markup(input, 0, &mut spans, &mut marks);
+    (spans, marks)
+}
+
+fn scan_markup(input: &str, base: usize, spans: &mut Vec<Span>, marks: &mut Vec<(usize, usize)>) {
+    let mut i = 0;
+    'outer: while i < input.len() {
+        let rest = &input[i..];
+        if let Some(after) = rest.strip_prefix('[')
+            && let Some(close) = after.find(']')
+            && after[close + 1..].starts_with('(')
+            && let Some(end) = after[close + 2..].find(')')
+        {
+            let (label, url) = (&after[..close], &after[close + 2..close + 2 + end]);
+            if !label.is_empty() && !url.is_empty() && !url.contains(char::is_whitespace) {
+                let at = base + i;
+                marks.push((at, at + 1));
+                spans.push(Span { start: at + 1, end: at + 1 + close, style: Style::Link, target: Some(url.to_owned()) });
+                scan_markup(label, at + 1, spans, marks);
+                marks.push((at + 1 + close, at + close + 4 + end));
+                i += close + 4 + end;
+                continue;
+            }
+        }
+        for (marker, style) in MARKERS {
+            let Some(after) = rest.strip_prefix(marker) else { continue };
+            let Some(close) = after.find(marker).filter(|&c| c > 0) else { continue };
+            let inner = &after[..close];
+            if inner.trim().is_empty() {
+                continue;
+            }
+            let (at, m) = (base + i, marker.len());
+            marks.push((at, at + m));
+            spans.push(Span { start: at + m, end: at + m + close, style, target: None });
+            if !matches!(style, Style::Code | Style::Pre) {
+                scan_markup(inner, at + m, spans, marks);
+            }
+            marks.push((at + m + close, at + 2 * m + close));
+            i += 2 * m + close;
+            continue 'outer;
+        }
+        i += rest.chars().next().map_or(1, char::len_utf8);
+    }
+}
+
+/// The input field's text with its markup applied, markers kept but faded: the text stays exactly
+/// what was typed (the cursor depends on it), only its look changes.
+pub fn markup_layout(input: &str, size: f32, color: Color32, faded: Color32, link: Color32, wrap: f32) -> LayoutJob {
+    if input.is_empty() {
+        return LayoutJob::simple(String::new(), FontId::proportional(size), color, wrap);
+    }
+    let (spans, marks) = markup_ranges(input);
+    let mut job = LayoutJob::default();
+    job.wrap.max_width = wrap;
+    let mut cuts: Vec<usize> = vec![0, input.len()];
+    for s in &spans {
+        cuts.extend([s.start, s.end]);
+    }
+    for (a, b) in &marks {
+        cuts.extend([*a, *b]);
+    }
+    cuts.sort_unstable();
+    cuts.dedup();
+    for w in cuts.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        if a >= b || !input.is_char_boundary(a) || !input.is_char_boundary(b) {
+            continue;
+        }
+        let f = if marks.iter().any(|(x, y)| *x <= a && *y >= b) {
+            TextFormat::simple(FontId::proportional(size), faded)
+        } else {
+            let has = |st: Style| spans.iter().any(|s| s.style == st && s.start <= a && s.end >= b);
+            let mut f = segment_format(&has, size, color, link);
+            if has(Style::Spoiler) {
+                f.background = crate::glass::veil(50);
+            }
+            f
+        };
+        job.append(&input[a..b], 0.0, f);
     }
     job
 }
@@ -335,6 +428,16 @@ pub fn install_fonts(ctx: &eframe::egui::Context) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn markup_in_the_field() {
+        let (spans, marks) = markup_ranges("a **b __c__** [d](x.io) `**`");
+        let got: Vec<_> = spans.iter().map(|s| (s.start, s.end, s.style)).collect();
+        assert_eq!(got, vec![(4, 11, Style::Bold), (8, 9, Style::Italic), (15, 16, Style::Link), (25, 27, Style::Code)]);
+        assert_eq!(marks, vec![(2, 4), (6, 8), (9, 11), (11, 13), (14, 15), (16, 23), (24, 25), (27, 28)]);
+        // Unclosed markers stay plain text, as when sending.
+        assert_eq!(markup_ranges("**a ~~"), (vec![], vec![]));
+    }
 
     fn styles(input: &str) -> (String, Vec<(i32, i32, &'static str)>) {
         use tl::enums::MessageEntity as E;

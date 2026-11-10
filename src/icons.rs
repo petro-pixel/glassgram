@@ -55,6 +55,12 @@ pub enum Icon {
     /// List (all pinned).
     List,
     Link,
+    Bold,
+    Italic,
+    Strike,
+    Code,
+    EyeOff,
+    ClearFormat,
     /// Bot command menu: a slash in a square.
     Commands,
     Info,
@@ -143,6 +149,12 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Eye => include_str!("../assets/icons/eye.svg"),
         Icon::List => include_str!("../assets/icons/list.svg"),
         Icon::Link => include_str!("../assets/icons/link.svg"),
+        Icon::Bold => include_str!("../assets/icons/bold.svg"),
+        Icon::Italic => include_str!("../assets/icons/italic.svg"),
+        Icon::Strike => include_str!("../assets/icons/strikethrough.svg"),
+        Icon::Code => include_str!("../assets/icons/code.svg"),
+        Icon::EyeOff => include_str!("../assets/icons/eye-off.svg"),
+        Icon::ClearFormat => include_str!("../assets/icons/remove-formatting.svg"),
         Icon::Commands => include_str!("../assets/icons/square-slash.svg"),
         Icon::Info => include_str!("../assets/icons/info.svg"),
         Icon::Phone => include_str!("../assets/icons/phone.svg"),
@@ -329,6 +341,7 @@ mod tests {
             Icon::Gear, Icon::Lock, Icon::ChevronDown, Icon::ChevronUp, Icon::At, Icon::Heart, Icon::Eye, Icon::List, Icon::Link, Icon::Commands,
             Icon::Info, Icon::Phone, Icon::User, Icon::Chat, Icon::Folder, Icon::Globe, Icon::Laptop, Icon::Chats, Icon::Users,
             Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle, Icon::Flag, Icon::Calendar, Icon::Translate, Icon::Poll, Icon::Todo, Icon::Cake, Icon::Megaphone, Icon::Star, Icon::Volume, Icon::Maximize, Icon::Minimize, Icon::Pip,
+            Icon::Bold, Icon::Italic, Icon::Strike, Icon::Code, Icon::EyeOff, Icon::ClearFormat,
         ];
         for icon in all {
             let text = svg(icon).unwrap_or_else(|| panic!("{icon:?} has no SVG"));
