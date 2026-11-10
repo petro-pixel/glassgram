@@ -631,3 +631,6 @@ pub(super) fn day(ts: jiff::Timestamp) -> String {
         format!("{base} {}", z.year())
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 65%** `█████████████░░░░░░░` — 113 done, 9 partial, 60 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 65%** `█████████████░░░░░░░` — 114 done, 9 partial, 59 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -99,7 +99,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 |---|---|
 | `src/backend.rs` | Tokio thread: the `Cmd` / `Ev` protocol with the UI, the `Worker` (connection, dialogs, history) dispatching commands to feature handlers |
 | `src/backend/types.rs` | Data handed to the UI: chats, messages, media, folders, privacy, presence |
-| `src/backend/loader.rs`, `src/backend/convert.rs` | Background image downloads with a disk cache; Telegram objects → our types |
+| `src/backend/loader.rs`, `src/backend/convert.rs` | Background image downloads with a disk cache; Telegram objects → our types (tests on recorded server replies in `convert/tests.rs`) |
 | `src/backend/updates.rs`, `src/backend/upload.rs` | Live updates and QR login loops; sending files, downloads, media cache |
 | `src/backend/login.rs`, `src/backend/sessions.rs` | Signing in (code, 2FA, QR) and out; active sessions |
 | `src/backend/sending.rs`, `src/backend/scheduled.rs`, `src/backend/inline.rs` | Sending, editing, deleting, reactions, votes; scheduled messages; inline bots and buttons |
@@ -187,6 +187,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/demo.rs`, `src/demo/` | Demo data |
 | `build.rs` | Telegram API keys from the build environment (masked), the Windows exe icon |
 | `packaging/`, `.github/workflows/release.yml` | Windows installer (Inno Setup), Flatpak manifest, `.desktop`, metainfo, icons; release builds |
+| `.github/workflows/ci.yml` | Build and tests on Linux, Windows and macOS for every push and pull request |
 
 ## Controls
 

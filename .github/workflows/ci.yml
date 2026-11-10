@@ -1,0 +1,48 @@
+# Build and tests on Linux, Windows and macOS for every push and pull request.
+# No secrets here: without GLASSGRAM_API_ID / GLASSGRAM_API_HASH build.rs makes a build that asks for
+# the keys at sign-in, which is all the tests need, and pull requests from forks can't read secrets anyway.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # A warning fails the build, as AGENTS.md asks ("no warnings").
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # The README and template tests compare files byte for byte: keep LF endings on Windows too.
+      - name: LF line endings
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v5
+
+      # WebKitGTK for mini apps (wry/tao, which also link libdbus); everything else is pure Rust.
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libdbus-1-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Test
+        run: cargo test --release --locked

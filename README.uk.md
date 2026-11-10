@@ -5,7 +5,7 @@
 Десктопний клієнт Telegram на Rust з інтерфейсом у стилі **Liquid Glass**.
 
 <!-- progress -->
-**Готовність за дорожньою картою: 65%** `█████████████░░░░░░░` — 113 готово, 9 частково, 60 попереду ([ROADMAP.md](ROADMAP.md))
+**Готовність за дорожньою картою: 65%** `█████████████░░░░░░░` — 114 готово, 9 частково, 59 попереду ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -99,7 +99,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 |---|---|
 | `src/backend.rs` | Потік з tokio: протокол `Cmd` / `Ev` з UI, `Worker` (з'єднання, діалоги, історія), що передає команди обробникам функцій |
 | `src/backend/types.rs` | Дані для UI: чати, повідомлення, медіа, папки, конфіденційність, присутність |
-| `src/backend/loader.rs`, `src/backend/convert.rs` | Фонове завантаження зображень із дисковим кешем; об'єкти Telegram → наші типи |
+| `src/backend/loader.rs`, `src/backend/convert.rs` | Фонове завантаження зображень із дисковим кешем; об'єкти Telegram → наші типи (тести на записаних відповідях сервера в `convert/tests.rs`) |
 | `src/backend/updates.rs`, `src/backend/upload.rs` | Цикли живих оновлень і QR-входу; надсилання файлів, завантаження, кеш медіа |
 | `src/backend/login.rs`, `src/backend/sessions.rs` | Вхід (код, 2FA, QR) і вихід; активні сеанси |
 | `src/backend/sending.rs`, `src/backend/scheduled.rs`, `src/backend/inline.rs` | Надсилання, редагування, видалення, реакції, голоси; заплановані повідомлення; інлайн-боти й кнопки |
@@ -187,6 +187,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/demo.rs`, `src/demo/` | Демо-дані |
 | `build.rs` | Ключі Telegram API із середовища збірки (замасковані), іконка exe на Windows |
 | `packaging/`, `.github/workflows/release.yml` | Інсталятор Windows (Inno Setup), маніфест Flatpak, `.desktop`, metainfo, іконки; релізні збірки |
+| `.github/workflows/ci.yml` | Збірка й тести на Linux, Windows і macOS для кожного push і pull request |
 
 ## Керування
 
