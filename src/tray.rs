@@ -112,6 +112,13 @@ mod win {
     }
 }
 
+/// Brings back a window hidden to the tray, from any thread: a hidden window gets no frames,
+/// so the UI couldn't do it itself (a click on a notification).
+pub fn show_window() {
+    #[cfg(target_os = "windows")]
+    win::show();
+}
+
 /// Starts the tray. `None` when the desktop has no tray (then simply no tray).
 pub fn spawn(tx: Sender<TrayEv>, ctx: egui::Context, notifications: bool) -> Option<TrayHandle> {
     match imp::spawn(tx, ctx, notifications) {

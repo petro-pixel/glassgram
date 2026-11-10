@@ -78,6 +78,7 @@ mod editmedia;
 mod websites;
 mod stars;
 mod sounds;
+mod alerts;
 mod autodelete;
 mod storage;
 mod dice;
@@ -565,6 +566,7 @@ pub struct App {
     websites: websites::Websites,
     stars: stars::Stars,
     sounds: sounds::Sounds,
+    alerts: alerts::Alerts,
     autodelete: autodelete::AutoDelete,
     /// Chat backgrounds and themes.
     wallpapers: wallpapers::Wallpapers,
@@ -838,6 +840,7 @@ impl App {
             websites: websites::Websites::default(),
             stars: stars::Stars::default(),
             sounds: sounds::Sounds::default(),
+            alerts: alerts::Alerts::default(),
             autodelete: autodelete::AutoDelete::default(),
             wallpapers: wallpapers::Wallpapers::default(),
             storage: storage::Storage::default(),
@@ -1099,12 +1102,13 @@ impl App {
             && let Some(chat) = self.chats.iter().find(|c| c.id == m.peer)
         {
             // Under a local passcode, don't show who sent what.
-            if self.lock.on {
-                notify("Glassgram", l!("Нове повідомлення", "New message"));
+            let (title, body) = if self.lock.on {
+                ("Glassgram".to_owned(), l!("Нове повідомлення", "New message").to_owned())
             } else {
                 let body = if chat.kind == ChatKind::Group && !m.sender.is_empty() { format!("{}: {}", m.sender, quote(&m)) } else { quote(&m) };
-                notify(&chat.title, &body);
-            }
+                (chat.title.clone(), body)
+            };
+            self.message_alert(m.peer, &title, &body);
         }
         if !m.out && m.mentioned && !self.history.get(&m.peer).is_some_and(|l| l.iter().any(|x| x.id == m.id)) {
             self.live_mark(m.peer, m.id, false);
@@ -1639,6 +1643,7 @@ impl eframe::App for App {
         let account = self.accounts.active;
         self.poll_web_apps();
         self.poll_background();
+        self.poll_alerts();
         for ev in events {
             // After an account switch, the remaining events come from the old backend.
             if self.accounts.active != account {

@@ -516,6 +516,9 @@ impl App {
         let arrow_edit = self.can_edit_by_arrow() && ui.input(|i| i.key_pressed(Key::ArrowUp) && i.modifiers.is_none());
         let send_mods = self.send_mods();
         let (resp, submitted) = glass::text_area(ui, input, &mut self.draft, l!("Повідомлення", "Message"), send_mods);
+        if self.take_composer_focus() {
+            resp.request_focus();
+        }
         // ↑ in an empty composer edits the last own message, as in Telegram Desktop.
         if arrow_edit && resp.has_focus() {
             self.edit_last();

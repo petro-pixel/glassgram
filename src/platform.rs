@@ -160,6 +160,75 @@ pub fn notify(title: &str, body: &str) {
     });
 }
 
+/// A message notification with buttons. `actions` are (key, label); the key the user picked —
+/// `"default"` for a click on the notification itself — goes to `on_action`, nothing when it is
+/// dismissed. `replace` is the id of the chat's notification still on screen (0 — none): the new
+/// one takes its place, and that one's waiting thread keeps delivering the actions. `on_shown`
+/// gets the new id.
+///
+/// Buttons work on Linux (D-Bus) and Windows (toasts); replacing only on Linux. macOS shows a plain
+/// notification: its legacy notification API re-sends the notification to wait for a click.
+pub fn notify_actions(
+    replace: u32,
+    title: &str,
+    body: &str,
+    actions: Vec<(&'static str, String)>,
+    on_shown: impl FnOnce(u32) + Send + 'static,
+    on_action: impl FnOnce(&str) + Send + 'static,
+) {
+    let title = title.to_owned();
+    let body: String = body.chars().take(180).collect();
+    std::thread::spawn(move || {
+        let mut n = notify_rust::Notification::new();
+        n.appname("Glassgram").summary(&title).body(&body);
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            n.icon("mail-message-new");
+            if replace != 0 {
+                n.id(replace);
+            }
+            // Without a "default" action D-Bus servers don't report a click on the body.
+            n.action("default", "");
+        }
+        #[cfg(not(target_os = "macos"))]
+        for (key, label) in &actions {
+            n.action(key, label);
+        }
+        #[cfg(target_os = "macos")]
+        let _ = (replace, actions, on_action);
+        #[cfg(target_os = "windows")]
+        let _ = replace;
+        let Ok(handle) = n.show() else { return };
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            let id = handle.id();
+            on_shown(id);
+            if id == replace {
+                return;
+            }
+            handle.wait_for_action(|key| {
+                if key != "__closed" {
+                    on_action(key);
+                }
+            });
+        }
+        #[cfg(target_os = "windows")]
+        {
+            on_shown(0);
+            let _ = handle.wait_for_response(|r: &notify_rust::NotificationResponse| match r {
+                notify_rust::NotificationResponse::Default => on_action("default"),
+                notify_rust::NotificationResponse::Action(key) => on_action(key),
+                _ => {}
+            });
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let _ = handle;
+            on_shown(0);
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
