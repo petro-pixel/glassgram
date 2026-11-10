@@ -170,7 +170,7 @@ pub(super) fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, value: &mut T, 
     });
 }
 
-fn hint(ui: &mut Ui, text: &str) {
+pub(super) fn hint(ui: &mut Ui, text: &str) {
     ui.label(egui::RichText::new(text).color(ink_dim()).size(12.5));
 }
 
@@ -199,6 +199,7 @@ impl App {
             SettingsTab::Stars => self.open_stars(),
             SettingsTab::Advanced => self.load_cache_usage(),
             SettingsTab::Folders => self.send(Cmd::LoadSuggestedFolders),
+            SettingsTab::Language => self.open_language_page(),
             SettingsTab::Notifications => {
                 self.load_notify_exceptions();
                 self.load_sounds();
@@ -612,21 +613,6 @@ impl App {
         });
     }
 
-    fn language_page(&mut self, ui: &mut Ui) {
-        let s = &mut self.settings;
-        egui::ScrollArea::vertical().id_salt("settings-lang").auto_shrink(false).show(ui, |ui| {
-            // Ukrainian and English are built in; the rest come from localisation files.
-            for (k, lang) in crate::i18n::available().into_iter().enumerate() {
-                let r = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::hover()).0;
-                if glass::button(ui, r, ("lang", k), &lang.name(), s.lang == lang, true).clicked() {
-                    s.lang = lang;
-                }
-            }
-            ui.add_space(8.0);
-            hint(ui, l!("Інші мови — файли перекладу в теці locales поруч із налаштуваннями.", "Other languages are translation files in the locales folder next to the settings."));
-        });
-    }
-
     /// Settings window. Changes are saved immediately.
     pub(super) fn settings_view(&mut self, ui: &mut Ui) {
         let screen = ui.max_rect();
@@ -657,11 +643,7 @@ impl App {
         if self.settings != before {
             self.settings.save();
             if self.settings.lang != before.lang {
-                crate::i18n::set(&self.settings.lang);
-                if let Some(t) = &self.tray {
-                    t.refresh();
-                }
-                self.title_unread = usize::MAX;
+                self.lang_changed();
             }
             if self.settings.scale != before.scale {
                 self.ctx.set_zoom_factor(self.settings.scale);

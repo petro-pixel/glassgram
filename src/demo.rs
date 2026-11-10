@@ -15,6 +15,7 @@ mod stickers;
 mod stars;
 mod custom_emoji;
 mod wallpapers;
+mod langpack;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -888,6 +889,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::DiscussionGroups { peer, groups });
         }
         cmd @ Cmd::LoadStars { .. } => stars::handle(app, cmd),
+        cmd @ (Cmd::LoadLanguages | Cmd::LoadLangPack { .. }) => langpack::handle(app, cmd),
         Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites => {
             let gone = match &cmd {
                 Cmd::LogoutWebsite(h) => vec![*h],

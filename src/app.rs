@@ -78,6 +78,7 @@ use bubbles::*;
 mod sendbox;
 mod editmedia;
 mod websites;
+mod langpack;
 mod stars;
 mod sounds;
 mod alerts;
@@ -572,6 +573,7 @@ pub struct App {
     custom_emoji: custom_emoji::CustomEmoji,
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
+    langpacks: langpack::LangPacks,
     stars: stars::Stars,
     sounds: sounds::Sounds,
     alerts: alerts::Alerts,
@@ -850,6 +852,7 @@ impl App {
             custom_emoji: custom_emoji::CustomEmoji::default(),
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
+            langpacks: langpack::LangPacks::default(),
             stars: stars::Stars::default(),
             sounds: sounds::Sounds::default(),
             alerts: alerts::Alerts::default(),
@@ -1050,6 +1053,7 @@ impl App {
             Ev::Sessions(list) => self.sessions = list,
             Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
             Ev::Websites(list) => self.on_websites(list),
+            ev @ (Ev::Languages(_) | Ev::LangPack { .. }) => self.langpack_event(ev),
             Ev::StarsBalance { stars, nanos } => self.on_stars_balance(stars, nanos),
             Ev::StarsHistory { dir, list, next, append } => self.on_stars_history(dir, list, next, append),
             Ev::AdminLog { peer, entries, older } => self.on_admin_log(peer, entries, older),

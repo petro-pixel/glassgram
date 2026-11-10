@@ -232,6 +232,7 @@ impl App {
                 self.screen = Screen::Main;
                 self.login.code.clear();
                 self.login.password.clear();
+                self.refresh_lang_pack();
             }
             Ev::LoggedOut => {
                 // Other accounts remain: remove this one and move to the next.

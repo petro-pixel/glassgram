@@ -4,8 +4,11 @@
 //!
 //! Every other language is a localisation file `locales/<code>.json` keyed by the English string:
 //! `{"@name": "Deutsch", "Cancel": "Abbrechen", "Votes: {n}": "Stimmen: {n}"}`. Files ship inside the
-//! binary (`BUILTIN`) or are dropped into `<data dir>/locales/` without rebuilding. A missing or empty
-//! entry falls back to English. `locales/template.json` lists every string (see the tests below).
+//! binary (`BUILTIN`) or are dropped into `<data dir>/locales/` without rebuilding. Below a file come
+//! Telegram's own translations: a language pack from the server (`backend/langpack.rs`, cached on disk)
+//! is keyed by Telegram Desktop keys, and `locales/tdesktop-keys.json` says which key is which English
+//! string. A missing or empty entry falls back to English. `locales/template.json` lists every string
+//! (see the tests below).
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -82,6 +85,11 @@ impl Lang {
 /// Languages for the settings list: System, Ukrainian, English, then the files by name.
 pub fn available() -> Vec<Lang> {
     let mut codes: Vec<String> = BUILTIN.iter().map(|(c, _)| (*c).to_owned()).collect();
+    for code in crate::backend::langpack::cached_codes() {
+        if !matches!(code.as_str(), "uk" | "en") && !codes.contains(&code) {
+            codes.push(code);
+        }
+    }
     if let Ok(dir) = std::fs::read_dir(user_dir()) {
         for e in dir.flatten() {
             let p = e.path();
@@ -134,18 +142,43 @@ struct Table {
 
 /// Each file is read once; tables live for the whole run, so `l!` can hand out `&'static str`.
 fn table(code: &str) -> Option<&'static Table> {
-    static TABLES: OnceLock<Mutex<HashMap<String, Option<&'static Table>>>> = OnceLock::new();
-    let mut tables = TABLES.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
-    *tables.entry(code.to_owned()).or_insert_with(|| {
-        // A file in the data folder wins over the built-in one: translators can try changes without a rebuild.
-        let user = std::fs::read_to_string(user_dir().join(format!("{code}.json"))).ok();
-        let text = user.as_deref().or_else(|| BUILTIN.iter().find(|(c, _)| *c == code).map(|(_, t)| *t))?;
-        let t = parse(text)?;
-        Some(&*Box::leak(Box::new(t)))
+    *tables().entry(code.to_owned()).or_insert_with(|| {
+        build(code, crate::backend::langpack::load_cached(code).as_ref()).map(|t| &*Box::leak(Box::new(t)))
     })
 }
 
-fn parse(text: &str) -> Option<Table> {
+/// A downloaded language pack replaces the table of its language; call `set` after it to show it.
+/// The old table stays leaked: strings already handed out by `l!` must remain valid.
+pub fn install(pack: &crate::backend::LangPack) {
+    let t = build(&pack.code, Some(pack)).map(|t| &*Box::leak(Box::new(t)));
+    tables().insert(pack.code.clone(), t);
+}
+
+fn tables() -> std::sync::MutexGuard<'static, HashMap<String, Option<&'static Table>>> {
+    static TABLES: OnceLock<Mutex<HashMap<String, Option<&'static Table>>>> = OnceLock::new();
+    TABLES.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// The file (data folder over built-in) on top of the server pack mapped to our strings.
+fn build(code: &str, pack: Option<&crate::backend::LangPack>) -> Option<Table> {
+    // A file in the data folder wins over the built-in one: translators can try changes without a rebuild.
+    let user = std::fs::read_to_string(user_dir().join(format!("{code}.json"))).ok();
+    let text = user.as_deref().or_else(|| BUILTIN.iter().find(|(c, _)| *c == code).map(|(_, t)| *t));
+    let (mut name, file) = text.and_then(parse).unwrap_or_default();
+    let mut strings = pack.map(|p| from_pack(tdesktop_keys(), &p.strings)).unwrap_or_default();
+    strings.extend(file);
+    if name.is_empty() {
+        name = pack.map(|p| p.name.clone()).unwrap_or_default();
+    }
+    if name.is_empty() {
+        return None;
+    }
+    let strings = strings.into_iter().map(|(k, v)| (k, &*String::leak(v))).collect();
+    Some(Table { name, strings })
+}
+
+/// (`@name`, English → translation) of a localisation file.
+fn parse(text: &str) -> Option<(String, HashMap<String, String>)> {
     let map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(text).ok()?;
     let mut name = String::new();
     let mut strings = HashMap::new();
@@ -155,10 +188,61 @@ fn parse(text: &str) -> Option<Table> {
             name = v.to_owned();
         } else if !k.starts_with('@') && !v.is_empty() && placeholders(&k) == placeholders(v) {
             // A translation with other placeholders would lose or invent values: English is safer.
-            strings.insert(k, &*String::leak(v.to_owned()));
+            strings.insert(k, v.to_owned());
         }
     }
-    (!name.is_empty()).then_some(Table { name, strings })
+    Some((name, strings))
+}
+
+/// A tdesktop key → the English strings it translates, each with (tdesktop placeholder, ours) renames.
+type KeyMap = HashMap<String, Vec<(String, Vec<(String, String)>)>>;
+
+fn tdesktop_keys() -> &'static KeyMap {
+    static KEYS: OnceLock<KeyMap> = OnceLock::new();
+    KEYS.get_or_init(|| parse_keys(include_str!("../locales/tdesktop-keys.json")))
+}
+
+/// `"English": "lng_key"` or `"English": {"key": "lng_key", "args": {"{user}": "{t}"}}`.
+fn parse_keys(text: &str) -> KeyMap {
+    let map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(text).unwrap_or_default();
+    let mut out = KeyMap::new();
+    for (en, v) in map {
+        let (key, args) = match &v {
+            serde_json::Value::String(k) => (k.as_str(), Vec::new()),
+            serde_json::Value::Object(o) => {
+                let Some(k) = o.get("key").and_then(|k| k.as_str()) else { continue };
+                let args = o.get("args").and_then(|a| a.as_object()).map(|a| a.iter().filter_map(|(f, t)| Some((f.clone(), t.as_str()?.to_owned()))).collect()).unwrap_or_default();
+                (k, args)
+            }
+            _ => continue,
+        };
+        if !en.starts_with('@') {
+            out.entry(key.to_owned()).or_default().push((en, args));
+        }
+    }
+    out
+}
+
+/// Telegram's strings by tdesktop key → ours by English string, placeholders renamed to ours.
+fn from_pack(keys: &KeyMap, pack: &HashMap<String, String>) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    for (key, ours) in keys {
+        let Some(value) = pack.get(key).filter(|v| !v.is_empty()) else { continue };
+        // Markup (**bold**, __italic__, [links](…)) would show as raw characters.
+        if value.contains("**") || value.contains("__") || value.contains("](") {
+            continue;
+        }
+        for (en, args) in ours {
+            let mut v = value.clone();
+            for (from, to) in args {
+                v = v.replace(from.as_str(), to);
+            }
+            if placeholders(en) == placeholders(&v) {
+                out.insert(en.clone(), v);
+            }
+        }
+    }
+    out
 }
 
 /// The translation of an English string in the active file language.
@@ -413,6 +497,66 @@ mod tests {
         }
         let have = std::fs::read_to_string(&path).unwrap_or_default();
         assert!(have == want, "locales/template.json is out of date: run `UPDATE_LOCALES=1 cargo test locales`");
+    }
+
+    #[test]
+    fn server_pack_maps_onto_our_strings() {
+        let keys = parse_keys(r#"{"@about": "x", "Cancel": "lng_cancel", "Forwarded from {from}": {"key": "lng_forwarded", "args": {"{user}": "{from}"}}, "Close": "lng_close", "Save": "lng_save"}"#);
+        let pack: HashMap<String, String> = [
+            ("lng_cancel", "Abbrechen"),
+            ("lng_forwarded", "Weitergeleitet von {user}"),
+            // Markup and foreign placeholders are dropped rather than shown raw or filled wrongly.
+            ("lng_close", "**Schließen**"),
+            ("lng_save", "Speichern {count}"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect();
+        let ours = from_pack(&keys, &pack);
+        assert_eq!(ours.get("Cancel").map(String::as_str), Some("Abbrechen"));
+        assert_eq!(ours.get("Forwarded from {from}").map(String::as_str), Some("Weitergeleitet von {from}"));
+        assert!(!ours.contains_key("Close") && !ours.contains_key("Save"));
+    }
+
+    /// Order: a localisation file over the server pack, the pack over English.
+    #[test]
+    fn file_wins_over_the_pack() {
+        let de = parse(BUILTIN.iter().find(|(c, _)| *c == "de").unwrap().1).unwrap().1;
+        // A mapped string the German file doesn't have.
+        let (key, en) = tdesktop_keys()
+            .iter()
+            .find_map(|(k, v)| v.iter().find(|(en, a)| a.is_empty() && !de.contains_key(en)).map(|(en, _)| (k.clone(), en.clone())))
+            .unwrap();
+        let pack = crate::backend::LangPack {
+            code: "de".into(),
+            name: "Deutsch (Telegram)".into(),
+            version: 1,
+            strings: [("lng_cancel".to_owned(), "PACK".to_owned()), (key, "AUS DEM PAKET".to_owned())].into(),
+        };
+        let t = build("de", Some(&pack)).unwrap();
+        assert_eq!(t.name, "Deutsch");
+        assert_eq!(t.strings.get("Cancel").copied(), Some("Abbrechen"));
+        assert_eq!(t.strings.get(en.as_str()).copied(), Some("AUS DEM PAKET"));
+        let t = build("xx-test", Some(&crate::backend::LangPack { code: "xx-test".into(), name: "Xx".into(), ..pack })).unwrap();
+        assert_eq!((t.name.as_str(), t.strings.get("Cancel").copied()), ("Xx", Some("PACK")));
+        assert!(build("xx-none", None).is_none());
+    }
+
+    /// The mapping names real strings with tdesktop keys, and renames only to placeholders we have.
+    #[test]
+    fn tdesktop_keys_match_the_code() {
+        let known: std::collections::HashSet<String> = source_strings().into_iter().map(|(_, en)| en).collect();
+        let keys = tdesktop_keys();
+        assert!(keys.values().map(Vec::len).sum::<usize>() > 300);
+        for (key, ours) in keys {
+            assert!(key.starts_with("lng_") && !key.contains('#'), "{key}: not a plain tdesktop key");
+            for (en, args) in ours {
+                assert!(known.contains(en), "tdesktop-keys.json: unknown string {en:?}");
+                for (_, to) in args {
+                    assert!(placeholders(en).contains(to), "tdesktop-keys.json: {en:?} has no {to}");
+                }
+            }
+        }
     }
 
     /// Two placeholders in a row can't be cut back out of the English text (see `extract`).

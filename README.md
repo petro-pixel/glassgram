@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 66%** `█████████████░░░░░░░` — 115 done, 9 partial, 58 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 66%** `█████████████░░░░░░░` — 115 done, 10 partial, 57 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -22,7 +22,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Formatting**: Telegram entities are shown, markup is converted when sending
 - **Messages**: forwarding, multi-select, silent and scheduled sending, bot buttons, pasting from the clipboard, file progress
 - **Notifications**: system ones on Linux, Windows and macOS with "Reply" and "Mark as read" buttons (Linux, Windows), sounds with the account's ringtones and a chat's own sound, a counter in the window title, a tray icon
-- **Languages**: Ukrainian and English built into the code, German and any other language from localisation files (`locales/*.json`, see below)
+- **Languages**: Ukrainian and English built into the code (always offline), every language Telegram Desktop offers (Settings → Language lists them with native names, "beta" and how much is translated; a click downloads the pack, caches it and switches at once, no restart), plus localisation files (`locales/*.json`, see below)
 - **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
 - **Settings** (⚙): language, theme (dark, light, system), interface scale, notifications, autoplay, SOCKS5 and MTProto proxies (several, switched on the fly, with ping), privacy, active sessions, local passcode; stored in `~/.local/share/glassgram/settings`
 - **Settings layout** as in Telegram Desktop: My Account (name, bio, username with availability check and its QR code, profile photo) · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language · My Stars (balance and history with All / Incoming / Outgoing tabs; a click on a transaction shows its details)
@@ -93,6 +93,10 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
    and pick the language in Settings → Language. No rebuild needed.
 4. To ship it with the app, add it to `locales/` and to `BUILTIN` in `src/i18n.rs`.
 
+Languages from Telegram's list come from translations.telegram.org: their packs are keyed by Telegram Desktop keys, and
+[locales/tdesktop-keys.json](locales/tdesktop-keys.json) maps our English strings to those keys (only exact meaning matches;
+`{"key", "args"}` renames placeholders). A string is looked up in a localisation file first, then in the Telegram pack, then shown in English.
+
 ## Structure
 
 | File | What it does |
@@ -150,6 +154,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/autodl.rs` | Automatic media download by chat type and video size; photos held back in `backend/media.rs` |
 | `src/app/autodelete.rs`, `src/backend/autodelete.rs` | Auto-delete timers: the default for new chats, a chat's own |
 | `src/app/wallpapers.rs`, `src/backend/wallpapers.rs`, `src/wallpaper.rs` | Chat backgrounds and themes: the gallery, a picture from a file, a chat's own wallpaper and theme; fills and patterns drawn on the CPU |
+| `src/app/langpack.rs`, `src/backend/langpack.rs` | Settings → Language: Telegram's language list, downloading and caching packs (`langpacks/`), refreshing them with `getDifference`, live switching |
 | `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |
 | `src/app/editmedia.rs`, `src/backend/editmedia.rs` | Editing media messages: caption, replacing the photo or file |
 | `src/app/richtext.rs` | Formatting bar over selected text in the composer, formatting shortcuts |
@@ -183,7 +188,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/lock.rs` | Local passcode (salt + SHA-256) |
 | `src/tray.rs`, `src/logo.rs` | Tray icon (`ksni` on Linux, `tray-icon` on Windows and macOS) and the app logo |
 | `src/icons.rs`, `assets/icons/` | Vector icons: Lucide SVG files (24×24), parsed with `roxmltree` and flattened with `kurbo` |
-| `src/i18n.rs`, `locales/` | UI language: `l!`/`lf!` for Ukrainian and English, JSON localisation files for the rest |
+| `src/i18n.rs`, `locales/` | UI language: `l!`/`lf!` for Ukrainian and English, JSON localisation files and Telegram packs (via `tdesktop-keys.json`) for the rest |
 | `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |
 | `src/demo.rs`, `src/demo/` | Demo data |
 | `build.rs` | Telegram API keys from the build environment (masked), the Windows exe icon |

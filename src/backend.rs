@@ -75,6 +75,8 @@ mod polls;
 mod todo;
 mod privacy;
 mod websites;
+pub mod langpack;
+pub use langpack::{LangInfo, LangPack};
 mod adminlog;
 mod chatlists;
 mod storage;
@@ -252,6 +254,11 @@ pub enum Cmd {
     /// Remove the oldest cached files over this many bytes.
     TrimCache(u64),
     LoadWebsites,
+    /// The interface languages Telegram Desktop offers; answered with `Ev::Languages`.
+    LoadLanguages,
+    /// A language's strings, from the cache brought up to date or downloaded; answered with `Ev::LangPack`.
+    /// `name` is its native name for the list (empty — keep the cached one).
+    LoadLangPack { code: String, name: String },
     LogoutWebsite(i64),
     LogoutAllWebsites,
     /// A page of the own Stars history (`offset` empty — the first, which also refreshes the balance);
@@ -643,6 +650,9 @@ pub enum Ev {
     /// Sensitive content: shown unfiltered, and whether the account may change that.
     ContentSettings { enabled: bool, can_change: bool },
     Websites(Vec<WebSession>),
+    Languages(Vec<LangInfo>),
+    /// A language pack, already saved to the cache, or why it couldn't be loaded.
+    LangPack { code: String, pack: Result<LangPack, String> },
     /// The own Stars balance in whole Stars plus the fraction.
     StarsBalance { stars: i64, nanos: i32 },
     /// A page of Stars transactions; `next` is the offset of the next page (empty — no more).
@@ -1078,6 +1088,7 @@ impl Worker {
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ Cmd::LoadStars { .. } => self.stars_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
+            cmd @ (Cmd::LoadLanguages | Cmd::LoadLangPack { .. }) => self.langpack_cmd(cmd).await,
             cmd @ (Cmd::LoadAdminLog { .. } | Cmd::SetSignatures { .. } | Cmd::LoadDiscussionGroups(_) | Cmd::SetDiscussionGroup { .. }) => self.admin_cmd(cmd).await,
             cmd @ (Cmd::LoadParticipants { .. } | Cmd::EditAdmin { .. } | Cmd::RestrictMember { .. } | Cmd::BanMember { .. } | Cmd::UnbanMember { .. }) => self.manage_cmd(cmd).await,
             cmd @ (Cmd::LoadInviteLinks(_) | Cmd::SaveInviteLink { .. } | Cmd::RevokeInviteLink { .. } | Cmd::DeleteInviteLink { .. } | Cmd::DeleteRevokedInvites(_) | Cmd::LoadJoinRequests(_) | Cmd::AnswerJoinRequest { .. }) => self.invites_cmd(cmd).await,
