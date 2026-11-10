@@ -1,5 +1,5 @@
 //! Demo backgrounds and chat themes: a gallery of fills, made-up patterns and one generated
-//! "photo"; Олена's chat has its own wallpaper, Андрій's an emoji theme, Марія's a gift theme.
+//! "photo"; Olena's chat has its own wallpaper, Andriy's an emoji theme, Maria's a gift theme.
 //! Setting a chat's wallpaper or theme changes this run's state.
 
 use std::cell::RefCell;
@@ -130,7 +130,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             };
             match written {
                 true => app.push_event(Ev::WallPaperFile { doc: w.doc, path }),
-                false => app.push_event(Ev::Error("Не вдалося записати демо-фон".into())),
+                false => app.push_event(Ev::Error(crate::i18n::l!("Не вдалося записати демо-фон", "Couldn't write the demo background").into())),
             }
         }
         Cmd::SetChatWallPaper { peer, wall } => {

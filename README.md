@@ -53,7 +53,7 @@ your account, and opens bot mini apps and links only when you do.
 ## Running from source
 
 ```sh
-cargo run --release -- --demo   # demo with made-up chats, no network
+cargo run --release -- --demo   # demo with made-up chats (in English), no network
 cargo run --release             # real account
 ```
 

@@ -12,7 +12,7 @@ const EMOJI: [(i64, &str); 4] = [(9001, "💎"), (9002, "❤"), (9003, "⭐"), (
 
 /// A message with every demo custom emoji in its text.
 pub(super) fn message(base: Msg) -> Msg {
-    let text = "Нові емодзі для теми 💎 ❤ ⭐ і кришталева куля 🔮".to_owned();
+    let text = "New emoji for the theme 💎 ❤ ⭐ and a crystal ball 🔮".to_owned();
     let spans = EMOJI
         .iter()
         .filter_map(|(id, e)| {

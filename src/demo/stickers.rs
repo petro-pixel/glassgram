@@ -11,11 +11,11 @@ use crate::backend::{Cmd, DocRef, Ev, FAVED_SET, ImgKey, MediaInfo, MediaKind, M
 
 /// (id, title, short name, stickers as emoji); a sticker's id is `set id * 100 + index`.
 const SETS: [(i64, &str, &str, &str); 5] = [
-    (2, "Котики", "GlassCats", "🐱😺😸😹😻😼😽🙀😿😾🐈"),
-    (3, "Емоції", "GlassFaces", "😀😃😄😁😆😅🤣😂🙂🙃😉😊😇🥰😍🤩😘"),
-    (4, "Смаколики", "GlassFood", "🍕🍔🍟🌭🥗🍣🍩🍪🍰☕"),
-    (5, "Тварини", "GlassAnimals", "🐶🐼🦊🐨🐯🦁🐸🐵🐧🦉"),
-    (6, "Погода", "GlassWeather", "☀🌤⛅🌧⛈❄🌈🌊"),
+    (2, "Cats", "GlassCats", "🐱😺😸😹😻😼😽🙀😿😾🐈"),
+    (3, "Feelings", "GlassFaces", "😀😃😄😁😆😅🤣😂🙂🙃😉😊😇🥰😍🤩😘"),
+    (4, "Treats", "GlassFood", "🍕🍔🍟🌭🥗🍣🍩🍪🍰☕"),
+    (5, "Animals", "GlassAnimals", "🐶🐼🦊🐨🐯🦁🐸🐵🐧🦉"),
+    (6, "Weather", "GlassWeather", "☀🌤⛅🌧⛈❄🌈🌊"),
 ];
 /// Saved GIF ids; their previews are drawn here.
 const GIFS: std::ops::RangeInclusive<i64> = 7001..=7006;
@@ -65,7 +65,7 @@ pub(super) fn handle(app: &mut App, cmd: Cmd) {
         Cmd::LoadStickers => {
             let pseudo = |id, title: &str, stickers: Vec<(i64, String)>| StickerSetInfo { id, title: title.into(), short_name: String::new(), count: stickers.len(), installed: true, stickers };
             let recent = [200, 301, 207, 309, 203].map(|id| (id, emoji_of(id))).to_vec();
-            let mut sets = vec![pseudo(FAVED_SET, "Обрані", faved()), pseudo(RECENT_SET, "Нещодавні", recent)];
+            let mut sets = vec![pseudo(FAVED_SET, "Favourites", faved()), pseudo(RECENT_SET, "Recent", recent)];
             sets.extend(STATE.with_borrow(|s| s.installed.clone()).into_iter().filter_map(set));
             app.push_event(Ev::Stickers(sets));
         }
@@ -79,7 +79,7 @@ pub(super) fn handle(app: &mut App, cmd: Cmd) {
             };
             match set(id) {
                 Some(s) => app.push_event(Ev::StickerSet(s)),
-                None => app.push_event(Ev::Error("Набір стікерів не знайдено".into())),
+                None => app.push_event(Ev::Error(crate::i18n::l!("Набір стікерів не знайдено", "Sticker set not found").into())),
             }
         }
         Cmd::InstallStickerSet { id, install } => {
@@ -133,7 +133,7 @@ pub(super) fn handle(app: &mut App, cmd: Cmd) {
             });
             app.push_event(Ev::SavedGifs(STATE.with_borrow(|s| s.gifs.clone())));
             if !unsave {
-                app.push_event(Ev::Notice("GIF збережено".into()));
+                app.push_event(Ev::Notice(crate::i18n::l!("GIF збережено", "GIF saved").into()));
             }
         }
         Cmd::LoadStickerThumbs(ids) => {
