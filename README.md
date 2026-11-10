@@ -106,7 +106,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/backend/dialogs.rs`, `src/backend/folders.rs`, `src/backend/topics.rs`, `src/backend/comments.rs` | Chat list actions, folders, forum topics, channel comments |
 | `src/backend/account.rs`, `src/backend/outbox.rs` | Own profile, username and photo; one send attempt from the queue (text, or files uploaded in the background) |
 | `src/cache.rs` | Local cache of dialogs, messages and the send queue (SQLite via `libsql`) |
-| `src/blur.rs`, `src/glass.wgsl` | GPU blur: background into a texture → Gaussian → glass panels with refraction |
+| `src/blur.rs`, `src/glass.wgsl` | GPU blur: background into a texture → Gaussian → glass panels: a clear refracting rim with dispersion and a light-facing glint over a frosted, slightly magnifying middle |
 | `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars, glass behind egui menus and tooltips, accessibility modes |
 | `src/app.rs` | `App`: state, events (`push_event`), user actions (`apply`), the frame loop |
 | `src/app/history.rs`, `src/app/bubbles.rs` | The open chat: history, header, overlays; drawing bubbles, albums, media cards, reactions |

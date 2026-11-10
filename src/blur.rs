@@ -2,7 +2,8 @@
 //!
 //! Frame: the background is rendered by a shader into an offscreen texture → downscaled 4× →
 //! blurred twice with a Gaussian (H+V) → the background is drawn to the screen, and each glass panel
-//! samples the blurred texture with an offset at the edges (refraction) and slight chromatic aberration.
+//! samples the blurred texture, and at its clear rim the sharp one, with an offset at the edges
+//! (refraction) and chromatic aberration.
 
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -184,9 +185,11 @@ impl GlassGpu {
             entries: &[t0, t1, uniform_entry(3, false, size_of::<BlurU>() as u64)],
         });
         let [p0, p1] = tex_entries(4);
+        // The sharp background too: the clear rim refracts it, only the middle is frosted.
+        let [p2, p3] = tex_entries(10);
         let panel_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("glass-panel"),
-            entries: &[p0, p1, uniform_entry(6, true, size_of::<PanelU>() as u64)],
+            entries: &[p0, p1, uniform_entry(6, true, size_of::<PanelU>() as u64), p2, p3],
         });
 
         let [w0, w1] = tex_entries(7);
@@ -366,6 +369,8 @@ impl GlassGpu {
                             size: NonZeroU64::new(size_of::<PanelU>() as u64),
                         }),
                     },
+                    wgpu::BindGroupEntry { binding: 10, resource: wgpu::BindingResource::TextureView(&full) },
+                    wgpu::BindGroupEntry { binding: 11, resource: wgpu::BindingResource::Sampler(&self.sampler) },
                 ],
             }),
             full,

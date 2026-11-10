@@ -109,6 +109,8 @@ struct PanelU {
 @group(0) @binding(4) var blur_tex: texture_2d<f32>;
 @group(0) @binding(5) var blur_smp: sampler;
 @group(0) @binding(6) var<uniform> panel: PanelU;
+@group(0) @binding(10) var sharp_tex: texture_2d<f32>;
+@group(0) @binding(11) var sharp_smp: sampler;
 
 @vertex
 fn vs_panel(@builtin(vertex_index) i: u32) -> VsOut {
@@ -147,20 +149,42 @@ fn fs_panel(in: VsOut) -> @location(0) vec4<f32> {
         n = vec2<f32>(0.0, sign(rel.y));
     }
 
-    // Lens at the edges: the closer to the border, the more the outside background is pulled in.
-    let band = max(min(r * 1.2, 26.0 * panel.ppp), 1.0);
-    let t = clamp(1.0 + d / band, 0.0, 1.0);
-    let bend = t * t * panel.refract * panel.ppp;
-    let base = p / panel.screen;
+    // The panel is a slab of glass with a rounded (convex) rim, like Apple's Liquid Glass: the rim
+    // bends the light, so the background just outside is pulled in at the very edge, and the flat
+    // middle magnifies a little. `s` runs from 0 at the edge to 1 where the rim meets the flat top.
+    let band = max(min(r * 1.25, 30.0 * panel.ppp), 1.0);
+    let s = clamp(-d / band, 0.0, 1.0);
+    // Slope of the rounded rim: steep at the edge, flat inside, no kink where they meet.
+    let e = 1.0 - s;
+    let slope = e * e * (3.0 - 2.0 * e);
+    let bend = slope * panel.refract * 2.2 * panel.ppp;
+    let zoom = 0.97;
+    let base = (c + rel * zoom) / panel.screen;
     let off = n * bend / panel.screen;
-    let col = vec3<f32>(
-        textureSample(blur_tex, blur_smp, base + off * 1.10).r,
+    // Dispersion grows with the bend: colour fringes only on the rim, as in real glass.
+    let disp = 0.18 * slope;
+    let frost = vec3<f32>(
+        textureSample(blur_tex, blur_smp, base + off * (1.0 + disp)).r,
         textureSample(blur_tex, blur_smp, base + off).g,
-        textureSample(blur_tex, blur_smp, base + off * 0.90).b);
+        textureSample(blur_tex, blur_smp, base + off * (1.0 - disp)).b);
+    let clear = vec3<f32>(
+        textureSample(sharp_tex, sharp_smp, base + off * (1.0 + disp)).r,
+        textureSample(sharp_tex, sharp_smp, base + off).g,
+        textureSample(sharp_tex, sharp_smp, base + off * (1.0 - disp)).b);
+    // The rim is clear glass, the middle frosted.
+    let col = mix(frost, clear, smoothstep(0.15, 0.85, slope) * 0.85);
 
-    // “Vibrancy”: a bit of saturation and light, like real glass.
+    // "Vibrancy": a bit of saturation and light, like real glass.
     let lum = dot(col, vec3<f32>(0.299, 0.587, 0.114));
-    var outc = mix(vec3<f32>(lum), col, 1.35) * 1.06 + t * t * t * 0.07;
+    var outc = mix(vec3<f32>(lum), col, 1.35) * 1.06;
+    // Fresnel: the rim reflects more of the light around it.
+    outc += vec3<f32>(pow(e, 4.0) * 0.10);
+    // The rim catches the light from the top left and lets the opposite side fall into shade.
+    let light = normalize(vec2<f32>(-0.45, -0.9));
+    let facing = dot(n, light);
+    let rim = smoothstep(0.55, 0.0, s);
+    outc += vec3<f32>(pow(max(facing, 0.0), 3.0) * rim * rim * 0.22);
+    outc *= 1.0 - pow(max(-facing, 0.0), 2.0) * rim * 0.10;
     outc = clamp(outc, vec3<f32>(0.0), vec3<f32>(1.0));
     let a = mask * panel.opacity;
     return vec4<f32>(outc * a, a);
