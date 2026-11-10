@@ -585,6 +585,8 @@ pub enum Ev {
     /// `peer: None`: deletion not tied to a channel (private chats and small groups).
     Deleted { ids: Vec<i32>, peer: Option<PeerId> },
     Image { key: ImgKey, image: ColorImage },
+    /// The `.tgs` file of an animated custom emoji, played in text once its still picture is shown.
+    CustomEmojiFile { id: i64, path: std::path::PathBuf },
     Folders(Vec<Folder>),
     /// Whether chat rows show folder tags.
     FolderTags(bool),

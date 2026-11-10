@@ -4,7 +4,7 @@
 use grammers_client::tl;
 
 use super::loader::DocLoc;
-use super::{Cmd, EMOJI_PT, ImgKey, Worker};
+use super::{Cmd, EMOJI_PT, Ev, ImgKey, Worker};
 use crate::i18n::lf;
 
 /// The server answers at most this many documents per request.
@@ -15,6 +15,7 @@ impl Worker {
         let Cmd::LoadCustomEmoji(ids) = cmd else { return Ok(()) };
         let client = self.client()?;
         let Some(loader) = self.loader.clone() else { return Ok(()) };
+        let out = self.out.clone();
         tokio::spawn(async move {
             for chunk in ids.chunks(BATCH) {
                 let req = tl::functions::messages::GetCustomEmojiDocuments { document_id: chunk.to_vec() };
@@ -26,6 +27,10 @@ impl Worker {
                             {
                                 // "st…" counts as stickers in Data and storage.
                                 let file = format!("ste{}{}.img", d.id, if thumb.is_empty() { "" } else { "_t" });
+                                if d.mime_type == "application/x-tgsticker" {
+                                    // The loader writes the file before its first frame reaches the UI.
+                                    out.send(Ev::CustomEmojiFile { id: d.id, path: crate::platform::data_dir().join("cache").join(&file) });
+                                }
                                 loader.fetch(ImgKey::Emoji(d.id), file, EMOJI_PT, DocLoc { doc: d, thumb });
                             }
                         }

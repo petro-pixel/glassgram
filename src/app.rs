@@ -996,6 +996,7 @@ impl App {
                 self.custom_emoji.on_image(key, &tex);
                 self.textures.insert(key, tex);
             }
+            Ev::CustomEmojiFile { id, path } => self.custom_emoji.on_file(id, path),
             ev @ (Ev::Contacts(_) | Ev::ContactResults { .. } | Ev::ChatCreated(_) | Ev::ChannelUsernameCheck { .. }) => self.new_chat_event(ev),
             Ev::Error(e) => {
                 crate::errlog::record(&e);

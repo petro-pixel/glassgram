@@ -1,5 +1,6 @@
 //! Demo custom emoji: a message whose emoji carry custom emoji entities, and small drawn
-//! pictures for them, answered like `messages.getCustomEmojiDocuments` would.
+//! pictures for them, answered like `messages.getCustomEmojiDocuments` would. The heart is
+//! animated: it reuses the demo's `.tgs` sticker, so it beats in the text.
 
 use eframe::egui::{Color32, ColorImage};
 
@@ -23,8 +24,22 @@ pub(super) fn message(base: Msg) -> Msg {
     Msg { id: 77, text, spans, ..base }
 }
 
+/// The animated one among them.
+const ANIMATED: i64 = 9002;
+
 pub(super) fn load(app: &mut App, ids: Vec<i64>) {
     for id in ids {
+        if id == ANIMATED
+            && let Some(path) = super::demo_tgs()
+        {
+            // As the real loader does: the first frame as the still, the file to play.
+            let still = std::fs::read(&path).ok().and_then(|d| crate::lottie::Lottie::load(&d, 96).ok()).map(|mut l| l.frame(0.0));
+            if let Some(rgba) = still {
+                app.push_event(Ev::CustomEmojiFile { id, path });
+                app.push_event(Ev::Image { key: ImgKey::Emoji(id), image: ColorImage::from_rgba_unmultiplied([96, 96], &rgba) });
+                continue;
+            }
+        }
         if let Some(image) = picture(id) {
             app.push_event(Ev::Image { key: ImgKey::Emoji(id), image });
         }
