@@ -175,6 +175,11 @@ fn gpu() -> bool {
     GPU.load(Ordering::Relaxed)
 }
 
+/// Whether glass panels sample the GPU blur this frame (not under "Reduce transparency").
+pub fn live_blur() -> bool {
+    gpu() && !solid()
+}
+
 impl Glass {
     pub fn panel(radius: f32) -> Self {
         // On a light background glass must be denser, otherwise panels blend into it.

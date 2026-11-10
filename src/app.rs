@@ -990,7 +990,9 @@ impl App {
             }
             Ev::Image { key, image } => {
                 self.on_spoiler_image(key, &image);
+                let thumb = crate::blur::Thumb::of(&image);
                 let tex = self.ctx.load_texture(format!("{key:?}"), image, TextureOptions::LINEAR);
+                thumb.remember(tex.id());
                 self.custom_emoji.on_image(key, &tex);
                 self.textures.insert(key, tex);
             }

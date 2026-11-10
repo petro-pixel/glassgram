@@ -108,9 +108,13 @@ impl App {
         if self.scroll.jump.is_some_and(|(p, _, start)| p != peer || now - start > JUMP_FLASH) {
             self.scroll.jump = None;
         }
+        // The bars and overlays painted after the history blur what scrolls under them.
+        let mut content = crate::blur::ContentMark::begin(ui);
         self.chat_history(ui, peer, &chat, rect, topic, source, group, now);
+        content.end_content(ui);
         let header = self.chat_header(ui, peer, &chat, rect, topic, group, now);
         self.chat_bottom(ui, peer, &chat, rect, header, now);
+        content.finish(ui.ctx());
     }
 
     /// The message list, scrolling under the floating header and field.

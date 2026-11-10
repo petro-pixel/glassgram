@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 66%** `█████████████░░░░░░░` — 115 done, 10 partial, 57 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 66%** `█████████████░░░░░░░` — 116 done, 10 partial, 56 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -110,7 +110,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/backend/dialogs.rs`, `src/backend/folders.rs`, `src/backend/topics.rs`, `src/backend/comments.rs` | Chat list actions, folders, forum topics, channel comments |
 | `src/backend/account.rs`, `src/backend/outbox.rs` | Own profile, username and photo; one send attempt from the queue (text, or files uploaded in the background) |
 | `src/cache.rs` | Local cache of dialogs, messages and the send queue (SQLite via `libsql`) |
-| `src/blur.rs`, `src/glass.wgsl` | GPU blur: background into a texture → Gaussian → glass panels: a clear refracting rim with dispersion and a light-facing glint over a frosted, slightly magnifying middle |
+| `src/blur.rs`, `src/blur/content.rs`, `src/glass.wgsl` | GPU blur: background into a texture → Gaussian → glass panels: a clear refracting rim with dispersion and a light-facing glint over a frosted, slightly magnifying middle; the chat content under the header and composer is tessellated again (text as soft pills, pictures from thumbnails) over a copy of the background and blurred for the bars |
 | `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars, glass behind egui menus and tooltips, accessibility modes |
 | `src/app.rs` | `App`: state, events (`push_event`), user actions (`apply`), the frame loop |
 | `src/app/history.rs`, `src/app/bubbles.rs` | The open chat: history, header, overlays; drawing bubbles, albums, media cards, reactions |

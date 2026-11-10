@@ -228,3 +228,31 @@ fn fs_wall(in: VsOut) -> @location(0) vec4<f32> {
     let col = mix(textureSample(wall_tex, wall_smp, in.uv).rgb, wall.veil.rgb, wall.veil.a);
     return vec4<f32>(col * mask, mask);
 }
+
+// ───────────── Chat content under the bars ─────────────
+// The history's shapes under a glass bar, tessellated again (blur/content.rs), painted over a copy
+// of the background before the blur.
+
+struct ContentU {
+    screen: vec2<f32>,    // in points, like the vertices
+    _pad: vec2<f32>,
+};
+@group(0) @binding(12) var<uniform> content: ContentU;
+
+struct ContentOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) color: vec4<f32>,
+};
+
+@vertex
+fn vs_content(@location(0) pos: vec2<f32>, @location(1) color: vec4<f32>) -> ContentOut {
+    var o: ContentOut;
+    o.pos = vec4<f32>(pos.x / content.screen.x * 2.0 - 1.0, 1.0 - pos.y / content.screen.y * 2.0, 0.0, 1.0);
+    o.color = color;
+    return o;
+}
+
+@fragment
+fn fs_content(in: ContentOut) -> @location(0) vec4<f32> {
+    return in.color;
+}
