@@ -483,10 +483,27 @@ macro_rules! lf {
 /// A counted string: `lp!(n, ["{n} повідомлення", "{n} повідомлення", "{n} повідомлень"], ["{n} message", "{n} messages"])`.
 /// Ukrainian gives the one / few / many forms, English one / other; every form must use `{n}` (other
 /// values are captured like in `format!`). `n` is a whole number; other languages pick their form by CLDR.
+/// A count as people read it: "12,480" in English, "12 480" elsewhere; short numbers stay as they are.
+pub fn group(n: u64) -> String {
+    let digits = n.to_string();
+    if n < 10_000 {
+        return digits;
+    }
+    let sep = if MODE.load(Ordering::Relaxed) == EN { ',' } else { '\u{a0}' };
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+    for (i, d) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            out.push(sep);
+        }
+        out.push(d);
+    }
+    out
+}
+
 macro_rules! lp {
     ($n:expr, [$uk1:literal, $uk2:literal, $uk5:literal $(,)?], [$en1:literal, $en2:literal $(,)?] $(,)?) => {{
-        let __n = $n;
-        let __c = __n as u64;
+        let __c = $n as u64;
+        let __n = $crate::i18n::group(__c);
         if $crate::i18n::uk() {
             match $crate::i18n::uk_form(__c) {
                 0 => format!($uk1, n = __n),
@@ -506,6 +523,13 @@ pub(crate) use {l, lf, lp};
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn counts_are_grouped() {
+        assert_eq!(group(2310), "2310");
+        let g = group(1_234_567);
+        assert!(g == "1,234,567" || g == "1\u{a0}234\u{a0}567", "{g}");
+    }
 
     #[test]
     fn refill_moves_values_into_the_translation() {
