@@ -1169,7 +1169,10 @@ impl App {
         self.scheduled_open = false;
         self.inline = None;
         self.suggest_reset();
-        self.send(Cmd::LoadScheduled(id));
+        // Only those who may post have scheduled messages in a channel; asking anyway is CHAT_ADMIN_REQUIRED.
+        if self.chats.iter().any(|c| c.id == id && (c.kind != ChatKind::Channel || c.can_post)) {
+            self.send(Cmd::LoadScheduled(id));
+        }
         self.unread_on_open(id);
         if let Some(c) = self.chat_mut(id) {
             c.unread = 0;
