@@ -62,7 +62,7 @@ fn themes() -> Vec<ChatTheme> {
         key: Some(ThemeKey::Gift("PlushPepe-1234".into())),
         title: "Plush Pepe #1234".into(),
         light: Some(pattern(301, &[0xc8e6a0, 0x7fbf5f, 0xa6d785, 0x5e9e48], 40)),
-        dark: Some(pattern(302, &[0x7fbf5f, 0x3f6f2f, 0x5e9e48, 0x2a4a20], -50)),
+        dark: Some(pattern(302, &[0x7fbf5f, 0x3f6f2f, 0x5e9e48, 0x2a4a20], 50)),
         accent: (0x4f9a3a, 0x7fbf5f),
         ..Default::default()
     });
@@ -72,7 +72,6 @@ fn themes() -> Vec<ChatTheme> {
 thread_local! {
     /// Each chat's wallpaper and theme in this run.
     static LOOKS: RefCell<HashMap<i64, (Option<WallPaper>, Option<ChatTheme>)>> = RefCell::new(HashMap::from([
-        (1, (Some(pattern(13, &[0xfec496, 0xdd6cb9, 0x962fbf, 0x4f5bd5], -55)), None)),
         (5, (None, Some(ChatTheme::named(ThemeKey::Emoticon("🌸".into()))))),
         (8, (None, themes().pop())),
     ]));
