@@ -122,7 +122,18 @@ pub(super) async fn cache_media(client: &Client, r: PeerRef, id: i32) -> Result<
         .next()
         .ok_or(l!("Повідомлення не знайдено", "Message not found"))?;
     let media = msg.media().ok_or(l!("Немає медіа", "No media"))?;
-    let ext = match &media {
+    let path = media_path(r.id, id, &media);
+    if tokio::fs::metadata(&path).await.is_err() {
+        let part = path.with_extension("part");
+        client.download_media(&media, &part).await.map_err(|e| lf!("Медіа: {e}", "Media: {e}"))?;
+        tokio::fs::rename(&part, &path).await.map_err(|e| e.to_string())?;
+    }
+    Ok(path)
+}
+
+/// Where a message's media is cached; the extension tells players the format.
+pub(super) fn media_path(peer: PeerId, id: i32, media: &Media) -> PathBuf {
+    let ext = match media {
         Media::Document(d) => match d.mime_type() {
             Some("video/webm") => "webm",
             Some("audio/ogg") => "ogg",
@@ -135,13 +146,7 @@ pub(super) async fn cache_media(client: &Client, r: PeerRef, id: i32) -> Result<
         Media::Sticker(_) => "webm",
         _ => "bin",
     };
-    let path = dir.join(format!("{}_{id}.{ext}", r.id.bot_api_dialog_id_unchecked()));
-    if tokio::fs::metadata(&path).await.is_err() {
-        let part = path.with_extension("part");
-        client.download_media(&media, &part).await.map_err(|e| lf!("Медіа: {e}", "Media: {e}"))?;
-        tokio::fs::rename(&part, &path).await.map_err(|e| e.to_string())?;
-    }
-    Ok(path)
+    data_dir().join("media").join(format!("{}_{id}.{ext}", peer.bot_api_dialog_id_unchecked()))
 }
 
 /// Downloads a file or photo from a message into Downloads and opens it.

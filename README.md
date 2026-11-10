@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 63%** `█████████████░░░░░░░` — 111 done, 7 partial, 64 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 63%** `█████████████░░░░░░░` — 112 done, 7 partial, 63 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -16,7 +16,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/K8Z3299QVD)
 
 - **MTProto**: [grammers](https://codeberg.org/Lonami/grammers): sign-in by phone number or QR code, 2FA, chats, history, replies, editing and deleting, live updates
-- **Media**: avatars, photos, stickers with a disk cache (`~/.local/share/glassgram/cache`); sending files and stickers; voice and audio with a waveform, seeking and speed; GIFs, round videos and webm stickers right in the chat, a video player with full screen and picture-in-picture; voice recording (needs ffmpeg with `ffplay`)
+- **Media**: avatars, photos, stickers with a disk cache (`~/.local/share/glassgram/cache`); sending files and stickers; voice and audio with a waveform, seeking and speed; GIFs, round videos and webm stickers right in the chat, a video player with full screen and picture-in-picture that streams large videos instead of downloading them first; voice recording (needs ffmpeg with `ffplay`)
 - **Chats**: forums with topics, channel comments, folders and archive, pinning, muting, drafts, "online" and "typing…" statuses
 - **Search**: global (the field above the chat list, with Chats, Channels, Apps, Posts and Media tabs) and in-chat (🔍 in the header)
 - **Formatting**: Telegram entities are shown, markup is converted when sending
@@ -113,6 +113,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/composer.rs`, `src/app/recording.rs` | The message field: text, files, stickers, emoji, inline bots; voice and round video recording |
 | `src/app/media.rs`, `src/app/dialogs.rs` | Audio player, video clips, photo viewer; export, forward, schedule boxes |
 | `src/app/videoplayer.rs` | Video player: seek bar, volume, speed, full screen, picture-in-picture |
+| `src/backend/stream.rs` | Streaming large videos: a local HTTP server (127.0.0.1) serving byte ranges fetched from Telegram on demand |
 | `src/app/login.rs`, `src/app/accounts_ui.rs` | Sign-in screens and the passcode lock; the account menu and the other accounts in the background |
 | `src/app/forum.rs`, `src/app/comments.rs`, `src/app/folders.rs` | Forum topics, channel comments, folder editor with tag colours, folder tags on chat rows, recommended folders |
 | `src/app/chatview.rs`, `src/backend/chatview.rs` | Chat view extras: pinned bar and list, jump buttons (down / mentions / reactions), "Seen by", view counters, protected content |

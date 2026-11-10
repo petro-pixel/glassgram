@@ -919,6 +919,7 @@ impl App {
             ev @ (Ev::InlineResults { .. } | Ev::UploadProgress { .. } | Ev::UploadDone(..)) => self.composer_event(ev),
             ev @ (Ev::Stickers(..) | Ev::StickerSet(..) | Ev::StickerSetChanged(..) | Ev::FoundStickerSets { .. } | Ev::FavedStickers(..) | Ev::SavedGifs(..)) => self.stickers_event(ev),
             ev @ (Ev::MediaReady { .. } | Ev::Listened { .. }) => self.media_event(ev),
+            Ev::MediaStream { peer, id, url } => self.on_media_stream(peer, id, url),
             ev @ Ev::Comments { .. } => self.comments_event(ev),
             ev @ (Ev::Topics { .. } | Ev::TopicHistory { .. }) => self.forum_event(ev),
             ev @ (Ev::NeedPhone | Ev::NeedCode | Ev::NeedPassword(..) | Ev::Qr(..) | Ev::LoggedIn(..) | Ev::LoggedOut) => self.login_event(ev),

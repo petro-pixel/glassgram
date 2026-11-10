@@ -407,6 +407,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             }
         }
         // The cat sticker is animated: a small Lottie file of our own.
+        Cmd::StreamMedia { peer, id } => handle(app, Cmd::LoadMedia { peer, id }),
         Cmd::LoadMedia { peer, id } if app.demo_history().any(|(p, _, msgs)| p == peer && msgs.iter().any(|m| m.id == id && m.lottie)) => match demo_tgs() {
             Some(path) => app.push_event(Ev::MediaReady { peer, id, path }),
             None => {}

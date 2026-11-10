@@ -16,7 +16,9 @@ const PIP_MARGIN: f32 = 16.0;
 
 #[derive(Default)]
 pub(super) struct VideoPlayer {
-    open: Option<Session>
+    open: Option<Session>,
+    /// Stream URLs of videos still downloading, for opening them again.
+    streams: HashMap<(PeerId, i32), PathBuf>,
 }
 
 struct Session {
@@ -48,6 +50,8 @@ struct Session {
     last: Option<TextureHandle>,
     /// Last mouse movement, for hiding the controls.
     moved: f64,
+    /// A large video plays from the local stream URL until its file is complete.
+    stream: Option<PathBuf>,
 }
 
 impl VideoPlayer {
@@ -104,6 +108,7 @@ impl App {
             clip_for: (0, -1.0, false),
             last: None,
             moved: 0.0,
+            stream: self.video.streams.get(&(peer, id)).cloned(),
         });
         // Space and arrows belong to the player now, not to the composer.
         self.ctx.memory_mut(|m| {
@@ -112,8 +117,23 @@ impl App {
             }
         });
         if !self.playback.files.contains_key(&(peer, id)) && self.playback.loading.insert((peer, id)) {
-            self.send(Cmd::LoadMedia { peer, id });
+            self.send(Cmd::StreamMedia { peer, id });
         }
+    }
+
+    /// The stream of the open video is ready: picture and sound start from it.
+    pub(super) fn on_media_stream(&mut self, peer: PeerId, id: i32, url: String) {
+        let url = PathBuf::from(url);
+        if let Some(s) = self.video.open.as_mut().filter(|s| s.peer == peer && s.id == id) {
+            s.stream = Some(url.clone());
+        }
+        self.video.streams.insert((peer, id), url);
+    }
+
+    /// The file to play: the cached one, or the stream while it downloads.
+    fn video_source(&self, key: (PeerId, i32)) -> Option<PathBuf> {
+        let stream = self.video.open.as_ref().filter(|s| (s.peer, s.id) == key).and_then(|s| s.stream.clone());
+        self.playback.files.get(&key).cloned().or(stream)
     }
 
     fn close_video(&mut self) {
@@ -167,13 +187,14 @@ impl App {
     fn video_toggle(&mut self) {
         let Some(s) = &self.video.open else { return };
         let (peer, id, duration, pos) = (s.peer, s.id, s.duration, s.pos);
+        let source = self.video_source((peer, id));
         let player = &mut self.playback.player;
         if player.is(peer, id) {
             if player.playing() { player.pause() } else { player.resume() }
-        } else if let Some(path) = self.playback.files.get(&(peer, id)) {
+        } else if let Some(path) = source {
             // Ended or taken by another message: continue from where it stood, or from the start at the end.
             let from = if pos >= duration - 0.3 { 0.0 } else { pos };
-            player.play_at(peer, id, path, duration, from);
+            player.play_at(peer, id, &path, duration, from);
         }
     }
 
@@ -198,9 +219,9 @@ impl App {
 
     /// Starts the sound once the file is there and keeps the frames in step with it.
     fn video_frames(&mut self, size: [usize; 2], now: f64) -> Option<TextureHandle> {
+        let key = self.video.open.as_ref().map(|s| (s.peer, s.id))?;
+        let path = self.video_source(key)?;
         let s = self.video.open.as_mut()?;
-        let key = (s.peer, s.id);
-        let path = self.playback.files.get(&key).cloned()?;
         let player = &mut self.playback.player;
         if !s.started {
             s.started = true;

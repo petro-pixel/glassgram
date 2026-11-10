@@ -65,6 +65,7 @@ mod sponsored;
 pub use sponsored::{Sponsored, SponsoredReport};
 mod notify;
 mod sounds;
+mod stream;
 pub use sounds::{RINGTONE_EXTS, ReactFrom, ReactionNotify, Ringtone, Sound};
 mod translate;
 mod contacts;
@@ -167,6 +168,8 @@ pub enum Cmd {
     InlineQuery { peer: PeerId, bot: String, query: String },
     /// Download a media file (video, GIF, audio) into the cache for playback.
     LoadMedia { peer: PeerId, id: i32 },
+    /// A video for the player: streamed while it downloads when large (`Ev::MediaStream`), else `Ev::MediaReady`.
+    StreamMedia { peer: PeerId, id: i32 },
     /// A message's contents were seen (`readMessageContents`): a voice or round video message
     /// listened to, or a mention looked at.
     MarkListened { peer: PeerId, id: i32 },
@@ -590,6 +593,8 @@ pub enum Ev {
     /// `unread`: someone else's reaction to our message we haven't seen yet.
     Reactions { peer: PeerId, id: i32, reactions: Vec<Reaction>, unread: bool },
     MediaReady { peer: PeerId, id: i32, path: PathBuf },
+    /// A large video plays from this local URL while it downloads (`backend/stream.rs`).
+    MediaStream { peer: PeerId, id: i32, url: String },
     /// Voice or round video messages were listened to (`peer: None`: private chats and small groups).
     Listened { peer: Option<PeerId>, ids: Vec<i32> },
     Scheduled { peer: PeerId, msgs: Vec<Msg> },
@@ -1054,6 +1059,7 @@ impl Worker {
             cmd @ (Cmd::LoadPrivacy | Cmd::SetPrivacy { .. }) => self.privacy_rules_cmd(cmd).await,
             cmd @ (Cmd::SearchPublic(..) | Cmd::ResolveUsername(..)) => self.search_cmd(cmd).await,
             cmd @ (Cmd::SearchChannels(..) | Cmd::SearchApps(..) | Cmd::CheckPostsFlood(..) | Cmd::SearchPosts(..)) => self.search_tabs_cmd(cmd).await,
+            cmd @ Cmd::StreamMedia { .. } => self.stream_cmd(cmd).await,
             cmd @ (Cmd::LoadFullPhoto { .. } | Cmd::LoadPhoto { .. } | Cmd::SetAutoDownload(_) | Cmd::Download { .. } | Cmd::LoadMedia { .. } | Cmd::MarkListened { .. } | Cmd::LoadStickerThumbs(..)) => self.media_cmd(cmd).await,
             cmd @ (Cmd::OpenChat(..) | Cmd::OpenAt { .. } | Cmd::LoadOlder { .. } | Cmd::Typing(..)) => self.history_cmd(cmd).await,
             cmd @ (Cmd::SetMuted { .. } | Cmd::SetArchived { .. } | Cmd::SetPinned { .. } | Cmd::ReorderPinned { .. } | Cmd::MarkRead(..) | Cmd::MarkUnread(..) | Cmd::SaveDraft { .. } | Cmd::Join(..)) => self.dialogs_cmd(cmd).await,
