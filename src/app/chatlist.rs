@@ -4,6 +4,7 @@
 use eframe::egui::{self, Align2, Color32, FontId, Id, Rect, Sense, Ui, UiBuilder, pos2, vec2};
 use grammers_client::session::types::PeerId;
 
+use super::motion::{self, Spring};
 use super::{App, ARCHIVE, FolderMenu, FolderEdit, TABS_H, chat_row, elided, searchtabs, section_title};
 use crate::backend::{ChatInfo, Cmd, Ev, Folder, ImgKey};
 use crate::glass::{self, ACCENT, Glass, ink, ink_dim, rgba};
@@ -17,6 +18,8 @@ pub(super) const COLUMN_W: f32 = 76.0;
 const CELL_H: f32 = 62.0;
 const CELL_GAP: f32 = 4.0;
 const TAB_GAP: f32 = 6.0;
+/// How far the list comes in from the side after a folder switch.
+const SLIDE_IN: f32 = 40.0;
 
 /// Drag in a list: what is dragged, where it was grabbed and the live order.
 pub(super) struct Reorder<K> {
@@ -75,6 +78,20 @@ fn glide(ui: &Ui, id: Id, target: f32) -> f32 {
 
 fn set_glide(ui: &Ui, id: Id, value: f32) {
     ui.ctx().data_mut(|d| d.insert_temp(id, value));
+}
+
+/// The accent capsule under the current folder tab, gliding to a newly chosen one; the labels it
+/// covers are redrawn light over it. Positions are relative to the strip start, so scrolling doesn't animate.
+fn tab_capsule(ui: &Ui, sel: Rect, origin: f32, tabs: &[(Rect, String)]) {
+    let id = ui.scope_id().with("tab-capsule");
+    let x = motion::follow(ui.ctx(), id.with("x"), sel.left() - origin, 0.1, Spring::SNAPPY);
+    let w = motion::follow(ui.ctx(), id.with("w"), sel.width(), 0.1, Spring::SNAPPY);
+    let cap = Rect::from_min_size(pos2(origin + x, sel.top()), vec2(w, sel.height()));
+    glass::glass(ui.painter(), cap, glass::accent_glass(cap, true, 0.0));
+    let p = ui.painter().with_clip_rect(cap.intersect(ui.clip_rect()));
+    for (r, text) in tabs.iter().filter(|(r, _)| r.intersects(cap)) {
+        p.text(r.center(), Align2::CENTER_CENTER, text, FontId::proportional(15.0), glass::ON_DARK);
+    }
 }
 
 /// Backing for a lifted item: dense, so rows below do not show through.
@@ -221,6 +238,9 @@ impl App {
         let mut lifted = None;
         let mut drop = None;
         let mut origin = 0.0;
+        // Tab rects and labels: the accent capsule slides over them and relabels what it covers.
+        let mut tabs: Vec<(Rect, String)> = Vec::with_capacity(items.len());
+        let mut current = None;
         let label = |title: &str, unread: usize| if unread > 0 { format!("{title}  {unread}") } else { title.to_owned() };
         egui::ScrollArea::horizontal()
             .id_salt("folder-tabs")
@@ -242,11 +262,18 @@ impl App {
                         let r = slot.translate(vec2(glide(ui, gid, rel) - rel, 0.0));
                         let grip = ui.interact(r, gid.with("drag"), Sense::drag());
                         grabs.push((grip, *id, r.left()));
-                        let resp = glass::button(ui, r, ("folder", *id), &text, self.folder == *id, true);
+                        let resp = glass::button(ui, r, ("folder", *id), &text, false, true);
                         if resp.clicked() {
                             chosen = Some(*id);
                         }
                         resp.context_menu(|ui| Self::folder_menu(ui, *id, shared(*id), &mut menu));
+                        if self.folder == *id {
+                            current = Some(r);
+                        }
+                        tabs.push((r, text));
+                    }
+                    if let Some(sel) = current {
+                        tab_capsule(ui, sel, origin, &tabs);
                     }
                     let (r, _) = ui.allocate_exact_size(vec2(TABS_H, TABS_H), Sense::hover());
                     if glass::icon_button(ui, r, "folder-new", Icon::Plus, false, true).on_hover_text(l!("Нова папка", "New folder")).clicked() {
@@ -310,6 +337,14 @@ impl App {
                 ui.spacing_mut().item_spacing.y = CELL_GAP;
                 let origin = ui.cursor().top();
                 let mut lifted = None;
+                // The selection glides between cells under them; a lifted cell carries its own.
+                if let Some(k) = items.iter().position(|(id, ..)| *id == self.folder)
+                    && self.folder_drag.as_ref().is_none_or(|d| Some(d.key) != self.folder)
+                {
+                    let y = motion::follow(ui.ctx(), ui.scope_id().with("cell-capsule"), k as f32 * (CELL_H + CELL_GAP), 0.1, Spring::SNAPPY);
+                    let r = Rect::from_min_size(pos2(ui.cursor().left(), origin + y), vec2(ui.available_width(), CELL_H));
+                    glass::glass(ui.painter(), r, Glass::tinted(16.0, ACCENT, 110));
+                }
                 for (id, title, unread) in &items {
                     let (slot, _) = ui.allocate_exact_size(vec2(ui.available_width(), CELL_H), Sense::hover());
                     let gid = ui.scope_id().with(("cell-y", *id));
@@ -366,9 +401,9 @@ impl App {
         let hover = ui.ctx().animate_bool(resp.id, resp.hovered());
         let sel = ui.ctx().animate_bool(resp.id.with("sel"), self.folder == id);
         let p = ui.painter();
-        if sel > 0.0 {
-            glass::glass(p, rect, Glass::tinted(16.0, ACCENT, (sel * 110.0) as u8));
-        } else if hover > 0.0 && !lifted {
+        if lifted && self.folder == id {
+            glass::glass(p, rect, Glass::tinted(16.0, ACCENT, 110));
+        } else if hover > 0.0 && !lifted && self.folder != id {
             p.rect_filled(rect, 16.0, glass::veil((hover * 14.0) as u8));
         }
         let color = if sel > 0.5 { ink() } else { ink_dim() };
@@ -395,6 +430,28 @@ impl App {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
         resp.on_hover_text(title)
+    }
+
+    /// The list's horizontal offset and opacity after a folder switch: it comes in from the side
+    /// the new folder lies on, as in Telegram Desktop.
+    fn folder_slide(&mut self, ui: &Ui) -> (f32, f32) {
+        let rank = |f: Option<i32>| match f {
+            None => 0,
+            Some(ARCHIVE) => usize::MAX,
+            Some(id) => 1 + self.folders.iter().position(|x| x.id == id).unwrap_or(0),
+        };
+        match self.motion.folder {
+            Some(shown) if shown != self.folder => {
+                self.motion.folder_dir = if rank(self.folder) > rank(shown) { 1.0 } else { -1.0 };
+                self.motion.folder_at = ui.input(|i| i.time);
+            }
+            // The first frame shows the list in place.
+            None => self.motion.folder_at = f64::NEG_INFINITY,
+            _ => {}
+        }
+        self.motion.folder = Some(self.folder);
+        let t = motion::since(ui.ctx(), self.motion.folder_at, Spring::SMOOTH);
+        ((1.0 - t) * SLIDE_IN * self.motion.folder_dir, 0.25 + 0.75 * t)
     }
 
     /// Chats of the current folder (or found by name) and how many are pinned on top.
@@ -611,9 +668,11 @@ impl App {
         let mut drag = self.pin_drag.take();
         let mut birthday = None;
         let mut story = None;
+        let (dx, fade) = self.folder_slide(ui);
         let (rows, pinned) = self.list_rows(&query, drag.as_ref());
-        let mut child = ui.new_child(UiBuilder::new().max_rect(list_rect));
+        let mut child = ui.new_child(UiBuilder::new().max_rect(list_rect.translate(vec2(dx, 0.0))));
         child.set_clip_rect(list_rect);
+        child.multiply_opacity(fade);
         egui::ScrollArea::vertical()
             .id_salt("chat-list")
             .auto_shrink(false)

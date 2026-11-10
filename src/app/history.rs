@@ -205,6 +205,15 @@ impl App {
                             if unread_from == Some(m.id) {
                                 unread_bar(ui);
                             }
+                            // A message that just arrived rises into place; history loaded on open doesn't.
+                            let mut entry = self.motion.appearing(peer, m.id, now).map(|start| motion::entry_begin(ui, start));
+                            let row_top = ui.cursor().top();
+                            let mut entry_end = |ui: &mut Ui| {
+                                if let Some(e) = entry.take() {
+                                    let row = Rect::from_x_y_ranges(ui.max_rect().x_range(), row_top..=ui.cursor().top());
+                                    motion::entry_end(ui, e, row, m.out);
+                                }
+                            };
                             if album.len() > 1 {
                                 let ids: Vec<i32> = album.iter().map(|m| m.id).collect();
                                 let look = Look {
@@ -224,6 +233,7 @@ impl App {
                                 if let Some(a) = album_bubble(ui, album, &texs, &hidden, look) {
                                     action = Some(a);
                                 }
+                                entry_end(ui);
                                 ad_here(ui);
                                 heights.insert((peer, m.id), ui.cursor().top() - top);
                                 continue;
@@ -231,6 +241,7 @@ impl App {
                             if let Some(a) = self.message_row(ui, peer, chat, &msgs, m, topic, group, jump, now) {
                                 action = Some(a);
                             }
+                            entry_end(ui);
                             ad_here(ui);
                             heights.insert((peer, m.id), ui.cursor().top() - top);
                         }

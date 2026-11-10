@@ -2,7 +2,9 @@
 //! list beside the chat normally, and the chat info as a third column when the window is wide.
 
 use eframe::egui::{Id, Rect, Ui, UiBuilder, pos2, vec2};
+use grammers_client::session::types::PeerId;
 
+use super::motion::{self, Spring};
 use super::{App, GAP, chatlist, info};
 use crate::glass;
 use crate::i18n::l;
@@ -17,8 +19,6 @@ pub(super) const CHAT_MIN_W: f32 = 560.0;
 /// The info panel is a third column only while the chat beside it keeps this width; otherwise it
 /// overlays the chat's right edge.
 pub(super) const THIRD_COLUMN_MIN_CHAT: f32 = 420.0;
-/// Column transitions: the info column sliding in and the narrow list ↔ chat switch.
-const SLIDE_SECS: f32 = 0.22;
 /// Room for the back arrow before the avatar in a narrow window's chat header.
 pub(super) const BACK_W: f32 = 44.0;
 
@@ -27,6 +27,9 @@ pub(super) const BACK_W: f32 = 44.0;
 pub(super) struct Layout {
     /// One column: the chat list alone, or the open chat alone.
     pub(super) narrow: bool,
+    /// The chat open in the last frame, and the one sliding out after "back" in a narrow window.
+    last: Option<PeerId>,
+    leaving: Option<PeerId>,
 }
 
 impl App {
@@ -66,6 +69,10 @@ impl App {
 
     /// One column: the list, or the open chat pushing it out to the left.
     fn narrow_view(&mut self, ui: &mut Ui, full: Rect, folder_column: bool) {
+        if self.selected.is_none() && self.layout.last.is_some() {
+            self.layout.leaving = self.layout.last;
+        }
+        self.layout.last = self.selected;
         let t = self.slide(ui, "narrow-chat", self.selected.is_some());
         let push = vec2(-t * (full.width() + GAP), 0.0);
         if t < 1.0 {
@@ -77,14 +84,34 @@ impl App {
             }
             self.pane(ui, "side", list, |app, ui| app.sidebar(ui, list));
         }
+        let chat = full.translate(push + vec2(full.width() + GAP, 0.0));
         if t > 0.0 && self.selected.is_some() {
-            let chat = full.translate(push + vec2(full.width() + GAP, 0.0));
+            self.layout.leaving = None;
             self.pane(ui, "chat", chat, |app, ui| app.chat_area(ui, chat));
+            let open = self.slide(ui, "info-overlay", self.info.is_some());
             if self.info.is_some() {
-                let r = Rect::from_min_max(pos2(chat.right() - info::INFO_W.min(chat.width()), chat.top()), chat.max);
+                let w = info::INFO_W.min(chat.width());
+                let r = Rect::from_min_max(pos2(chat.right() - w, chat.top()), chat.max).translate(vec2((1.0 - open) * (w + GAP), 0.0));
                 self.info_view(ui, r);
             }
+        } else if t > 0.0 && let Some(peer) = self.layout.leaving {
+            self.leaving_chat(ui, peer, chat, t);
+        } else {
+            self.layout.leaving = None;
         }
+    }
+
+    /// The chat we went back from, still sliding out: drawn as it was, without input, fading.
+    fn leaving_chat(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect, t: f32) {
+        if !self.chats.iter().any(|c| c.id == peer) {
+            return;
+        }
+        self.selected = Some(peer);
+        let mut child = ui.new_child(UiBuilder::new().id_salt("chat").max_rect(rect));
+        child.disable();
+        child.set_opacity(0.4 + 0.6 * t);
+        self.chat_area(&mut child, rect);
+        self.selected = None;
     }
 
     /// A column drawn in its own child `Ui` with a fixed id, so scroll positions and other widget
@@ -94,10 +121,9 @@ impl App {
         draw(self, &mut child);
     }
 
-    /// 0 → 1 as `on` turns true; instant with "Reduce motion".
+    /// 0 → 1 as `on` turns true, on a spring without overshoot; instant with "Reduce motion".
     fn slide(&self, ui: &Ui, id: &str, on: bool) -> f32 {
-        let secs = if glass::calm() { 0.0 } else { SLIDE_SECS };
-        ui.ctx().animate_value_with_time(Id::unique(("layout", id)), if on { 1.0 } else { 0.0 }, secs)
+        motion::follow(ui.ctx(), Id::unique(("layout", id)), if on { 1.0 } else { 0.0 }, 0.001, Spring::SMOOTH).clamp(0.0, 1.0)
     }
 
     /// The back arrow at the left of a chat header in a narrow window; returns whether it was drawn.

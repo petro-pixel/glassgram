@@ -168,6 +168,7 @@ impl App {
         if let Some(i) = self.outbox.iter().position(|p| p.q.key == key) {
             let p = self.outbox.remove(i);
             self.drop_bubble(peer, p.id);
+            self.motion.sent(peer, self.ctx.input(|i| i.time));
         }
     }
 

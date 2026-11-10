@@ -511,6 +511,18 @@ pub fn icon_button(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt:
     button_with(ui, rect, id, Label::Icon(icon), accent, enabled)
 }
 
+/// The accent capsule of a pressed-in button; folder tabs slide it from tab to tab.
+pub fn accent_glass(rect: Rect, enabled: bool, hover: f32) -> Glass {
+    // On a light background the accent fades, so use a denser tone to keep white text readable.
+    let base = match (enabled, is_light()) {
+        (true, true) => 215.0,
+        (true, false) => 150.0,
+        (false, _) => 70.0,
+    };
+    let tint = if is_light() { Color32::from_rgb(52, 84, 228) } else { ACCENT };
+    Glass::tinted(rect.height() / 2.0, tint, (base + hover * 40.0).min(255.0) as u8).with_shadow().frosted(1.0)
+}
+
 /// Glass button with hover and press animation.
 pub fn button_with(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt::Debug, label: Label<'_>, accent: bool, enabled: bool) -> Response {
     let resp = ui.interact(rect, ui.scope_id().with(id), if enabled { Sense::click() } else { Sense::hover() });
@@ -518,14 +530,7 @@ pub fn button_with(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt:
     let press = resp.is_pointer_button_down_on() && enabled;
     let rect = rect.expand(hover * 1.5).shrink(if press { 2.0 } else { 0.0 });
     let g = if accent {
-        // On a light background the accent fades, so use a denser tone to keep white text readable.
-        let base = match (enabled, is_light()) {
-            (true, true) => 215.0,
-            (true, false) => 150.0,
-            (false, _) => 70.0,
-        };
-        let tint = if is_light() { Color32::from_rgb(52, 84, 228) } else { ACCENT };
-        Glass::tinted(rect.height() / 2.0, tint, (base + hover * 40.0).min(255.0) as u8).with_shadow().frosted(1.0)
+        accent_glass(rect, enabled, hover)
     } else {
         let base = if is_light() { 150.0 } else { 24.0 };
         Glass::tinted(rect.height() / 2.0, Color32::WHITE, (base + hover * 22.0) as u8).frosted(1.0)

@@ -168,6 +168,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/settings_pages.rs` | Settings pages (Telegram Desktop layout), My Account editor |
 | `src/app/userqr.rs` | QR code of a public username in six designs, drawn on the CPU (`vello_cpu`): copy, save as PNG |
 | `src/app/layout.rs` | Window layout modes: narrow (one column), normal, wide (chat info as a third column) |
+| `src/app/motion.rs` | Spring animations (Apple-style, 150–350 ms): new bubbles, the folder tab capsule and list slide, column transitions; "Reduce motion" snaps them |
 | `src/app/hotkeys.rs` | Keyboard shortcuts |
 | `src/app/outbox.rs` | Send queue: pending/failed bubbles, retries with backoff |
 | `src/app/chatlist.rs` | Folder column and tabs, dragging pinned chats and folders |

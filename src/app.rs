@@ -98,6 +98,7 @@ mod custom_emoji;
 mod videoplayer;
 mod userqr;
 mod layout;
+mod motion;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;
 
@@ -517,6 +518,8 @@ pub struct App {
     forum: forum::Forum,
     /// Narrow, normal or wide window: how many columns are shown.
     layout: layout::Layout,
+    /// Springs that outlive a frame: new bubbles, the folder switch.
+    motion: motion::Motion,
     comments: Option<CommentsView>,
     /// Public chats from the global search by name.
     public_hits: Vec<ChatInfo>,
@@ -799,6 +802,7 @@ impl App {
             composer_h: COMPOSER_H,
             forum: forum::Forum::default(),
             layout: layout::Layout::default(),
+            motion: motion::Motion::default(),
             comments: None,
             public_hits: Vec::new(),
             export_ask: None,
@@ -1129,6 +1133,10 @@ impl App {
             && !list.iter().any(|x| x.id == m.id)
         {
             list.push(m.clone());
+            if open {
+                let queued = self.outbox.iter().any(|p| p.q.peer == m.peer && p.id != m.id);
+                self.motion.arrived(m.peer, m.id, m.out, queued, self.ctx.input(|i| i.time));
+            }
             if open && !m.out && !self.scroll.at_bottom {
                 self.scroll.unseen_below += 1;
             }
