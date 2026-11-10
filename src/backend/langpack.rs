@@ -30,6 +30,9 @@ pub struct LangPack {
     pub name: String,
     pub version: i32,
     pub strings: HashMap<String, String>,
+    /// Plural strings by tdesktop key (without `#one`…), forms indexed by `i18n::Category`; empty = unused.
+    #[serde(default)]
+    pub plurals: HashMap<String, [String; 6]>,
 }
 
 /// Server codes become file names: only `[a-z0-9_-]`, so a code can't point outside the folder.
@@ -74,8 +77,7 @@ fn save_to(dir: &std::path::Path, pack: &LangPack) -> Result<(), String> {
     Ok(())
 }
 
-/// Applies a difference: new and changed strings replace, deleted ones go. Plural strings are skipped:
-/// none of our strings is mapped to one (see `locales/tdesktop-keys.json`).
+/// Applies a difference: new and changed strings replace, deleted ones go.
 fn apply(pack: &mut LangPack, diff: tl::types::LangPackDifference) {
     pack.version = diff.version;
     for s in diff.strings {
@@ -84,10 +86,12 @@ fn apply(pack: &mut LangPack, diff: tl::types::LangPackDifference) {
                 pack.strings.insert(s.key, s.value);
             }
             tl::enums::LangPackString::Pluralized(s) => {
-                pack.strings.remove(&s.key);
+                let f = |v: Option<String>| v.unwrap_or_default();
+                pack.plurals.insert(s.key, [f(s.zero_value), f(s.one_value), f(s.two_value), f(s.few_value), f(s.many_value), s.other_value]);
             }
             tl::enums::LangPackString::Deleted(s) => {
                 pack.strings.remove(&s.key);
+                pack.plurals.remove(&s.key);
             }
         }
     }
@@ -104,7 +108,8 @@ async fn fetch(client: &Client, code: &str, name: &str) -> Result<LangPack, Stri
     let err = |e: String| lf!("Мовний пакет: {e}", "Language pack: {e}");
     let mut pack = load_cached(code).unwrap_or_default();
     let mut fresh = true;
-    if pack.code == code && pack.version > 0 {
+    // A pack cached before plurals were kept has none: download it whole once.
+    if pack.code == code && pack.version > 0 && !pack.plurals.is_empty() {
         let req = tl::functions::langpack::GetDifference { lang_pack: LANG_PACK.into(), lang_code: code.into(), from_version: pack.version };
         if let Ok(tl::enums::LangPackDifference::Difference(d)) = client.invoke(&req).await
             && d.from_version == pack.version
@@ -174,7 +179,14 @@ mod tests {
         let mut pack = LangPack { code: "xx".into(), name: "Xx".into(), ..Default::default() };
         apply(&mut pack, diff(0, 3, vec![string("lng_cancel", "Abbrechen"), string("lng_close", "Zu")]));
         apply(&mut pack, diff(3, 5, vec![string("lng_close", "Schließen"), tl::types::LangPackStringDeleted { key: "lng_cancel".into() }.into()]));
-        assert_eq!(pack.version, 5);
+        let plural = |key: &str, one: &str, other: &str| -> tl::enums::LangPackString {
+            tl::types::LangPackStringPluralized { key: key.into(), zero_value: None, one_value: Some(one.into()), two_value: None, few_value: None, many_value: None, other_value: other.into() }.into()
+        };
+        apply(&mut pack, diff(5, 6, vec![plural("lng_n", "{count} Nachricht", "{count} Nachrichten"), plural("lng_gone", "x", "y")]));
+        apply(&mut pack, diff(6, 7, vec![tl::types::LangPackStringDeleted { key: "lng_gone".into() }.into()]));
+        assert_eq!(pack.version, 7);
+        assert_eq!(pack.plurals.get("lng_n").map(|f| (f[1].as_str(), f[3].as_str(), f[5].as_str())), Some(("{count} Nachricht", "", "{count} Nachrichten")));
+        assert!(!pack.plurals.contains_key("lng_gone"));
         assert_eq!(pack.strings.get("lng_close").map(String::as_str), Some("Schließen"));
         assert!(!pack.strings.contains_key("lng_cancel"));
 

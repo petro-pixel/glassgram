@@ -84,18 +84,20 @@ Glassgram у трей; вийти — через меню іконки в тре
 Українська й англійська живуть у коді. Кожна інша мова — JSON-файл, де ключ — англійський рядок:
 
 ```json
-{ "@name": "Deutsch", "Cancel": "Abbrechen", "Votes: {n}": "Stimmen: {n}" }
+{ "@name": "Deutsch", "Cancel": "Abbrechen", "{n} votes": { "one": "{n} Stimme", "other": "{n} Stimmen" } }
 ```
 
 1. Скопіюйте [locales/template.json](locales/template.json) (усі рядки, порожні значення) у `<код>.json`, наприклад `pl.json`.
 2. Заповніть `@name` і перекладіть значення; `{заповнювачі}` лишайте як є. Порожні значення показуються англійською.
+   Рядки з числом (`{"one": "", "other": ""}`) мають ті [форми множини CLDR](https://www.unicode.org/cldr/charts/latest/supplemental/language_plural_rules.html),
+   що є у вашій мові: `zero`, `one`, `two`, `few`, `many`, `other`.
 3. Покладіть файл у теку `locales` поруч із сесією та налаштуваннями (`~/.local/share/glassgram/locales/`)
    і виберіть мову в Налаштування → Мова. Перезбирати не треба.
 4. Щоб мова йшла разом із програмою, додайте файл у `locales/` і в `BUILTIN` у `src/i18n.rs`.
 
 Мови зі списку Telegram беруться з translations.telegram.org: їхні пакети мають ключі Telegram Desktop, а
 [locales/tdesktop-keys.json](locales/tdesktop-keys.json) зіставляє наші англійські рядки з цими ключами (лише точні збіги за змістом;
-`{"key", "args"}` перейменовує заповнювачі). Рядок шукається спершу у файлі локалізації, далі в пакеті Telegram, інакше показується англійською.
+`{"key", "args"}` перейменовує заповнювачі; ключі множини на кшталт `lng_xxx#few` вибираються за правилом CLDR мови). Рядок шукається спершу у файлі локалізації, далі в пакеті Telegram, інакше показується англійською.
 
 ## Структура
 
@@ -188,7 +190,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/lock.rs` | Локальний пароль (сіль + SHA-256) |
 | `src/tray.rs`, `src/logo.rs` | Іконка в треї (`ksni` на Linux, `tray-icon` на Windows і macOS) та логотип програми |
 | `src/icons.rs`, `assets/icons/` | Векторні іконки: SVG-файли Lucide (24×24), читаються через `roxmltree` і згладжуються через `kurbo` |
-| `src/i18n.rs`, `locales/` | Мова інтерфейсу: `l!`/`lf!` для української й англійської, JSON-файли локалізації та пакети Telegram (через `tdesktop-keys.json`) для решти |
+| `src/i18n.rs`, `src/i18n/plural.rs`, `locales/` | Мова інтерфейсу: `l!`/`lf!`/`lp!` (з числом, правила множини CLDR) для української й англійської, JSON-файли локалізації та пакети Telegram (через `tdesktop-keys.json`) для решти |
 | `src/format.rs` | Сутності Telegram ↔ розмітка, текст із форматуванням для egui, шрифти |
 | `src/demo.rs`, `src/demo/` | Демо-дані |
 | `build.rs` | Ключі Telegram API із середовища збірки (замасковані), іконка exe на Windows |

@@ -9,10 +9,18 @@
 //! is keyed by Telegram Desktop keys, and `locales/tdesktop-keys.json` says which key is which English
 //! string. A missing or empty entry falls back to English. `locales/template.json` lists every string
 //! (see the tests below).
+//!
+//! Counted words go through `lp!`: the Ukrainian forms for one / few / many, the English ones for one /
+//! other, every form with `{n}`. Files key them by the English "other" form and give either one string
+//! or an object of CLDR categories (`{"one": "{n} Nachricht", "other": "{n} Nachrichten"}`); a server
+//! pack's `lng_xxx#one`… forms are picked the same way by `plural_category` of the language.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Mutex, OnceLock, RwLock};
+
+mod plural;
+pub use plural::{Category, plural_category};
 
 /// Localisation files built into the binary: (code, JSON).
 const BUILTIN: &[(&str, &str)] = &[("de", include_str!("../locales/de.json"))];
@@ -136,8 +144,30 @@ pub fn uk() -> bool {
 
 /// A loaded localisation file.
 struct Table {
+    /// Picks the plural rule.
+    code: String,
     name: String,
     strings: HashMap<String, &'static str>,
+    /// Counted strings by the English "other" form, forms indexed by `Category`.
+    plurals: HashMap<String, [Option<&'static str>; 6]>,
+}
+
+/// Plural forms before they're leaked into a `Table`, indexed by `Category`.
+type Forms = [Option<String>; 6];
+
+/// A localisation file or a mapped server pack: plain strings and counted ones, by English string.
+#[derive(Default)]
+struct Strings {
+    plain: HashMap<String, String>,
+    plural: HashMap<String, Forms>,
+}
+
+const CATEGORIES: [&str; 6] = ["zero", "one", "two", "few", "many", "other"];
+
+/// A plural form may drop `{n}` ("one message" → "Одне повідомлення") but not invent placeholders.
+fn form_fits(en: &str, form: &str) -> bool {
+    let ours = placeholders(en);
+    placeholders(form).iter().all(|p| ours.contains(p))
 }
 
 /// Each file is read once; tables live for the whole run, so `l!` can hand out `&'static str`.
@@ -165,30 +195,46 @@ fn build(code: &str, pack: Option<&crate::backend::LangPack>) -> Option<Table> {
     let user = std::fs::read_to_string(user_dir().join(format!("{code}.json"))).ok();
     let text = user.as_deref().or_else(|| BUILTIN.iter().find(|(c, _)| *c == code).map(|(_, t)| *t));
     let (mut name, file) = text.and_then(parse).unwrap_or_default();
-    let mut strings = pack.map(|p| from_pack(tdesktop_keys(), &p.strings)).unwrap_or_default();
-    strings.extend(file);
+    let mut strings = pack.map(|p| from_pack(tdesktop_keys(), p)).unwrap_or_default();
+    // A file's entry replaces the pack's whole, plain or plural.
+    for k in file.plain.keys().chain(file.plural.keys()) {
+        strings.plain.remove(k);
+        strings.plural.remove(k);
+    }
+    strings.plain.extend(file.plain);
+    strings.plural.extend(file.plural);
     if name.is_empty() {
         name = pack.map(|p| p.name.clone()).unwrap_or_default();
     }
     if name.is_empty() {
         return None;
     }
-    let strings = strings.into_iter().map(|(k, v)| (k, &*String::leak(v))).collect();
-    Some(Table { name, strings })
+    let leak = |v: String| &*String::leak(v);
+    let plain = strings.plain.into_iter().map(|(k, v)| (k, leak(v))).collect();
+    let plurals = strings.plural.into_iter().map(|(k, f)| (k, f.map(|v| v.map(leak)))).collect();
+    Some(Table { code: code.to_owned(), name, strings: plain, plurals })
 }
 
 /// (`@name`, English → translation) of a localisation file.
-fn parse(text: &str) -> Option<(String, HashMap<String, String>)> {
+fn parse(text: &str) -> Option<(String, Strings)> {
     let map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(text).ok()?;
     let mut name = String::new();
-    let mut strings = HashMap::new();
+    let mut strings = Strings::default();
     for (k, v) in map {
+        if let Some(o) = v.as_object() {
+            // `{"one": …, "few": …, "other": …}` for a counted string.
+            let forms: Forms = std::array::from_fn(|i| o.get(CATEGORIES[i]).and_then(|v| v.as_str()).filter(|v| !v.is_empty() && form_fits(&k, v)).map(str::to_owned));
+            if !k.starts_with('@') && forms.iter().any(Option::is_some) {
+                strings.plural.insert(k, forms);
+            }
+            continue;
+        }
         let Some(v) = v.as_str() else { continue };
         if k == "@name" {
             name = v.to_owned();
         } else if !k.starts_with('@') && !v.is_empty() && placeholders(&k) == placeholders(v) {
             // A translation with other placeholders would lose or invent values: English is safer.
-            strings.insert(k, v.to_owned());
+            strings.plain.insert(k, v.to_owned());
         }
     }
     Some((name, strings))
@@ -224,21 +270,28 @@ fn parse_keys(text: &str) -> KeyMap {
 }
 
 /// Telegram's strings by tdesktop key → ours by English string, placeholders renamed to ours.
-fn from_pack(keys: &KeyMap, pack: &HashMap<String, String>) -> HashMap<String, String> {
-    let mut out = HashMap::new();
+/// A plural key (`lng_xxx#one`… in the pack) maps all its forms onto our counted string.
+fn from_pack(keys: &KeyMap, pack: &crate::backend::LangPack) -> Strings {
+    // Markup (**bold**, __italic__, [links](…)) would show as raw characters.
+    let usable = |v: &String| !v.is_empty() && !v.contains("**") && !v.contains("__") && !v.contains("](");
+    let rename = |value: &str, args: &[(String, String)]| args.iter().fold(value.to_owned(), |v, (from, to)| v.replace(from.as_str(), to));
+    let mut out = Strings::default();
     for (key, ours) in keys {
-        let Some(value) = pack.get(key).filter(|v| !v.is_empty()) else { continue };
-        // Markup (**bold**, __italic__, [links](…)) would show as raw characters.
-        if value.contains("**") || value.contains("__") || value.contains("](") {
+        if let Some(forms) = pack.plurals.get(key) {
+            for (en, args) in ours {
+                let forms: Forms = std::array::from_fn(|i| Some(rename(&forms[i], args)).filter(|v| usable(v) && form_fits(en, v)));
+                // "other" is the fallback for every category the language doesn't fill.
+                if forms[Category::Other as usize].as_ref().is_some_and(|v| placeholders(en) == placeholders(v)) {
+                    out.plural.insert(en.clone(), forms);
+                }
+            }
             continue;
         }
+        let Some(value) = pack.strings.get(key).filter(|v| usable(v)) else { continue };
         for (en, args) in ours {
-            let mut v = value.clone();
-            for (from, to) in args {
-                v = v.replace(from.as_str(), to);
-            }
+            let v = rename(value, args);
             if placeholders(en) == placeholders(&v) {
-                out.insert(en.clone(), v);
+                out.plain.insert(en.clone(), v);
             }
         }
     }
@@ -252,6 +305,34 @@ fn lookup(en: &str) -> Option<&'static str> {
     }
     let t = (*ACTIVE.read().unwrap_or_else(|e| e.into_inner()))?;
     t.strings.get(en).copied()
+}
+
+/// The form of a counted string for `n` in the active file language; a plain entry serves every count.
+fn lookup_plural(en_other: &str, n: u64) -> Option<&'static str> {
+    if MODE.load(Ordering::Relaxed) != FILE {
+        return None;
+    }
+    let t = (*ACTIVE.read().unwrap_or_else(|e| e.into_inner()))?;
+    t.plural(en_other, n)
+}
+
+impl Table {
+    fn plural(&self, en_other: &str, n: u64) -> Option<&'static str> {
+        match self.plurals.get(en_other) {
+            Some(forms) => forms[plural_category(&self.code, n) as usize].or(forms[Category::Other as usize]),
+            None => self.strings.get(en_other).copied(),
+        }
+    }
+}
+
+/// Index of the Ukrainian form for `lp!`: one, few, many.
+#[doc(hidden)]
+pub fn uk_form(n: u64) -> usize {
+    match plural_category("uk", n) {
+        Category::One => 0,
+        Category::Few => 1,
+        _ => 2,
+    }
 }
 
 /// `l!` at run time.
@@ -272,7 +353,19 @@ pub fn file_mode() -> bool {
 /// The values are cut back out of it between the template's literal parts and put into the translation.
 pub fn refill(template: &str, rendered: String) -> String {
     let Some(tr) = lookup(template) else { return rendered };
-    let Some(values) = extract(template, &rendered) else { return rendered };
+    fill(tr, template, &rendered).unwrap_or(rendered)
+}
+
+/// `lp!` in a file language: the values are cut out of the English "other" form (`other`, rendered by
+/// `format!`) and put into the translation's form for `n`; with no translation, `shown` stays English.
+#[doc(hidden)]
+pub fn refill_plural(template: &str, n: u64, other: &str, shown: String) -> String {
+    lookup_plural(template, n).and_then(|tr| fill(tr, template, other)).unwrap_or(shown)
+}
+
+/// The translation `tr` of `template`, with the values cut out of the English `rendered`.
+fn fill(tr: &str, template: &str, rendered: &str) -> Option<String> {
+    let values = extract(template, rendered)?;
     let mut used = vec![false; values.len()];
     let mut out = String::new();
     for tok in tokens(tr) {
@@ -285,12 +378,12 @@ pub fn refill(template: &str, rendered: String) -> String {
                         used[i] = true;
                         out.push_str(v);
                     }
-                    None => return rendered,
+                    None => return None,
                 }
             }
         }
     }
-    out
+    Some(out)
 }
 
 #[derive(Debug, PartialEq)]
@@ -387,7 +480,28 @@ macro_rules! lf {
     };
 }
 
-pub(crate) use {l, lf};
+/// A counted string: `lp!(n, ["{n} повідомлення", "{n} повідомлення", "{n} повідомлень"], ["{n} message", "{n} messages"])`.
+/// Ukrainian gives the one / few / many forms, English one / other; every form must use `{n}` (other
+/// values are captured like in `format!`). `n` is a whole number; other languages pick their form by CLDR.
+macro_rules! lp {
+    ($n:expr, [$uk1:literal, $uk2:literal, $uk5:literal $(,)?], [$en1:literal, $en2:literal $(,)?] $(,)?) => {{
+        let __n = $n;
+        let __c = __n as u64;
+        if $crate::i18n::uk() {
+            match $crate::i18n::uk_form(__c) {
+                0 => format!($uk1, n = __n),
+                1 => format!($uk2, n = __n),
+                _ => format!($uk5, n = __n),
+            }
+        } else {
+            let __other = format!($en2, n = __n);
+            let __shown = if __c == 1 { format!($en1, n = __n) } else { __other.clone() };
+            if $crate::i18n::file_mode() { $crate::i18n::refill_plural($en2, __c, &__other, __shown) } else { __shown }
+        }
+    }};
+}
+
+pub(crate) use {l, lf, lp};
 
 #[cfg(test)]
 mod tests {
@@ -403,8 +517,49 @@ mod tests {
         assert_eq!(placeholders("{b} {a}"), placeholders("{a} – {b}"));
     }
 
-    /// `l!`/`lf!` pairs in the sources: (Ukrainian, English), in order of appearance.
+    /// A string in the sources; for `lp!` the last Ukrainian and English forms (English "other" is the key).
+    struct Src {
+        uk: String,
+        en: String,
+        plural: bool,
+    }
+
+    /// `l!`/`lf!`/`lp!` pairs in the sources: (Ukrainian, English), in order of appearance.
     fn source_strings() -> Vec<(String, String)> {
+        scan().into_iter().map(|s| (s.uk, s.en)).collect()
+    }
+
+    /// `[ "a", "b", … ]` at the start of `s`: the literals and the text after the bracket.
+    fn literal_list(s: &str) -> Option<(Vec<String>, &str)> {
+        let mut rest = s.trim_start().strip_prefix('[')?;
+        let mut out = Vec::new();
+        loop {
+            rest = rest.trim_start();
+            if let Some(r) = rest.strip_prefix(']') {
+                return Some((out, r));
+            }
+            let (lit, after) = literal(rest)?;
+            out.push(lit);
+            rest = after.trim_start();
+            rest = rest.strip_prefix(',').unwrap_or(rest);
+        }
+    }
+
+    /// The text after the first top-level comma: skips `lp!`'s count expression.
+    fn after_count(s: &str) -> Option<&str> {
+        let mut depth = 0i32;
+        for (i, c) in s.char_indices() {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth -= 1,
+                ',' if depth == 0 => return Some(&s[i + 1..]),
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn scan() -> Vec<Src> {
         fn walk(dir: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
             let mut entries: Vec<_> = std::fs::read_dir(dir).unwrap().flatten().map(|e| e.path()).collect();
             entries.sort();
@@ -423,19 +578,29 @@ mod tests {
             let text = std::fs::read_to_string(&f).unwrap();
             let mut rest = text.as_str();
             while let Some(i) = rest.find("!(") {
-                let head = &rest[..i];
+                // From the start of the file: the line of a second macro on it starts before `rest`.
+                let head = &text[..text.len() - rest.len() + i];
                 rest = &rest[i + 2..];
-                let name = if head.ends_with("lf") { 2 } else if head.ends_with('l') { 1 } else { continue };
+                let plural = head.ends_with("lp");
+                let name = if head.ends_with("lf") || plural { 2 } else if head.ends_with('l') { 1 } else { continue };
                 let before = head[..head.len() - name].chars().last();
                 let line = &head[head.rfind('\n').map_or(0, |n| n + 1)..];
-                // Only `l!(` and `lf!(` themselves (not `xl!(`), and not inside `//` comments.
+                // Only `l!(`, `lf!(` and `lp!(` themselves (not `xl!(`), and not inside `//` comments.
                 if before.is_some_and(|c| c.is_alphanumeric() || c == '_') || line.trim_start().starts_with("//") {
+                    continue;
+                }
+                if plural {
+                    let Some((uk, after)) = after_count(rest).and_then(literal_list) else { continue };
+                    let after = after.trim_start().strip_prefix(',').unwrap_or(after);
+                    let Some((en, _)) = literal_list(after) else { continue };
+                    let (Some(uk), Some(en)) = (uk.last(), en.last()) else { continue };
+                    out.push(Src { uk: uk.clone(), en: en.clone(), plural: true });
                     continue;
                 }
                 let Some((uk, after)) = literal(rest.trim_start()) else { continue };
                 let after = after.trim_start().strip_prefix(',').unwrap_or(after).trim_start();
                 let Some((en, _)) = literal(after) else { continue };
-                out.push((uk, en));
+                out.push(Src { uk, en, plural: false });
             }
         }
         out
@@ -472,12 +637,13 @@ mod tests {
         None
     }
 
-    fn json_template(strings: &[(String, String)]) -> String {
+    fn json_template(strings: &[Src]) -> String {
         let mut seen = std::collections::HashSet::new();
-        let mut out = String::from("{\n  \"@name\": \"\",\n  \"@about\": \"Copy to <code>.json, set @name, translate the values. Empty values fall back to English.\"");
-        for (_, en) in strings {
-            if seen.insert(en.clone()) {
-                out.push_str(&format!(",\n  {}: \"\"", serde_json::to_string(en).unwrap()));
+        let mut out = String::from("{\n  \"@name\": \"\",\n  \"@about\": \"Copy to <code>.json, set @name, translate the values. Empty values fall back to English. Counted strings take the CLDR forms your language uses: zero, one, two, few, many, other.\"");
+        for s in strings {
+            if seen.insert(s.en.clone()) {
+                let value = if s.plural { r#"{"one": "", "other": ""}"# } else { "\"\"" };
+                out.push_str(&format!(",\n  {}: {value}", serde_json::to_string(&s.en).unwrap()));
             }
         }
         out.push_str("\n}\n");
@@ -488,7 +654,8 @@ mod tests {
     /// After changing UI strings: `UPDATE_LOCALES=1 cargo test locales` rewrites it.
     #[test]
     fn locales_template_is_current() {
-        let strings = source_strings();
+        let strings = scan();
+        assert!(strings.iter().any(|s| s.plural), "the scanner found no lp! strings");
         assert!(strings.len() > 300, "the scanner found only {} strings", strings.len());
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("locales/template.json");
         let want = json_template(&strings);
@@ -501,8 +668,11 @@ mod tests {
 
     #[test]
     fn server_pack_maps_onto_our_strings() {
-        let keys = parse_keys(r#"{"@about": "x", "Cancel": "lng_cancel", "Forwarded from {from}": {"key": "lng_forwarded", "args": {"{user}": "{from}"}}, "Close": "lng_close", "Save": "lng_save"}"#);
-        let pack: HashMap<String, String> = [
+        let keys = parse_keys(
+            r#"{"@about": "x", "Cancel": "lng_cancel", "Forwarded from {from}": {"key": "lng_forwarded", "args": {"{user}": "{from}"}}, "Close": "lng_close", "Save": "lng_save",
+                "{n} messages": {"key": "lng_messages", "args": {"{count}": "{n}"}}, "{n} votes": {"key": "lng_votes", "args": {"{count}": "{n}"}}}"#,
+        );
+        let strings: HashMap<String, String> = [
             ("lng_cancel", "Abbrechen"),
             ("lng_forwarded", "Weitergeleitet von {user}"),
             // Markup and foreign placeholders are dropped rather than shown raw or filled wrongly.
@@ -512,16 +682,47 @@ mod tests {
         .into_iter()
         .map(|(k, v)| (k.to_owned(), v.to_owned()))
         .collect();
+        let forms = |f: [&str; 6]| f.map(str::to_owned);
+        let plurals = [
+            // A form may drop the count; one with a foreign placeholder is dropped.
+            ("lng_messages".to_owned(), forms(["", "Одно сообщение", "", "{count} сообщения", "{count} сообщений {x}", "{count} сообщения"])),
+            // Without a usable "other" the whole string stays English.
+            ("lng_votes".to_owned(), forms(["", "{count} голос", "", "", "", "{x}"])),
+        ]
+        .into();
+        let pack = crate::backend::LangPack { code: "ru".into(), name: "Русский".into(), version: 1, strings, plurals };
         let ours = from_pack(&keys, &pack);
-        assert_eq!(ours.get("Cancel").map(String::as_str), Some("Abbrechen"));
-        assert_eq!(ours.get("Forwarded from {from}").map(String::as_str), Some("Weitergeleitet von {from}"));
-        assert!(!ours.contains_key("Close") && !ours.contains_key("Save"));
+        assert_eq!(ours.plain.get("Cancel").map(String::as_str), Some("Abbrechen"));
+        assert_eq!(ours.plain.get("Forwarded from {from}").map(String::as_str), Some("Weitergeleitet von {from}"));
+        assert!(!ours.plain.contains_key("Close") && !ours.plain.contains_key("Save"));
+        let f = &ours.plural["{n} messages"];
+        assert_eq!((f[1].as_deref(), f[3].as_deref(), f[4].as_deref(), f[5].as_deref()), (Some("Одно сообщение"), Some("{n} сообщения"), None, Some("{n} сообщения")));
+        assert!(!ours.plural.contains_key("{n} votes"));
+    }
+
+    /// `lp!` in a file language: the form by the language's rule, "other" for a missing one, English without any.
+    #[test]
+    fn plural_lookup_by_category() {
+        let (_, file) = parse(r#"{"@name": "Polski", "{n} messages": {"one": "{n} wiadomość", "few": "{n} wiadomości", "other": "{n} wiadomości*"}}"#).unwrap();
+        let leak = |v: String| &*String::leak(v);
+        let t = Table {
+            code: "pl".into(),
+            name: "Polski".into(),
+            strings: [("Votes: {n}".to_owned(), "Głosy: {n}")].into(),
+            plurals: file.plural.into_iter().map(|(k, f)| (k, f.map(|v| v.map(leak)))).collect(),
+        };
+        // `lp!` cuts the values out of the English "other" form and fills the chosen one.
+        let form = |n: u64| fill(t.plural("{n} messages", n).unwrap(), "{n} messages", &format!("{n} messages")).unwrap();
+        assert_eq!([form(1), form(22), form(25)], ["1 wiadomość", "22 wiadomości", "25 wiadomości*"]);
+        assert_eq!(t.plural("Votes: {n}", 5), Some("Głosy: {n}"));
+        assert_eq!(t.plural("{n} files", 5), None);
+        assert_eq!([uk_form(1), uk_form(3), uk_form(11), uk_form(21), uk_form(25)], [0, 1, 2, 0, 2]);
     }
 
     /// Order: a localisation file over the server pack, the pack over English.
     #[test]
     fn file_wins_over_the_pack() {
-        let de = parse(BUILTIN.iter().find(|(c, _)| *c == "de").unwrap().1).unwrap().1;
+        let de = parse(BUILTIN.iter().find(|(c, _)| *c == "de").unwrap().1).unwrap().1.plain;
         // A mapped string the German file doesn't have.
         let (key, en) = tdesktop_keys()
             .iter()
@@ -532,6 +733,7 @@ mod tests {
             name: "Deutsch (Telegram)".into(),
             version: 1,
             strings: [("lng_cancel".to_owned(), "PACK".to_owned()), (key, "AUS DEM PAKET".to_owned())].into(),
+            plurals: HashMap::new(),
         };
         let t = build("de", Some(&pack)).unwrap();
         assert_eq!(t.name, "Deutsch");
@@ -580,6 +782,13 @@ mod tests {
                     continue;
                 }
                 assert!(known.contains(k), "{code}.json: unknown string {k:?} (renamed in the code?)");
+                if let Some(forms) = v.as_object() {
+                    for (c, f) in forms {
+                        assert!(CATEGORIES.contains(&c.as_str()), "{code}.json: {k:?} has no plural category {c:?}");
+                        assert!(f.as_str().is_some_and(|f| form_fits(k, f)), "{code}.json: placeholders differ in {k:?} ({c})");
+                    }
+                    continue;
+                }
                 let v = v.as_str().unwrap_or_else(|| panic!("{code}.json: {k:?} is not a string"));
                 assert!(v.is_empty() || placeholders(k) == placeholders(v), "{code}.json: placeholders differ in {k:?}");
             }

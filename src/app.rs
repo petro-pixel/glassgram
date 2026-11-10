@@ -28,7 +28,7 @@ use crate::recorder::{self, Recorder, Voice};
 use crate::settings::{self, Settings};
 use crate::tray::{self, TrayEv};
 use crate::video::{Clip, Spec};
-use crate::i18n::{l, lf};
+use crate::i18n::{l, lf, lp};
 
 mod chatview;
 mod suggest;

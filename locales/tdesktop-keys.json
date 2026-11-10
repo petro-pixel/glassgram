@@ -1,5 +1,5 @@
 {
-  "@about": "English UI string -> Telegram Desktop language pack key (lang_pack \"tdesktop\"). Only exact meaning matches; {\"key\", \"args\"} renames tdesktop placeholders to ours.",
+  "@about": "English UI string -> Telegram Desktop language pack key (lang_pack \"tdesktop\"). Only exact meaning matches; {\"key\", \"args\"} renames tdesktop placeholders to ours. A plural key is named without its #one/#few suffix and maps onto an lp! string (its English \"other\" form).",
   "Recent actions": "lng_manage_peer_recent_actions",
   "Reply": "lng_context_reply_msg",
   "Mark as read": "lng_context_mark_read",
@@ -336,5 +336,11 @@
   "Logged in with Telegram": "lng_settings_logged_in_title",
   "Deleted account": "lng_deleted",
   "Star reaction": "lng_paid_react_title",
-  "Set photo": "lng_profile_set_photo_button"
+  "Set photo": "lng_profile_set_photo_button",
+  "{n} members": {"key": "lng_chat_status_members", "args": {"{count}": "{n}"}},
+  "{n} subscribers": {"key": "lng_chat_status_subscribers", "args": {"{count}": "{n}"}},
+  "{n} messages": {"key": "lng_selected_count", "args": {"{count}": "{n}"}},
+  "{n} unread messages": {"key": "lng_unread_bar", "args": {"{count}": "{n}"}},
+  "{n} stickers": {"key": "lng_stickers_count", "args": {"{count}": "{n}"}},
+  "{n} votes": {"key": "lng_polls_votes_count", "args": {"{count}": "{n}"}}
 }

@@ -202,7 +202,7 @@ pub(super) fn draw_card(ui: &mut Ui, m: &Msg, poll: &PollInfo, rect: Rect, k: f3
     }
     let votes = match poll.total {
         0 => l!("Ще немає голосів", "No votes yet").to_owned(),
-        n => format!("{}{}", lf!("Голосів: {n}", "Votes: {n}"), if poll.closed { l!(" · завершено", " · closed") } else { "" }),
+        n => format!("{}{}", lp!(n, ["{n} голос", "{n} голоси", "{n} голосів"], ["{n} vote", "{n} votes"]), if poll.closed { l!(" · завершено", " · closed") } else { "" }),
     };
     let votes = if poll.voted() && !show { format!("{votes} · {}", l!("результати після завершення", "results when it ends")) } else { votes };
     let small = FontId::proportional(12.0 * k);

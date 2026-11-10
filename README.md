@@ -84,18 +84,20 @@ Windows and macOS builds compile but haven't been tried on real machines yet.
 Ukrainian and English live in the code. Every other language is a JSON file keyed by the English string:
 
 ```json
-{ "@name": "Deutsch", "Cancel": "Abbrechen", "Votes: {n}": "Stimmen: {n}" }
+{ "@name": "Deutsch", "Cancel": "Abbrechen", "{n} votes": { "one": "{n} Stimme", "other": "{n} Stimmen" } }
 ```
 
 1. Copy [locales/template.json](locales/template.json) (all strings, empty values) to `<code>.json`, e.g. `pl.json`.
 2. Set `@name` and translate the values; keep `{placeholders}` as they are. Empty values fall back to English.
+   Counted strings (`{"one": "", "other": ""}`) take the [CLDR plural forms](https://www.unicode.org/cldr/charts/latest/supplemental/language_plural_rules.html)
+   your language uses: `zero`, `one`, `two`, `few`, `many`, `other`.
 3. Put the file into the `locales` folder next to the session and settings (`~/.local/share/glassgram/locales/`)
    and pick the language in Settings → Language. No rebuild needed.
 4. To ship it with the app, add it to `locales/` and to `BUILTIN` in `src/i18n.rs`.
 
 Languages from Telegram's list come from translations.telegram.org: their packs are keyed by Telegram Desktop keys, and
 [locales/tdesktop-keys.json](locales/tdesktop-keys.json) maps our English strings to those keys (only exact meaning matches;
-`{"key", "args"}` renames placeholders). A string is looked up in a localisation file first, then in the Telegram pack, then shown in English.
+`{"key", "args"}` renames placeholders; plural keys like `lng_xxx#few` are picked by the language's CLDR rule). A string is looked up in a localisation file first, then in the Telegram pack, then shown in English.
 
 ## Structure
 
@@ -188,7 +190,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/lock.rs` | Local passcode (salt + SHA-256) |
 | `src/tray.rs`, `src/logo.rs` | Tray icon (`ksni` on Linux, `tray-icon` on Windows and macOS) and the app logo |
 | `src/icons.rs`, `assets/icons/` | Vector icons: Lucide SVG files (24×24), parsed with `roxmltree` and flattened with `kurbo` |
-| `src/i18n.rs`, `locales/` | UI language: `l!`/`lf!` for Ukrainian and English, JSON localisation files and Telegram packs (via `tdesktop-keys.json`) for the rest |
+| `src/i18n.rs`, `src/i18n/plural.rs`, `locales/` | UI language: `l!`/`lf!`/`lp!` (counted, CLDR plural rules) for Ukrainian and English, JSON localisation files and Telegram packs (via `tdesktop-keys.json`) for the rest |
 | `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |
 | `src/demo.rs`, `src/demo/` | Demo data |
 | `build.rs` | Telegram API keys from the build environment (masked), the Windows exe icon |

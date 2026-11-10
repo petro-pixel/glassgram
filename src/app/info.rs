@@ -10,7 +10,7 @@ use super::{App, SEARCH_DELAY, elided, kind_icon};
 use crate::backend::{ChatDetails, ChatInfo, Sound, ChatKind, Cmd, Ev, ImgKey, MUTE_FOREVER, MediaKind, Member, MemberRole, Msg, SHARED_PAGE, SearchHit, SharedKind};
 use crate::format::Style;
 use crate::glass::{self, ACCENT, Glass, ink, ink_dim};
-use crate::i18n::{l, lf};
+use crate::i18n::{l, lf, lp};
 use crate::icons::{self, Icon};
 use crate::player;
 
@@ -467,11 +467,11 @@ impl App {
             ChatKind::Saved => (l!("ваші нотатки", "your notes").to_owned(), ink_dim()),
             ChatKind::Group => match (d.and_then(|d| d.members), d.and_then(|d| d.online).filter(|n| *n > 0)) {
                 (Some(n), Some(o)) => (lf!("учасників: {n}, у мережі: {o}", "{n} members, {o} online"), ink_dim()),
-                (Some(n), None) => (lf!("учасників: {n}", "{n} members"), ink_dim()),
+                (Some(n), None) => (lp!(n, ["{n} учасник", "{n} учасники", "{n} учасників"], ["{n} member", "{n} members"]), ink_dim()),
                 _ => (l!("група", "group").to_owned(), ink_dim()),
             },
             ChatKind::Channel => match d.and_then(|d| d.members) {
-                Some(n) => (lf!("підписників: {n}", "{n} subscribers"), ink_dim()),
+                Some(n) => (lp!(n, ["{n} підписник", "{n} підписники", "{n} підписників"], ["{n} subscriber", "{n} subscribers"]), ink_dim()),
                 None => (l!("канал", "channel").to_owned(), ink_dim()),
             },
         };

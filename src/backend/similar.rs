@@ -6,7 +6,7 @@ use grammers_client::session::types::PeerId;
 use grammers_client::tl;
 
 use super::{Ev, Worker, found_chat};
-use crate::i18n::lf;
+use crate::i18n::{lf, lp};
 
 impl Worker {
     pub(super) async fn load_similar(&self, peer: PeerId) -> Result<(), String> {
@@ -29,7 +29,7 @@ impl Worker {
                 continue;
             }
             let label = match &p {
-                Peer::Channel(c) => c.raw.participants_count.map(|n| lf!("підписників: {n}", "{n} subscribers")),
+                Peer::Channel(c) => c.raw.participants_count.map(|n| lp!(n, ["{n} підписник", "{n} підписники", "{n} підписників"], ["{n} subscriber", "{n} subscribers"])),
                 _ => None,
             };
             chats.push(found_chat(&p, label.unwrap_or_default()));

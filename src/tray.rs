@@ -5,7 +5,7 @@
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
-use crate::i18n::{l, lf};
+use crate::i18n::{l, lp};
 
 pub enum TrayEv {
     /// Click on the icon: show the window.
@@ -18,7 +18,7 @@ pub enum TrayEv {
 fn tooltip(unread: usize) -> String {
     match unread {
         0 => l!("Немає непрочитаних", "No unread messages").to_owned(),
-        n => lf!("Непрочитаних повідомлень: {n}", "Unread messages: {n}"),
+        n => lp!(n, ["{n} непрочитане повідомлення", "{n} непрочитані повідомлення", "{n} непрочитаних повідомлень"], ["{n} unread message", "{n} unread messages"]),
     }
 }
 

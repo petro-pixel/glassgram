@@ -656,7 +656,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         cmd @ (Cmd::SearchChannels(_) | Cmd::SearchApps(_) | Cmd::CheckPostsFlood(_) | Cmd::SearchPosts(_)) => search_tabs(app, cmd),
         Cmd::LoadSimilarChannels(peer) => {
-            let chats = [(61, "Rust Weekly", "12 480"), (62, "Design Daily", "8 115"), (63, "Open Source UA", "3 902")]
+            let chats = [(61, "Rust Weekly", 12480), (62, "Design Daily", 8115), (63, "Open Source UA", 3902)]
                 .into_iter()
                 .map(|(id, title, n)| ChatInfo {
                     id: PeerId::channel_unchecked(id),
@@ -664,7 +664,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                     contact: false,
                     joined: false,
                     can_post: false,
-                    ..person(0, title, &crate::i18n::lf!("підписників: {n}", "{n} subscribers"), Presence::None)
+                    ..person(0, title, &crate::i18n::lp!(n, ["{n} підписник", "{n} підписники", "{n} підписників"], ["{n} subscriber", "{n} subscribers"]), Presence::None)
                 })
                 .collect();
             // Without Premium the server sends a few and counts the rest.
@@ -1615,7 +1615,7 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
                     contact: false,
                     joined: false,
                     can_post: false,
-                    ..person(71, "Olena on Design", &{ let n = "2 310"; crate::i18n::lf!("підписників: {n}", "{n} subscribers") }, Presence::None)
+                    ..person(71, "Olena on Design", &crate::i18n::lp!(2310, ["{n} підписник", "{n} підписники", "{n} підписників"], ["{n} subscriber", "{n} subscribers"]), Presence::None)
                 });
             }
             if id == 5 {

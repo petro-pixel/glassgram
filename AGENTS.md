@@ -82,7 +82,11 @@ Every UI string is bilingual (Ukrainian + English) side by side, via the macros 
 ```rust
 l!("Скасувати", "Cancel")                    // &'static str
 lf!("Голосів: {n}", "Votes: {n}")             // like format!, the compiler checks the arguments
+lp!(n, ["{n} голос", "{n} голоси", "{n} голосів"], ["{n} vote", "{n} votes"])  // counted: uk one/few/many, en one/other
 ```
+
+Use `lp!` instead of dodging plurals with "Votes: {n}"; every form must contain `{n}`. Other languages pick
+their form by CLDR rules (`i18n/plural.rs`); files and `tdesktop-keys.json` key it by the English "other" form.
 
 A string without a translation is a bug. Content from the server (chat names, texts) is not translated.
 

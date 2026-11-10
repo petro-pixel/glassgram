@@ -366,7 +366,7 @@ impl App {
                 let p = ui.painter();
                 p.galley(pos2(row.left() + 8.0, row.top() + 8.0), elided(ui, &set.title, 14.5, ink(), btn.left() - row.left() - 16.0), ink());
                 let count = set.count;
-                p.text(pos2(row.left() + 8.0, row.top() + 28.0), Align2::LEFT_TOP, lf!("Стікерів: {count}", "{count} stickers"), FontId::proportional(12.5), ink_dim());
+                p.text(pos2(row.left() + 8.0, row.top() + 28.0), Align2::LEFT_TOP, lp!(count, ["{n} стікер", "{n} стікери", "{n} стікерів"], ["{n} sticker", "{n} stickers"]), FontId::proportional(12.5), ink_dim());
                 for (k, (id, emoji)) in set.stickers.iter().enumerate() {
                     let r = Rect::from_min_size(pos2(row.left() + 6.0 + k as f32 * 46.0, row.top() + 46.0), vec2(42.0, 42.0));
                     if r.right() < row.right() {
@@ -417,7 +417,7 @@ impl App {
                 let btn = |n: f32| Rect::from_min_size(pos2(row.right() - (side + 2.0) * n, row.center().y - side / 2.0), vec2(side, side));
                 let text_w = btn(3.0).left() - thumb.right() - 16.0;
                 ui.painter().galley(pos2(thumb.right() + 10.0, row.top() + 8.0), elided(ui, title, 14.0, ink(), text_w), ink());
-                ui.painter().text(pos2(thumb.right() + 10.0, row.top() + 28.0), Align2::LEFT_TOP, lf!("Стікерів: {count}", "{count} stickers"), FontId::proportional(12.0), ink_dim());
+                ui.painter().text(pos2(thumb.right() + 10.0, row.top() + 28.0), Align2::LEFT_TOP, lp!(*count, ["{n} стікер", "{n} стікери", "{n} стікерів"], ["{n} sticker", "{n} stickers"]), FontId::proportional(12.0), ink_dim());
                 if glass::icon_button(ui, btn(3.0), ("set-up", id), Icon::ChevronUp, false, k > 0).on_hover_text(l!("Вище", "Move up")).clicked() && k > 0 {
                     moved = Some((*i, rows[k - 1].0));
                 }
@@ -470,7 +470,7 @@ impl App {
         let title_w = link.left() - inner.left() - 8.0;
         ui.painter().galley(inner.min, elided(ui, &set.title, 17.0, ink(), title_w), ink());
         let count = set.count;
-        ui.painter().text(inner.min + vec2(0.0, 24.0), Align2::LEFT_TOP, lf!("Стікерів: {count}", "{count} stickers"), FontId::proportional(12.5), ink_dim());
+        ui.painter().text(inner.min + vec2(0.0, 24.0), Align2::LEFT_TOP, lp!(count, ["{n} стікер", "{n} стікери", "{n} стікерів"], ["{n} sticker", "{n} stickers"]), FontId::proportional(12.5), ink_dim());
         if !set.short_name.is_empty() && glass::icon_button(ui, link, "set-box-link", Icon::Link, false, true).on_hover_text(l!("Копіювати посилання", "Copy link")).clicked() {
             self.ctx.copy_text(format!("https://t.me/addstickers/{}", set.short_name));
             self.toast = Some((l!("Посилання скопійовано", "Link copied").into(), 0.0, false));

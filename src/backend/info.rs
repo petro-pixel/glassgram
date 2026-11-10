@@ -9,7 +9,7 @@ use grammers_client::session::types::{PeerId, PeerKind, PeerRef};
 use grammers_client::tl;
 
 use super::{AdminRights, Birthday, ChatInfo, ChatRights, Cmd, Ev, ReactionMode, Worker, clock, convert, data_dir, found_chat, local, log_error, peer_title, remember_name};
-use crate::i18n::{l, lf};
+use crate::i18n::{l, lf, lp};
 
 /// Smallest group whose member list may be hidden (`hidden_members_group_size_min` in the app config).
 const HIDDEN_MEMBERS_MIN: i32 = 100;
@@ -209,7 +209,7 @@ impl Worker {
                                     l.avatar(&ch);
                                 }
                                 let label = match &ch {
-                                    Peer::Channel(c) => c.raw.participants_count.map(|n| lf!("підписників: {n}", "{n} subscribers")),
+                                    Peer::Channel(c) => c.raw.participants_count.map(|n| lp!(n, ["{n} підписник", "{n} підписники", "{n} підписників"], ["{n} subscriber", "{n} subscribers"])),
                                     _ => None,
                                 };
                                 details.channel = Some(found_chat(&ch, label.unwrap_or_default()));

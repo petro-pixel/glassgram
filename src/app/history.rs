@@ -762,7 +762,7 @@ impl App {
             return;
         }
         let n = self.picked.len();
-        ui.painter().text(pos2(close.right() + 12.0, rect.center().y), Align2::LEFT_CENTER, lf!("Вибрано: {n}", "Selected: {n}"), FontId::proportional(15.0), ink());
+        ui.painter().text(pos2(close.right() + 12.0, rect.center().y), Align2::LEFT_CENTER, lp!(n, ["{n} повідомлення", "{n} повідомлення", "{n} повідомлень"], ["{n} message", "{n} messages"]), FontId::proportional(15.0), ink());
         let all_out = self.picked.iter().all(|id| self.find(peer, *id).is_some_and(|m| m.out));
         let btn = |i: f32| Rect::from_center_size(pos2(rect.right() - 30.0 - i * 46.0, rect.center().y), vec2(38.0, 38.0));
         let protected = self.protected(peer, &self.picked);
