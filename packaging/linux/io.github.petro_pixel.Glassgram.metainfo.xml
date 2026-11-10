@@ -38,6 +38,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.6.1" date="2026-11-10">
+      <description>
+        <p>Search tabs (chats, channels, apps, posts, media), sticker sets and saved GIFs, checklists and poll results, administration (admin rights, bans, join requests, invite links), My Stars, custom emoji in messages, a video player with seeking, full screen and picture-in-picture that streams large videos, chat wallpapers and themes, username QR codes, notification sounds and ringtones, Reply and Mark as read in notifications, narrow and wide window modes, a formatting bar over selected text, clearer glass with a refracting rim, smaller binaries.</p>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-11-08">
       <description>
         <p>Chat list density, sensitive content filter, connected websites, auto-delete timers, data and storage with cache limits, emoji games, account self-destruct, an error log, media auto-download by chat type, chat reactions and anti-spam for admins, accessibility options (reduce transparency, increase contrast, reduce motion), glass context menus and tooltips, recent actions and author signatures in channels, shared folders by link.</p>
