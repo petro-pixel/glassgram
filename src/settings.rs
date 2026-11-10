@@ -1,7 +1,6 @@
 //! App settings: a simple `key=value` file in the data folder.
 
 use crate::backend::{ChatKind, MediaInfo, MediaKind, data_dir};
-use crate::i18n::{l};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Theme {
@@ -135,8 +134,10 @@ pub struct Settings {
     pub sound: bool,
     /// GIFs, round videos and video stickers autoplay.
     pub autoplay: bool,
-    /// SOCKS5 proxy (`socks5://[user:password@]host:port`), empty means no proxy.
+    /// The proxy in use, one of `proxies`; empty means none.
     pub proxy: String,
+    /// Saved proxies as links (`socks5://…`, `tg://proxy?…`), to switch between.
+    pub proxies: Vec<String>,
     /// Local passcode (`lock::make`), empty means disabled.
     pub passcode: String,
     /// Lock after this many minutes of inactivity (0 means only at startup).
@@ -169,7 +170,7 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, sound: true, autoplay: true, proxy: String::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard, cache_limit_gb: 0, autodl: AutoDownload::default(), reduce_transparency: false, increase_contrast: false, reduce_motion: false, wallpaper: crate::wallpaper::Spec::Live }
+        Self { theme: Theme::System, lang: crate::i18n::Lang::System, scale: 1.0, notifications: true, sound: true, autoplay: true, proxy: String::new(), proxies: Vec::new(), passcode: String::new(), lock_minutes: 0, camera: String::new(), folders_side: false, text_size: 15.0, ctrl_enter: false, loop_stickers: true, suggest_stickers: true, density: Density::Standard, cache_limit_gb: 0, autodl: AutoDownload::default(), reduce_transparency: false, increase_contrast: false, reduce_motion: false, wallpaper: crate::wallpaper::Spec::Live }
     }
 }
 
@@ -200,6 +201,7 @@ impl Settings {
                 "sound" => s.sound = flag,
                 "autoplay" => s.autoplay = flag,
                 "proxy" => s.proxy = v.to_owned(),
+                "proxies" => s.proxies = v.split_whitespace().map(str::to_owned).collect(),
                 "passcode" => s.passcode = v.to_owned(),
                 "camera" => s.camera = v.to_owned(),
                 "lock_minutes" => s.lock_minutes = v.parse().unwrap_or(0),
@@ -224,6 +226,10 @@ impl Settings {
                 _ => {}
             }
         }
+        // Before the list, a single SOCKS5 proxy was all there was.
+        if !s.proxy.is_empty() && !s.proxies.contains(&s.proxy) {
+            s.proxies.push(s.proxy.clone());
+        }
         s
     }
 
@@ -232,7 +238,7 @@ impl Settings {
         let _ = std::fs::create_dir_all(&dir);
         let b = |v: bool| if v { "1" } else { "0" };
         let text = format!(
-            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\ncache_limit_gb={}\nautodl={}\nreduce_transparency={}\nincrease_contrast={}\nreduce_motion={}\nwallpaper={}\nsound={}\n",
+            "lang={}\ntheme={}\nscale={}\nnotifications={}\nautoplay={}\nproxy={}\npasscode={}\nlock_minutes={}\ncamera={}\nfolders_side={}\ntext_size={}\nctrl_enter={}\nloop_stickers={}\nsuggest_stickers={}\ndensity={}\ncache_limit_gb={}\nautodl={}\nreduce_transparency={}\nincrease_contrast={}\nreduce_motion={}\nwallpaper={}\nsound={}\nproxies={}\n",
             self.lang.code(),
             match self.theme {
                 Theme::System => "system",
@@ -258,7 +264,8 @@ impl Settings {
             b(self.increase_contrast),
             b(self.reduce_motion),
             self.wallpaper.code(),
-            b(self.sound)
+            b(self.sound),
+            self.proxies.join(" ")
         );
         // Holds the local passcode hash, so owner-only.
         let _ = std::fs::write(dir.join("settings"), text);
@@ -266,23 +273,9 @@ impl Settings {
     }
 }
 
-/// Validates a proxy address: socks5 scheme, host and port. `None` means it's fine.
-pub fn proxy_error(url: &str) -> Option<&'static str> {
-    let url = url.trim();
-    if url.is_empty() {
-        return None;
-    }
-    let Some(rest) = url.strip_prefix("socks5://") else { return Some(l!("Адреса має починатися з socks5://", "The address must start with socks5://")) };
-    let host_port = rest.rsplit('@').next().unwrap_or(rest);
-    match host_port.rsplit_once(':') {
-        Some((host, port)) if !host.is_empty() && port.parse::<u16>().is_ok_and(|p| p > 0) => None,
-        _ => Some(l!("Потрібні хост і порт, напр. socks5://127.0.0.1:1080", "Host and port are required, e.g. socks5://127.0.0.1:1080")),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{AutoDownload, proxy_error};
+    use super::AutoDownload;
 
     #[test]
     fn autodl_round_trip() {
@@ -294,12 +287,4 @@ mod tests {
         assert_eq!(AutoDownload::parse("junk"), AutoDownload::default());
     }
 
-    #[test]
-    fn proxy_validation() {
-        assert!(proxy_error("").is_none());
-        assert!(proxy_error("socks5://127.0.0.1:1080").is_none());
-        assert!(proxy_error("socks5://user:pass@example.com:5678").is_none());
-        assert!(proxy_error("http://127.0.0.1:1080").is_some());
-        assert!(proxy_error("socks5://127.0.0.1").is_some());
-    }
 }

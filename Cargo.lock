@@ -2095,9 +2095,12 @@ dependencies = [
 name = "glassgram"
 version = "0.7.0-alpha"
 dependencies = [
+ "aes",
  "arboard",
  "base64",
  "bytemuck",
+ "crc32fast",
+ "ctr",
  "dirs 6.0.0",
  "eframe",
  "flate2",

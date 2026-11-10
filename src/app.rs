@@ -35,6 +35,7 @@ mod suggest;
 mod info;
 mod hotkeys;
 mod richtext;
+mod proxy;
 mod outbox;
 mod settings_pages;
 mod chatlist;
@@ -572,6 +573,7 @@ pub struct App {
     sounds: sounds::Sounds,
     alerts: alerts::Alerts,
     richtext: richtext::RichText,
+    proxies: proxy::Proxies,
     autodelete: autodelete::AutoDelete,
     /// Chat backgrounds and themes.
     wallpapers: wallpapers::Wallpapers,
@@ -848,6 +850,7 @@ impl App {
             sounds: sounds::Sounds::default(),
             alerts: alerts::Alerts::default(),
             richtext: richtext::RichText::default(),
+            proxies: proxy::Proxies::default(),
             autodelete: autodelete::AutoDelete::default(),
             wallpapers: wallpapers::Wallpapers::default(),
             storage: storage::Storage::default(),
@@ -1074,6 +1077,7 @@ impl App {
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. } | Ev::BotWriteAccess { .. } | Ev::PhoneShared { .. }) => self.web_app_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
+            Ev::ProxyChecked { link, result } => self.on_proxy_checked(link, result),
             ev @ (Ev::ChatSounds(_) | Ev::Ringtones(_) | Ev::RingtoneFile { .. } | Ev::RingtoneUploadFailed | Ev::RingtonesChanged | Ev::ReactionNotify(_)) => self.sounds_event(ev),
             ev @ (Ev::ChatDetails { .. } | Ev::AvatarVideo { .. } | Ev::SimilarChannels { .. } | Ev::Gifts { .. } | Ev::Members { .. } | Ev::Invite { .. } | Ev::Shared { .. } | Ev::Notify { .. } | Ev::ChatRemoved(_) | Ev::HistoryCleared(_)) => {
                 self.info_event(ev)
@@ -1469,6 +1473,10 @@ impl App {
                 // A mention opens the chat in the client (a public one without joining).
                 Some('@') if !self.demo => self.send(Cmd::ResolveUsername(target[1..].to_owned())),
                 Some('@') => self.open_link(&format!("https://t.me/{}", &target[1..])),
+                _ if crate::backend::proxy::is_proxy_link(&target) => match crate::backend::proxy::Proxy::parse(&target) {
+                    Ok(_) => self.opening = Some(confirm::Opening::Proxy(target)),
+                    Err(e) => self.toast = Some((e.to_owned(), 0.0, true)),
+                },
                 _ if botstart::tme_bot_start(&target).is_some() => {
                     if let Some((username, param)) = botstart::tme_bot_start(&target) {
                         self.open_bot_start(username, param);

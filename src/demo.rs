@@ -675,6 +675,12 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::Shared { peer, kind, msgs, older: before.is_some() });
         }
         Cmd::SetNotify { peer, mute_until, silent, sound } => app.push_event(Ev::Notify { peer, state: NotifyState { mute_until, silent, inherit: false, sound } }),
+        Cmd::SetProxy(_) => {}
+        // Made-up pings; a proxy on port 1 never answers.
+        Cmd::CheckProxy(link) => {
+            let result = if link.contains("port=1&") || link.ends_with(":1") { Err("timed out".to_owned()) } else { Ok(40 + (link.len() as u32 * 7) % 160) };
+            app.push_event(Ev::ProxyChecked { link, result });
+        }
         Cmd::LoadRingtones => {
             // No files: listening falls back to the built-in chime.
             let list = app.demo_ringtones().unwrap_or_else(|| vec![Ringtone { id: 7001, title: "Marimba".into(), duration: 2.0 }, Ringtone { id: 7002, title: "Glass bell".into(), duration: 3.0 }]);

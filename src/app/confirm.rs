@@ -1,5 +1,6 @@
 //! Asking before something from a stranger leaves the app: a link whose text hides its real
-//! address, or a received file that the system would run as a program. As in Telegram Desktop.
+//! address, a received file that the system would run as a program, or a proxy link that would
+//! send every connection through someone's server. As in Telegram Desktop.
 
 use super::*;
 
@@ -7,6 +8,8 @@ use super::*;
 pub(super) enum Opening {
     Link(String),
     Program(PathBuf),
+    /// A `t.me/proxy` link: connect through it?
+    Proxy(String),
 }
 
 impl App {
@@ -30,6 +33,14 @@ impl App {
                     "A .{ext} file may be a program and will run on your computer. Only open files from people you trust."
                 );
                 (l!("Запустити файл?", "Run this file?"), body, path.display().to_string(), l!("Запустити", "Run"))
+            }
+            Opening::Proxy(link) => {
+                let target = crate::backend::proxy::Proxy::parse(link).map(|p| format!("{} · {}", p.kind(), p.address())).unwrap_or_else(|_| link.clone());
+                let body = l!(
+                    "Усі з'єднання з Telegram підуть через цей сервер. Його власник бачитиме, що ви користуєтеся Telegram, але не ваші повідомлення. Вимкнути проксі можна в Налаштуваннях → Додатково.",
+                    "Every connection to Telegram will go through this server. Its owner will see that you use Telegram, but not your messages. You can turn the proxy off in Settings → Advanced."
+                );
+                (l!("Під'єднатися через проксі?", "Connect through a proxy?"), body.to_owned(), target, l!("Під'єднатися", "Connect"))
             }
         };
         let screen = ui.max_rect();
@@ -58,7 +69,7 @@ impl App {
         let half = (inner.width() - 8.0) / 2.0;
         let (cancel_label, cancel_is_reveal) = match what {
             Opening::Program(_) => (l!("Показати в теці", "Show in folder"), true),
-            Opening::Link(_) => (l!("Скасувати", "Cancel"), false),
+            Opening::Link(_) | Opening::Proxy(_) => (l!("Скасувати", "Cancel"), false),
         };
         // For a program the highlighted button is the safe one.
         let cancel = glass::button(ui, Rect::from_min_size(pos2(inner.left(), y), vec2(half, 34.0)), "opening-cancel", cancel_label, cancel_is_reveal, true).clicked();
@@ -72,6 +83,7 @@ impl App {
                 crate::platform::open_url(&url);
             }
             Some(Opening::Program(path)) if ok => crate::platform::run_file(&path),
+            Some(Opening::Proxy(link)) if ok => self.add_proxy(link),
             Some(Opening::Program(path)) if cancel && cancel_is_reveal => crate::platform::reveal(&path),
             _ => {}
         }

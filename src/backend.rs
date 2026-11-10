@@ -66,6 +66,7 @@ pub use sponsored::{Sponsored, SponsoredReport};
 mod notify;
 mod sounds;
 mod stream;
+pub mod proxy;
 pub use sounds::{RINGTONE_EXTS, ReactFrom, ReactionNotify, Ringtone, Sound};
 mod translate;
 mod contacts;
@@ -426,6 +427,10 @@ pub enum Cmd {
     LoadNotifyExceptions(NotifyScope),
     /// Drop a chat's own notification settings: it follows its category again.
     ResetNotify(PeerId),
+    /// Send connections through this proxy link from now on (empty: straight to Telegram).
+    SetProxy(String),
+    /// Whether a proxy reaches Telegram, and its ping.
+    CheckProxy(String),
     /// The account's saved ringtones, then their files into the cache.
     LoadRingtones,
     /// Upload an audio file as a new ringtone (`account.uploadRingtone`).
@@ -734,6 +739,8 @@ pub enum Ev {
     /// Chats with a sound of their own or silent notifications, from a dialog load.
     ChatSounds(Vec<(PeerId, NotifyState)>),
     Ringtones(Vec<Ringtone>),
+    /// A proxy's check: its ping in milliseconds, or why it doesn't work.
+    ProxyChecked { link: String, result: Result<u32, String> },
     /// A ringtone's file is in the cache.
     RingtoneFile { id: i64, path: PathBuf },
     RingtoneUploadFailed,
@@ -1127,6 +1134,7 @@ impl Worker {
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } | Cmd::BotWriteAccess { .. } | Cmd::SharePhone { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
+            cmd @ (Cmd::SetProxy(_) | Cmd::CheckProxy(_)) => self.proxy_cmd(cmd).await,
             cmd @ (Cmd::LoadRingtones | Cmd::UploadRingtone(_) | Cmd::DeleteRingtone(_) | Cmd::LoadReactionNotify | Cmd::SetReactionNotify(_)) => self.sounds_cmd(cmd).await,
             cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. } | Cmd::SetAdsEnabled(_)) => self.sponsored_cmd(cmd).await,
             Cmd::WebPreview(text) => self.web_preview(text),
@@ -1181,9 +1189,8 @@ impl Worker {
                 self.out.replay(Ev::Outbox(queued));
             }
         }
-        let proxy = crate::settings::Settings::load().proxy;
         let params = grammers_client::sender::ConnectionParams {
-            proxy_url: (!proxy.is_empty() && crate::settings::proxy_error(&proxy).is_none()).then_some(proxy),
+            proxy_url: proxy::connection_url(&session).await,
             // Otherwise Active Sessions shows the grammers version as ours.
             app_version: env!("CARGO_PKG_VERSION").to_owned(),
             ..Default::default()

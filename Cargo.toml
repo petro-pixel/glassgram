@@ -45,6 +45,10 @@ rfd = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+# MTProto proxies (backend/proxy.rs): AES-256-CTR and CRC32, both already in the build, pure Rust.
+aes = "0.9"
+ctr = "0.10"
+crc32fast = "1"
 sys-locale = "0.3"
 tokio = { version = "1.54.1", features = ["full"] }
 

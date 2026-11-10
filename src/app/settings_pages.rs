@@ -583,13 +583,7 @@ impl App {
         let cameras = self.cameras.get_or_insert_with(camera::list).clone();
         let (can_play, can_record) = (self.playback.available, self.rec.available);
         egui::ScrollArea::vertical().id_salt("settings-advanced").auto_shrink(false).show(ui, |ui| {
-            section_title(ui, l!("Проксі SOCKS5", "SOCKS5 proxy"));
-            let r = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover()).0;
-            glass::text_field(ui, r, &mut self.settings.proxy, "socks5://127.0.0.1:1080", false);
-            match settings::proxy_error(&self.settings.proxy) {
-                Some(e) => ui.label(egui::RichText::new(e).color(glass::DANGER).size(12.5)),
-                None => ui.label(egui::RichText::new(l!("Діє після перезапуску програми", "Takes effect after restart")).color(ink_dim()).size(12.5)),
-            };
+            self.proxy_section(ui);
             ui.add_space(10.0);
             section_title(ui, l!("Камера для відеоповідомлень", "Camera for video messages"));
             if cameras.is_empty() {
@@ -661,10 +655,7 @@ impl App {
         child.set_clip_rect(body);
         self.settings_page(&mut child, tab);
         if self.settings != before {
-            // Don't save an invalid proxy, so as not to break the next connection.
-            if settings::proxy_error(&self.settings.proxy).is_none() {
-                self.settings.save();
-            }
+            self.settings.save();
             if self.settings.lang != before.lang {
                 crate::i18n::set(&self.settings.lang);
                 if let Some(t) = &self.tray {
@@ -692,6 +683,7 @@ impl App {
         } else if done || esc {
             self.settings_open = false;
             self.profile_edit = None;
+            self.forget_proxy_checks();
         }
     }
 

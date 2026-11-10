@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 64%** `█████████████░░░░░░░` — 113 done, 8 partial, 61 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 65%** `█████████████░░░░░░░` — 113 done, 9 partial, 60 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -24,7 +24,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Notifications**: system ones on Linux, Windows and macOS with "Reply" and "Mark as read" buttons (Linux, Windows), sounds with the account's ringtones and a chat's own sound, a counter in the window title, a tray icon
 - **Languages**: Ukrainian and English built into the code, German and any other language from localisation files (`locales/*.json`, see below)
 - **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
-- **Settings** (⚙): language, theme (dark, light, system), interface scale, notifications, autoplay, SOCKS5 proxy, privacy, active sessions, local passcode; stored in `~/.local/share/glassgram/settings`
+- **Settings** (⚙): language, theme (dark, light, system), interface scale, notifications, autoplay, SOCKS5 and MTProto proxies (several, switched on the fly, with ping), privacy, active sessions, local passcode; stored in `~/.local/share/glassgram/settings`
 - **Settings layout** as in Telegram Desktop: My Account (name, bio, username with availability check and its QR code, profile photo) · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language · My Stars (balance and history with All / Incoming / Outgoing tabs; a click on a transaction shows its details)
 - **Send queue**: text messages, files, voice and round video messages show up at once (clock), are retried while offline and survive a restart; failed ones get a red mark with Retry / Delete
 - **Glass**: real blur via a wgpu shader (`src/blur.rs`, `src/glass.wgsl`); without wgpu — a vector fallback
@@ -160,6 +160,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/calendar.rs` | "Jump to date" calendar over the chat (the request is `Cmd::JumpToDate` in `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Notifications for chats: private / groups / channels defaults, exceptions, resolving a chat's mute state from its category |
 | `src/app/alerts.rs` | Message notifications: "Reply" and "Mark as read" buttons, a click opens the chat, one notification per chat with a counter (Linux) |
+| `src/app/proxy.rs`, `src/backend/proxy.rs` | Proxies: the saved list with pings, switching without a restart, `t.me/proxy` links; a local SOCKS5 bridge for grammers that forwards straight, via SOCKS5 or in MTProxy's obfuscated transport |
 | `src/app/sounds.rs`, `src/backend/sounds.rs` | Notification sounds: the built-in chime, saved ringtones (list, add, delete, cached files), a chat's own sound, reaction notification settings |
 | `src/app/sponsored.rs`, `src/backend/sponsored.rs` | Sponsored messages in channel history (after the newest post and between posts, media ads): "Ad" bubble, view and click reports, "About this ad", reporting, hiding for Premium |
 | `src/app/suggest.rs`, `src/backend/suggest.rs` | Link previews (in bubbles and above the composer), @mention and bot command suggestions, "Start" for bots |
