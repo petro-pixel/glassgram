@@ -80,7 +80,7 @@ impl App {
         }
     }
 
-    fn close_chat(&mut self) {
+    pub(super) fn close_chat(&mut self) {
         self.leave_chat();
         self.selected = None;
         self.forum.open = None;

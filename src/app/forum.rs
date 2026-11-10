@@ -58,10 +58,11 @@ impl App {
             }
         });
         glass::glass(ui.painter(), header, Glass::tinted(HEADER_H / 2.0, glass::chrome(), 110).with_shadow().frosted(0.96));
+        let lead = if self.back_to_list(ui, header) { super::layout::BACK_W } else { 0.0 };
         let p = ui.painter();
         let tex = self.textures.get(&ImgKey::Avatar(peer));
-        glass::avatar(p, pos2(header.left() + 34.0, header.center().y), 21.0, &chat.title, peer.bot_api_dialog_id_unchecked(), kind_icon(chat.kind), tex);
-        let text_x = header.left() + 66.0;
+        glass::avatar(p, pos2(header.left() + 34.0 + lead, header.center().y), 21.0, &chat.title, peer.bot_api_dialog_id_unchecked(), kind_icon(chat.kind), tex);
+        let text_x = header.left() + 66.0 + lead;
         p.galley(pos2(text_x, header.center().y - 20.0), elided(ui, &chat.title, 16.5, ink(), header.right() - text_x - 20.0), ink());
         let n = self.forum.topics.get(&peer).map_or(0, Vec::len);
         p.text(pos2(text_x, header.center().y + 11.0), Align2::LEFT_CENTER, lf!("форум · тем: {n}", "forum · topics: {n}"), FontId::proportional(12.5), ink_dim());

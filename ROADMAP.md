@@ -209,7 +209,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ⬜ **P1** Blurring chat content under the header and composer (capturing the frame into a wgpu texture)
 - ✅ "Reduce transparency", "Increase contrast" and "Reduce motion" (Settings → Chat Settings → Accessibility): solid glass without blur, denser surfaces with clear rims and darker captions, a still background and no egui animations
 - ⬜ **P1** Animations: spring transitions, bubbles appearing, switching folders (150–350 ms)
-- ⬜ **P1** Wide mode with a third column (chat info) and a narrow mode for small windows
+- ✅ Wide mode with a third column (chat info) and a narrow mode for small windows (`app/layout.rs`): the info panel squeezes the chat while it keeps 420 pt and slides in/out, otherwise it overlays the chat; below list 250 + chat 560 pt one column at a time, the open chat pushing the list out, with a back arrow in the header (Esc too)
 - ⬜ **P2** Accessibility: AccessKit (screen readers), full keyboard navigation
 - ⬜ **P3** Right-to-left languages
 

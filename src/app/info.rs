@@ -16,8 +16,6 @@ use crate::player;
 
 /// Info column width; narrower windows get it as an overlay over the chat.
 pub(super) const INFO_W: f32 = 340.0;
-/// Below this chat width the column overlays the chat instead of squeezing it.
-pub(super) const INFO_MIN_CHAT: f32 = 420.0;
 
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum Tab {

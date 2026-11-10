@@ -366,18 +366,21 @@ impl App {
                 self.compose = Compose::New;
             }
         } else {
+            // A narrow window shows the chat alone: the back arrow returns to the list.
+            let lead = if self.back_to_list(ui, header) { layout::BACK_W } else { 0.0 };
             let tex = self.textures.get(&ImgKey::Avatar(peer));
-            glass::avatar(&p, pos2(header.left() + 34.0, header.center().y), 21.0, &chat.title, peer.bot_api_dialog_id_unchecked(), kind_icon(chat.kind), tex);
+            glass::avatar(&p, pos2(header.left() + 34.0 + lead, header.center().y), 21.0, &chat.title, peer.bot_api_dialog_id_unchecked(), kind_icon(chat.kind), tex);
         }
+        let lead = if topic.is_none() && self.layout.narrow { layout::BACK_W } else { 0.0 };
         let search_btn = Rect::from_center_size(pos2(header.right() - 32.0, header.center().y), vec2(38.0, 38.0));
         let searching = self.chat_search.is_some();
         if glass::icon_button(ui, search_btn, "chat-search", Icon::Search, searching, true).on_hover_text(l!("Пошук у чаті", "Search in chat")).clicked() {
             self.chat_search = if searching { None } else { Some(Search::default()) };
         }
-        let text_x = header.left() + 66.0;
+        let text_x = header.left() + 66.0 + lead;
         if self.chat_search.is_none() {
             // Click on the title opens chat info, as in Telegram Desktop.
-            let left = if topic.is_some() { header.left() + 60.0 } else { header.left() + 8.0 };
+            let left = if topic.is_some() { header.left() + 60.0 } else { header.left() + 8.0 + lead };
             let area = Rect::from_min_max(pos2(left, header.top()), pos2(search_btn.left() - 6.0, header.bottom()));
             let resp = ui.interact(area, ui.scope_id().with(("chat-title", peer)), Sense::click());
             if resp.hovered() {

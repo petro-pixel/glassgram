@@ -95,6 +95,7 @@ mod spoiler;
 mod custom_emoji;
 mod videoplayer;
 mod userqr;
+mod layout;
 use chatlist::{Reorder, sort_chats};
 use newchat::NewChat;
 
@@ -512,6 +513,8 @@ pub struct App {
     composer_h: f32,
     /// Forum topics, the open topic and the topic editor.
     forum: forum::Forum,
+    /// Narrow, normal or wide window: how many columns are shown.
+    layout: layout::Layout,
     comments: Option<CommentsView>,
     /// Public chats from the global search by name.
     public_hits: Vec<ChatInfo>,
@@ -791,6 +794,7 @@ impl App {
             demo: false,
             composer_h: COMPOSER_H,
             forum: forum::Forum::default(),
+            layout: layout::Layout::default(),
             comments: None,
             public_hits: Vec::new(),
             export_ask: None,
@@ -1528,32 +1532,6 @@ impl App {
     // ───────────────────────────── Sign-in ─────────────────────────────
 
     // ───────────────────────────── Main screen ─────────────────────────────
-
-    fn main_view(&mut self, ui: &mut Ui) {
-        let mut full = ui.max_rect().shrink(GAP);
-        if self.settings.folders_side && self.has_folder_bar() {
-            let column = Rect::from_min_size(full.min, vec2(chatlist::COLUMN_W, full.height()));
-            self.folder_column(ui, column);
-            full.min.x = column.right() + GAP;
-        }
-        let side_w = (full.width() * 0.34).clamp(250.0, 370.0);
-        let side = Rect::from_min_size(full.min, vec2(side_w, full.height()));
-        let mut chat = Rect::from_min_max(pos2(side.right() + GAP, full.top()), full.max);
-        self.sidebar(ui, side);
-        // Info column: beside the chat when there is room, otherwise over its right edge.
-        self.sync_info();
-        let info = self.info.is_some().then(|| {
-            let r = Rect::from_min_max(pos2(chat.right() - info::INFO_W.min(chat.width()), chat.top()), chat.max);
-            if chat.width() - info::INFO_W - GAP >= info::INFO_MIN_CHAT {
-                chat.max.x = r.left() - GAP;
-            }
-            r
-        });
-        self.chat_area(ui, chat);
-        if let Some(r) = info {
-            self.info_view(ui, r);
-        }
-    }
 
     /// Unread counter in the window title (like a taskbar badge).
     fn update_title(&mut self, ui: &Ui) {

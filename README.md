@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 63%** `█████████████░░░░░░░` — 112 done, 7 partial, 63 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 64%** `█████████████░░░░░░░` — 113 done, 7 partial, 62 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -165,6 +165,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 | `src/app/info.rs`, `src/backend/info.rs` | Chat info column: profile, members, shared media, per-chat notifications, leave / clear / delete |
 | `src/app/settings_pages.rs` | Settings pages (Telegram Desktop layout), My Account editor |
 | `src/app/userqr.rs` | QR code of a public username in six designs, drawn on the CPU (`vello_cpu`): copy, save as PNG |
+| `src/app/layout.rs` | Window layout modes: narrow (one column), normal, wide (chat info as a third column) |
 | `src/app/hotkeys.rs` | Keyboard shortcuts |
 | `src/app/outbox.rs` | Send queue: pending/failed bubbles, retries with backoff |
 | `src/app/chatlist.rs` | Folder column and tabs, dragging pinned chats and folders |
@@ -194,6 +195,7 @@ Ukrainian and English live in the code. Every other language is a JSON file keye
 - 🙂 — sticker panel: emoji, GIF (saved GIFs), 🔍 (search sticker sets; empty — trending), ★ favourite and 🕒 recent stickers, then the installed sets; ⚙ — your sets: order (↑/↓) and removing. Right click on a sticker: add to / remove from favourites, view its set. A click on a sticker in a chat (or a `t.me/addstickers/…` link) opens its set: all stickers, "Add" / "Remove", copy link; right click on a sticker in a chat — "View sticker set", "Add to Favourites", on a GIF — "Save GIF". An emoji typed alone offers matching stickers above the field.
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.
+- A wide window shows chat info as a third column beside the chat; a narrow one shows the chat list or the open chat alone, with a back arrow in the chat header (Esc also returns to the list).
 - Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat; admins right-click a member to promote, restrict or remove them), shared media tabs, leave / clear history / delete chat. Admins open invite links, join requests, administrators, restricted and removed users from the "Edit" box (pencil) or, without the right to edit, from the people icon in the header.
 - Composer markup: `**bold**`, `__italic__`, `~~strike~~`, `||spoiler||`, `` `code` ``, ```` ```block``` ````, `[text](https://…)`.
 - Clicking a hashtag searches for it in the chat; clicking a bot command sends it.
