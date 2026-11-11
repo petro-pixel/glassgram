@@ -266,6 +266,8 @@ struct Look<'a> {
     pending: Option<bool>,
     /// The media waits for a click: auto-download is off for it.
     manual: bool,
+    /// The text is a whole-chat translation: marked next to the time.
+    translated: bool,
 }
 
 /// Playback state for a media card.
@@ -396,6 +398,8 @@ enum ChatAction {
     Unread,
     Archive(bool),
     Export,
+    /// Translate the whole chat, bringing back a translate bar hidden earlier.
+    Translate,
 }
 
 /// Search: what was typed, what was already requested and what came back.
@@ -573,6 +577,8 @@ pub struct App {
     /// "Translate" window and the last language chosen in it.
     translate: Option<translate::TranslateView>,
     translate_to: Option<String>,
+    /// Whole-chat translation: the bar, translations kept per chat.
+    chat_translate: translate::ChatTranslate,
     /// "New contact" / "Add to contacts" box.
     contact_form: Option<contacts::ContactForm>,
     /// Blocked users for Privacy and Security (`None` — not loaded).
@@ -865,6 +871,7 @@ impl App {
             calendar: None,
             translate: None,
             translate_to: None,
+            chat_translate: Default::default(),
             contact_form: None,
             blocked: None,
             polls: polls::Polls::default(),
@@ -1120,6 +1127,7 @@ impl App {
             Ev::Translated { peer, id, to, result } => self.translated(peer, id, to, result),
             Ev::Transcribed { peer, id, result } => self.on_transcribed(peer, id, result),
             Ev::Summarized { peer, id, result } => self.on_summarized(peer, id, result),
+            ev @ (Ev::TranslationOffer { .. } | Ev::TranslatedMany { .. }) => self.chat_translate_event(ev),
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. } | Ev::BotWriteAccess { .. } | Ev::PhoneShared { .. }) => self.web_app_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
@@ -1321,13 +1329,17 @@ impl App {
     }
 
     fn apply_chat(&mut self, peer: PeerId, action: ChatAction) {
+        if matches!(action, ChatAction::Translate) {
+            self.translate_chat(peer);
+            return;
+        }
         if matches!(action, ChatAction::Export) {
             self.export_ask = Some((peer, false));
             return;
         }
         let Some(c) = self.chat_mut(peer) else { return };
         let cmd = match action {
-            ChatAction::Export => return,
+            ChatAction::Export | ChatAction::Translate => return,
             ChatAction::Pin(pinned) => {
                 c.pinned = pinned;
                 // A newly pinned chat goes on top of the pinned ones, as in Telegram.
@@ -1964,6 +1976,9 @@ fn chat_menu(ui: &mut Ui, chat: &ChatInfo) -> Option<ChatAction> {
         item(ui, icon, label, ChatAction::Archive(!chat.archived));
     }
     ui.separator();
+    if chat.kind != ChatKind::Saved {
+        item(ui, Icon::Translate, l!("Перекласти чат", "Translate chat"), ChatAction::Translate);
+    }
     item(ui, Icon::Export, l!("Експортувати історію…", "Export chat history…"), ChatAction::Export);
     action
 }

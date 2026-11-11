@@ -602,7 +602,7 @@ pub(super) fn bubble(
     });
     let heard = aitext::transcript(&p, m, text_w.min(320.0));
     // Trailing spaces leave room for the ticks drawn on top.
-    let meta_text = format!("{}{}{}{}", chatview::views_label(m, look), if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
+    let meta_text = format!("{}{}{}{}{}", chatview::views_label(m, look), if look.translated { l!("переклад · ", "translated · ") } else { "" }, if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
     let badge = effects::badge(ui.ctx(), m);
     let (meta, badge_w) = effects::meta(&p, badge.as_deref(), &meta_text, rgba(ink(), 170));
     let mut badge_rect = None;

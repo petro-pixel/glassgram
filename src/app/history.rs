@@ -130,7 +130,7 @@ impl App {
         let mut open_calendar = None;
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect);
-        let pin_h = self.music_bar_h() + self.pin_bar_h(peer) + self.saved_bar_h(peer);
+        let pin_h = self.music_bar_h() + self.translate_bar_h(peer) + self.pin_bar_h(peer) + self.saved_bar_h(peer);
         let scroll_bottom = std::mem::take(&mut self.scroll.to_bottom);
         let scrolled = egui::ScrollArea::vertical()
             .id_salt(("history", peer))
@@ -231,6 +231,7 @@ impl App {
                                     chat: Some(chat),
                                     pending: None,
                                     manual: album.iter().any(|m| self.media_manual(peer, chat, m)),
+                                    translated: false,
                                 };
                                 let texs: Vec<_> = album.iter().map(|m| self.media_tex(peer, m)).collect();
                                 let hidden: Vec<bool> = album.iter().map(|m| self.media_hidden(peer, m)).collect();
@@ -267,6 +268,7 @@ impl App {
                 }
             });
         self.track_bottom(&scrolled);
+        self.translate_wanted(peer);
         self.effects_frame(ui, peer, rect, now);
         self.view_once_frame();
         if let Some(before) = load_older {
@@ -323,6 +325,8 @@ impl App {
         let revealed = self.revealed.contains(&(peer, m.id));
         let bubble_top = ui.cursor().top();
         let chosen = self.multi_vote.get(&(peer, m.id)).map_or(&[][..], |v| v.as_slice());
+        // A whole-chat translation replaces the text.
+        let shown = self.translated_msg(peer, m);
         let look = Look {
             chosen,
             group,
@@ -334,10 +338,12 @@ impl App {
             chat: Some(chat),
             pending: self.pending_state(m.id),
             manual,
+            translated: shown.is_some(),
         };
-        if let Some(a) = bubble(ui, m, look, reply, photo, sticker) {
+        if let Some(a) = bubble(ui, shown.as_ref().unwrap_or(m), look, reply, photo, sticker) {
             action = Some(a);
         }
+        self.want_translation(ui, peer, m, bubble_top);
         if let Some(n) = m.comments {
             let w = (ui.available_width() * 0.72).min(340.0);
             let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
