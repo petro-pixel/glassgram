@@ -38,6 +38,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.7.0" date="2026-11-12">
+      <description>
+        <p>The interface in every language Telegram Desktop offers, with proper plural forms; MTProto and SOCKS5 proxies switched without a restart; spring animations and chat content blurred under the glass; animated custom emoji in messages; message effects and view-once photos and videos; sending as a channel; name colours, profile colour and emoji status; voice transcription and AI summaries of long posts; translating whole chats; a music player with a queue; profile stories, albums and the archive; attachment menu bots and logging in to websites with Telegram; send when online; retracting votes and stopping polls; folders sent as zip archives; an unread badge on the taskbar or dock icon.</p>
+      </description>
+    </release>
     <release version="0.6.1" date="2026-11-10">
       <description>
         <p>Search tabs (chats, channels, apps, posts, media), sticker sets and saved GIFs, checklists and poll results, administration (admin rights, bans, join requests, invite links), My Stars, custom emoji in messages, a video player with seeking, full screen and picture-in-picture that streams large videos, chat wallpapers and themes, username QR codes, notification sounds and ringtones, Reply and Mark as read in notifications, narrow and wide window modes, a formatting bar over selected text, clearer glass with a refracting rim, smaller binaries.</p>
