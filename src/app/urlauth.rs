@@ -92,7 +92,12 @@ impl App {
         let Some((ask, write)) = self.url_auth.ask.take() else { return };
         match i {
             // Declined: the plain address, without logging in.
-            1 => self.url_auth_open(&ask.url),
+            1 => {
+                if matches!(ask.from, UrlAuthFrom::Link) {
+                    self.send(Cmd::DeclineUrlAuth { url: ask.url.clone() });
+                }
+                self.url_auth_open(&ask.url);
+            }
             2 => self.send(Cmd::AcceptUrlAuth { write_allowed: ask.write_access && write, from: ask.from, url: ask.url }),
             _ => {}
         }

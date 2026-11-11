@@ -91,6 +91,10 @@ impl Worker {
                 };
                 self.out.send(Ev::UrlAuthOpen(open));
             }
+            Cmd::DeclineUrlAuth { url } => {
+                // Only informs the server; the plain link is opened either way.
+                let _ = self.client()?.invoke(&tl::functions::messages::DeclineUrlAuth { url }).await;
+            }
             _ => {}
         }
         Ok(())

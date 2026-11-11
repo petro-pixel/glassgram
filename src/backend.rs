@@ -376,6 +376,8 @@ pub enum Cmd {
     RequestUrlAuth { from: UrlAuthFrom, url: String },
     /// The user agreed to log in; the answer is the signed URL to open.
     AcceptUrlAuth { from: UrlAuthFrom, url: String, write_allowed: bool },
+    /// The user chose "Don't log in" for a link; the server is told, as Telegram Desktop does.
+    DeclineUrlAuth { url: String },
     /// New title and / or description of a group or channel (`None` — unchanged).
     EditChat { peer: PeerId, title: Option<String>, about: Option<String> },
     SetChatPhoto { peer: PeerId, path: PathBuf },
@@ -784,6 +786,8 @@ pub enum Ev {
     AttachBotFound { peer: PeerId, bot: AttachBot, start_param: String },
     /// A bot was added to the attachment menu or removed.
     AttachBotToggled { bot: PeerId, enabled: bool },
+    /// `updateAttachMenuBots`: the menu changed (e.g. on another device), so it is loaded again.
+    AttachBotsChanged,
     /// Domains whose links go through `requestUrlAuth`.
     UrlAuthDomains(Vec<String>),
     /// A site offers logging in: ask the user.
@@ -1263,7 +1267,7 @@ impl Worker {
             cmd @ (Cmd::LoadPassword | Cmd::CheckPassword(_) | Cmd::UpdatePassword { .. } | Cmd::ConfirmPasswordEmail(_) | Cmd::ResendPasswordEmail | Cmd::CancelPasswordEmail) => self.password_cmd(cmd).await,
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } | Cmd::BotWriteAccess { .. } | Cmd::SharePhone { .. }) => self.webapp_cmd(cmd).await,
             cmd @ (Cmd::LoadAttachBots { .. } | Cmd::OpenAttachLink { .. } | Cmd::ToggleAttachBot { .. }) => self.attach_bots_cmd(cmd).await,
-            cmd @ (Cmd::LoadUrlAuthDomains | Cmd::RequestUrlAuth { .. } | Cmd::AcceptUrlAuth { .. }) => self.url_auth_cmd(cmd).await,
+            cmd @ (Cmd::LoadUrlAuthDomains | Cmd::RequestUrlAuth { .. } | Cmd::AcceptUrlAuth { .. } | Cmd::DeclineUrlAuth { .. }) => self.url_auth_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
             cmd @ (Cmd::SetProxy(_) | Cmd::CheckProxy(_)) => self.proxy_cmd(cmd).await,

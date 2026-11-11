@@ -73,6 +73,10 @@ impl App {
                 self.attach.hash = hash;
                 self.attach.bots = bots;
             }
+            Ev::AttachBotsChanged => {
+                self.attach.requested = false;
+                self.attach_bots_load();
+            }
             Ev::AttachBotFound { peer, bot, start_param } => {
                 if bot.inactive {
                     let write = bot.write_access;

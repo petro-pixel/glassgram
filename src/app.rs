@@ -1143,7 +1143,7 @@ impl App {
             Ev::Summarized { peer, id, result } => self.on_summarized(peer, id, result),
             ev @ (Ev::TranslationOffer { .. } | Ev::TranslatedMany { .. }) => self.chat_translate_event(ev),
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. } | Ev::BotWriteAccess { .. } | Ev::PhoneShared { .. }) => self.web_app_event(ev),
-            ev @ (Ev::AttachBots { .. } | Ev::AttachBotFound { .. } | Ev::AttachBotToggled { .. }) => self.attach_bots_event(ev),
+            ev @ (Ev::AttachBots { .. } | Ev::AttachBotFound { .. } | Ev::AttachBotToggled { .. } | Ev::AttachBotsChanged) => self.attach_bots_event(ev),
             ev @ (Ev::UrlAuthDomains(_) | Ev::UrlAuthAsk(_) | Ev::UrlAuthOpen(_)) => self.url_auth_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),

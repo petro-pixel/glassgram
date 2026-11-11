@@ -738,7 +738,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         cmd @ (Cmd::LoadSendAs(_) | Cmd::SaveSendAs { .. }) => sendas::handle(app, cmd),
         cmd @ (Cmd::LoadMusic(_) | Cmd::LoadSavedMusic(_) | Cmd::LoadSavedTrack { .. }) => music::handle(app, cmd),
         cmd @ (Cmd::LoadTranslationOffer(_) | Cmd::TranslateMany { .. } | Cmd::TogglePeerTranslations { .. }) => translate::handle(app, cmd),
-        cmd @ (Cmd::LoadAttachBots { .. } | Cmd::OpenAttachLink { .. } | Cmd::ToggleAttachBot { .. } | Cmd::LoadUrlAuthDomains | Cmd::RequestUrlAuth { .. } | Cmd::AcceptUrlAuth { .. }) => attach::handle(app, cmd),
+        cmd @ (Cmd::LoadAttachBots { .. } | Cmd::OpenAttachLink { .. } | Cmd::ToggleAttachBot { .. } | Cmd::LoadUrlAuthDomains | Cmd::RequestUrlAuth { .. } | Cmd::AcceptUrlAuth { .. } | Cmd::DeclineUrlAuth { .. }) => attach::handle(app, cmd),
         Cmd::LoadSimilarChannels(peer) => {
             let chats = [(61, "Rust Weekly", 12480), (62, "Design Daily", 8115), (63, "Open Source UA", 3902)]
                 .into_iter()
