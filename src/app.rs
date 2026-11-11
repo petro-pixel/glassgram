@@ -96,6 +96,7 @@ mod searchtabs;
 mod autodl;
 mod spoiler;
 mod custom_emoji;
+mod namecolor;
 mod videoplayer;
 mod userqr;
 mod layout;
@@ -573,6 +574,7 @@ pub struct App {
     send_box: Option<sendbox::SendBox>,
     spoilers: spoiler::Spoilers,
     custom_emoji: custom_emoji::CustomEmoji,
+    name_colors: namecolor::NameColors,
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
     langpacks: langpack::LangPacks,
@@ -677,6 +679,7 @@ impl App {
             app.session_extras = true;
             app.send(Cmd::LoadBirthdays);
             app.send(Cmd::LoadStories);
+            app.send(Cmd::LoadPeerColors);
             app.screen = Screen::Main;
             return app;
         }
@@ -852,6 +855,7 @@ impl App {
             send_box: None,
             spoilers: spoiler::Spoilers::default(),
             custom_emoji: custom_emoji::CustomEmoji::default(),
+            name_colors: namecolor::NameColors::default(),
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
             langpacks: langpack::LangPacks::default(),
@@ -999,6 +1003,8 @@ impl App {
                 self.textures.insert(key, tex);
             }
             Ev::CustomEmojiFile { id, path } => self.custom_emoji.on_file(id, path),
+            Ev::PeerColors { names, profiles } => self.on_peer_colors(names, profiles),
+            Ev::EmojiStatuses(ids) => self.on_emoji_statuses(ids),
             ev @ (Ev::Contacts(_) | Ev::ContactResults { .. } | Ev::ChatCreated(_) | Ev::ChannelUsernameCheck { .. }) => self.new_chat_event(ev),
             Ev::Error(e) => {
                 crate::errlog::record(&e);
@@ -1273,6 +1279,7 @@ impl App {
                 noforwards: false,
                 can_pin: false,
                 restricted: None,
+                emoji_status: None,
             });
         }
         self.open_chat(peer);
@@ -1847,9 +1854,11 @@ fn chat_row(
         tx += 19.0;
     }
     let mute_w = if chat.muted { 18.0 } else { 0.0 };
-    let title = elided(ui, &chat.title, 15.0, ink(), rect.right() - tx - time_w - 22.0 - mute_w);
+    let status_w = if chat.emoji_status.is_some() { namecolor::STATUS_PT + 4.0 } else { 0.0 };
+    let title = elided(ui, &chat.title, 15.0, ink(), rect.right() - tx - time_w - 22.0 - mute_w - status_w);
     let title_w = title.size().x;
     p.galley(pos2(tx, mid - above), title, ink());
+    let title_w = title_w + namecolor::status_after(p, pos2(tx + title_w, title_y), chat.emoji_status, namecolor::STATUS_PT);
     if chat.muted {
         icons::draw(p, Rect::from_center_size(pos2(tx + title_w + 11.0, title_y), vec2(13.0, 13.0)), Icon::Muted, ink_dim());
     }

@@ -241,6 +241,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         peer: m.peer_id(),
         out: m.outgoing(),
         sender: m.sender().map(peer_title).unwrap_or_default(),
+        sender_color: m.sender().map(namecolor::name_color),
         text,
         time: clock(m.date()),
         ts: m.date().as_second(),
@@ -379,6 +380,7 @@ pub(super) fn found_chat(peer: &Peer, last_text: String) -> ChatInfo {
         noforwards: noforwards(peer),
         can_pin: can_pin(peer),
         restricted: chat_restriction(peer),
+        emoji_status: namecolor::emoji_status(peer).filter(|_| peer_kind(peer) != ChatKind::Saved),
     }
 }
 

@@ -555,7 +555,7 @@ pub(super) fn bubble(
     ui: &mut Ui,
     m: &Msg,
     look: Look,
-    reply: Option<(String, String)>,
+    reply: Option<(String, String, Option<i32>)>,
     photo: Option<&TextureHandle>,
     sticker: Option<&TextureHandle>,
 ) -> Option<Action> {
@@ -594,11 +594,18 @@ pub(super) fn bubble(
     // Trailing spaces leave room for the ticks drawn on top.
     let meta = format!("{}{}{}{}", chatview::views_label(m, look), if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
     let meta = p.layout_no_wrap(meta, FontId::proportional(11.0), rgba(ink(), 170));
-    let name_color = glass::name_color(m.sender.len() as i64 * 31 + m.sender.chars().next().map_or(0, |c| c as i64));
+    let name_color = namecolor::sender_color(m);
     let sender = (show_sender && !m.out && !m.sender.is_empty())
         .then(|| elided(ui, &m.sender, 13.0, name_color, text_w));
     let (quote_accent, quote_text) = if m.out { (ink(), rgba(ink(), 200)) } else { (ACCENT, ink_dim()) };
-    let reply = reply.map(|(who, what)| (elided(ui, &who, 12.5, quote_accent, text_w - 12.0), elided(ui, &what, 13.0, quote_text, text_w - 12.0)));
+    // In incoming bubbles the quote takes the replied author's colour, as in Telegram.
+    let reply = reply.map(|(who, what, color)| {
+        let tones = match color.filter(|_| !m.out) {
+            Some(c) => glass::peer_stripe(c),
+            None => vec![quote_accent],
+        };
+        (elided(ui, &who, 12.5, tones[0], text_w - 12.0), elided(ui, &what, 13.0, quote_text, text_w - 12.0), tones)
+    });
     let fwd = m.forwarded.as_ref().map(|from| elided(ui, &lf!("Переслано від {from}", "Forwarded from {from}"), 12.5, quote_accent, text_w));
 
     // Text block under the photo (or the whole bubble if there is no photo).
@@ -611,7 +618,7 @@ pub(super) fn bubble(
         block.x = block.x.max(s.size().x);
         block.y += s.size().y + 2.0;
     }
-    if let Some((a, b)) = &reply {
+    if let Some((a, b, _)) = &reply {
         block.x = block.x.max(a.size().x.max(b.size().x) + 12.0).max(140.0);
         block.y += REPLY_H + 4.0;
     }
@@ -717,11 +724,11 @@ pub(super) fn bubble(
         p.galley(cursor, s, ink());
         cursor.y += h + 2.0;
     }
-    if let Some((a, b)) = reply {
+    if let Some((a, b, tones)) = reply {
         let r = Rect::from_min_size(cursor, vec2(block.x, REPLY_H));
-        p.rect_filled(r, 8.0, glass::veil(16));
-        p.rect_filled(Rect::from_min_size(r.min, vec2(3.0, REPLY_H)), 2.0, quote_accent);
-        p.galley(r.min + vec2(10.0, 4.0), a, quote_accent);
+        p.rect_filled(r, 8.0, if m.out { glass::veil(16) } else { glass::rgba(tones[0], 26) });
+        glass::stripe(&p, Rect::from_min_size(r.min, vec2(3.0, REPLY_H)), &tones);
+        p.galley(r.min + vec2(10.0, 4.0), a, tones[0]);
         p.galley(r.min + vec2(10.0, 21.0), b, quote_text);
         cursor.y += REPLY_H + 4.0;
     }

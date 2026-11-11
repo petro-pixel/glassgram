@@ -107,6 +107,8 @@ mod stickers;
 pub use stickers::{DocRef, FAVED_SET, RECENT_SET, StickerSetInfo, StickerSetRef, addstickers_name};
 mod emojikw;
 mod custom_emoji;
+mod namecolor;
+pub use namecolor::{ColorOption, default_color};
 mod report;
 pub use report::ReportStep;
 pub use gifts::Gift;
@@ -390,6 +392,15 @@ pub enum Cmd {
     LoadEmojiKeywords(String),
     /// Pictures of custom emoji by document id; they come as `ImgKey::Emoji`.
     LoadCustomEmoji(Vec<i64>),
+    /// The server's name and profile colours beyond the built-in ones.
+    LoadPeerColors,
+    /// Our recent and the default emoji statuses, for the picker.
+    LoadEmojiStatuses,
+    /// Our name colour (`profile`: the profile one); `None` goes back to the default. `emoji` is
+    /// the background emoji, kept as it was: we don't pick it yet.
+    SetNameColor { profile: bool, color: Option<i32>, emoji: Option<i64> },
+    /// Our emoji status; `None` removes it.
+    SetEmojiStatus(Option<i64>),
     /// Channels similar to this one, for its profile.
     LoadSimilarChannels(PeerId),
     /// `t.me/<bot>?start=<param>`: open the bot chat ready to start with the parameter.
@@ -589,6 +600,10 @@ pub enum Ev {
     Image { key: ImgKey, image: ColorImage },
     /// The `.tgs` file of an animated custom emoji, played in text once its still picture is shown.
     CustomEmojiFile { id: i64, path: std::path::PathBuf },
+    /// Colours from `help.getPeerColors` / `help.getPeerProfileColors`.
+    PeerColors { names: Vec<ColorOption>, profiles: Vec<ColorOption> },
+    /// Emoji statuses to pick from (document ids), recent first.
+    EmojiStatuses(Vec<i64>),
     Folders(Vec<Folder>),
     /// Whether chat rows show folder tags.
     FolderTags(bool),
@@ -1140,6 +1155,7 @@ impl Worker {
             cmd @ Cmd::Report { .. } => self.report_cmd(cmd).await,
             cmd @ Cmd::LoadEmojiKeywords(_) => self.emoji_keywords_cmd(cmd).await,
             cmd @ Cmd::LoadCustomEmoji(_) => self.custom_emoji_cmd(cmd).await,
+            cmd @ (Cmd::LoadPeerColors | Cmd::LoadEmojiStatuses | Cmd::SetNameColor { .. } | Cmd::SetEmojiStatus(_)) => self.namecolor_cmd(cmd).await,
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
@@ -1452,6 +1468,7 @@ impl Worker {
                 noforwards: noforwards(peer),
                 can_pin: can_pin(peer),
                 restricted: chat_restriction(peer),
+                emoji_status: namecolor::emoji_status(peer).filter(|_| peer_kind(peer) != ChatKind::Saved),
             });
             peers.push(peer.clone());
         }

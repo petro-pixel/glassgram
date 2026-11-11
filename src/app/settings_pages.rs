@@ -207,6 +207,7 @@ impl App {
             SettingsTab::Account => {
                 self.profile_edit = Some(ProfileEdit::from(&self.profile));
                 self.birthdays.edit = None;
+                self.open_name_colors();
                 self.send(Cmd::LoadProfile);
             }
             _ => {}
@@ -362,6 +363,7 @@ impl App {
         let mut save_username = None;
         let mut other_usernames = None;
         let mut bday_cmd = None;
+        let mut color_cmd = None;
         let mut show_qr = false;
         egui::ScrollArea::vertical().id_salt("settings-account").auto_shrink(false).show(ui, |ui| {
             let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 96.0), Sense::hover());
@@ -441,6 +443,8 @@ impl App {
 
             other_usernames = usernames_section(ui, &p.usernames);
             bday_cmd = super::birthdays::birthday_section(ui, &mut self.birthdays.edit, p.birthday);
+            let name = format!("{} {}", p.first, p.last);
+            color_cmd = super::namecolor::appearance_section(ui, &mut self.name_colors, p, name.trim());
             if !p.phone.is_empty() {
                 section_title(ui, l!("Телефон", "Phone number"));
                 ui.label(egui::RichText::new(&p.phone).color(ink()).size(14.5));
@@ -450,7 +454,7 @@ impl App {
         if pick_photo {
             self.pick_profile_photo();
         }
-        if let Some(cmd) = bday_cmd {
+        if let Some(cmd) = bday_cmd.or(color_cmd) {
             self.send(cmd);
         }
         if let Some((first, last, bio)) = save {
