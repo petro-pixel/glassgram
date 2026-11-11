@@ -23,16 +23,16 @@ impl App {
     /// Every picture that arrives: a hidden one keeps a blurred copy for its cover.
     pub(super) fn on_spoiler_image(&mut self, key: ImgKey, image: &ColorImage) {
         let ImgKey::Photo(peer, id) = key else { return };
-        let hidden = self.history.get(&peer).is_some_and(|list| list.iter().any(|m| m.id == id && m.spoiler));
+        let hidden = self.history.get(&peer).is_some_and(|list| list.iter().any(|m| m.id == id && (m.spoiler || m.self_destructing())));
         if hidden && !self.spoilers.blurred.contains_key(&(peer, id)) {
             let tex = self.ctx.load_texture(format!("spoiler-{peer:?}-{id}"), blurred(image), TextureOptions::LINEAR);
             self.spoilers.blurred.insert((peer, id), tex);
         }
     }
 
-    /// The media of `m` is still under its spoiler.
+    /// The media of `m` is still under its spoiler, or behind a "view once" or timer cover.
     pub(super) fn media_hidden(&self, peer: PeerId, m: &Msg) -> bool {
-        m.spoiler && !self.revealed.contains(&(peer, m.id))
+        (m.spoiler && !self.revealed.contains(&(peer, m.id))) || m.self_destructing()
     }
 
     /// The picture to draw for `m`: its blurred copy while it is hidden.

@@ -71,7 +71,7 @@ impl App {
             Ok(to)
         };
         let kept = match media {
-            QueuedMedia::Files { paths, as_file, spoiler, above } => paths.iter().enumerate().map(|(k, p)| keep(k, p)).collect::<Result<Vec<_>, _>>().map(|paths| QueuedMedia::Files { paths, as_file, spoiler, above }),
+            QueuedMedia::Files { paths, as_file, spoiler, above, once } => paths.iter().enumerate().map(|(k, p)| keep(k, p)).collect::<Result<Vec<_>, _>>().map(|paths| QueuedMedia::Files { paths, as_file, spoiler, above, once }),
             QueuedMedia::Voice { path, duration, waveform } => keep(0, &path).map(|path| QueuedMedia::Voice { path, duration, waveform }),
             QueuedMedia::Round { path, duration } => keep(0, &path).map(|path| QueuedMedia::Round { path, duration }),
         };
@@ -90,7 +90,7 @@ impl App {
             Some(r) => (Some(r.id), r.peer, r.quote),
             None => (None, None, None),
         };
-        let q = Queued { key, peer, text, reply_to, silent: opts.silent, ts: ts.as_second(), failed: false, no_webpage: opts.no_webpage, quote, reply_peer, media };
+        let q = Queued { key, peer, text, reply_to, silent: opts.silent, ts: ts.as_second(), failed: false, no_webpage: opts.no_webpage, quote, reply_peer, media, effect: opts.effect };
         let id = self.new_local_id();
         let msg = self.queued_msg(&q, id);
         self.outbox.push(Pending { q, id, attempts: 0, next_at: 0.0, in_flight: false });

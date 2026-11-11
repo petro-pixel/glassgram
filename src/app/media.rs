@@ -159,7 +159,7 @@ impl App {
 
     /// Chat photos in order, for paging in the viewer.
     pub(super) fn photo_ids(&self, peer: PeerId) -> Vec<i32> {
-        self.history.get(&peer).map(|l| l.iter().filter(|m| m.photo).map(|m| m.id).collect()).unwrap_or_default()
+        self.history.get(&peer).map(|l| l.iter().filter(|m| m.photo && !m.self_destructing()).map(|m| m.id).collect()).unwrap_or_default()
     }
 
     pub(super) fn open_viewer(&mut self, peer: PeerId, id: i32) {
@@ -182,12 +182,15 @@ impl App {
         let full = self.textures.get(&ImgKey::Full(peer, id));
         let tex = full.or_else(|| self.textures.get(&ImgKey::Photo(peer, id))).cloned();
         let loading = full.is_none() && self.backend.is_some();
-        let ids = self.photo_ids(peer);
+        // A view-once photo is shown alone: no neighbours to page to, nothing to save.
+        let once = self.is_view_once(peer, id);
+        let ids = if once { Vec::new() } else { self.photo_ids(peer) };
         let pos = ids.iter().position(|x| *x == id).map_or(0, |i| i + 1);
         let caption = self.find(peer, id).map(|m| m.text.replace('\n', " ")).unwrap_or_default();
         let Some(v) = &mut self.viewer else { return };
         match v.ui(ui, tex.as_ref(), &caption, (pos, ids.len()), loading) {
             Some(ViewerAction::Close) => self.viewer = None,
+            Some(ViewerAction::Download) if once => self.toast = Some((l!("Одноразове фото не можна зберегти", "A view-once photo can't be saved").into(), 0.0, true)),
             Some(ViewerAction::Download) if !self.protected(peer, &[id]) => self.send(Cmd::Download { peer, id }),
             Some(ViewerAction::Prev) if pos > 1 => self.open_viewer(peer, ids[pos - 2]),
             Some(ViewerAction::Next) if pos < ids.len() => self.open_viewer(peer, ids[pos]),

@@ -267,6 +267,8 @@ impl App {
                 }
             });
         self.track_bottom(&scrolled);
+        self.effects_frame(ui, peer, rect, now);
+        self.view_once_frame();
         if let Some(before) = load_older {
             self.loading_older = true;
             match (topic, source) {
@@ -583,18 +585,27 @@ impl App {
             self.send_draft();
             resp.request_focus();
         }
-        // Right-click on "send": silent, scheduled or when online, as in Telegram Desktop.
+        // Right-click on "send": an effect, silent, scheduled or when online, as in Telegram Desktop.
         if can_send && !editing {
             enum Choice {
+                Effect(i64),
                 Silent,
                 Schedule,
                 WhenOnline,
             }
+            let effects = self.send_effects(peer);
+            let premium = self.profile.premium;
             // Only when the user's last seen time is visible: otherwise "online" can't be told.
             let when_online = self.chats.iter().any(|c| c.id == peer && c.kind == ChatKind::User && matches!(c.presence, crate::backend::Presence::Online(_) | crate::backend::Presence::Offline(_)));
             let mut choice = None;
             send.context_menu(|ui| {
-                ui.set_min_width(200.0);
+                ui.set_min_width(204.0);
+                if !effects.is_empty() {
+                    if let Some(id) = effects::strip(ui, &effects, premium) {
+                        choice = Some(Choice::Effect(id));
+                    }
+                    ui.separator();
+                }
                 if glass::menu_button(ui, Icon::BellOff, l!("Надіслати без звуку", "Send without sound")).clicked() {
                     choice = Some(Choice::Silent);
                 }
@@ -606,6 +617,7 @@ impl App {
                 }
             });
             match choice {
+                Some(Choice::Effect(id)) => self.send_with_effect(id),
                 Some(Choice::Silent) => self.send_draft_with(SendOpts { silent: true, schedule: None, ..Default::default() }),
                 Some(Choice::Schedule) => self.schedule = Some((ScheduleFor::Draft, String::new())),
                 Some(Choice::WhenOnline) => self.send_draft_with(SendOpts { schedule: Some(crate::backend::WHEN_ONLINE), ..Default::default() }),

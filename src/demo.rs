@@ -14,6 +14,7 @@ use crate::i18n::{l, lf};
 mod stickers;
 mod stars;
 mod custom_emoji;
+mod effects;
 mod wallpapers;
 mod langpack;
 
@@ -634,6 +635,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::ReportStep { peer, ids, step });
         }
         Cmd::LoadCustomEmoji(ids) => custom_emoji::load(app, ids),
+        Cmd::LoadEffects => effects::load(app),
         Cmd::LoadEmojiKeywords(lang) => {
             let w = |k: &str, e: &[&str]| (k.to_owned(), e.iter().map(|x| x.to_string()).collect());
             let words = if lang == "uk" {
@@ -742,7 +744,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 app.demo_history().find(|(p, _, _)| *p == q.peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == r).map(Msg::topic_id)).unwrap_or(r)
             });
             let reply = q.reply();
-            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), ..replied(app, outgoing(q.peer, q.text, None), &reply) }));
+            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), effect: q.effect, ..replied(app, outgoing(q.peer, q.text, None), &reply) }));
             app.push_event(Ev::QueueSent { key: q.key, peer: q.peer });
             // The team answers with a mention: it counts on the "@" button unless the chat is in view.
             if q.peer == PeerId::user_unchecked(2) {
@@ -1200,7 +1202,7 @@ fn demo_profile() -> Profile {
 /// Send queue "from the previous run": one message that failed, to show the red mark and its menu.
 pub fn outbox() -> Vec<Queued> {
     let ts = jiff::Timestamp::now().as_second() - 120;
-    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Sent the report, have a look when you're online".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false, quote: None, reply_peer: None, media: None }]
+    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Sent the report, have a look when you're online".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false, quote: None, reply_peer: None, media: None, effect: None }]
 }
 
 /// Demo forum topics: (id, title, color, unread, pinned, closed).
@@ -1377,6 +1379,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
             msgs.push(Msg { id: 75, photo: true, invert_media: true, text: "Caption above the photo, as in Telegram".into(), ..base(27, "") });
             msgs.push(Msg { id: 76, unsupported: true, ..base(27, "Olena") });
             msgs.push(custom_emoji::message(base(28, "Olena")));
+            msgs.extend(effects::messages(base(29, "Olena")));
         }
         9 => {
             // A long history: shows virtualization (only bubbles near the screen are drawn).
@@ -1467,7 +1470,7 @@ fn clip(id: i32) -> Option<std::path::PathBuf> {
 fn queued_media(app: &mut App, q: &Queued) {
     let (peer, reply) = (q.peer, q.reply());
     match q.media.clone() {
-        Some(QueuedMedia::Files { paths, as_file, spoiler, above }) => {
+        Some(QueuedMedia::Files { paths, as_file, spoiler, above, once }) => {
             for (i, path) in paths.iter().enumerate() {
                 let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 let size = std::fs::metadata(path).map(|m| crate::backend::human_size(m.len() as usize)).unwrap_or_default();
@@ -1479,7 +1482,7 @@ fn queued_media(app: &mut App, q: &Queued) {
                 match picture {
                     Some(rgba) => {
                         let (mid, size) = (m.id, [rgba.width() as usize, rgba.height() as usize]);
-                        app.push_event(Ev::NewMsg(Msg { photo: true, spoiler, invert_media: above, ..m }));
+                        app.push_event(Ev::NewMsg(Msg { photo: true, spoiler, invert_media: above, ttl: once.then_some(crate::backend::VIEW_ONCE), ..m }));
                         app.push_event(Ev::Image { key: ImgKey::Photo(peer, mid), image: ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()) });
                     }
                     None => app.push_event(Ev::NewMsg(Msg { file: Some((name, size)), ..m })),
@@ -1554,6 +1557,7 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
         (ImgKey::Photo(id, 72), sunset(320, 420)),
         (ImgKey::Photo(id, 74), sunset(420, 300)),
         (ImgKey::Photo(id, 75), sunset(400, 260)),
+        (ImgKey::Photo(id, effects::VIEW_ONCE_PHOTO), sunset(380, 300)),
         (ImgKey::Avatar(PeerId::user_unchecked(5)), sunset(96, 96)),
         (ImgKey::Photo(PeerId::user_unchecked(2), 5), sunset(480, 250)),
         (ImgKey::Sponsored(DEMO_AD_PHOTO), sunset(112, 112)),

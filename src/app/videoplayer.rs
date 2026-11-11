@@ -55,6 +55,11 @@ struct Session {
 }
 
 impl VideoPlayer {
+    /// The video open in the player.
+    pub(super) fn showing(&self) -> Option<(PeerId, i32)> {
+        self.open.as_ref().map(|s| (s.peer, s.id))
+    }
+
     /// The full-screen view owns the keyboard and the window.
     pub(super) fn full(&self) -> bool {
         self.open.as_ref().is_some_and(|s| !s.pip)

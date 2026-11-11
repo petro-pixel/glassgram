@@ -23,6 +23,9 @@ pub(super) struct SendBox {
     compress: bool,
     spoiler: bool,
     above: bool,
+    /// A private chat with someone else: a single photo or video may go "view once".
+    private: bool,
+    once: bool,
     /// Previews by index in `paths`, decoded on a thread, and their blurred copies for the spoiler.
     thumbs: HashMap<usize, (TextureHandle, TextureHandle)>,
     tx: mpsc::Sender<(PathBuf, ColorImage)>,
@@ -130,6 +133,11 @@ impl SendBox {
         self.compress && !self.archive && self.paths.iter().any(|p| is_image(p) || is_video(p))
     }
 
+    /// "View once" applies: one photo or video for one person, as in Telegram Desktop.
+    fn can_view_once(&self) -> bool {
+        self.private && self.paths.len() == 1 && self.has_media()
+    }
+
     /// The "one archive" choice: for two or more items. A single folder is packed anyway.
     fn can_archive(&self) -> bool {
         self.paths.len() > 1
@@ -142,7 +150,7 @@ impl SendBox {
     /// How many option checkboxes the box shows, for its height.
     fn options(&self) -> usize {
         let compress = !self.archive && self.paths.iter().any(|p| is_image(p));
-        self.can_archive() as usize + compress as usize + if self.has_media() { 2 } else { 0 }
+        self.can_archive() as usize + compress as usize + if self.has_media() { 2 } else { 0 } + self.can_view_once() as usize
     }
 
     fn title(&self) -> String {
@@ -179,7 +187,8 @@ impl App {
         // The text typed so far becomes the caption, as in Telegram Desktop.
         let caption = if self.selected == Some(peer) { std::mem::take(&mut self.draft) } else { String::new() };
         let (tx, rx) = mpsc::channel();
-        let mut b = SendBox { peer, paths: Vec::new(), caption, compress: !as_file, spoiler: false, above: false, thumbs: HashMap::new(), tx, rx, focused: false, archive: false, folders: HashMap::new(), packing: None };
+        let private = self.chats.iter().any(|c| c.id == peer && c.kind == ChatKind::User);
+        let mut b = SendBox { peer, paths: Vec::new(), caption, compress: !as_file, spoiler: false, above: false, private, once: false, thumbs: HashMap::new(), tx, rx, focused: false, archive: false, folders: HashMap::new(), packing: None };
         b.add(&self.ctx, paths);
         self.send_box = Some(b);
     }
@@ -217,7 +226,8 @@ impl App {
         let archive = packed.is_some() && b.archive;
         let paths = packed.as_ref().map(|p| p.paths.clone()).unwrap_or_else(|| b.paths.clone());
         let compress = b.compress && !archive;
-        let media = QueuedMedia::Files { paths, as_file: !compress, spoiler: b.spoiler && compress, above: b.above && compress };
+        let once = b.once && b.can_view_once();
+        let media = QueuedMedia::Files { paths, as_file: !compress, spoiler: b.spoiler && compress, above: b.above && compress, once };
         // Through the send queue: offline the files wait for the network, like text.
         self.enqueue_media(b.peer, b.caption.trim().to_owned(), reply_to, media, false);
         // The queue keeps its own copy of the archives.
@@ -341,6 +351,9 @@ impl App {
             if b.has_media() {
                 ui.checkbox(&mut b.spoiler, l!("Приховати під спойлер", "Hide with spoiler"));
                 ui.checkbox(&mut b.above, l!("Підпис над медіа", "Caption above media"));
+            }
+            if b.can_view_once() {
+                ui.checkbox(&mut b.once, l!("Одноразовий перегляд", "View once"));
             }
         });
         if let Some(i) = remove {

@@ -96,6 +96,8 @@ mod searchtabs;
 mod autodl;
 mod spoiler;
 mod custom_emoji;
+mod effects;
+mod viewonce;
 mod videoplayer;
 mod userqr;
 mod layout;
@@ -215,6 +217,8 @@ enum Action {
     StickerSet(i32),
     FaveSticker(i32),
     SaveGif(i32),
+    /// Play the message's effect again (a click on its badge).
+    Effect(i32),
 }
 
 /// What is being scheduled: a draft from the input field or an already scheduled message (time change).
@@ -573,6 +577,8 @@ pub struct App {
     send_box: Option<sendbox::SendBox>,
     spoilers: spoiler::Spoilers,
     custom_emoji: custom_emoji::CustomEmoji,
+    effects: effects::Effects,
+    view_once: viewonce::ViewOnce,
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
     langpacks: langpack::LangPacks,
@@ -852,6 +858,8 @@ impl App {
             send_box: None,
             spoilers: spoiler::Spoilers::default(),
             custom_emoji: custom_emoji::CustomEmoji::default(),
+            effects: effects::Effects::default(),
+            view_once: viewonce::ViewOnce::default(),
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
             langpacks: langpack::LangPacks::default(),
@@ -999,6 +1007,7 @@ impl App {
                 self.textures.insert(key, tex);
             }
             Ev::CustomEmojiFile { id, path } => self.custom_emoji.on_file(id, path),
+            ev @ (Ev::Effects(_) | Ev::EffectFile { .. }) => self.effects_event(ev),
             ev @ (Ev::Contacts(_) | Ev::ContactResults { .. } | Ev::ChatCreated(_) | Ev::ChannelUsernameCheck { .. }) => self.new_chat_event(ev),
             Ev::Error(e) => {
                 crate::errlog::record(&e);
@@ -1532,7 +1541,7 @@ impl App {
                 }
             },
             // Handled by `chat_view_action`.
-            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_) => {}
+            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_) | Action::Effect(_) => {}
         }
     }
 

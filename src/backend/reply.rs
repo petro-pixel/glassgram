@@ -121,7 +121,7 @@ pub(super) async fn send_raw(client: &Client, r: PeerRef, markup: &str, media: O
                     schedule_repeat_period: None,
                     send_as: None,
                     quick_reply_shortcut: None,
-                    effect: None,
+                    effect: opts.effect,
                     allow_paid_stars: None,
                     suggested_post: None,
                 })
@@ -148,7 +148,7 @@ pub(super) async fn send_raw(client: &Client, r: PeerRef, markup: &str, media: O
                     schedule_repeat_period: None,
                     send_as: None,
                     quick_reply_shortcut: None,
-                    effect: None,
+                    effect: opts.effect,
                     allow_paid_stars: None,
                     suggested_post: None,
                     rich_message: None,
@@ -196,7 +196,7 @@ pub(super) async fn album_raw(client: &Client, r: PeerRef, ups: Vec<Uploaded>, c
             schedule_date: opts.schedule.map(|t| t as i32),
             send_as: None,
             quick_reply_shortcut: None,
-            effect: None,
+            effect: opts.effect,
             allow_paid_stars: None,
         })
         .await?;

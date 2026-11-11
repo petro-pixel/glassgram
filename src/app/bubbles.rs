@@ -592,8 +592,10 @@ pub(super) fn bubble(
     let link = glass::link(m.out);
     let body = (!m.text.is_empty()).then(|| custom_emoji::galley(&p, format::layout(&m.text, &m.spans, glass::msg_font(), ink(), link, text_w, revealed), &m.spans, revealed));
     // Trailing spaces leave room for the ticks drawn on top.
-    let meta = format!("{}{}{}{}", chatview::views_label(m, look), if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
-    let meta = p.layout_no_wrap(meta, FontId::proportional(11.0), rgba(ink(), 170));
+    let meta_text = format!("{}{}{}{}", chatview::views_label(m, look), if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
+    let badge = effects::badge(ui.ctx(), m);
+    let (meta, badge_w) = effects::meta(&p, badge.as_deref(), &meta_text, rgba(ink(), 170));
+    let mut badge_rect = None;
     let name_color = glass::name_color(m.sender.len() as i64 * 31 + m.sender.chars().next().map_or(0, |c| c as i64));
     let sender = (show_sender && !m.out && !m.sender.is_empty())
         .then(|| elided(ui, &m.sender, 13.0, name_color, text_w));
@@ -690,7 +692,9 @@ pub(super) fn bubble(
                 icons::draw(&p, Rect::from_center_size(ir.center(), vec2(30.0, 30.0)), placeholder_icon(look.manual), ink_dim());
             }
         }
-        if hidden {
+        if m.self_destructing() {
+            viewonce::cover(&p, ir, 15.0, m);
+        } else if hidden {
             spoiler::cover(&p, ir, 15.0, ui.input(|i| i.time));
         } else if let Some(info) = m.media.as_ref().filter(|_| video) {
             video_overlay(&p, ir, info, look.play, look.manual);
@@ -698,9 +702,10 @@ pub(super) fn bubble(
         if !has_block || above {
             let chip = Rect::from_min_size(ir.max - meta.size() - vec2(18.0, 12.0), meta.size() + vec2(12.0, 6.0));
             p.rect_filled(chip, chip.height() / 2.0, Color32::from_black_alpha(120));
-            let on_media = p.layout_no_wrap(meta.text().to_owned(), FontId::proportional(11.0), glass::ON_DARK);
+            let (on_media, _) = effects::meta(&p, badge.as_deref(), &meta_text, glass::ON_DARK);
             let at = Rect::from_min_size(chip.min + vec2(6.0, 3.0), on_media.size());
             p.galley(at.min, on_media, glass::ON_DARK);
+            badge_rect = (badge_w > 0.0).then(|| Rect::from_min_size(at.min, vec2(badge_w, at.height())));
             chatview::meta_icons(&p, at, m, look, glass::ON_DARK);
         }
         if !above {
@@ -754,6 +759,7 @@ pub(super) fn bubble(
     if (has_block && !above) || img_size.is_none() {
         let at = Rect::from_min_size(rect.max - pad - meta.size(), meta.size());
         p.galley(at.min, meta, ink());
+        badge_rect = (badge_w > 0.0).then(|| Rect::from_min_size(at.min, vec2(badge_w, at.height())));
         if let Some(failed) = look.pending {
             draw_pending(&p, at.right_center(), failed, rgba(ink(), 200));
         } else {
@@ -761,6 +767,9 @@ pub(super) fn bubble(
         }
     }
 
+    if let Some(b) = badge_rect {
+        effects::drawn(ui.ctx(), m, b);
+    }
     let mut action = card_action;
     if !m.reactions.is_empty() {
         action = reaction_chips(ui, m.id, &m.reactions, rect.left(), m.out, rect.right()).or(action);
@@ -806,6 +815,12 @@ pub(super) fn bubble(
                 }
             }
             _ => {}
+        }
+    }
+    if badge_rect.is_some_and(|b| resp.hover_pos().is_some_and(|p| b.contains(p))) {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        if resp.clicked() {
+            return Some(Action::Effect(m.id));
         }
     }
     let media_rect = file_rect.or(img_rect);

@@ -107,6 +107,10 @@ mod stickers;
 pub use stickers::{DocRef, FAVED_SET, RECENT_SET, StickerSetInfo, StickerSetRef, addstickers_name};
 mod emojikw;
 mod custom_emoji;
+mod effects;
+pub use effects::Effect;
+mod viewonce;
+pub use viewonce::VIEW_ONCE;
 mod report;
 pub use report::ReportStep;
 pub use gifts::Gift;
@@ -390,6 +394,9 @@ pub enum Cmd {
     LoadEmojiKeywords(String),
     /// Pictures of custom emoji by document id; they come as `ImgKey::Emoji`.
     LoadCustomEmoji(Vec<i64>),
+    /// Message effects for the send menu and received messages (`messages.getAvailableEffects`),
+    /// then each one's animation file.
+    LoadEffects,
     /// Channels similar to this one, for its profile.
     LoadSimilarChannels(PeerId),
     /// `t.me/<bot>?start=<param>`: open the bot chat ready to start with the parameter.
@@ -589,6 +596,10 @@ pub enum Ev {
     Image { key: ImgKey, image: ColorImage },
     /// The `.tgs` file of an animated custom emoji, played in text once its still picture is shown.
     CustomEmojiFile { id: i64, path: std::path::PathBuf },
+    /// Message effects that can be sent and shown.
+    Effects(Vec<Effect>),
+    /// The `.tgs` animation of a message effect, played over its message.
+    EffectFile { id: i64, path: std::path::PathBuf },
     Folders(Vec<Folder>),
     /// Whether chat rows show folder tags.
     FolderTags(bool),
@@ -1140,6 +1151,7 @@ impl Worker {
             cmd @ Cmd::Report { .. } => self.report_cmd(cmd).await,
             cmd @ Cmd::LoadEmojiKeywords(_) => self.emoji_keywords_cmd(cmd).await,
             cmd @ Cmd::LoadCustomEmoji(_) => self.custom_emoji_cmd(cmd).await,
+            Cmd::LoadEffects => self.effects_cmd().await,
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,

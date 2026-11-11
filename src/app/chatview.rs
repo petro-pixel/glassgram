@@ -341,6 +341,8 @@ impl App {
             Action::Translate(id) => self.open_translate(peer, id),
             Action::Report(id) => self.start_report(peer, vec![id]),
             a @ (Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_)) => self.sticker_msg_action(peer, a),
+            a @ (Action::View(id) | Action::Play(id)) if self.is_view_once(peer, id) => return self.open_view_once(peer, a),
+            Action::Effect(id) => self.replay_effect(peer, id),
             a => return Some(a),
         }
         None

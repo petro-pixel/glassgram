@@ -137,6 +137,8 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/textures.rs` | Pictures on the GPU with a memory budget; dropped ones come back from the disk cache |
 | `src/app/emojikw.rs`, `src/backend/emojikw.rs` | Emoji suggestions while typing `:word` |
 | `src/app/custom_emoji.rs`, `src/backend/custom_emoji.rs` | Custom emoji in message text: pictures drawn over the fallback emoji |
+| `src/app/effects.rs`, `src/backend/effects.rs` | Message effects: the emoji badge by the time, the animation played over the chat, the effects row in the send menu |
+| `src/app/viewonce.rs`, `src/backend/viewonce.rs` | View-once and timed photos and videos: the cover, opening once, "expired" afterwards; sending view once |
 | `src/app/report.rs`, `src/backend/report.rs` | "Report" box for messages |
 | `src/app/quote.rs`, `src/backend/reply.rs` | Replies with a quote and in another chat |
 | `src/app/newchat.rs`, `src/backend/newchat.rs` | "New chat": contacts, new group, new channel with its type, link and subscribers |
@@ -202,7 +204,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Right-click a message for the menu: reply, copy, edit, delete.
 - Double-click — reply. Click the reply bar above the field to quote a part of the message or to reply in another chat.
 - Esc cancels a reply or edit and closes the sticker panel.
-- 📎 — send files (or drag them into the window, or paste them): a box shows what goes, with the caption (the composer text), "Compress images", "Hide with spoiler" and "Caption above media"; more files dropped on it join it. A dropped folder goes as a zip archive; with several items, "Send as one archive" packs them all into one. Right click on 📎: send without compression, create a poll or quiz, create a checklist. A click on a checklist item ticks it; "View results" under a public poll lists who voted for what; a poll's menu retracts your vote or stops your own poll. A photo or video under a spoiler opens with a click. Editing a photo or file ("Edit" in its menu): ⟳ in the "Editing" bar replaces it (right click — without compression), or drop a file on the chat.
+- 📎 — send files (or drag them into the window, or paste them): a box shows what goes, with the caption (the composer text), "Compress images", "Hide with spoiler", "Caption above media" and (one photo or video in a private chat) "View once"; more files dropped on it join it. A dropped folder goes as a zip archive; with several items, "Send as one archive" packs them all into one. Right click on 📎: send without compression, create a poll or quiz, create a checklist. A click on a checklist item ticks it; "View results" under a public poll lists who voted for what; a poll's menu retracts your vote or stops your own poll. A photo or video under a spoiler opens with a click. A view-once or timed photo or video shows a cover: a click opens it once, then it expires. Editing a photo or file ("Edit" in its menu): ⟳ in the "Editing" bar replaces it (right click — without compression), or drop a file on the chat.
 - 🙂 — sticker panel: emoji, GIF (saved GIFs), 🔍 (search sticker sets; empty — trending), ★ favourite and 🕒 recent stickers, then the installed sets; ⚙ — your sets: order (↑/↓) and removing. Right click on a sticker: add to / remove from favourites, view its set. A click on a sticker in a chat (or a `t.me/addstickers/…` link) opens its set: all stickers, "Add" / "Remove", copy link; right click on a sticker in a chat — "View sticker set", "Add to Favourites", on a GIF — "Save GIF". An emoji typed alone offers matching stickers above the field.
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.
@@ -212,7 +214,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Clicking a hashtag searches for it in the chat; clicking a bot command sends it.
 - `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way.
 - A link preview appears above the composer; ✕ sends the message without it.
-- Right-click "Send": send silently, schedule, or (in a private chat whose last seen time is visible) send when online.
+- Right-click "Send": in a private chat, a row of message effects on top (★ — Premium) sends the message with that effect; then send silently, schedule, or (in a private chat whose last seen time is visible) send when online. A message with an effect plays it when it first appears; a click on the effect's emoji by the time plays it again.
 - "Select" in the message menu turns on selection mode; Esc leaves it.
 - A message of just 🎲 🎯 🏀 ⚽ 🎰 or 🎳 is sent as a game.
 - A `t.me/addlist/…` link adds a shared folder; its right-click menu checks for new chats, and deleting it offers to leave its chats.

@@ -305,7 +305,17 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         webpage: suggest::message_web_page(m),
         saved_from: saved::saved_from(&m.raw),
         unsupported: unsupported(m),
+        effect: match &m.raw {
+            tl::enums::Message::Message(x) => x.effect,
+            _ => None,
+        },
+        ttl: viewonce::ttl(&m.raw).map(|t| t.secs),
     };
+    let mut msg = msg;
+    if let Some(t) = viewonce::ttl(&m.raw).filter(|t| t.expired) {
+        msg.photo = !t.video;
+        msg.expire_media();
+    }
     // Hidden by Telegram for everyone (or for desktop apps): show why instead of the content.
     match restriction(&m.raw) {
         Some(reason) => Msg { text: reason, spans: Vec::new(), photo: false, file: None, sticker: None, media: None, poll: None, todo: None, geo: None, contact: None, webpage: None, buttons: Vec::new(), video_sticker: false, lottie: false, unsupported: false, ..msg },

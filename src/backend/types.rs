@@ -75,6 +75,9 @@ pub enum QueuedMedia {
         spoiler: bool,
         #[serde(default)]
         above: bool,
+        /// A single photo or video goes "view once" (`ttl_seconds` = `VIEW_ONCE`).
+        #[serde(default)]
+        once: bool,
     },
     Voice { path: PathBuf, duration: f64, waveform: Vec<u8> },
     Round { path: PathBuf, duration: f64 },
@@ -121,6 +124,9 @@ pub struct Queued {
     /// Files, a voice or a round video message; `text` is then the caption.
     #[serde(default)]
     pub media: Option<QueuedMedia>,
+    /// The message effect chosen in the send menu (`availableEffect.id`).
+    #[serde(default)]
+    pub effect: Option<i64>,
 }
 
 impl Queued {
@@ -143,6 +149,7 @@ impl Queued {
             reply_to: self.reply_to,
             reply_quote: self.quote.as_ref().map(|q| q.text.clone()),
             reply_elsewhere: self.reply_peer.map(|_| String::new()),
+            effect: self.effect,
             // Until it is sent the bubble names what is on its way.
             file: self.media.as_ref().map(|m| {
                 let names: Vec<String> = m.paths().iter().filter_map(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).collect();
@@ -336,6 +343,8 @@ pub struct SendOpts {
     pub no_webpage: bool,
     /// The caption goes above the media (`invert_media`).
     pub invert: bool,
+    /// A message effect (`availableEffect.id`); only our own requests carry it.
+    pub effect: Option<i64>,
 }
 
 impl SendOpts {
@@ -675,6 +684,12 @@ pub struct Msg {
     /// Content we can't draw yet (games, invoices, giveaways…): the bubble offers an update.
     #[serde(default)]
     pub unsupported: bool,
+    /// The message effect it was sent with (`availableEffect.id`).
+    #[serde(default)]
+    pub effect: Option<i64>,
+    /// Self-destructing photo or video: seconds, or `VIEW_ONCE`.
+    #[serde(default)]
+    pub ttl: Option<i32>,
 }
 
 impl Msg {
@@ -722,6 +737,8 @@ impl Msg {
             webpage: None,
             saved_from: None,
             unsupported: false,
+            effect: None,
+            ttl: None,
         }
     }
 
