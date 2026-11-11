@@ -16,6 +16,9 @@ const CAPSULE_H: f32 = 24.0;
 const HEADER_H: f32 = 26.0;
 /// The demo has no live updates: a pending transcription asks again after this long.
 const REASK_SECS: f64 = 1.2;
+/// A live transcription still pending after this long may have missed its update: a click asks
+/// again (the server just answers with where it is).
+const STALE_SECS: f64 = 10.0;
 
 #[derive(Default)]
 pub(super) struct AiText {
@@ -204,10 +207,13 @@ impl App {
             let Some(mut b) = self.ai_board() else { return };
             b.reask = demo;
             match b.heard.get_mut(&(peer, id)) {
-                // Only the demo asks again while the server works; the live update finishes it otherwise.
+                // The live update normally finishes it; a click asks again only if it seems lost.
                 Some(h) if h.pending => {
-                    h.since = now;
-                    demo
+                    let again = demo || now - h.since > STALE_SECS;
+                    if again {
+                        h.since = now;
+                    }
+                    again
                 }
                 Some(h) => {
                     h.shown = !h.shown;
