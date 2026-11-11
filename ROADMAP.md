@@ -100,7 +100,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ✅ Editing media messages: the caption (may be left empty), and the photo or file replaced from the "Editing" bar (right click — without compression) or by dropping a file on the chat; keeps the spoiler and caption position (`messages.editMessage` with `media`), the old cached pictures and files are dropped
 - ⬜ **P2** Sending as a channel (`saveDefaultSendAs`), "send when online", location and contact
 - ⬜ **P2** Spell checking (Hunspell dictionaries, works on every OS)
-- ⬜ **P2** Dropping a folder or several files sends them as one archive (Telegram Desktop 7.2.6)
+- ✅ **P2** Dropping a folder or several files sends them as one archive (Telegram Desktop 7.2.6): a dropped folder shows in the send box with its file count and size and goes as `<folder>.zip`; with two or more items "Send as one archive" packs everything into one. Our own zip writer (`zip.rs`, deflate from `flate2`, stored for already compressed formats, UTF-8 names, symlinks skipped, up to 4 GB) packs on a thread while the box shows "Packing…" and can be cancelled
 - ⬜ **P2** Emoji up to Unicode 17 in the panel, suggestions and big-emoji messages
 - ⬜ **P3** AI text editor: translate, rewrite, tones (`composeMessageWithAI`, `aicompose.*`)
 - ⬜ **P3** Paid messages (`updatePaidMessagesPrice`, `allow_paid_stars`)

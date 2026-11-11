@@ -31,6 +31,7 @@ mod video;
 mod viewer;
 mod wallpaper;
 mod webview;
+mod zip;
 
 /// Where new versions are published; the "Check for updates" button opens it.
 pub const RELEASES_URL: &str = "https://github.com/petro-pixel/glassgram/releases/latest";

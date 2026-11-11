@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 66%** `█████████████░░░░░░░` — 116 done, 10 partial, 56 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 67%** `█████████████░░░░░░░` — 117 done, 10 partial, 55 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -160,7 +160,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |
 | `src/app/editmedia.rs`, `src/backend/editmedia.rs` | Editing media messages: caption, replacing the photo or file |
 | `src/app/richtext.rs` | Formatting bar over selected text in the composer, formatting shortcuts |
-| `src/app/sendbox.rs`, `src/app/spoiler.rs` | "Send files" box (previews, caption, compression, spoiler, caption above); spoiler cover over hidden media |
+| `src/app/sendbox.rs`, `src/app/spoiler.rs`, `src/zip.rs` | "Send files" box (previews, caption, compression, spoiler, caption above, folders and "one archive" packed into zip); spoiler cover over hidden media |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Mini apps: server requests, the WebView window process (`glassgram --webview`) and its bridge |
 | `src/app/contacts.rs`, `src/backend/contacts.rs` | "New contact" box, add / delete contact and block from user info, blocked list in Privacy and Security |
 | `src/app/translate.rs`, `src/backend/translate.rs` | "Translate" window from the message menu |
@@ -202,7 +202,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Right-click a message for the menu: reply, copy, edit, delete.
 - Double-click — reply. Click the reply bar above the field to quote a part of the message or to reply in another chat.
 - Esc cancels a reply or edit and closes the sticker panel.
-- 📎 — send files (or drag them into the window, or paste them): a box shows what goes, with the caption (the composer text), "Compress images", "Hide with spoiler" and "Caption above media"; more files dropped on it join it. Right click on 📎: send without compression, create a poll or quiz, create a checklist. A click on a checklist item ticks it; "View results" under a public poll lists who voted for what. A photo or video under a spoiler opens with a click. Editing a photo or file ("Edit" in its menu): ⟳ in the "Editing" bar replaces it (right click — without compression), or drop a file on the chat.
+- 📎 — send files (or drag them into the window, or paste them): a box shows what goes, with the caption (the composer text), "Compress images", "Hide with spoiler" and "Caption above media"; more files dropped on it join it. A dropped folder goes as a zip archive; with several items, "Send as one archive" packs them all into one. Right click on 📎: send without compression, create a poll or quiz, create a checklist. A click on a checklist item ticks it; "View results" under a public poll lists who voted for what. A photo or video under a spoiler opens with a click. Editing a photo or file ("Edit" in its menu): ⟳ in the "Editing" bar replaces it (right click — without compression), or drop a file on the chat.
 - 🙂 — sticker panel: emoji, GIF (saved GIFs), 🔍 (search sticker sets; empty — trending), ★ favourite and 🕒 recent stickers, then the installed sets; ⚙ — your sets: order (↑/↓) and removing. Right click on a sticker: add to / remove from favourites, view its set. A click on a sticker in a chat (or a `t.me/addstickers/…` link) opens its set: all stickers, "Add" / "Remove", copy link; right click on a sticker in a chat — "View sticker set", "Add to Favourites", on a GIF — "Save GIF". An emoji typed alone offers matching stickers above the field.
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.

@@ -708,14 +708,19 @@
   "2 years": "",
   "Delete my account if away for": "",
   "If you don't come online at least once in this period, your account will be deleted along with all messages and contacts.": "",
+  "Send an archive": "",
   "Send a photo": "",
   "Send a file": "",
   "Send {n} photos": "",
   "Send {n} files": "",
+  "Could not create the archive: {e}": "",
+  "{n} files": {"one": "", "other": ""},
+  "Send as one archive": "",
   "Compress images": "",
   "Hide with spoiler": "",
   "Caption above media": "",
   "Caption": "",
+  "Packing…": "",
   "Send": "",
   "Other usernames": "",
   "In profile": "",
@@ -1324,5 +1329,7 @@
   "{n} unread messages": {"one": "", "other": ""},
   "Open Glassgram": "",
   "Quit Glassgram": "",
-  "{n} of {total}": ""
+  "{n} of {total}": "",
+  "Too many files for an archive: {n}": "",
+  "The archive would be larger than 4 GB": ""
 }
