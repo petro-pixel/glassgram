@@ -650,6 +650,8 @@ impl App {
     /// Attach (with its menu), stickers and the scheduled list, and their panels.
     fn composer_buttons(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect, header: Rect, b: &Bottom, n_scheduled: usize) {
         let Bottom { attach: attach_btn, sticker: sticker_btn, scheduled: sched_btn, send: send_btn, above, .. } = *b;
+        self.attach_bots_load();
+        self.url_auth_load();
         let attach = glass::icon_button(ui, attach_btn, "attach", Icon::Attach, false, true).on_hover_text(l!("Надіслати файл", "Send file"));
         if attach.clicked() {
             self.pick_files(peer, false);
@@ -667,6 +669,7 @@ impl App {
             if glass::menu_button(ui, Icon::Todo, l!("Чеклист", "Checklist")).clicked() {
                 self.open_todo_form(peer);
             }
+            self.attach_menu_items(ui, peer);
         });
         if glass::icon_button(ui, sticker_btn, "stickers", Icon::Smile, self.stickers.open, true).on_hover_text(l!("Стікери", "Stickers")).clicked() {
             self.stickers.open = !self.stickers.open;

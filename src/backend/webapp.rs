@@ -25,6 +25,8 @@ pub enum WebAppKind {
     Main { start_param: String },
     /// A named app (`t.me/bot/app`).
     Named { short_name: String, start_param: String },
+    /// An attachment menu bot opened for the current chat (`requestWebView` without a URL).
+    Attach { start_param: String },
 }
 
 /// An opened mini app, as the server returned it.
@@ -127,6 +129,23 @@ impl Worker {
                     bot: b.into(),
                     url: Some(url.clone()),
                     start_param: None,
+                    theme_params: theme,
+                    platform: PLATFORM.into(),
+                    reply_to: None,
+                    send_as: None,
+                };
+                client.invoke(&req).await
+            }
+            WebAppKind::Attach { start_param } => {
+                let req = tl::functions::messages::RequestWebView {
+                    from_bot_menu: false,
+                    silent: false,
+                    compact: false,
+                    fullscreen: false,
+                    peer: p.into(),
+                    bot: b.into(),
+                    url: None,
+                    start_param: (!start_param.is_empty()).then(|| start_param.clone()),
                     theme_params: theme,
                     platform: PLATFORM.into(),
                     reply_to: None,

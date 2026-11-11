@@ -89,3 +89,40 @@ impl App {
         }
     }
 }
+
+/// A centred question box with an optional checkbox; returns the pressed button's index.
+/// The last button is the main one; Esc answers with the first (the cancel one).
+pub(super) fn ask_box(ui: &mut Ui, id: &str, title: &str, body: &str, check: Option<(&str, &mut bool)>, buttons: &[&str]) -> Option<usize> {
+    let screen = ui.max_rect();
+    ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
+    ui.interact(screen, ui.scope_id().with((id, "bg")), Sense::click());
+    let w = 420.0;
+    let text_w = w - 36.0;
+    let title_g = ui.painter().layout(title.to_owned(), FontId::proportional(17.0), ink(), text_w);
+    let body_g = ui.painter().layout(body.to_owned(), FontId::proportional(14.0), ink_dim(), text_w);
+    let check_h = if check.is_some() { 36.0 } else { 0.0 };
+    let (title_h, body_h) = (title_g.size().y, body_g.size().y);
+    let rect = Rect::from_center_size(screen.center(), vec2(w, 18.0 + title_h + 10.0 + body_h + 16.0 + check_h + 34.0 + 18.0));
+    glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());
+    let inner = rect.shrink(18.0);
+    ui.painter().galley(inner.left_top(), title_g, ink());
+    let mut y = inner.top() + title_h + 10.0;
+    ui.painter().galley(pos2(inner.left(), y), body_g, ink_dim());
+    y += body_h + 16.0;
+    if let Some((label, on)) = check {
+        let row = Rect::from_min_size(pos2(inner.left(), y), vec2(inner.width(), 24.0));
+        ui.scope_builder(egui::UiBuilder::new().max_rect(row), |ui| ui.checkbox(on, label));
+        y += check_h;
+    }
+    let n = buttons.len().max(1) as f32;
+    let bw = (inner.width() - 8.0 * (n - 1.0)) / n;
+    let mut pressed = None;
+    for (i, label) in buttons.iter().enumerate() {
+        let r = Rect::from_min_size(pos2(inner.left() + i as f32 * (bw + 8.0), y), vec2(bw, 34.0));
+        if glass::button(ui, r, (id, i), label, i + 1 == buttons.len(), true).clicked() {
+            pressed = Some(i);
+        }
+    }
+    let esc = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
+    pressed.or(esc.then_some(0))
+}

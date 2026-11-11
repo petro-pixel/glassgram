@@ -843,17 +843,20 @@ fn inline_keyboard_buttons() {
             }
             .into(),
             tl::types::KeyboardInlineButtonRow { buttons: vec![button("Код", tl::types::InlineButtonTypeCopy { copy_text: "GG-2026".into() }.into()), button("Гра", tl::enums::InlineButtonType::Game)] }.into(),
+            tl::types::KeyboardInlineButtonRow { buttons: vec![button("Увійти", tl::types::InlineButtonTypeUrlAuth { fwd_text: None, url: "https://example.org/login".into(), button_id: 7 }.into())] }.into(),
         ],
     };
     let raw = tl::types::Message { reply_markup: Some(markup.into()), ..message(40, peer_user(BOT), None, "Погода на сьогодні") };
     let m = convert(&deliver(raw), &names());
     assert_eq!(m.sender, "Weather Bot");
     let rows: Vec<Vec<(&str, &ButtonAction)>> = m.buttons.iter().map(|r| r.iter().map(|b| (b.text.as_str(), &b.action)).collect()).collect();
-    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.len(), 3);
     assert!(matches!(rows[0][0], ("Оновити", ButtonAction::Callback(d)) if d == b"refresh"));
     assert!(matches!(rows[0][1], ("Сайт", ButtonAction::Url(u)) if u == "https://example.org"));
     assert!(matches!(rows[1][0], ("Код", ButtonAction::Copy(c)) if c == "GG-2026"));
     assert!(matches!(rows[1][1], ("Гра", ButtonAction::Other)));
+    // The login button keeps its id: `requestUrlAuth` names the button, not the address.
+    assert!(matches!(rows[2][0], ("Увійти", ButtonAction::UrlAuth { url, button_id: 7 }) if url == "https://example.org/login"));
 }
 
 #[test]

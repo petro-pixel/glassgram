@@ -104,6 +104,8 @@ mod namecolor;
 mod aitext;
 mod videoplayer;
 mod music;
+mod attachbots;
+mod urlauth;
 mod userqr;
 mod layout;
 mod motion;
@@ -617,6 +619,10 @@ pub struct App {
     web_app_button: String,
     /// A mini app's request waiting for the user's answer in this window.
     web_app_ask: Option<(PeerId, webapp::Ask)>,
+    /// Bots of the 📎 menu.
+    attach: attachbots::AttachMenu,
+    /// Logging in to websites with Telegram.
+    url_auth: urlauth::UrlAuth,
     /// Composer helpers: link preview, @mentions, bot commands.
     suggest: suggest::Suggest,
     /// Chat info column (`None` = closed); follows the open chat.
@@ -903,6 +909,8 @@ impl App {
             web_apps: Vec::new(),
             web_app_button: String::new(),
             web_app_ask: None,
+            attach: attachbots::AttachMenu::default(),
+            url_auth: urlauth::UrlAuth::default(),
             suggest: Default::default(),
             info: None,
             profile: backend::Profile::default(),
@@ -1135,6 +1143,8 @@ impl App {
             Ev::Summarized { peer, id, result } => self.on_summarized(peer, id, result),
             ev @ (Ev::TranslationOffer { .. } | Ev::TranslatedMany { .. }) => self.chat_translate_event(ev),
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. } | Ev::BotWriteAccess { .. } | Ev::PhoneShared { .. }) => self.web_app_event(ev),
+            ev @ (Ev::AttachBots { .. } | Ev::AttachBotFound { .. } | Ev::AttachBotToggled { .. }) => self.attach_bots_event(ev),
+            ev @ (Ev::UrlAuthDomains(_) | Ev::UrlAuthAsk(_) | Ev::UrlAuthOpen(_)) => self.url_auth_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
             Ev::ProxyChecked { link, result } => self.on_proxy_checked(link, result),
@@ -1513,6 +1523,7 @@ impl App {
                 match b.action {
                     ButtonAction::Callback(data) => self.send(Cmd::PressButton { peer, id, data }),
                     ButtonAction::Url(url) => self.open_link(&url),
+                    ButtonAction::UrlAuth { url, button_id } => self.url_auth_button(peer, id, button_id, url),
                     ButtonAction::Text => {
                         let reply_to = self.forum.open.filter(|t| *t != GENERAL_TOPIC).map(ReplyTo::to);
                         self.send(Cmd::Send { peer, text: b.text, reply_to, opts: SendOpts::default(), send_as: self.send_as_for(peer) });
@@ -1569,6 +1580,11 @@ impl App {
                         self.send(Cmd::CheckChatlist(slug));
                     }
                 }
+                _ if attachbots::tme_start_attach(&target).is_some() => {
+                    if let Some((username, start_param)) = attachbots::tme_start_attach(&target) {
+                        self.send(Cmd::OpenAttachLink { peer, username, start_param });
+                    }
+                }
                 _ if tme_web_app(&target).is_some() => {
                     if let Some((username, app, start_param)) = tme_web_app(&target) {
                         self.open_web_app_link(username, app, start_param);
@@ -1580,7 +1596,9 @@ impl App {
                 }
                 _ => {
                     let url = if target.contains("://") || target.starts_with("mailto:") { target } else { format!("https://{target}") };
-                    self.open_link(&url);
+                    if !self.url_auth_link(&url) {
+                        self.open_link(&url);
+                    }
                 }
             },
             // Handled by `chat_view_action`.
@@ -1802,6 +1820,8 @@ impl eframe::App for App {
         self.info_confirm_view(ui);
         self.opening_view(ui);
         self.web_app_ask_view(ui);
+        self.attach_ask_view(ui);
+        self.url_auth_view(ui);
         self.contact_form_view(ui);
         self.polls_view(ui);
         self.todo_view(ui);

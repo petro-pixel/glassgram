@@ -135,6 +135,10 @@ pub use privacy::{GlobalPrivacy, PrivacyExceptions};
 pub use polls::{NewPoll, PollVoter};
 pub use todo::NewTodo;
 pub use webapp::{WebAppKind, WebAppOpened};
+mod attachbots;
+pub use attachbots::{AttachBot, AttachPeer};
+mod urlauth;
+pub use urlauth::{UrlAuthAsk, UrlAuthFrom};
 pub use notify::{NotifyException, NotifyScope};
 
 const DIALOG_LIMIT: usize = 300;
@@ -360,6 +364,18 @@ pub enum Cmd {
     BotWriteAccess { bot: PeerId, allow: bool },
     /// Share our phone number with a bot as a contact, after the user agreed (`requestPhone`).
     SharePhone { bot: PeerId },
+    /// Attachment menu bots, unless the list with `hash` is still current (`Ev::AttachBots`).
+    LoadAttachBots { hash: i64 },
+    /// `t.me/<bot>?startattach[=…]` clicked in `peer`: the bot's attachment menu entry.
+    OpenAttachLink { peer: PeerId, username: String, start_param: String },
+    /// Add a bot to the attachment menu or remove it, after the user agreed.
+    ToggleAttachBot { bot: PeerId, enabled: bool, write_allowed: bool },
+    /// The `url_auth_domains` list from the app config.
+    LoadUrlAuthDomains,
+    /// A login button or link: does the site offer logging in with Telegram?
+    RequestUrlAuth { from: UrlAuthFrom, url: String },
+    /// The user agreed to log in; the answer is the signed URL to open.
+    AcceptUrlAuth { from: UrlAuthFrom, url: String, write_allowed: bool },
     /// New title and / or description of a group or channel (`None` — unchanged).
     EditChat { peer: PeerId, title: Option<String>, about: Option<String> },
     SetChatPhoto { peer: PeerId, path: PathBuf },
@@ -762,6 +778,18 @@ pub enum Ev {
     BotWriteAccess { bot: PeerId, allowed: bool, asked: bool },
     /// Our contact reached the bot (`false`: it failed).
     PhoneShared { bot: PeerId, sent: bool },
+    /// The attachment menu bots and the hash of this list.
+    AttachBots { hash: i64, bots: Vec<AttachBot> },
+    /// The bot of a `startattach` link clicked in `peer`.
+    AttachBotFound { peer: PeerId, bot: AttachBot, start_param: String },
+    /// A bot was added to the attachment menu or removed.
+    AttachBotToggled { bot: PeerId, enabled: bool },
+    /// Domains whose links go through `requestUrlAuth`.
+    UrlAuthDomains(Vec<String>),
+    /// A site offers logging in: ask the user.
+    UrlAuthAsk(UrlAuthAsk),
+    /// The address to open now (signed after a login, or the plain one).
+    UrlAuthOpen(String),
     /// A file was saved to Downloads; the UI opens it (asking first for programs).
     Downloaded(PathBuf),
     /// Contacts whose birthday is today.
@@ -1234,6 +1262,8 @@ impl Worker {
             cmd @ (Cmd::LoadGlobalPrivacy | Cmd::SetGlobalPrivacy(_) | Cmd::LoadContentSettings | Cmd::SetSensitive(_)) => self.global_privacy_cmd(cmd).await,
             cmd @ (Cmd::LoadPassword | Cmd::CheckPassword(_) | Cmd::UpdatePassword { .. } | Cmd::ConfirmPasswordEmail(_) | Cmd::ResendPasswordEmail | Cmd::CancelPasswordEmail) => self.password_cmd(cmd).await,
             cmd @ (Cmd::OpenWebApp { .. } | Cmd::OpenWebAppLink { .. } | Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } | Cmd::BotWriteAccess { .. } | Cmd::SharePhone { .. }) => self.webapp_cmd(cmd).await,
+            cmd @ (Cmd::LoadAttachBots { .. } | Cmd::OpenAttachLink { .. } | Cmd::ToggleAttachBot { .. }) => self.attach_bots_cmd(cmd).await,
+            cmd @ (Cmd::LoadUrlAuthDomains | Cmd::RequestUrlAuth { .. } | Cmd::AcceptUrlAuth { .. }) => self.url_auth_cmd(cmd).await,
             cmd @ (Cmd::AddContact { .. } | Cmd::DeleteContact(_) | Cmd::Block { .. } | Cmd::LoadBlocked) => self.contacts_cmd(cmd).await,
             cmd @ (Cmd::SetNotifyDefault { .. } | Cmd::LoadNotifyExceptions(_) | Cmd::ResetNotify(_)) => self.notify_cmd(cmd).await,
             cmd @ (Cmd::SetProxy(_) | Cmd::CheckProxy(_)) => self.proxy_cmd(cmd).await,

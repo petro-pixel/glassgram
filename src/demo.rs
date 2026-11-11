@@ -21,6 +21,7 @@ mod langpack;
 mod sendas;
 mod aitext;
 mod translate;
+mod attach;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -59,7 +60,7 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
         &[(false, "Andriy", "Call tomorrow at 10:00?"), (true, "", "Yes, deal 👍"), (false, "Andriy", "Here's [the quarterly report](https://example.org/q3-report), have a look before the call")],
         &[(true, "", "/weather Kyiv"), (false, "WeatherBot", "☀ Kyiv: +18°, clear, wind 3 m/s")],
         &[(false, "Sofia", "Dropped the mockups in Figma"), (false, "Sofia", "📄"), (false, "Maksym", "🐱"), (false, "Maksym", "Great, I'll take a look")],
-        &[(false, "Maria", "Thanks for the help!"), (false, "Maria", "Here's the bot I told you about: [t.me/GlassHelperBot?start=from_maria](https://t.me/GlassHelperBot?start=from_maria)")],
+        &[(false, "Maria", "Thanks for the help!"), (false, "Maria", "Here's the bot I told you about: [t.me/GlassHelperBot?start=from_maria](https://t.me/GlassHelperBot?start=from_maria)"), (false, "Maria", "It can also live in the 📎 menu: [t.me/GlassHelperBot?startattach](https://t.me/GlassHelperBot?startattach)")],
         &[(false, "Oleh", "Archived chat: nothing has happened here for ages")],
     ];
 
@@ -737,6 +738,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         cmd @ (Cmd::LoadSendAs(_) | Cmd::SaveSendAs { .. }) => sendas::handle(app, cmd),
         cmd @ (Cmd::LoadMusic(_) | Cmd::LoadSavedMusic(_) | Cmd::LoadSavedTrack { .. }) => music::handle(app, cmd),
         cmd @ (Cmd::LoadTranslationOffer(_) | Cmd::TranslateMany { .. } | Cmd::TogglePeerTranslations { .. }) => translate::handle(app, cmd),
+        cmd @ (Cmd::LoadAttachBots { .. } | Cmd::OpenAttachLink { .. } | Cmd::ToggleAttachBot { .. } | Cmd::LoadUrlAuthDomains | Cmd::RequestUrlAuth { .. } | Cmd::AcceptUrlAuth { .. }) => attach::handle(app, cmd),
         Cmd::LoadSimilarChannels(peer) => {
             let chats = [(61, "Rust Weekly", 12480), (62, "Design Daily", 8115), (63, "Open Source UA", 3902)]
                 .into_iter()
@@ -843,6 +845,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let url = match &kind {
                 WebAppKind::Inline(u) | WebAppKind::Simple(u) | WebAppKind::Menu(u) => u.clone(),
                 WebAppKind::Main { .. } | WebAppKind::Named { .. } => "https://example.org/app".into(),
+                WebAppKind::Attach { .. } => "https://example.org/attach".into(),
             };
             app.push_event(Ev::WebAppOpened(WebAppOpened { peer, bot, kind, url, query_id: None }));
         }
@@ -1526,6 +1529,7 @@ fn weather_buttons() -> Vec<Vec<Button>> {
     vec![
         vec![b("Refresh",ButtonAction::Callback(b"now".to_vec())), b("Tomorrow",ButtonAction::Callback(b"tomorrow".to_vec()))],
         vec![b("Weather map",ButtonAction::Url("https://www.windy.com".into())), b("Radar", ButtonAction::WebApp { url: "https://example.org/radar".into(), simple: false, bot: 6 })],
+        vec![b("Log in to the site", ButtonAction::UrlAuth { url: "https://example.org/weather/login".into(), button_id: 3 })],
     ]
 }
 

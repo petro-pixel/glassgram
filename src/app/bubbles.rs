@@ -115,7 +115,7 @@ pub(super) fn bot_buttons(ui: &mut Ui, m: &Msg, x: f32, width: f32) -> Option<Ac
         for (j, b) in row.iter().enumerate() {
             let br = Rect::from_min_size(pos2(x + j as f32 * (w + 4.0), r.top() + 2.0), vec2(w, 34.0));
             let label = match b.action {
-                ButtonAction::Url(_) => format!("{} ↗", b.text),
+                ButtonAction::Url(_) | ButtonAction::UrlAuth { .. } => format!("{} ↗", b.text),
                 _ => b.text.clone(),
             };
             let resp = glass::button(ui, br, ("bot-btn", m.id, i, j), &label, false, true);

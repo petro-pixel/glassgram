@@ -154,7 +154,7 @@ pub(super) fn buttons(m: &Message) -> Vec<Vec<Button>> {
                         action: match b.r#type {
                             T::Callback(c) => ButtonAction::Callback(c.data),
                             T::Url(u) => ButtonAction::Url(u.url),
-                            T::UrlAuth(u) => ButtonAction::Url(u.url),
+                            T::UrlAuth(u) => ButtonAction::UrlAuth { url: u.url, button_id: u.button_id },
                             T::WebView(u) => ButtonAction::WebApp { url: u.url, simple: false, bot },
                             T::Copy(c) => ButtonAction::Copy(c.copy_text),
                             _ => ButtonAction::Other,

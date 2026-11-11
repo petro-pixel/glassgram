@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 70%** `██████████████░░░░░░` — 119 done, 16 partial, 47 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 70%** `██████████████░░░░░░` — 119 done, 17 partial, 46 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -127,6 +127,8 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/chatedit.rs`, `src/backend/chatedit.rs` | "Edit group / channel": photo, title, description, member permissions, slow mode, allowed reactions, hidden members, anti-spam |
 | `src/app/birthdays.rs`, `src/backend/birthdays.rs` | Birthdays: reminder above the chat list, birthday in user info and in My Account |
 | `src/app/botstart.rs`, `src/backend/botstart.rs` | Bot deep links `t.me/<bot>?start=…`: Start bar with the parameter |
+| `src/app/attachbots.rs`, `src/backend/attachbots.rs` | Attachment menu bots: the list in the 📎 menu, adding from `t.me/<bot>?startattach`, removing |
+| `src/app/urlauth.rs`, `src/backend/urlauth.rs` | Logging in to websites with Telegram: "Log in" buttons and links (`requestUrlAuth`) |
 | `src/app/similar.rs`, `src/backend/similar.rs` | "Similar channels" tab in a channel's info |
 | `src/app/music.rs`, `src/backend/music.rs` | Music player bar and playlist: the chat's music as the queue (`messages.search`), repeat, shuffle; a user's profile music (`users.getSavedMusic`) |
 | `src/app/sendas.rs`, `src/backend/sendas.rs` | Sending as a channel: the avatar button left of the field and its menu (`channels.getSendAs`, `messages.saveDefaultSendAs`) |
@@ -210,7 +212,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Right-click a message for the menu: reply, copy, edit, delete.
 - Double-click — reply. Click the reply bar above the field to quote a part of the message or to reply in another chat.
 - Esc cancels a reply or edit and closes the sticker panel.
-- 📎 — send files (or drag them into the window, or paste them): a box shows what goes, with the caption (the composer text), "Compress images", "Hide with spoiler", "Caption above media" and (one photo or video in a private chat) "View once"; more files dropped on it join it. A dropped folder goes as a zip archive; with several items, "Send as one archive" packs them all into one. Right click on 📎: send without compression, create a poll or quiz, create a checklist. A click on a checklist item ticks it; "View results" under a public poll lists who voted for what; a poll's menu retracts your vote or stops your own poll. A photo or video under a spoiler opens with a click. A view-once or timed photo or video shows a cover: a click opens it once, then it expires. Editing a photo or file ("Edit" in its menu): ⟳ in the "Editing" bar replaces it (right click — without compression), or drop a file on the chat.
+- 📎 — send files (or drag them into the window, or paste them): a box shows what goes, with the caption (the composer text), "Compress images", "Hide with spoiler", "Caption above media" and (one photo or video in a private chat) "View once"; more files dropped on it join it. A dropped folder goes as a zip archive; with several items, "Send as one archive" packs them all into one. Right click on 📎: send without compression, create a poll or quiz, create a checklist, and the attachment menu bots allowed in this chat (a click opens the bot's mini app for the chat, a right click removes it from the menu); a `t.me/<bot>?startattach` link asks to add its bot there first. A "Log in" button under a bot message (or a link to a site that supports it) asks "Log in to <domain> as <name>?", optionally letting the bot message you; "Don't log in" opens the plain address. A click on a checklist item ticks it; "View results" under a public poll lists who voted for what; a poll's menu retracts your vote or stops your own poll. A photo or video under a spoiler opens with a click. A view-once or timed photo or video shows a cover: a click opens it once, then it expires. Editing a photo or file ("Edit" in its menu): ⟳ in the "Editing" bar replaces it (right click — without compression), or drop a file on the chat.
 - 🙂 — sticker panel: emoji, GIF (saved GIFs), 🔍 (search sticker sets; empty — trending), ★ favourite and 🕒 recent stickers, then the installed sets; ⚙ — your sets: order (↑/↓) and removing. Right click on a sticker: add to / remove from favourites, view its set. A click on a sticker in a chat (or a `t.me/addstickers/…` link) opens its set: all stickers, "Add" / "Remove", copy link; right click on a sticker in a chat — "View sticker set", "Add to Favourites", on a GIF — "Save GIF". An emoji typed alone offers matching stickers above the field.
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.
