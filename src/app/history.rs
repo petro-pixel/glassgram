@@ -130,7 +130,7 @@ impl App {
         let mut open_calendar = None;
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect);
-        let pin_h = self.pin_bar_h(peer) + self.saved_bar_h(peer);
+        let pin_h = self.music_bar_h() + self.pin_bar_h(peer) + self.saved_bar_h(peer);
         let scroll_bottom = std::mem::take(&mut self.scroll.to_bottom);
         let scrolled = egui::ScrollArea::vertical()
             .id_salt(("history", peer))

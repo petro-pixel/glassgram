@@ -106,6 +106,8 @@ enum Do {
     Qr(String),
     /// The chat's wallpaper and theme box.
     Wallpaper,
+    /// Play the user's profile music.
+    ProfileMusic,
 }
 
 fn has_members(kind: ChatKind) -> bool {
@@ -150,6 +152,9 @@ impl App {
         // Asked up front: the tab is shown only when there is something in it.
         if kind == ChatKind::Channel {
             self.send(Cmd::LoadSimilarChannels(peer));
+        }
+        if kind == ChatKind::User {
+            self.send(Cmd::LoadSavedMusic(peer));
         }
         self.select_info_tab(tab);
     }
@@ -385,6 +390,7 @@ impl App {
     fn info_apply(&mut self, peer: PeerId, chat: &ChatInfo, d: Do) {
         match d {
             Do::Close => self.info = None,
+            Do::ProfileMusic => self.music_play_profile(peer, 0),
             Do::Copy(text) => {
                 self.ctx.copy_text(text);
                 self.toast = Some((l!("Скопійовано", "Copied").into(), 0.0, false));
@@ -530,6 +536,9 @@ impl App {
             let today = b.is_on(jiff::Zoned::now().date());
             let text = if today { format!("🎂 {}", super::birthdays::birthday_label(b)) } else { super::birthdays::birthday_label(b) };
             info_row(ui, Icon::Cake, &text, if today { l!("Сьогодні день народження", "Birthday today") } else { l!("День народження", "Birthday") });
+        }
+        if chat.kind == ChatKind::User && self.profile_music_row(ui, chat.id) {
+            todo.push(Do::ProfileMusic);
         }
         if d.username.is_empty() && !user && chat.kind != ChatKind::Saved {
             if !d.invite.is_empty() {

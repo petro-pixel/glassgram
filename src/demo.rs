@@ -15,6 +15,7 @@ mod stickers;
 mod stars;
 mod custom_emoji;
 mod effects;
+mod music;
 mod wallpapers;
 mod langpack;
 mod sendas;
@@ -676,6 +677,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         cmd @ (Cmd::SearchChannels(_) | Cmd::SearchApps(_) | Cmd::CheckPostsFlood(_) | Cmd::SearchPosts(_)) => search_tabs(app, cmd),
         cmd @ (Cmd::LoadSendAs(_) | Cmd::SaveSendAs { .. }) => sendas::handle(app, cmd),
+        cmd @ (Cmd::LoadMusic(_) | Cmd::LoadSavedMusic(_) | Cmd::LoadSavedTrack { .. }) => music::handle(app, cmd),
         Cmd::LoadSimilarChannels(peer) => {
             let chats = [(61, "Rust Weekly", 12480), (62, "Design Daily", 8115), (63, "Open Source UA", 3902)]
                 .into_iter()
@@ -1421,6 +1423,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
             msgs.push(Msg { id: 80, media: Some(media(MediaKind::Voice, 4.0, "", "")), ..base(22, "Olena") });
             msgs.push(Msg { id: 81, media: Some(media(MediaKind::Voice, 3.0, "", "")), media_unread: true, ..base(22, "Olena") });
             msgs.push(Msg { id: 82, media: Some(media(MediaKind::Audio, 5.0, "Glass Morning", "Glassgram")), ..base(23, "") });
+            msgs.extend(music::messages(base(23, "Olena")));
             msgs.push(Msg {
                 id: 83,
                 media: Some(MediaInfo { size: (640, 360), ..media(MediaKind::Video, 6.0, "", "") }),
@@ -1466,34 +1469,39 @@ fn weather_buttons() -> Vec<Vec<Button>> {
     ]
 }
 
-/// Demo sound for voice and audio: a pulsing chord as WAV (16-bit, mono).
+/// Demo sound for voice messages: a pulsing chord as WAV; music has its own tunes (`music::tone`).
 fn tone(id: i32) -> Option<std::path::PathBuf> {
     let secs = match id {
         80 => 4.0,
         81 => 3.0,
-        82 => 5.0,
-        _ => return None,
+        _ => return music::tone(id),
     };
     const RATE: u32 = 22_050;
     let n = (RATE as f32 * secs) as u32;
-    let base = if id == 82 { 220.0 } else { 330.0 };
+    let base = 330.0;
     let samples = (0..n).map(|i| {
         let t = i as f32 / RATE as f32;
         let env = (t * 3.0 * std::f32::consts::PI).sin().abs() * (1.0 - t / secs).min(t * 20.0).min(1.0);
         let v: f32 = [1.0, 1.25, 1.5].iter().map(|k| (t * base * k * std::f32::consts::TAU).sin()).sum::<f32>() / 3.0;
         (v * env * 0.4 * i16::MAX as f32) as i16
     });
+    write_wav(&format!("demo-{id}.wav"), RATE, samples)
+}
+
+/// Mono 16-bit WAV in our own temp folder.
+fn write_wav(name: &str, rate: u32, samples: impl ExactSizeIterator<Item = i16>) -> Option<std::path::PathBuf> {
+    let n = samples.len() as u32;
     let mut wav = Vec::with_capacity(44 + n as usize * 2);
     wav.extend_from_slice(b"RIFF");
     wav.extend_from_slice(&(36 + n * 2).to_le_bytes());
     wav.extend_from_slice(b"WAVEfmt ");
-    for v in [16u32.to_le_bytes(), [1, 0, 1, 0], RATE.to_le_bytes(), (RATE * 2).to_le_bytes(), [2, 0, 16, 0]] {
+    for v in [16u32.to_le_bytes(), [1, 0, 1, 0], rate.to_le_bytes(), (rate * 2).to_le_bytes(), [2, 0, 16, 0]] {
         wav.extend_from_slice(&v);
     }
     wav.extend_from_slice(b"data");
     wav.extend_from_slice(&(n * 2).to_le_bytes());
     samples.for_each(|s| wav.extend_from_slice(&s.to_le_bytes()));
-    let path = std::env::temp_dir().join(format!("glassgram-demo-{id}.wav"));
+    let path = crate::platform::temp_file(name);
     std::fs::write(&path, wav).ok()?;
     Some(path)
 }
