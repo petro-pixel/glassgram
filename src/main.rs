@@ -6,10 +6,12 @@
 mod accounts;
 mod app;
 mod backend;
+mod badge;
 mod blur;
 mod cache;
 mod camera;
 mod demo;
+mod draw;
 mod emoji;
 mod errlog;
 mod export;

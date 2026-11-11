@@ -51,14 +51,6 @@ impl TrayHandle {
         self.0.refresh();
     }
 
-    /// Remembers the native window so the tray can bring it back (Windows; elsewhere nothing).
-    pub fn attach(&self, frame: &eframe::Frame) {
-        #[cfg(target_os = "windows")]
-        win::attach(frame);
-        #[cfg(not(target_os = "windows"))]
-        let _ = frame;
-    }
-
     /// Closing the window hides it to the tray, as in Telegram Desktop on Windows.
     /// `false` where that isn't done: the window then closes as usual.
     pub fn hide_window(&self) -> bool {
@@ -77,7 +69,7 @@ mod win {
     use std::sync::atomic::{AtomicIsize, Ordering};
     use windows_sys::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_RESTORE, SetForegroundWindow, ShowWindow};
 
-    static HWND: AtomicIsize = AtomicIsize::new(0);
+    pub(super) static HWND: AtomicIsize = AtomicIsize::new(0);
 
     pub fn attach(frame: &eframe::Frame) {
         if HWND.load(Ordering::Relaxed) != 0 {
@@ -110,6 +102,21 @@ mod win {
             }
         }
     }
+}
+
+/// Remembers the native window so the tray can bring it back and the taskbar badge can find its
+/// button (Windows; elsewhere nothing).
+pub fn attach(frame: &eframe::Frame) {
+    #[cfg(target_os = "windows")]
+    win::attach(frame);
+    #[cfg(not(target_os = "windows"))]
+    let _ = frame;
+}
+
+/// The window's HWND once `attach` has seen it.
+#[cfg(target_os = "windows")]
+pub fn window() -> Option<isize> {
+    Some(win::HWND.load(std::sync::atomic::Ordering::Relaxed)).filter(|&h| h != 0)
 }
 
 /// Brings back a window hidden to the tray, from any thread: a hidden window gets no frames,

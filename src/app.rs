@@ -1559,9 +1559,10 @@ impl App {
 
     // ───────────────────────────── Main screen ─────────────────────────────
 
-    /// Unread counter in the window title (like a taskbar badge).
+    /// Unread counter in the window title and on the taskbar or dock icon.
     fn update_title(&mut self, ui: &Ui) {
         let unread: usize = self.chats.iter().filter(|c| !c.muted && !c.archived).map(|c| c.unread.max(c.unread_mark as i32) as usize).sum();
+        crate::badge::set(unread);
         if unread != self.title_unread {
             self.title_unread = unread;
             let title = if unread > 0 { format!("Glassgram ({unread})") } else { "Glassgram".to_owned() };
@@ -1574,8 +1575,8 @@ impl App {
 
     /// With a tray (Windows), closing the window hides it there, as Telegram Desktop does.
     fn close_to_tray(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
+        crate::tray::attach(frame);
         let Some(t) = &self.tray else { return };
-        t.attach(frame);
         if !self.quitting && ctx.input(|i| i.viewport().close_requested()) && t.hide_window() {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             if !std::mem::replace(&mut self.tray_hint_shown, true) {

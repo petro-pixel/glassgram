@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 67%** `█████████████░░░░░░░` — 117 done, 10 partial, 55 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 68%** `██████████████░░░░░░` — 118 done, 10 partial, 54 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -173,7 +173,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/suggest.rs`, `src/backend/suggest.rs` | Link previews (in bubbles and above the composer), @mention and bot command suggestions, "Start" for bots |
 | `src/app/info.rs`, `src/backend/info.rs` | Chat info column: profile, members, shared media, per-chat notifications, leave / clear / delete |
 | `src/app/settings_pages.rs` | Settings pages (Telegram Desktop layout), My Account editor |
-| `src/app/userqr.rs` | QR code of a public username in six designs, drawn on the CPU (`vello_cpu`): copy, save as PNG |
+| `src/app/userqr.rs`, `src/draw.rs` | QR code of a public username in six designs, drawn on the CPU (`vello_cpu`): copy, save as PNG |
 | `src/app/layout.rs` | Window layout modes: narrow (one column), normal, wide (chat info as a third column) |
 | `src/app/motion.rs` | Spring animations (Apple-style, 150–350 ms): new bubbles, the folder tab capsule and list slide, column transitions; "Reduce motion" snaps them |
 | `src/app/hotkeys.rs` | Keyboard shortcuts |
@@ -188,7 +188,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/platform.rs` | Everything that differs between Linux, Windows and macOS: folders, ffmpeg/ffplay, notifications; the safe openers for links (`open_url`) and received files (`open_file`, `safe_file_name`), private temp files |
 | `src/settings.rs` | Settings and saving them |
 | `src/lock.rs` | Local passcode (salt + SHA-256) |
-| `src/tray.rs`, `src/logo.rs` | Tray icon (`ksni` on Linux, `tray-icon` on Windows and macOS) and the app logo |
+| `src/tray.rs`, `src/logo.rs`, `src/badge.rs` | Tray icon (`ksni` on Linux, `tray-icon` on Windows and macOS), the app logo, and the unread badge on the taskbar or dock icon |
 | `src/icons.rs`, `assets/icons/` | Vector icons: Lucide SVG files (24×24), parsed with `roxmltree` and flattened with `kurbo` |
 | `src/i18n.rs`, `src/i18n/plural.rs`, `locales/` | UI language: `l!`/`lf!`/`lp!` (counted, CLDR plural rules) for Ukrainian and English, JSON localisation files and Telegram packs (via `tdesktop-keys.json`) for the rest |
 | `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |

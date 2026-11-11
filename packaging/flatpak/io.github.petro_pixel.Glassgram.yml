@@ -23,6 +23,8 @@ finish-args:
   - --filesystem=xdg-download
   - --talk-name=org.kde.StatusNotifierWatcher
   - --talk-name=org.freedesktop.Notifications
+  # The unread badge on the dock icon (Unity LauncherEntry, badge.rs).
+  - --talk-name=com.canonical.Unity
 modules:
   # H.264 for video messages.
   - name: x264
