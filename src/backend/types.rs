@@ -708,6 +708,9 @@ pub struct Msg {
     /// Our own message posted as a channel (`send_as`): the bubble names it like someone else's.
     #[serde(default)]
     pub as_channel: bool,
+    /// A long post the server can summarize: the language it is written in.
+    #[serde(default)]
+    pub summary_lang: Option<String>,
 }
 
 impl Msg {
@@ -759,6 +762,7 @@ impl Msg {
             effect: None,
             ttl: None,
             as_channel: false,
+            summary_lang: None,
         }
     }
 

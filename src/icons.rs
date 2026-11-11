@@ -93,6 +93,8 @@ pub enum Icon {
     Flag,
     Calendar,
     Translate,
+    /// AI summary.
+    Sparkles,
     Poll,
     /// Checklist.
     Todo,
@@ -181,6 +183,7 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Flag => include_str!("../assets/icons/flag.svg"),
         Icon::Calendar => include_str!("../assets/icons/calendar.svg"),
         Icon::Translate => include_str!("../assets/icons/languages.svg"),
+        Icon::Sparkles => include_str!("../assets/icons/sparkles.svg"),
         Icon::Poll => include_str!("../assets/icons/chart-bar.svg"),
         Icon::Todo => include_str!("../assets/icons/list-todo.svg"),
         Icon::Cake => include_str!("../assets/icons/cake.svg"),

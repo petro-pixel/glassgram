@@ -100,6 +100,7 @@ mod custom_emoji;
 mod effects;
 mod viewonce;
 mod namecolor;
+mod aitext;
 mod videoplayer;
 mod userqr;
 mod layout;
@@ -210,6 +211,10 @@ enum Action {
     /// Show which group members have read it.
     ReadBy(i32),
     Translate(i32),
+    /// Transcribe a voice or round video message, or fold its text.
+    Transcribe(i32),
+    /// Show a long post's AI summary, or the original again.
+    Summary(i32),
     /// Report a message to Telegram's moderators.
     Report(i32),
     /// Queued message: send again / drop without sending.
@@ -582,6 +587,7 @@ pub struct App {
     effects: effects::Effects,
     view_once: viewonce::ViewOnce,
     name_colors: namecolor::NameColors,
+    ai_text: aitext::AiText,
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
     langpacks: langpack::LangPacks,
@@ -866,6 +872,7 @@ impl App {
             effects: effects::Effects::default(),
             view_once: viewonce::ViewOnce::default(),
             name_colors: namecolor::NameColors::default(),
+            ai_text: aitext::AiText::default(),
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
             langpacks: langpack::LangPacks::default(),
@@ -1106,6 +1113,8 @@ impl App {
             Ev::DateFound { peer, id } => self.date_found(peer, id),
             Ev::MediaDays { peer, days } => self.media_days(peer, days),
             Ev::Translated { peer, id, to, result } => self.translated(peer, id, to, result),
+            Ev::Transcribed { peer, id, result } => self.on_transcribed(peer, id, result),
+            Ev::Summarized { peer, id, result } => self.on_summarized(peer, id, result),
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. } | Ev::BotWriteAccess { .. } | Ev::PhoneShared { .. }) => self.web_app_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
@@ -1552,7 +1561,7 @@ impl App {
                 }
             },
             // Handled by `chat_view_action`.
-            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_) | Action::Effect(_) => {}
+            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_) | Action::Effect(_) => {}
         }
     }
 

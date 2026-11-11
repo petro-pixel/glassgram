@@ -169,6 +169,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Mini apps: server requests, the WebView window process (`glassgram --webview`) and its bridge |
 | `src/app/contacts.rs`, `src/backend/contacts.rs` | "New contact" box, add / delete contact and block from user info, blocked list in Privacy and Security |
 | `src/app/translate.rs`, `src/backend/translate.rs` | "Translate" window from the message menu |
+| `src/app/aitext.rs`, `src/backend/aitext.rs` | Voice and round video transcription ("→A", live `updateTranscribedAudio`), AI summaries of long posts |
 | `src/app/calendar.rs` | "Jump to date" calendar over the chat (the request is `Cmd::JumpToDate` in `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Notifications for chats: private / groups / channels defaults, exceptions, resolving a chat's mute state from its category |
 | `src/app/alerts.rs` | Message notifications: "Reply" and "Mark as read" buttons, a click opens the chat, one notification per chat with a counter (Linux) |
@@ -236,6 +237,8 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Typing in the chat list search shows tabs under it: Chats, Channels, Apps, Posts, Media. Posts are searched with Enter or the "Search posts" button (free searches a day are limited); Esc clears the search and returns to Chats.
 - Ctrl+V with an image or copied files sends them.
 - ▶ on a voice or audio message plays it; clicking the waveform seeks, the "1×" chip changes the speed. Clicking a video opens the player: the seek bar, volume, speed (0.5–2×), full screen and picture-in-picture (a small window in a corner that keeps playing while you browse chats; drag it to another corner). Keys: Space — play/pause, ←/→ — 5 s back/forward, F — full screen, Esc — leave full screen, then close. "Open in player" (the system one) is in the menu.
+- "→A" by a voice message's waveform (beside a round video) transcribes it (Telegram Premium; without it the server's few free tries): a spinner while the server works, then the text under the waveform; a second click folds it.
+- A long channel post shows a "Summary" capsule above its text: a click puts the AI summary in its place, "Show original" in its header brings the text back.
 - 🎤 (the "Send" button when the composer is empty) starts voice recording; ➤ sends, ■ stops for review, Esc cancels.
 - Right-click the microphone — record a video message (camera — in Settings or `GLASSGRAM_CAMERA`).
 

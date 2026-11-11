@@ -114,6 +114,8 @@ pub use effects::Effect;
 mod viewonce;
 pub use viewonce::VIEW_ONCE;
 mod namecolor;
+mod aitext;
+pub use aitext::Transcript;
 pub use namecolor::{ColorOption, default_color};
 mod report;
 pub use report::ReportStep;
@@ -441,6 +443,10 @@ pub enum Cmd {
     AppendTodo { peer: PeerId, id: i32, items: Vec<(i32, String)> },
     /// Translate a message's text into `to` (a language code).
     Translate { peer: PeerId, id: i32, to: String },
+    /// Speech to text of a voice or round video message (Premium, or a few free tries).
+    Transcribe { peer: PeerId, id: i32 },
+    /// The AI summary of a long post.
+    Summarize { peer: PeerId, id: i32 },
     /// Find the first message sent at or after `date` (unix time), for the calendar.
     JumpToDate { peer: PeerId, date: i32 },
     /// Days with photos or videos before `before` (unix time), for the calendar.
@@ -774,6 +780,10 @@ pub enum Ev {
     BlockedList(Vec<ChatInfo>),
     /// Translated text (formatting as spans), or the server's error.
     Translated { peer: PeerId, id: i32, to: String, result: Result<(String, Vec<Span>), String> },
+    /// A transcription (maybe still pending) or why there is none.
+    Transcribed { peer: PeerId, id: i32, result: Result<Transcript, String> },
+    /// A post's AI summary (formatting as spans), or the server's error.
+    Summarized { peer: PeerId, id: i32, result: Result<(String, Vec<Span>), String> },
     /// The message to jump to for a calendar date (`None`: the chat is empty).
     DateFound { peer: PeerId, id: Option<i32> },
     /// Calendar periods with photos and videos: (start of the day, how many).
@@ -1161,6 +1171,7 @@ impl Worker {
                 self.chat_view_cmd(cmd).await
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
+            cmd @ (Cmd::Transcribe { .. } | Cmd::Summarize { .. }) => self.aitext_cmd(cmd).await,
             cmd @ (Cmd::SendPoll { .. } | Cmd::PollVotes { .. } | Cmd::AddPollAnswer { .. } | Cmd::StopPoll { .. }) => self.polls_cmd(cmd).await,
             cmd @ (Cmd::SendTodo { .. } | Cmd::ToggleTodo { .. } | Cmd::AppendTodo { .. }) => self.todo_cmd(cmd).await,
             Cmd::ReloadImages(keys) => {

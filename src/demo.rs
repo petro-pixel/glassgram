@@ -18,6 +18,7 @@ mod effects;
 mod wallpapers;
 mod langpack;
 mod sendas;
+mod aitext;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -523,6 +524,8 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             };
             app.push_event(Ev::Translated { peer, id, to, result: Ok((translated, Vec::new())) });
         }
+        Cmd::Transcribe { peer, id } => aitext::transcribe(app, peer, id),
+        Cmd::Summarize { peer, id } => aitext::summarize(app, peer, id),
         Cmd::JumpToDate { peer, date } => {
             let msgs = app.demo_history().find(|(p, _, _)| *p == peer).map(|(_, _, msgs)| msgs.clone()).unwrap_or_default();
             let id = msgs.iter().find(|m| m.ts >= date as i64).or(msgs.last()).map(|m| m.id);
@@ -1436,6 +1439,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
             msgs.push(custom_emoji::message(base(28, "Olena")));
             msgs.extend(effects::messages(base(29, "Olena")));
         }
+        4 => msgs.push(aitext::post(base(30, "Tech News"))),
         9 => {
             // A long history: shows virtualization (only bubbles near the screen are drawn).
             const LONG: i32 = 3000;

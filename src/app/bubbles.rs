@@ -336,12 +336,15 @@ pub(super) fn media_card(ui: &mut Ui, m: &Msg, rect: Rect, play: PlayView) -> Op
     // Always keep room for the speed toggle so the waveform doesn't jump at start.
     let audio = matches!(info.kind, MediaKind::Voice | MediaKind::Audio);
     let chip_w = if audio { 38.0 } else { 0.0 };
+    let tr_w = aitext::button_w(m);
     match info.kind {
         MediaKind::Voice => {
             // Waveform: bars, the played part brighter; a click seeks.
-            let wave = Rect::from_min_max(pos2(x0, rect.top() + 4.0), pos2(right - chip_w, rect.top() + 26.0));
+            let wave = Rect::from_min_max(pos2(x0, rect.top() + 4.0), pos2(right - chip_w - tr_w, rect.top() + 26.0));
             draw_wave(&p, wave, &info.waveform, play.current.then_some(play.progress));
             action = seek_area(ui, m.id, wave, play).or(action);
+            let tr = Rect::from_min_size(pos2(right - tr_w + 4.0, rect.top() + 3.0), vec2(tr_w - 4.0, 24.0));
+            action = aitext::voice_button(ui, m, tr, false).or(action);
         }
         _ => {
             let title = match info.kind {
@@ -372,7 +375,7 @@ pub(super) fn media_card(ui: &mut Ui, m: &Msg, rect: Rect, play: PlayView) -> Op
     }
 
     if audio && play.current {
-        let chip = Rect::from_min_size(pos2(right - chip_w + 6.0, rect.top() + 6.0), vec2(chip_w - 6.0, 20.0));
+        let chip = Rect::from_min_size(pos2(right - chip_w - tr_w + 6.0, rect.top() + 6.0), vec2(chip_w - 6.0, 20.0));
         let r = ui.interact(chip, ui.scope_id().with(("speed", m.id)), Sense::click());
         p.rect_filled(chip, 10.0, glass::veil(if r.hovered() { 45 } else { 25 }));
         let s = if play.speed.fract() == 0.0 { format!("{}×", play.speed as i32) } else { format!("{}×", play.speed) };
@@ -590,7 +593,14 @@ pub(super) fn bubble(
     let text_w = img_size.map_or(max_w, |s| s.x) - pad.x * 2.0;
 
     let link = glass::link(m.out);
-    let body = (!m.text.is_empty()).then(|| custom_emoji::galley(&p, format::layout(&m.text, &m.spans, glass::msg_font(), ink(), link, text_w, revealed), &m.spans, revealed));
+    // A shown AI summary is laid out in place of the text.
+    let brief = aitext::brief(ui.ctx(), m);
+    let summary = brief.as_ref().and_then(|b| b.text());
+    let body = (!m.text.is_empty()).then(|| match summary {
+        Some((text, spans)) => p.layout_job(format::layout(text, spans, glass::msg_font(), ink(), link, text_w, true)),
+        None => custom_emoji::galley(&p, format::layout(&m.text, &m.spans, glass::msg_font(), ink(), link, text_w, revealed), &m.spans, revealed),
+    });
+    let heard = aitext::transcript(&p, m, text_w.min(320.0));
     // Trailing spaces leave room for the ticks drawn on top.
     let meta_text = format!("{}{}{}{}", chatview::views_label(m, look), if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
     let badge = effects::badge(ui.ctx(), m);
@@ -639,6 +649,14 @@ pub(super) fn bubble(
         block.x = block.x.max(card_w);
         block.y += card_h + 6.0;
     }
+    if let Some(g) = &heard {
+        block.x = block.x.max(g.size().x);
+        block.y += g.size().y + 6.0;
+    }
+    if let Some(b) = &brief {
+        block.x = block.x.max(120.0);
+        block.y += b.head_h();
+    }
     // The link preview card goes under the text, like in Telegram.
     let web = m.webpage.as_ref().filter(|_| img_size.is_none()).map(|w| suggest::WebCard::layout(ui, w, text_w.min(380.0), photo, quote_accent));
     if let Some(c) = &web {
@@ -659,8 +677,8 @@ pub(super) fn bubble(
             }
         }
         // Time goes in the bottom right corner of the media card, next to the duration.
-        None if m.media.is_some() => {
-            block.x = block.x.max(card_w.min(150.0) + meta.size().x);
+        None if m.media.is_some() && heard.is_none() => {
+            block.x = block.x.max(card_w.min(150.0) + meta.size().x + aitext::button_w(m));
             block.y -= 6.0;
         }
         None if img_size.is_none() => {
@@ -754,10 +772,22 @@ pub(super) fn bubble(
         card_action = draw_card(ui, m, Rect::from_min_size(cursor, vec2(block.x, card_h)), look);
         cursor.y += card_h + 6.0;
     }
+    if let Some(g) = heard {
+        let h = g.size().y;
+        p.galley(cursor, g, ink());
+        cursor.y += h + 6.0;
+    }
+    if let Some(b) = &brief {
+        card_action = b.draw(ui, m, cursor, block.x, body.as_ref().map_or(0.0, |b| b.size().y)).or(card_action);
+        cursor.y += b.head_h();
+    }
     if let Some(body) = &body {
         p.galley(cursor, body.clone(), ink());
-        custom_emoji::paint(&p, body, cursor, &m.text, &m.spans, revealed);
-        body_pos = Some(cursor);
+        // Links, spoilers and custom emoji belong to the original text, not the summary.
+        if summary.is_none() {
+            custom_emoji::paint(&p, body, cursor, &m.text, &m.spans, revealed);
+            body_pos = Some(cursor);
+        }
     }
     if let Some(c) = web {
         let top = cursor.y + body.as_ref().map_or(0.0, |b| b.size().y + 6.0);
@@ -900,7 +930,10 @@ pub(super) fn spinner(p: &egui::Painter, c: egui::Pos2, r: f32) {
 pub(super) fn round_bubble(ui: &mut Ui, m: &Msg, tex: Option<&TextureHandle>, look: Look) -> Option<Action> {
     let size = ROUND_PT;
     let avail = ui.available_width();
-    let (row, resp) = ui.allocate_exact_size(vec2(avail, size + 12.0), Sense::click());
+    // The transcription goes in a small bubble under the circle.
+    let heard = aitext::transcript(ui.painter(), m, (avail * 0.72).min(320.0) - 28.0);
+    let heard_h = heard.as_ref().map_or(0.0, |g| g.size().y + 24.0);
+    let (row, resp) = ui.allocate_exact_size(vec2(avail, size + 12.0 + heard_h), Sense::click());
     pick_mark(ui, row, look);
     if look.picking && resp.clicked() {
         return Some(Action::Pick(m.id));
@@ -952,10 +985,17 @@ pub(super) fn round_bubble(ui: &mut Ui, m: &Msg, tex: Option<&TextureHandle>, lo
     let mchip = Rect::from_min_size(pos2(r.right() - meta.size().x - 16.0, r.bottom() - meta.size().y - 6.0), meta.size() + vec2(12.0, 6.0));
     glass::glass(p, mchip, Glass::tinted(mchip.height() / 2.0, glass::chrome(), 120).frosted(1.0));
     p.galley(mchip.min + vec2(6.0, 3.0), meta, ink());
-
-    let mut action = None;
+    if let Some(g) = heard {
+        let w = g.size().x + 28.0;
+        let b = Rect::from_min_size(pos2(if m.out { r.right() - w } else { r.left() }, r.bottom() + 10.0), vec2(w, g.size().y + 18.0));
+        glass::glass(p, b, Glass::tinted(18.0, glass::bubble_in().0, glass::bubble_in().1).frosted(1.0));
+        p.galley(b.min + vec2(14.0, 9.0), g, ink());
+    }
+    // "→A" beside the circle, at its bottom, on the side away from the edge.
+    let side = if m.out { r.left() - 40.0 } else { r.right() + 8.0 };
+    let mut action = aitext::voice_button(ui, m, Rect::from_min_size(pos2(side, r.bottom() - 32.0), vec2(32.0, 32.0)), true);
     if !m.reactions.is_empty() {
-        action = reaction_chips(ui, m.id, &m.reactions, r.left(), m.out, r.right());
+        action = reaction_chips(ui, m.id, &m.reactions, r.left(), m.out, r.right()).or(action);
     }
     let inside = resp.hover_pos().is_some_and(|q| q.distance(r.center()) <= size / 2.0);
     if inside {

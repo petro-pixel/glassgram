@@ -312,6 +312,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         },
         ttl: viewonce::ttl(&m.raw).map(|t| t.secs),
         as_channel: m.outgoing() && m.sender_id().is_some_and(|p| p.kind() != grammers_client::session::types::PeerKind::User),
+        summary_lang: aitext::summary_lang(&m.raw),
     };
     let mut msg = msg;
     if let Some(t) = viewonce::ttl(&m.raw).filter(|t| t.expired) {
