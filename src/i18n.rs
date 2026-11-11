@@ -746,12 +746,17 @@ mod tests {
     /// Order: a localisation file over the server pack, the pack over English.
     #[test]
     fn file_wins_over_the_pack() {
-        let de = parse(BUILTIN.iter().find(|(c, _)| *c == "de").unwrap().1).unwrap().1.plain;
-        // A mapped string the German file doesn't have.
-        let (key, en) = tdesktop_keys()
+        let de = parse(BUILTIN.iter().find(|(c, _)| *c == "de").unwrap().1).unwrap().1;
+        let in_file = |en: &str| de.plain.contains_key(en) || de.plural.contains_key(en);
+        // A mapped string without placeholders (the pack's value below has none, and a mismatch is
+        // dropped) that the German file has neither plain nor plural. Picking by the HashMap's order
+        // sometimes hit a "{n} …" string and failed; sorted, the pick is the same every run.
+        let mut found: Vec<(String, String)> = tdesktop_keys()
             .iter()
-            .find_map(|(k, v)| v.iter().find(|(en, a)| a.is_empty() && !de.contains_key(en)).map(|(en, _)| (k.clone(), en.clone())))
-            .unwrap();
+            .flat_map(|(k, v)| v.iter().filter(|(en, a)| a.is_empty() && !en.contains('{') && !in_file(en)).map(move |(en, _)| (k.clone(), en.clone())))
+            .collect();
+        found.sort();
+        let (key, en) = found.into_iter().next().unwrap();
         let pack = crate::backend::LangPack {
             code: "de".into(),
             name: "Deutsch (Telegram)".into(),
