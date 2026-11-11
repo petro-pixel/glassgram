@@ -90,7 +90,7 @@ impl App {
             Some(r) => (Some(r.id), r.peer, r.quote),
             None => (None, None, None),
         };
-        let q = Queued { key, peer, text, reply_to, silent: opts.silent, ts: ts.as_second(), failed: false, no_webpage: opts.no_webpage, quote, reply_peer, media };
+        let q = Queued { key, peer, text, reply_to, silent: opts.silent, ts: ts.as_second(), failed: false, no_webpage: opts.no_webpage, quote, reply_peer, media, send_as: self.send_as_for(peer) };
         let id = self.new_local_id();
         let msg = self.queued_msg(&q, id);
         self.outbox.push(Pending { q, id, attempts: 0, next_at: 0.0, in_flight: false });
@@ -102,6 +102,9 @@ impl App {
     /// The bubble of a queued message; a reply to another chat names that chat.
     pub(super) fn queued_msg(&self, q: &Queued, id: i32) -> Msg {
         let mut msg = q.to_msg(id);
+        if let Some(title) = self.send_as_channel(q.peer, q.send_as) {
+            (msg.sender, msg.as_channel) = (title, true);
+        }
         if let Some(from) = q.reply_peer {
             msg.reply_elsewhere = Some(self.chats.iter().find(|c| c.id == from).map(|c| c.title.clone()).unwrap_or_default());
         }

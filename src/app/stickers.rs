@@ -144,7 +144,7 @@ impl App {
         if let (Some(doc), Some(peer)) = (pick.send, peer) {
             let reply_to = self.take_reply();
             self.compose = Compose::New;
-            self.send(Cmd::SendSticker { peer, doc, reply_to });
+            self.send(Cmd::SendSticker { peer, doc, reply_to, send_as: self.send_as_for(peer) });
         }
     }
 
@@ -323,7 +323,7 @@ impl App {
         if let Some(doc) = send {
             let reply_to = self.take_reply();
             self.compose = Compose::New;
-            self.send(Cmd::SendSticker { peer, doc, reply_to });
+            self.send(Cmd::SendSticker { peer, doc, reply_to, send_as: self.send_as_for(peer) });
         }
     }
 

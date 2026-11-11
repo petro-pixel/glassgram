@@ -105,7 +105,7 @@ pub(super) fn new_message_id(u: &tl::enums::Updates) -> Option<i32> {
 impl Worker {
     pub(super) async fn polls_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
         match cmd {
-            Cmd::SendPoll { peer, poll, reply_to } => self.send_poll(peer, poll, reply_to).await,
+            Cmd::SendPoll { peer, poll, reply_to, send_as } => self.send_poll(peer, poll, reply_to, send_as).await,
             Cmd::PollVotes { peer, id, offset } => {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
@@ -142,9 +142,10 @@ impl Worker {
         }
     }
 
-    pub(super) async fn send_poll(&self, peer: PeerId, poll: NewPoll, reply_to: Option<ReplyTo>) -> Result<(), String> {
+    pub(super) async fn send_poll(&self, peer: PeerId, poll: NewPoll, reply_to: Option<ReplyTo>, send_as: Option<PeerId>) -> Result<(), String> {
         let client = self.client()?;
         let r = self.peer_ref(peer)?;
+        let send_as = self.send_as_ref(send_as)?;
         let quiz = poll.quiz.is_some();
         let (solution, solution_entities) = if quiz && !poll.solution.trim().is_empty() {
             let (t, e) = format::parse(poll.solution.trim());
@@ -198,7 +199,7 @@ impl Worker {
             entities: None,
             schedule_date: None,
             schedule_repeat_period: None,
-            send_as: None,
+            send_as,
             quick_reply_shortcut: None,
             effect: None,
             allow_paid_stars: None,

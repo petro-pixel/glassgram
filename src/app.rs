@@ -53,6 +53,7 @@ mod chatedit;
 mod birthdays;
 mod botstart;
 mod similar;
+mod sendas;
 mod saved;
 mod chatsearch;
 mod stories;
@@ -577,6 +578,7 @@ pub struct App {
     websites: websites::Websites,
     langpacks: langpack::LangPacks,
     stars: stars::Stars,
+    send_as: sendas::SendAs,
     sounds: sounds::Sounds,
     alerts: alerts::Alerts,
     richtext: richtext::RichText,
@@ -856,6 +858,7 @@ impl App {
             websites: websites::Websites::default(),
             langpacks: langpack::LangPacks::default(),
             stars: stars::Stars::default(),
+            send_as: sendas::SendAs::default(),
             sounds: sounds::Sounds::default(),
             alerts: alerts::Alerts::default(),
             richtext: richtext::RichText::default(),
@@ -1063,6 +1066,7 @@ impl App {
             Ev::StarsHistory { dir, list, next, append } => self.on_stars_history(dir, list, next, append),
             Ev::AdminLog { peer, entries, older } => self.on_admin_log(peer, entries, older),
             Ev::DiscussionGroups { peer, groups } => self.on_discussion_groups(peer, groups),
+            Ev::SendAs { peer, peers, current } => self.on_send_as(peer, peers, current),
             ev @ (Ev::Participants { .. } | Ev::ParticipantsChanged(_) | Ev::InviteLinks { .. } | Ev::JoinRequests { .. }) => self.manage_event(ev),
             Ev::Chatlist(list) => self.on_chatlist(list),
             Ev::CacheUsage(usage) => self.on_cache_usage(usage),
@@ -1463,7 +1467,7 @@ impl App {
                     ButtonAction::Url(url) => self.open_link(&url),
                     ButtonAction::Text => {
                         let reply_to = self.forum.open.filter(|t| *t != GENERAL_TOPIC).map(ReplyTo::to);
-                        self.send(Cmd::Send { peer, text: b.text, reply_to, opts: SendOpts::default() });
+                        self.send(Cmd::Send { peer, text: b.text, reply_to, opts: SendOpts::default(), send_as: self.send_as_for(peer) });
                     }
                     ButtonAction::Copy(text) => {
                         self.ctx.copy_text(text);
@@ -1494,7 +1498,7 @@ impl App {
                     s.query = target;
                     s.edited_at = 0.0;
                 }
-                Some('/') => self.send(Cmd::Send { peer, text: target, reply_to: self.reply_target(), opts: SendOpts::default() }),
+                Some('/') => self.send(Cmd::Send { peer, text: target, reply_to: self.reply_target(), opts: SendOpts::default(), send_as: self.send_as_for(peer) }),
                 // A mention opens the chat in the client (a public one without joining).
                 Some('@') if !self.demo => self.send(Cmd::ResolveUsername(target[1..].to_owned())),
                 Some('@') => self.open_link(&format!("https://t.me/{}", &target[1..])),

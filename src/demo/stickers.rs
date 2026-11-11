@@ -141,16 +141,16 @@ pub(super) fn handle(app: &mut App, cmd: Cmd) {
                 app.push_event(Ev::Image { key: ImgKey::Sticker(id), image: gif_picture(id) });
             }
         }
-        Cmd::SendSticker { peer, doc, reply_to } if GIFS.contains(&doc) => {
+        Cmd::SendSticker { peer, doc, reply_to, send_as } if GIFS.contains(&doc) => {
             let gif = MediaInfo { kind: MediaKind::Gif, duration: 3.0, size: (160, 120), title: String::new(), performer: String::new(), waveform: Vec::new(), bytes: 0 };
-            let m = Msg { media: Some(gif), ..replied(app, outgoing(peer, String::new(), None), &reply_to) };
+            let m = Msg { media: Some(gif), ..super::sendas::posted_as(replied(app, outgoing(peer, String::new(), None), &reply_to), send_as) };
             let id = m.id;
             app.push_event(Ev::NewMsg(m));
             app.push_event(Ev::Image { key: ImgKey::Photo(peer, id), image: gif_picture(doc) });
         }
-        Cmd::SendSticker { peer, doc, reply_to } => {
+        Cmd::SendSticker { peer, doc, reply_to, send_as } => {
             let emoji = Some(emoji_of(doc)).filter(|e| !e.is_empty()).unwrap_or_else(|| "🐱".into());
-            app.push_event(Ev::NewMsg(Msg { sticker: Some((doc, emoji)), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
+            app.push_event(Ev::NewMsg(Msg { sticker: Some((doc, emoji)), ..super::sendas::posted_as(replied(app, outgoing(peer, String::new(), None), &reply_to), send_as) }));
         }
         _ => {}
     }

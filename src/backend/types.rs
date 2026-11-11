@@ -121,6 +121,9 @@ pub struct Queued {
     /// Files, a voice or a round video message; `text` is then the caption.
     #[serde(default)]
     pub media: Option<QueuedMedia>,
+    /// Posted as this channel or account (`send_as`), as chosen when it was queued.
+    #[serde(default, with = "crate::cache::peer_id_opt")]
+    pub send_as: Option<PeerId>,
 }
 
 impl Queued {
@@ -675,6 +678,9 @@ pub struct Msg {
     /// Content we can't draw yet (games, invoices, giveaways…): the bubble offers an update.
     #[serde(default)]
     pub unsupported: bool,
+    /// Our own message posted as a channel (`send_as`): the bubble names it like someone else's.
+    #[serde(default)]
+    pub as_channel: bool,
 }
 
 impl Msg {
@@ -722,6 +728,7 @@ impl Msg {
             webpage: None,
             saved_from: None,
             unsupported: false,
+            as_channel: false,
         }
     }
 

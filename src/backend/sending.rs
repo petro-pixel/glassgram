@@ -6,12 +6,13 @@ use super::*;
 impl Worker {
     pub(super) async fn send_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
         match cmd {
-            Cmd::Send { peer, text, reply_to, opts } => {
+            Cmd::Send { peer, text, reply_to, opts, send_as } => {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
+                let send_as = self.send_as_ref(send_as)?;
                 let not_sent = |e: &dyn std::fmt::Display| lf!("Не надіслано: {e}", "Not sent: {e}");
-                let m = match self.extended_reply(&reply_to)? {
-                    Some(reply) => reply::send_one(&client, r, &text, None, reply, opts).await.map_err(|e| not_sent(&e))?,
+                let m = match self.raw_reply(&reply_to, &send_as)? {
+                    Some(reply) => reply::send_one(&client, r, &text, None, reply, opts, send_as).await.map_err(|e| not_sent(&e))?,
                     None => Some(client.send_message(r, opts.apply(rich(&text).reply_to(reply_to.as_ref().map(|x| x.id)))).await.map_err(|e| not_sent(&e))?),
                 };
                 // In private chats the server replies with a short UpdateShortSentMessage that has only some
@@ -54,9 +55,10 @@ impl Worker {
                 self.out.send(Ev::Deleted { ids, peer: Some(peer) });
                 Ok(())
             }
-            Cmd::SendSticker { peer, doc, reply_to } => {
+            Cmd::SendSticker { peer, doc, reply_to, send_as } => {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
+                let send_as = self.send_as_ref(send_as)?;
                 let d = self.docs.get(&doc).ok_or(l!("Стікер не знайдено", "Sticker not found"))?;
                 let media = tl::types::InputMediaDocument {
                     spoiler: false,
@@ -67,8 +69,8 @@ impl Worker {
                     query: None,
                 };
                 let not_sent = |e: &dyn std::fmt::Display| lf!("Стікер не надіслано: {e}", "Sticker not sent: {e}");
-                let m = match self.extended_reply(&reply_to)? {
-                    Some(x) => reply::send_one(&client, r, "", Some(media.into()), x, SendOpts::default()).await.map_err(|e| not_sent(&e))?,
+                let m = match self.raw_reply(&reply_to, &send_as)? {
+                    Some(x) => reply::send_one(&client, r, "", Some(media.into()), x, SendOpts::default(), send_as).await.map_err(|e| not_sent(&e))?,
                     None => Some(client.send_message(r, InputMessage::new().media(media).reply_to(reply_to.as_ref().map(|x| x.id))).await.map_err(|e| not_sent(&e))?),
                 };
                 if let Some(m) = m {

@@ -305,6 +305,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         webpage: suggest::message_web_page(m),
         saved_from: saved::saved_from(&m.raw),
         unsupported: unsupported(m),
+        as_channel: m.outgoing() && m.sender_id().is_some_and(|p| p.kind() != grammers_client::session::types::PeerKind::User),
     };
     // Hidden by Telegram for everyone (or for desktop apps): show why instead of the content.
     match restriction(&m.raw) {

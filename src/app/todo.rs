@@ -243,7 +243,7 @@ impl App {
             let peer = f.peer;
             self.todo.form = None;
             let reply_to = self.take_reply();
-            self.send(Cmd::SendTodo { peer, todo, reply_to });
+            self.send(Cmd::SendTodo { peer, todo, reply_to, send_as: self.send_as_for(peer) });
         }
     }
 

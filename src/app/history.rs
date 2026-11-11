@@ -484,11 +484,12 @@ impl App {
             self.chat_overlays(ui, peer, rect, header, rect.bottom() - COMPOSER_H - 8.0);
             return;
         }
-        // [📎] [input field] [🙂] [➤]
+        // [send as] [📎] [input field] [🙂] [➤]
         let circle = |x: f32| Rect::from_min_size(pos2(x, rect.bottom() - COMPOSER_H), vec2(COMPOSER_H, COMPOSER_H));
         let send_btn = circle(rect.right() - COMPOSER_H);
         let sticker_btn = circle(send_btn.left() - 8.0 - COMPOSER_H);
-        let attach_btn = circle(rect.left());
+        let send_as = self.send_as_width(chat);
+        let attach_btn = circle(rect.left() + send_as);
         let n_scheduled = self.scheduled.get(&peer).map_or(0, Vec::len);
         let sched_btn = circle(sticker_btn.left() - 8.0 - COMPOSER_H);
         let input_right = if n_scheduled > 0 { sched_btn.left() } else { sticker_btn.left() } - 8.0;
@@ -520,6 +521,9 @@ impl App {
         }
         let b = Bottom { attach: attach_btn, sticker: sticker_btn, scheduled: sched_btn, send: send_btn, input, above };
         self.composer_buttons(ui, peer, rect, header, &b, n_scheduled);
+        if send_as > 0.0 {
+            self.send_as_button(ui, peer, circle(rect.left()));
+        }
         if self.replacement_bars(ui, peer, rect, header, &b, now) {
             return;
         }
