@@ -184,6 +184,8 @@ enum Action {
     PollResults(i32),
     /// Add our own answer to a poll open for them.
     AddPollAnswer(i32),
+    /// Close our own poll, after asking.
+    StopPoll(i32),
     /// Tick or untick a checklist item: (message, item).
     ToggleTodo(i32, i32),
     /// Add items to a checklist.
@@ -1378,7 +1380,7 @@ impl App {
                     None => v.push(opt),
                 }
             }
-            a @ (Action::PollResults(_) | Action::AddPollAnswer(_)) => self.poll_action(peer, a),
+            a @ (Action::PollResults(_) | Action::AddPollAnswer(_) | Action::StopPoll(_)) => self.poll_action(peer, a),
             a @ (Action::ToggleTodo(..) | Action::AppendTodo(_)) => self.todo_action(peer, a),
             Action::Delete(id) => self.send(Cmd::Delete { peer, ids: vec![id] }),
             Action::Download(id) => self.send(Cmd::Download { peer, id }),
@@ -1436,13 +1438,21 @@ impl App {
             Action::Vote(id, options) => {
                 self.multi_vote.remove(&(peer, id));
                 if let Some(poll) = self.find_mut(peer, id).and_then(|m| m.poll.as_mut()) {
+                    // No options takes the vote back.
+                    if options.is_empty() && poll.voted() {
+                        poll.total = (poll.total - 1).max(0);
+                    } else if !options.is_empty() {
+                        poll.total += 1;
+                    }
                     for a in &mut poll.answers {
                         if options.contains(&a.option) {
                             a.chosen = true;
                             a.voters += 1;
+                        } else if options.is_empty() && a.chosen {
+                            a.chosen = false;
+                            a.voters = (a.voters - 1).max(0);
                         }
                     }
-                    poll.total += 1;
                 }
                 self.send(Cmd::Vote { peer, id, options });
             }

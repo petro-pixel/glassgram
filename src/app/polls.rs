@@ -22,6 +22,20 @@ pub(super) struct Polls {
     results: Option<Results>,
     /// "Add an answer" box: (chat, poll message, text).
     adding: Option<(PeerId, i32, String)>,
+    /// "Stop poll?" confirmation: (chat, poll message).
+    stopping: Option<(PeerId, i32)>,
+}
+
+/// "Retract vote" and "Stop poll" in a poll message's menu, as in Telegram Desktop.
+pub(super) fn poll_menu(ui: &mut Ui, m: &Msg, action: &mut Option<Action>) {
+    let Some(poll) = m.poll.as_ref().filter(|p| !p.closed && m.id > 0) else { return };
+    // A quiz answer and a final vote can't be taken back.
+    if poll.voted() && !poll.quiz && !poll.final_vote && glass::menu_button(ui, Icon::Close, l!("Відкликати голос", "Retract vote")).clicked() {
+        *action = Some(Action::Vote(m.id, Vec::new()));
+    }
+    if m.out && glass::menu_button(ui, Icon::Stop, l!("Зупинити опитування", "Stop poll")).clicked() {
+        *action = Some(Action::StopPoll(m.id));
+    }
 }
 
 /// Voters of a public poll, page by page.
@@ -262,6 +276,7 @@ impl App {
                 self.send(Cmd::PollVotes { peer, id, offset: None });
             }
             Action::AddPollAnswer(id) => self.polls.adding = Some((peer, id, String::new())),
+            Action::StopPoll(id) => self.polls.stopping = Some((peer, id)),
             _ => {}
         }
     }
@@ -284,6 +299,36 @@ impl App {
             self.poll_results_view(ui);
         } else if self.polls.adding.is_some() {
             self.poll_add_view(ui);
+        } else if self.polls.stopping.is_some() {
+            self.poll_stop_view(ui);
+        }
+    }
+
+    fn poll_stop_view(&mut self, ui: &mut Ui) {
+        let Some((peer, id)) = self.polls.stopping else { return };
+        let inner = modal(ui, "poll-stop", 380.0, 160.0);
+        let title = match self.find(peer, id).and_then(|m| m.poll.as_ref()) {
+            Some(p) if p.quiz => l!("Зупинити вікторину?", "Stop quiz?"),
+            _ => l!("Зупинити опитування?", "Stop poll?"),
+        };
+        ui.painter().text(inner.left_top(), Align2::LEFT_TOP, title, FontId::proportional(17.0), ink());
+        let body = l!("Після цього ніхто не зможе голосувати. Цю дію не можна скасувати.", "Nobody will be able to vote after this. This cannot be undone.");
+        let g = ui.painter().layout_job(LayoutJob::simple(body.to_owned(), FontId::proportional(14.0), ink_dim(), inner.width()));
+        ui.painter().galley(pos2(inner.left(), inner.top() + 32.0), g, ink_dim());
+        let buttons = Rect::from_min_max(pos2(inner.left(), inner.bottom() - 36.0), inner.max);
+        let half = (buttons.width() - 8.0) / 2.0;
+        let esc = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
+        let cancel = glass::button(ui, Rect::from_min_size(buttons.min, vec2(half, buttons.height())), "poll-stop-cancel", l!("Скасувати", "Cancel"), false, true).clicked();
+        let stop = glass::button(ui, Rect::from_min_size(pos2(buttons.right() - half, buttons.top()), vec2(half, buttons.height())), "poll-stop-ok", l!("Зупинити", "Stop"), true, true).clicked();
+        if stop {
+            self.polls.stopping = None;
+            // Closed right away; the server's copy replaces it when the edit comes back.
+            if let Some(p) = self.find_mut(peer, id).and_then(|m| m.poll.as_mut()) {
+                p.closed = true;
+            }
+            self.send(Cmd::StopPoll { peer, id });
+        } else if cancel || esc {
+            self.polls.stopping = None;
         }
     }
 

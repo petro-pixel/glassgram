@@ -50,6 +50,7 @@ pub(super) fn message_menu(ui: &mut Ui, m: &Msg, chat: Option<&ChatInfo>, action
     if m.out && m.id > 0 && (plain || super::editmedia::editable_media(m)) && glass::menu_button(ui, Icon::Pencil, l!("Редагувати", "Edit")).clicked() {
         *action = Some(Action::Edit(m.id));
     }
+    polls::poll_menu(ui, m, action);
     if !protected
         && m.media.as_ref().is_some_and(|i| matches!(i.kind, MediaKind::Video | MediaKind::Gif | MediaKind::Round))
         && glass::menu_button(ui, Icon::PlayCircle, l!("Відкрити в програвачі", "Open in player")).clicked()

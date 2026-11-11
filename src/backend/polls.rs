@@ -131,6 +131,13 @@ impl Worker {
                 self.refresh_message(&client, peer, r, id).await;
                 res.map(|_| ()).map_err(|e| lf!("Варіант не додано: {e}", "Answer not added: {e}"))
             }
+            Cmd::StopPoll { peer, id } => {
+                let client = self.client()?;
+                let r = self.peer_ref(peer)?;
+                let res = stop_poll(&client, r, id).await;
+                self.refresh_message(&client, peer, r, id).await;
+                res.map_err(|e| lf!("Опитування не зупинено: {e}", "Poll not stopped: {e}"))
+            }
             _ => Ok(()),
         }
     }
@@ -209,4 +216,45 @@ impl Worker {
         }
         Ok(())
     }
+}
+
+/// The poll is sent back as it is with `closed` set, as Telegram Desktop does. A quiz must name its
+/// correct answer again: its index among the answers, taken from the results we see as its author.
+async fn stop_poll(client: &grammers_client::Client, r: grammers_client::session::types::PeerRef, id: i32) -> Result<(), String> {
+    let msg = client.get_messages_by_id(r, &[id]).await.map_err(|e| e.to_string())?.into_iter().flatten().next();
+    let Some(grammers_client::media::Media::Poll(p)) = msg.as_ref().and_then(|m| m.media()) else {
+        return Err(l!("Опитування не знайдено", "Poll not found").to_owned());
+    };
+    let mut poll = p.raw.clone();
+    poll.closed = true;
+    let correct: Vec<i32> = p
+        .iter_voters_summary()
+        .map(|v| v.filter(|v| v.correct).filter_map(|v| poll.answers.iter().position(|a| matches!(a, tl::enums::PollAnswer::Answer(a) if a.option == v.option))).map(|i| i as i32).collect())
+        .unwrap_or_default();
+    let media = tl::types::InputMediaPoll {
+        correct_answers: (poll.quiz && !correct.is_empty()).then_some(correct),
+        poll: poll.into(),
+        attached_media: None,
+        solution: p.raw_results.solution.clone(),
+        solution_entities: p.raw_results.solution_entities.clone(),
+        solution_media: None,
+    };
+    client
+        .invoke(&tl::functions::messages::EditMessage {
+            no_webpage: false,
+            invert_media: false,
+            peer: r.into(),
+            id,
+            message: None,
+            media: Some(media.into()),
+            reply_markup: None,
+            entities: None,
+            schedule_date: None,
+            schedule_repeat_period: None,
+            quick_reply_shortcut_id: None,
+            rich_message: None,
+        })
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }

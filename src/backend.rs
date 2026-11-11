@@ -406,6 +406,8 @@ pub enum Cmd {
     PollVotes { peer: PeerId, id: i32, offset: Option<String> },
     /// Add our own answer to a poll open for them.
     AddPollAnswer { peer: PeerId, id: i32, text: String },
+    /// Close our own poll for good (`messages.editMessage` with the poll marked closed).
+    StopPoll { peer: PeerId, id: i32 },
     /// Send a new checklist (Premium on the server side).
     SendTodo { peer: PeerId, todo: NewTodo, reply_to: Option<ReplyTo> },
     /// Tick and untick checklist items by id.
@@ -1124,7 +1126,7 @@ impl Worker {
                 self.chat_view_cmd(cmd).await
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
-            cmd @ (Cmd::SendPoll { .. } | Cmd::PollVotes { .. } | Cmd::AddPollAnswer { .. }) => self.polls_cmd(cmd).await,
+            cmd @ (Cmd::SendPoll { .. } | Cmd::PollVotes { .. } | Cmd::AddPollAnswer { .. } | Cmd::StopPoll { .. }) => self.polls_cmd(cmd).await,
             cmd @ (Cmd::SendTodo { .. } | Cmd::ToggleTodo { .. } | Cmd::AppendTodo { .. }) => self.todo_cmd(cmd).await,
             Cmd::ReloadImages(keys) => {
                 if let Some(l) = &self.loader {
