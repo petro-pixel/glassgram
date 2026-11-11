@@ -29,6 +29,10 @@ impl App {
             return;
         }
         let Some(info) = self.find(peer, id).and_then(|m| m.media.clone()) else { return };
+        // Music goes to the player bar, with the chat's music as its queue.
+        if info.kind == MediaKind::Audio {
+            self.music_begin(peer, id);
+        }
         // Videos open in the player, as in Telegram Desktop.
         if info.kind == MediaKind::Video {
             self.open_video(peer, id);
@@ -81,13 +85,18 @@ impl App {
         }
     }
 
-    /// After a voice message, the next voice message in the same chat, as in Telegram.
+    /// After a music track, the next one in the queue; after a voice message, the next voice
+    /// message not listened to yet in the same chat, as in Telegram Desktop.
     pub(super) fn poll_player(&mut self) {
         let Some((peer, id)) = self.playback.player.poll() else { return };
+        if self.music.current == Some((peer, id)) {
+            self.music_next(true);
+            return;
+        }
         let next = self.history.get(&peer).and_then(|msgs| {
             let voice = |m: &Msg| m.media.as_ref().is_some_and(|i| i.kind == MediaKind::Voice);
             let cur = msgs.iter().find(|m| m.id == id)?;
-            voice(cur).then(|| msgs.iter().filter(|m| m.id > id && voice(m)).min_by_key(|m| m.id).map(|m| m.id))?
+            voice(cur).then(|| msgs.iter().filter(|m| m.id > id && voice(m) && m.media_unread && !m.out).min_by_key(|m| m.id).map(|m| m.id))?
         });
         if let Some(next) = next {
             self.play(peer, next);
@@ -218,7 +227,7 @@ impl App {
                 match self.playback.wanted.remove(&(peer, id)) {
                     Some(true) => self.open_received(&path),
                     Some(false) => {
-                        let duration = self.find(peer, id).and_then(|m| m.media.as_ref()).map_or(0.0, |i| i.duration);
+                        let duration = self.find(peer, id).and_then(|m| m.media.as_ref()).map(|i| i.duration).or_else(|| self.music.duration(peer, id)).unwrap_or(0.0);
                         self.playback.player.play(peer, id, &path, duration);
                     }
                     None => {}

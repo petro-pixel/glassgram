@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 69%** `██████████████░░░░░░` — 118 done, 14 partial, 50 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 69%** `██████████████░░░░░░` — 118 done, 15 partial, 49 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -16,7 +16,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/K8Z3299QVD)
 
 - **MTProto**: [grammers](https://codeberg.org/Lonami/grammers): sign-in by phone number or QR code, 2FA, chats, history, replies, editing and deleting, live updates
-- **Media**: avatars, photos, stickers with a disk cache (`~/.local/share/glassgram/cache`); sending files and stickers; voice and audio with a waveform, seeking and speed; GIFs, round videos and webm stickers right in the chat, a video player with full screen and picture-in-picture that streams large videos instead of downloading them first; voice recording (needs ffmpeg with `ffplay`)
+- **Media**: avatars, photos, stickers with a disk cache (`~/.local/share/glassgram/cache`); sending files and stickers; voice and audio with a waveform, seeking and speed, a music player bar with the chat's music as its queue (repeat, shuffle, playlist) and profile music; GIFs, round videos and webm stickers right in the chat, a video player with full screen and picture-in-picture that streams large videos instead of downloading them first; voice recording (needs ffmpeg with `ffplay`)
 - **Chats**: forums with topics, channel comments, folders and archive, pinning, muting, drafts, "online" and "typing…" statuses
 - **Search**: global (the field above the chat list, with Chats, Channels, Apps, Posts and Media tabs) and in-chat (🔍 in the header)
 - **Formatting**: Telegram entities are shown, markup is converted when sending
@@ -128,6 +128,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/birthdays.rs`, `src/backend/birthdays.rs` | Birthdays: reminder above the chat list, birthday in user info and in My Account |
 | `src/app/botstart.rs`, `src/backend/botstart.rs` | Bot deep links `t.me/<bot>?start=…`: Start bar with the parameter |
 | `src/app/similar.rs`, `src/backend/similar.rs` | "Similar channels" tab in a channel's info |
+| `src/app/music.rs`, `src/backend/music.rs` | Music player bar and playlist: the chat's music as the queue (`messages.search`), repeat, shuffle; a user's profile music (`users.getSavedMusic`) |
 | `src/app/sendas.rs`, `src/backend/sendas.rs` | Sending as a channel: the avatar button left of the field and its menu (`channels.getSendAs`, `messages.saveDefaultSendAs`) |
 | `src/app/saved.rs`, `src/backend/saved.rs` | Saved Messages split by source: "All" and one tab per chat; reaction tags as filters, renaming them |
 | `src/app/chatsearch.rs` | In-chat search panel: type and sender filters, results |
@@ -239,6 +240,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - ▶ on a voice or audio message plays it; clicking the waveform seeks, the "1×" chip changes the speed. Clicking a video opens the player: the seek bar, volume, speed (0.5–2×), full screen and picture-in-picture (a small window in a corner that keeps playing while you browse chats; drag it to another corner). Keys: Space — play/pause, ←/→ — 5 s back/forward, F — full screen, Esc — leave full screen, then close. "Open in player" (the system one) is in the menu.
 - "→A" by a voice message's waveform (beside a round video) transcribes it (Telegram Premium; without it the server's few free tries): a spinner while the server works, then the text under the waveform; a second click folds it.
 - A long channel post shows a "Summary" capsule above its text: a click puts the AI summary in its place, "Show original" in its header brings the text back.
+- Playing a music file shows the player bar under the chat header: ⏮ / ⏭ — previous / next track (⏮ after 3 s restarts the track), the line along its bottom seeks, then volume, speed, repeat (playlist → track → off), shuffle and ✕ to close. The bar stays while you switch chats; the next track of the chat starts on its own. Clicking the title opens the playlist. A user's profile music is a row in their info: a click plays it.
 - 🎤 (the "Send" button when the composer is empty) starts voice recording; ➤ sends, ■ stops for review, Esc cancels.
 - Right-click the microphone — record a video message (camera — in Settings or `GLASSGRAM_CAMERA`).
 

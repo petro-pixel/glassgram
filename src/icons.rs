@@ -103,6 +103,16 @@ pub enum Icon {
     /// Favourite stickers.
     Star,
     Volume,
+    /// Previous track.
+    SkipBack,
+    /// Next track.
+    SkipForward,
+    /// Repeat the queue.
+    Repeat,
+    /// Repeat one track.
+    RepeatOne,
+    Shuffle,
+    Music,
     /// Enter full screen.
     Maximize,
     /// Leave full screen.
@@ -190,6 +200,12 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Megaphone => include_str!("../assets/icons/megaphone.svg"),
         Icon::Star => include_str!("../assets/icons/star.svg"),
         Icon::Volume => include_str!("../assets/icons/volume-2.svg"),
+        Icon::SkipBack => include_str!("../assets/icons/skip-back.svg"),
+        Icon::SkipForward => include_str!("../assets/icons/skip-forward.svg"),
+        Icon::Repeat => include_str!("../assets/icons/repeat.svg"),
+        Icon::RepeatOne => include_str!("../assets/icons/repeat-1.svg"),
+        Icon::Shuffle => include_str!("../assets/icons/shuffle.svg"),
+        Icon::Music => include_str!("../assets/icons/music.svg"),
         Icon::Maximize => include_str!("../assets/icons/maximize.svg"),
         Icon::Minimize => include_str!("../assets/icons/minimize.svg"),
         Icon::Pip => include_str!("../assets/icons/picture-in-picture-2.svg"),
@@ -344,6 +360,7 @@ mod tests {
             Icon::Gear, Icon::Lock, Icon::ChevronDown, Icon::ChevronUp, Icon::At, Icon::Heart, Icon::Eye, Icon::List, Icon::Link, Icon::Commands,
             Icon::Info, Icon::Phone, Icon::User, Icon::Chat, Icon::Folder, Icon::Globe, Icon::Laptop, Icon::Chats, Icon::Users,
             Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle, Icon::Flag, Icon::Calendar, Icon::Translate, Icon::Poll, Icon::Todo, Icon::Cake, Icon::Megaphone, Icon::Star, Icon::Volume, Icon::Maximize, Icon::Minimize, Icon::Pip,
+            Icon::SkipBack, Icon::SkipForward, Icon::Repeat, Icon::RepeatOne, Icon::Shuffle, Icon::Music,
             Icon::Bold, Icon::Italic, Icon::Strike, Icon::Code, Icon::EyeOff, Icon::ClearFormat,
         ];
         for icon in all {

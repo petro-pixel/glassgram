@@ -102,6 +102,7 @@ mod viewonce;
 mod namecolor;
 mod aitext;
 mod videoplayer;
+mod music;
 mod userqr;
 mod layout;
 mod motion;
@@ -628,6 +629,8 @@ pub struct App {
     stories: stories::Stories,
     /// Full-screen video player and its picture-in-picture window.
     video: videoplayer::VideoPlayer,
+    /// The music player bar and its queue.
+    music: music::Music,
     /// The "Report" box for messages.
     report: Option<report::ReportBox>,
     /// The QR code box of a public username.
@@ -909,6 +912,7 @@ impl App {
             quoting: Default::default(),
             stories: stories::Stories::default(),
             video: videoplayer::VideoPlayer::default(),
+            music: music::Music::default(),
             saved: saved::Saved::default(),
             chat_photo_tx,
             chat_photo_rx,
@@ -960,6 +964,7 @@ impl App {
             ev @ (Ev::InlineResults { .. } | Ev::UploadProgress { .. } | Ev::UploadDone(..)) => self.composer_event(ev),
             ev @ (Ev::Stickers(..) | Ev::StickerSet(..) | Ev::StickerSetChanged(..) | Ev::FoundStickerSets { .. } | Ev::FavedStickers(..) | Ev::SavedGifs(..)) => self.stickers_event(ev),
             ev @ (Ev::MediaReady { .. } | Ev::Listened { .. }) => self.media_event(ev),
+            ev @ (Ev::Music { .. } | Ev::SavedMusic { .. }) => self.music_event(ev),
             Ev::MediaStream { peer, id, url } => self.on_media_stream(peer, id, url),
             ev @ Ev::Comments { .. } => self.comments_event(ev),
             ev @ (Ev::Topics { .. } | Ev::TopicHistory { .. }) => self.forum_event(ev),

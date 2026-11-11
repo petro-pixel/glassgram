@@ -123,6 +123,7 @@ pub use gifts::Gift;
 pub use stories::{Story, StoryPeer};
 pub use birthdays::Birthday;
 pub use chatedit::{ChatRights, ReactionMode};
+mod music;
 mod manage;
 pub use manage::{AdminRights, PartList, Participant};
 mod invites;
@@ -415,6 +416,12 @@ pub enum Cmd {
     SetEmojiStatus(Option<i64>),
     /// Channels similar to this one, for its profile.
     LoadSimilarChannels(PeerId),
+    /// The chat's music files for the player queue (`messages.search` with the music filter).
+    LoadMusic(PeerId),
+    /// The music a user saved to their profile.
+    LoadSavedMusic(PeerId),
+    /// Downloads track `index` of a user's profile music; answered with `Ev::MediaReady` for id `-1 - index`.
+    LoadSavedTrack { peer: PeerId, index: i32 },
     /// Who we can post as in a supergroup or channel; answered with `Ev::SendAs` (nothing for other chats).
     LoadSendAs(PeerId),
     /// Post as `send_as` in this chat from now on (`messages.saveDefaultSendAs`).
@@ -766,6 +773,10 @@ pub enum Ev {
     Gifts { peer: PeerId, gifts: Vec<Gift>, total: i32 },
     /// Recommended channels for a channel's profile; `total` counts those shown only with Premium.
     SimilarChannels { peer: PeerId, chats: Vec<ChatInfo>, total: i32 },
+    /// A chat's music files, oldest first.
+    Music { peer: PeerId, msgs: Vec<Msg> },
+    /// A user's profile music in their order, and how many tracks there are in all.
+    SavedMusic { peer: PeerId, tracks: Vec<MediaInfo>, total: i32 },
     /// Who we can post as in a chat, and the chat's current choice.
     SendAs { peer: PeerId, peers: Vec<SendAsPeer>, current: Option<PeerId> },
     /// The bot chat was opened from a start link: the Start bar carries `param`.
@@ -1189,6 +1200,7 @@ impl Worker {
             Cmd::LoadEffects => self.effects_cmd().await,
             cmd @ (Cmd::LoadPeerColors | Cmd::LoadEmojiStatuses | Cmd::SetNameColor { .. } | Cmd::SetEmojiStatus(_)) => self.namecolor_cmd(cmd).await,
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
+            cmd @ (Cmd::LoadMusic(_) | Cmd::LoadSavedMusic(_) | Cmd::LoadSavedTrack { .. }) => self.music_cmd(cmd).await,
             cmd @ (Cmd::LoadSendAs(_) | Cmd::SaveSendAs { .. }) => self.send_as_cmd(cmd).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
