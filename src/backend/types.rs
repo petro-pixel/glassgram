@@ -490,6 +490,8 @@ pub enum ButtonAction {
     /// Mini app button: inline (`simple: false`) or on the reply keyboard;
     /// `bot` is the bare id of the bot that owns it (sender or "via" bot).
     WebApp { url: String, simple: bool, bot: i64 },
+    /// "Log in" button (`keyboardButtonUrlAuth`): asks the server before opening `url`.
+    UrlAuth { url: String, button_id: i32 },
     /// A type that is not supported yet (payment, games…).
     Other,
 }
