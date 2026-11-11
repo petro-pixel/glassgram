@@ -324,7 +324,10 @@ impl PrivacyState {
     }
 }
 
-/// Send options: silent and/or scheduled (Unix time).
+/// The schedule date Telegram reads as "send when the user comes online".
+pub const WHEN_ONLINE: i64 = 0x7FFF_FFFE;
+
+/// Send options: silent and/or scheduled (Unix time, or `WHEN_ONLINE`).
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct SendOpts {
     pub silent: bool,

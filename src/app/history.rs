@@ -583,21 +583,32 @@ impl App {
             self.send_draft();
             resp.request_focus();
         }
-        // Right-click on "send": silent or scheduled, as in Telegram Desktop.
+        // Right-click on "send": silent, scheduled or when online, as in Telegram Desktop.
         if can_send && !editing {
+            enum Choice {
+                Silent,
+                Schedule,
+                WhenOnline,
+            }
+            // Only when the user's last seen time is visible: otherwise "online" can't be told.
+            let when_online = self.chats.iter().any(|c| c.id == peer && c.kind == ChatKind::User && matches!(c.presence, crate::backend::Presence::Online(_) | crate::backend::Presence::Offline(_)));
             let mut choice = None;
             send.context_menu(|ui| {
                 ui.set_min_width(200.0);
                 if glass::menu_button(ui, Icon::BellOff, l!("Надіслати без звуку", "Send without sound")).clicked() {
-                    choice = Some(false);
+                    choice = Some(Choice::Silent);
                 }
                 if glass::menu_button(ui, Icon::Clock, l!("Запланувати…", "Schedule…")).clicked() {
-                    choice = Some(true);
+                    choice = Some(Choice::Schedule);
+                }
+                if when_online && glass::menu_button(ui, Icon::Clock, l!("Надіслати, коли буде в мережі", "Send when online")).clicked() {
+                    choice = Some(Choice::WhenOnline);
                 }
             });
             match choice {
-                Some(false) => self.send_draft_with(SendOpts { silent: true, schedule: None, ..Default::default() }),
-                Some(true) => self.schedule = Some((ScheduleFor::Draft, String::new())),
+                Some(Choice::Silent) => self.send_draft_with(SendOpts { silent: true, schedule: None, ..Default::default() }),
+                Some(Choice::Schedule) => self.schedule = Some((ScheduleFor::Draft, String::new())),
+                Some(Choice::WhenOnline) => self.send_draft_with(SendOpts { schedule: Some(crate::backend::WHEN_ONLINE), ..Default::default() }),
                 None => {}
             }
         }

@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 68%** `██████████████░░░░░░` — 118 done, 10 partial, 54 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 68%** `██████████████░░░░░░` — 118 done, 11 partial, 53 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -212,7 +212,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Clicking a hashtag searches for it in the chat; clicking a bot command sends it.
 - `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way.
 - A link preview appears above the composer; ✕ sends the message without it.
-- Right-click "Send": send silently or schedule.
+- Right-click "Send": send silently, schedule, or (in a private chat whose last seen time is visible) send when online.
 - "Select" in the message menu turns on selection mode; Esc leaves it.
 - A message of just 🎲 🎯 🏀 ⚽ 🎰 or 🎳 is sent as a game.
 - A `t.me/addlist/…` link adds a shared folder; its right-click menu checks for new chats, and deleting it offers to leave its chats.

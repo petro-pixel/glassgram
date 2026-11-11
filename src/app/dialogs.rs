@@ -156,7 +156,7 @@ impl App {
                 let p = ui.painter();
                 p.rect_filled(r.shrink(2.0), 14.0, glass::veil(10));
                 icons::draw(p, Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(18.0, 18.0)), Icon::Clock, ACCENT);
-                let when = format!("{} {}", m.day, m.time);
+                let when = if m.ts == crate::backend::WHEN_ONLINE { l!("Коли буде в мережі", "When online").to_owned() } else { format!("{} {}", m.day, m.time) };
                 p.text(pos2(r.left() + 42.0, r.top() + 10.0), Align2::LEFT_TOP, when, FontId::proportional(12.5), ACCENT);
                 let text = elided(ui, &m.text.replace('\n', " "), 14.0, ink(), w - 42.0 - 140.0);
                 ui.painter().galley(pos2(r.left() + 42.0, r.top() + 29.0), text, ink());

@@ -98,7 +98,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - 🟡 Checklists and 2026 polls: checklist cards with ticked items and who ticked them, ticking (`messages.toggleTodoCompleted`) and adding items (`messages.appendTodoList`) when the list allows it, "Checklist" in the 📎 menu (`inputMediaTodo`; the Premium error is explained). Polls: "View results" with voters per answer and the time of each vote (`messages.getPollVotes`), adding an answer to open polls (`messages.addPollAnswer`), time left and the quiz explanation on the card; the "New poll" box adds a time limit, voters adding answers, final votes, shuffling, results hidden until the end and subscribers-only voting in channels. Left: media in polls and answers, country limits (`countries_iso2`), stopping a poll, retracting a vote
 - ✅ "Send files" box as in Telegram Desktop: previews of photos and file rows (remove one with ✕, more files dropped or pasted join it), the caption, "Compress images", "Hide with spoiler" (`spoiler` on `inputMediaUploadedPhoto` / the video document) and "Caption above media" (`invert_media`); in the chat, media under a spoiler is a blurred copy with drifting dots until clicked, and a caption above the media is drawn above it
 - ✅ Editing media messages: the caption (may be left empty), and the photo or file replaced from the "Editing" bar (right click — without compression) or by dropping a file on the chat; keeps the spoiler and caption position (`messages.editMessage` with `media`), the old cached pictures and files are dropped
-- ⬜ **P2** Sending as a channel (`saveDefaultSendAs`), "send when online", location and contact
+- 🟡 **P2** Sending as a channel (`saveDefaultSendAs`), "send when online", location and contact: "Send when online" in the send button's menu for private chats whose last seen time is visible, as in Telegram Desktop (scheduled at `0x7FFFFFFE`; the scheduled list says "When online"). Left: sending as a channel, location and contact
 - ⬜ **P2** Spell checking (Hunspell dictionaries, works on every OS)
 - ✅ **P2** Dropping a folder or several files sends them as one archive (Telegram Desktop 7.2.6): a dropped folder shows in the send box with its file count and size and goes as `<folder>.zip`; with two or more items "Send as one archive" packs everything into one. Our own zip writer (`zip.rs`, deflate from `flate2`, stored for already compressed formats, UTF-8 names, symlinks skipped, up to 4 GB) packs on a thread while the box shows "Packing…" and can be cancelled
 - ⬜ **P2** Emoji up to Unicode 17 in the panel, suggestions and big-emoji messages
@@ -260,7 +260,6 @@ Structure rules are in [AGENTS.md](AGENTS.md#architecture). Status of the refact
 - ✅ `App::handle_event` (302 → 123 lines) and `Worker::handle` (973 → 70 lines) only dispatch to feature modules
 - ⬜ **P2** Remaining loose `App` fields: drafts and editing, uploads, forward / schedule boxes, accounts menu, folder editing and dragging, tray
 - ⬜ **P2** `App::apply` (~170 lines) and `App::fresh` (the constructor) by feature, like the event handlers
-- ⬜ **P2** Tests for `convert.rs` and `format.rs` on recorded server objects; a CI job that builds and tests on Linux, Windows and macOS
 - ⬜ **P2** `demo.rs` (1.3k lines) split by feature next to the code it answers for
 
 ## Not planned
