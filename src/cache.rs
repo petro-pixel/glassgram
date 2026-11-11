@@ -354,20 +354,29 @@ mod tests {
         let file = dir.join("cache.sqlite");
         let _ = std::fs::remove_file(&file);
         let peer = PeerId::user_unchecked(5);
-        let q = |key, text: &str| Queued { key, peer, text: text.into(), reply_to: None, silent: false, ts: 0, failed: false, no_webpage: false, quote: None, reply_peer: None, media: None, effect: None };
+        let q = |key, text: &str| Queued { key, peer, text: text.into(), reply_to: None, silent: false, ts: 0, failed: false, no_webpage: false, quote: None, reply_peer: None, media: None, effect: None, send_as: None };
         {
             let cache = Cache::spawn(file.clone());
             cache.queue_put(&q(2, "друге"));
             cache.queue_put(&q(1, "перше"));
             cache.queue_put(&q(3, "третє"));
             cache.queue_drop(3);
-            cache.queue_put(&Queued { failed: true, ..q(2, "друге") });
+            cache.queue_put(&Queued { failed: true, send_as: Some(PeerId::channel_unchecked(40)), ..q(2, "друге") });
             cache.flush().await;
         }
         let cache = Cache::spawn(file.clone());
         let list = cache.outbox().await;
         assert_eq!(list.iter().map(|q| q.key).collect::<Vec<_>>(), vec![1, 2]);
         assert!(list[1].failed && !list[0].failed);
+        assert_eq!((list[0].send_as, list[1].send_as), (None, Some(PeerId::channel_unchecked(40))));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn queue_from_older_versions_still_reads() {
+        // Written before `send_as` existed: it must still load, as sent as ourselves.
+        let old = r#"{"key":1,"peer":5,"text":"hi","reply_to":null,"silent":false,"ts":0,"failed":false}"#;
+        let q: Queued = serde_json::from_str(old).expect("old queue entry");
+        assert_eq!((q.key, q.send_as), (1, None));
     }
 }

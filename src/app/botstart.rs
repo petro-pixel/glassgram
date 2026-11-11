@@ -30,7 +30,7 @@ impl App {
     pub(super) fn start_bot(&mut self, peer: PeerId) {
         match self.bot_start.remove(&peer) {
             Some(param) => self.send(Cmd::StartBot { peer, param }),
-            None => self.send(Cmd::Send { peer, text: "/start".into(), reply_to: None, opts: Default::default() }),
+            None => self.send(Cmd::Send { peer, text: "/start".into(), reply_to: None, opts: Default::default(), send_as: None }),
         }
     }
 }

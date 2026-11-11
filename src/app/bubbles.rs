@@ -597,7 +597,7 @@ pub(super) fn bubble(
     let (meta, badge_w) = effects::meta(&p, badge.as_deref(), &meta_text, rgba(ink(), 170));
     let mut badge_rect = None;
     let name_color = glass::name_color(m.sender.len() as i64 * 31 + m.sender.chars().next().map_or(0, |c| c as i64));
-    let sender = (show_sender && !m.out && !m.sender.is_empty())
+    let sender = (show_sender && (!m.out || m.as_channel) && !m.sender.is_empty())
         .then(|| elided(ui, &m.sender, 13.0, name_color, text_w));
     let (quote_accent, quote_text) = if m.out { (ink(), rgba(ink(), 200)) } else { (ACCENT, ink_dim()) };
     let reply = reply.map(|(who, what)| (elided(ui, &who, 12.5, quote_accent, text_w - 12.0), elided(ui, &what, 13.0, quote_text, text_w - 12.0)));

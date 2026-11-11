@@ -127,6 +127,9 @@ pub struct Queued {
     /// The message effect chosen in the send menu (`availableEffect.id`).
     #[serde(default)]
     pub effect: Option<i64>,
+    /// Posted as this channel or account (`send_as`), as chosen when it was queued.
+    #[serde(default, with = "crate::cache::peer_id_opt")]
+    pub send_as: Option<PeerId>,
 }
 
 impl Queued {
@@ -690,6 +693,9 @@ pub struct Msg {
     /// Self-destructing photo or video: seconds, or `VIEW_ONCE`.
     #[serde(default)]
     pub ttl: Option<i32>,
+    /// Our own message posted as a channel (`send_as`): the bubble names it like someone else's.
+    #[serde(default)]
+    pub as_channel: bool,
 }
 
 impl Msg {
@@ -739,6 +745,7 @@ impl Msg {
             unsupported: false,
             effect: None,
             ttl: None,
+            as_channel: false,
         }
     }
 

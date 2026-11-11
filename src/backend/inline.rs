@@ -56,9 +56,10 @@ impl Worker {
                 });
                 Ok(())
             }
-            Cmd::SendInline { peer, query_id, result, reply_to } => {
+            Cmd::SendInline { peer, query_id, result, reply_to, send_as } => {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
+                let send_as = self.send_as_ref(send_as)?;
                 let req = tl::functions::messages::SendInlineBotResult {
                     silent: false,
                     background: false,
@@ -70,7 +71,7 @@ impl Worker {
                     query_id,
                     id: result,
                     schedule_date: None,
-                    send_as: None,
+                    send_as,
                     quick_reply_shortcut: None,
                     allow_paid_stars: None,
                 };

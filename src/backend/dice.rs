@@ -4,13 +4,14 @@ use super::*;
 
 impl Worker {
     pub(super) async fn dice_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
-        let Cmd::SendDice { peer, emoji, reply_to } = cmd else { return Ok(()) };
+        let Cmd::SendDice { peer, emoji, reply_to, send_as } = cmd else { return Ok(()) };
         let client = self.client()?;
         let r = self.peer_ref(peer)?;
+        let send_as = self.send_as_ref(send_as)?;
         let media = tl::types::InputMediaDice { emoticon: emoji };
         let not_sent = |e: &dyn std::fmt::Display| lf!("Не надіслано: {e}", "Not sent: {e}");
-        let m = match self.extended_reply(&reply_to)? {
-            Some(x) => reply::send_one(&client, r, "", Some(media.into()), x, SendOpts::default()).await.map_err(|e| not_sent(&e))?,
+        let m = match self.raw_reply(&reply_to, &send_as)? {
+            Some(x) => reply::send_one(&client, r, "", Some(media.into()), x, SendOpts::default(), send_as).await.map_err(|e| not_sent(&e))?,
             None => Some(client.send_message(r, InputMessage::new().media(media).reply_to(reply_to.as_ref().map(|x| x.id))).await.map_err(|e| not_sent(&e))?),
         };
         if let Some(m) = m {

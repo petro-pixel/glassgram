@@ -17,6 +17,7 @@ mod custom_emoji;
 mod effects;
 mod wallpapers;
 mod langpack;
+mod sendas;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -217,7 +218,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 .collect();
             app.push_event(Ev::InlineResults { peer, bot, query, query_id: 1, results });
         }
-        Cmd::SendInline { peer, result, .. } => app.push_event(Ev::NewMsg(outgoing(peer, format!("Inline result #{result}"), None))),
+        Cmd::SendInline { peer, result, send_as, .. } => app.push_event(Ev::NewMsg(sendas::posted_as(outgoing(peer, format!("Inline result #{result}"), None), send_as))),
         Cmd::Send { peer, text, .. } if peer == PeerId::user_unchecked(HELPER_BOT) && text.starts_with('/') => {
             app.push_event(Ev::NewMsg(outgoing(peer, text.clone(), None)));
             let answer = match text.as_str() {
@@ -262,12 +263,12 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             }
             app.push_event(Ev::BotCommands { peer, commands });
         }
-        Cmd::Send { peer, text, reply_to, .. } => {
+        Cmd::Send { peer, text, reply_to, send_as, .. } => {
             // In a forum, a reply goes into the topic of the message being replied to (or the topic itself).
             let topic = reply_to.as_ref().map(|r| r.id).filter(|_| peer == PeerId::channel_unchecked(FORUM)).map(|r| {
                 app.demo_history().find(|(p, _, _)| *p == peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == r).map(Msg::topic_id)).unwrap_or(r)
             });
-            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), ..replied(app, outgoing(peer, text, None), &reply_to) }));
+            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), ..sendas::posted_as(replied(app, outgoing(peer, text, None), &reply_to), send_as) }));
         }
         Cmd::Forward { from, ids, to } => {
             let src = app.demo_history().find(|(p, _, _)| *p == from).map(|(_, (title, _), msgs)| (title.to_owned(), msgs.clone()));
@@ -296,14 +297,14 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         | Cmd::LoadStickerThumbs(_)
         | Cmd::SendSticker { .. }) => stickers::handle(app, cmd),
         cmd @ (Cmd::LoadWallPapers | Cmd::LoadChatThemes | Cmd::LoadChatWallPaper(_) | Cmd::DownloadWallPaper(_) | Cmd::SetChatWallPaper { .. } | Cmd::SetChatTheme { .. }) => wallpapers::handle(app, cmd),
-        Cmd::SendDice { peer, emoji, reply_to } => {
+        Cmd::SendDice { peer, emoji, reply_to, send_as } => {
             let top = match emoji.as_str() {
                 "🎰" => 64,
                 "🏀" | "⚽" => 5,
                 _ => 6,
             };
             let value = rand_ish() % top + 1;
-            app.push_event(Ev::NewMsg(Msg { dice: Some((emoji, value)), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
+            app.push_event(Ev::NewMsg(Msg { dice: Some((emoji, value)), ..sendas::posted_as(replied(app, outgoing(peer, String::new(), None), &reply_to), send_as) }));
         }
         Cmd::SaveFolder(f) => {
             let mut list = app.demo_folders();
@@ -657,6 +658,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::Gifts { peer, gifts, total: 5 });
         }
         cmd @ (Cmd::SearchChannels(_) | Cmd::SearchApps(_) | Cmd::CheckPostsFlood(_) | Cmd::SearchPosts(_)) => search_tabs(app, cmd),
+        cmd @ (Cmd::LoadSendAs(_) | Cmd::SaveSendAs { .. }) => sendas::handle(app, cmd),
         Cmd::LoadSimilarChannels(peer) => {
             let chats = [(61, "Rust Weekly", 12480), (62, "Design Daily", 8115), (63, "Open Source UA", 3902)]
                 .into_iter()
@@ -744,7 +746,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 app.demo_history().find(|(p, _, _)| *p == q.peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == r).map(Msg::topic_id)).unwrap_or(r)
             });
             let reply = q.reply();
-            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), effect: q.effect, ..replied(app, outgoing(q.peer, q.text, None), &reply) }));
+            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), effect: q.effect, ..sendas::posted_as(replied(app, outgoing(q.peer, q.text, None), &reply), q.send_as) }));
             app.push_event(Ev::QueueSent { key: q.key, peer: q.peer });
             // The team answers with a mention: it counts on the "@" button unless the chat is in view.
             if q.peer == PeerId::user_unchecked(2) {
@@ -777,7 +779,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::OpenWebAppLink { username, .. } => app.push_event(Ev::Notice(format!("t.me/{username}"))),
         Cmd::ProlongWebApp { .. } | Cmd::WebAppData { .. } | Cmd::WebAppMethod { .. } => {}
-        Cmd::SendPoll { peer, poll, reply_to } => {
+        Cmd::SendPoll { peer, poll, reply_to, send_as } => {
             let answers = poll
                 .options
                 .iter()
@@ -797,7 +799,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 solution: Some(poll.solution).filter(|s| !s.is_empty()),
                 ..PollInfo::default()
             };
-            app.push_event(Ev::NewMsg(Msg { id: rand_ish(), poll: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
+            app.push_event(Ev::NewMsg(Msg { id: rand_ish(), poll: Some(info), ..sendas::posted_as(replied(app, outgoing(peer, String::new(), None), &reply_to), send_as) }));
         }
         Cmd::PollVotes { peer, id, .. } => {
             // A few made-up voters per answer, newest first.
@@ -826,10 +828,10 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 app.push_event(Ev::Edited(m));
             }
         }
-        Cmd::SendTodo { peer, todo, reply_to } => {
+        Cmd::SendTodo { peer, todo, reply_to, send_as } => {
             let items = todo.items.into_iter().enumerate().map(|(i, title)| TodoTask { id: i as i32 + 1, title, done: None }).collect();
             let info = TodoInfo { title: todo.title, items, others_can_append: todo.others_can_append, others_can_complete: todo.others_can_complete };
-            app.push_event(Ev::NewMsg(Msg { id: rand_ish(), todo: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply_to) }));
+            app.push_event(Ev::NewMsg(Msg { id: rand_ish(), todo: Some(info), ..sendas::posted_as(replied(app, outgoing(peer, String::new(), None), &reply_to), send_as) }));
         }
         // The app ticks and adds items on its own; there is no server to confirm.
         Cmd::ToggleTodo { .. } | Cmd::AppendTodo { .. } => {}
@@ -1202,7 +1204,7 @@ fn demo_profile() -> Profile {
 /// Send queue "from the previous run": one message that failed, to show the red mark and its menu.
 pub fn outbox() -> Vec<Queued> {
     let ts = jiff::Timestamp::now().as_second() - 120;
-    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Sent the report, have a look when you're online".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false, quote: None, reply_peer: None, media: None, effect: None }]
+    vec![Queued { key: 1, peer: PeerId::user_unchecked(5), text: "Sent the report, have a look when you're online".into(), reply_to: None, silent: false, ts, failed: true, no_webpage: false, quote: None, reply_peer: None, media: None, effect: None, send_as: None }]
 }
 
 /// Demo forum topics: (id, title, color, unread, pinned, closed).
@@ -1475,7 +1477,7 @@ fn queued_media(app: &mut App, q: &Queued) {
                 let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 let size = std::fs::metadata(path).map(|m| crate::backend::human_size(m.len() as usize)).unwrap_or_default();
                 let text = if i == 0 { q.text.clone() } else { String::new() };
-                let mut m = replied(app, outgoing(peer, text, None), &reply);
+                let mut m = sendas::posted_as(replied(app, outgoing(peer, text, None), &reply), q.send_as);
                 m.id += i as i32;
                 // Pictures come back as photos, like from the server, with the options chosen.
                 let picture = (!as_file).then(|| image::open(path).ok()).flatten().map(|img| img.thumbnail(800, 800).to_rgba8());
@@ -1492,7 +1494,7 @@ fn queued_media(app: &mut App, q: &Queued) {
         }
         Some(QueuedMedia::Voice { path, duration, waveform }) => {
             let info = MediaInfo { kind: MediaKind::Voice, duration, size: (0, 0), title: String::new(), performer: String::new(), waveform, bytes: 0 };
-            let m = Msg { media: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply) };
+            let m = Msg { media: Some(info), ..sendas::posted_as(replied(app, outgoing(peer, String::new(), None), &reply), q.send_as) };
             let mid = m.id;
             app.push_event(Ev::NewMsg(m));
             // The file stays on disk: that's what we will play.
@@ -1500,7 +1502,7 @@ fn queued_media(app: &mut App, q: &Queued) {
         }
         Some(QueuedMedia::Round { path, duration }) => {
             let info = MediaInfo { kind: MediaKind::Round, duration, size: (384, 384), title: String::new(), performer: String::new(), waveform: Vec::new(), bytes: 0 };
-            let m = Msg { media: Some(info), ..replied(app, outgoing(peer, String::new(), None), &reply) };
+            let m = Msg { media: Some(info), ..sendas::posted_as(replied(app, outgoing(peer, String::new(), None), &reply), q.send_as) };
             let mid = m.id;
             app.push_event(Ev::NewMsg(m));
             app.push_event(Ev::MediaReady { peer, id: mid, path });

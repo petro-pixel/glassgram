@@ -60,8 +60,9 @@ impl Worker {
     pub(super) async fn todo_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
         let client = self.client()?;
         match cmd {
-            Cmd::SendTodo { peer, todo, reply_to } => {
+            Cmd::SendTodo { peer, todo, reply_to, send_as } => {
                 let r = self.peer_ref(peer)?;
+                let send_as = self.send_as_ref(send_as)?;
                 let list = tl::types::TodoList {
                     others_can_append: todo.others_can_append,
                     others_can_complete: todo.others_can_complete,
@@ -72,7 +73,7 @@ impl Worker {
                 let local = ReplyTo::local(&reply_to);
                 let reply = reply_to.as_ref().map(|x| self.input_reply(x)).transpose()?;
                 let rid = jiff::Timestamp::now().as_nanosecond() as i64;
-                let sent = reply::send_raw(&client, r, "", Some(media.into()), reply, SendOpts::default(), rid).await.map_err(|e| explain(&e))?;
+                let sent = reply::send_raw(&client, r, "", Some(media.into()), reply, SendOpts::default(), send_as, rid).await.map_err(|e| explain(&e))?;
                 if let Some(m) = sent {
                     self.sent().emit(peer, &m, local, SendOpts::default());
                 }

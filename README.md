@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 68%** `██████████████░░░░░░` — 118 done, 11 partial, 53 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 68%** `██████████████░░░░░░` — 118 done, 12 partial, 52 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -127,6 +127,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/birthdays.rs`, `src/backend/birthdays.rs` | Birthdays: reminder above the chat list, birthday in user info and in My Account |
 | `src/app/botstart.rs`, `src/backend/botstart.rs` | Bot deep links `t.me/<bot>?start=…`: Start bar with the parameter |
 | `src/app/similar.rs`, `src/backend/similar.rs` | "Similar channels" tab in a channel's info |
+| `src/app/sendas.rs`, `src/backend/sendas.rs` | Sending as a channel: the avatar button left of the field and its menu (`channels.getSendAs`, `messages.saveDefaultSendAs`) |
 | `src/app/saved.rs`, `src/backend/saved.rs` | Saved Messages split by source: "All" and one tab per chat; reaction tags as filters, renaming them |
 | `src/app/chatsearch.rs` | In-chat search panel: type and sender filters, results |
 | `src/app/searchtabs.rs`, `src/backend/searchtabs.rs` | Global search tabs: channels, apps (popular mini app bots), public posts, media |
@@ -215,6 +216,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way.
 - A link preview appears above the composer; ✕ sends the message without it.
 - Right-click "Send": in a private chat, a row of message effects on top (★ — Premium) sends the message with that effect; then send silently, schedule, or (in a private chat whose last seen time is visible) send when online. A message with an effect plays it when it first appears; a click on the effect's emoji by the time plays it again.
+- In a group or channel that lets you post as a channel you run, a round avatar left of 📎 shows who messages go as; a click lists your account and those channels (Premium-only ones are marked) and picks the default for that chat.
 - "Select" in the message menu turns on selection mode; Esc leaves it.
 - A message of just 🎲 🎯 🏀 ⚽ 🎰 or 🎳 is sent as a game.
 - A `t.me/addlist/…` link adds a shared folder; its right-click menu checks for new chats, and deleting it offers to leave its chats.

@@ -566,7 +566,7 @@ impl App {
             let peer = f.peer;
             self.polls.form = None;
             let reply_to = self.take_reply();
-            self.send(Cmd::SendPoll { peer, poll, reply_to });
+            self.send(Cmd::SendPoll { peer, poll, reply_to, send_as: self.send_as_for(peer) });
         }
     }
 }

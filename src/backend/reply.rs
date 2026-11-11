@@ -1,6 +1,6 @@
 //! Replies grammers can't express: quoting a part of the message and replying to a message in
-//! another chat. Such messages go as our own `sendMessage` / `sendMedia` / `sendMultiMedia`;
-//! plain replies keep the grammers path.
+//! another chat, and posting as a channel (`send_as`). Such messages go as our own `sendMessage` /
+//! `sendMedia` / `sendMultiMedia`; plain replies keep the grammers path.
 
 use grammers_client::InvocationError;
 
@@ -36,9 +36,13 @@ impl Worker {
         .into())
     }
 
-    /// `input_reply` for the requests that need it, `None` when grammers can send the reply itself.
-    pub(super) fn extended_reply(&self, reply: &Option<ReplyTo>) -> Result<Option<tl::enums::InputReplyTo>, String> {
-        reply.as_ref().filter(|r| r.extended()).map(|r| self.input_reply(r)).transpose()
+    /// Whether a message needs our own request: grammers can't send an extended reply or post as a channel.
+    /// The reply is then given as the API wants it.
+    pub(super) fn raw_reply(&self, reply: &Option<ReplyTo>, send_as: &Option<tl::enums::InputPeer>) -> Result<Option<Option<tl::enums::InputReplyTo>>, String> {
+        if send_as.is_none() && !reply.as_ref().is_some_and(ReplyTo::extended) {
+            return Ok(None);
+        }
+        reply.as_ref().map(|r| self.input_reply(r)).transpose().map(Some)
     }
 }
 
@@ -89,13 +93,14 @@ async fn created(client: &Client, r: PeerRef, updates: &tl::enums::Updates, rand
     Ok(msgs.into_iter().flatten().collect())
 }
 
-/// One message with an extended reply: text (markup) and maybe media.
-pub(super) async fn send_one(client: &Client, r: PeerRef, markup: &str, media: Option<tl::enums::InputMedia>, reply: tl::enums::InputReplyTo, opts: SendOpts) -> Result<Option<Message>, String> {
-    send_raw(client, r, markup, media, Some(reply), opts, random_id()).await.map_err(|e| e.to_string())
+/// One message grammers can't send (see `raw_reply`): text (markup) and maybe media.
+pub(super) async fn send_one(client: &Client, r: PeerRef, markup: &str, media: Option<tl::enums::InputMedia>, reply: Option<tl::enums::InputReplyTo>, opts: SendOpts, send_as: Option<tl::enums::InputPeer>) -> Result<Option<Message>, String> {
+    send_raw(client, r, markup, media, reply, opts, send_as, random_id()).await.map_err(|e| e.to_string())
 }
 
 /// One message as our own request, with the `random_id` given (the send queue reuses its key).
-pub(super) async fn send_raw(client: &Client, r: PeerRef, markup: &str, media: Option<tl::enums::InputMedia>, reply: Option<tl::enums::InputReplyTo>, opts: SendOpts, rid: i64) -> Result<Option<Message>, SendError> {
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn send_raw(client: &Client, r: PeerRef, markup: &str, media: Option<tl::enums::InputMedia>, reply: Option<tl::enums::InputReplyTo>, opts: SendOpts, send_as: Option<tl::enums::InputPeer>, rid: i64) -> Result<Option<Message>, SendError> {
     let (message, ents) = format::parse(markup);
     let entities = (!ents.is_empty()).then_some(ents);
     let schedule_date = opts.schedule.map(|t| t as i32);
@@ -119,7 +124,7 @@ pub(super) async fn send_raw(client: &Client, r: PeerRef, markup: &str, media: O
                     entities,
                     schedule_date,
                     schedule_repeat_period: None,
-                    send_as: None,
+                    send_as,
                     quick_reply_shortcut: None,
                     effect: opts.effect,
                     allow_paid_stars: None,
@@ -146,7 +151,7 @@ pub(super) async fn send_raw(client: &Client, r: PeerRef, markup: &str, media: O
                     entities,
                     schedule_date,
                     schedule_repeat_period: None,
-                    send_as: None,
+                    send_as,
                     quick_reply_shortcut: None,
                     effect: opts.effect,
                     allow_paid_stars: None,
@@ -160,7 +165,8 @@ pub(super) async fn send_raw(client: &Client, r: PeerRef, markup: &str, media: O
 }
 
 /// An album as our own request; photo `i` gets the `random_id` `rid + i`.
-pub(super) async fn album_raw(client: &Client, r: PeerRef, ups: Vec<Uploaded>, caption: &str, reply: Option<tl::enums::InputReplyTo>, opts: SendOpts, rid: i64, spoiler: bool) -> Result<Vec<Message>, SendError> {
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn album_raw(client: &Client, r: PeerRef, ups: Vec<Uploaded>, caption: &str, reply: Option<tl::enums::InputReplyTo>, opts: SendOpts, send_as: Option<tl::enums::InputPeer>, rid: i64, spoiler: bool) -> Result<Vec<Message>, SendError> {
     let mut multi_media = Vec::new();
     let mut rids = Vec::new();
     for (i, up) in ups.into_iter().enumerate() {
@@ -194,7 +200,7 @@ pub(super) async fn album_raw(client: &Client, r: PeerRef, ups: Vec<Uploaded>, c
             reply_to: reply,
             multi_media,
             schedule_date: opts.schedule.map(|t| t as i32),
-            send_as: None,
+            send_as,
             quick_reply_shortcut: None,
             effect: opts.effect,
             allow_paid_stars: None,

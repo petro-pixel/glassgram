@@ -35,13 +35,13 @@ impl App {
             _ if opts == SendOpts::default() && dice::game_for(&text).is_some() => {
                 let reply_to = self.take_reply();
                 let emoji = dice::game_for(&text).unwrap_or_default().to_owned();
-                self.send(Cmd::SendDice { peer, emoji, reply_to });
+                self.send(Cmd::SendDice { peer, emoji, reply_to, send_as: self.send_as_for(peer) });
             }
             // Scheduled messages go straight to the server; the rest through the send queue.
             _ => {
                 let reply_to = self.take_reply();
                 if opts.schedule.is_some() {
-                    self.send(Cmd::Send { peer, text, reply_to, opts });
+                    self.send(Cmd::Send { peer, text, reply_to, opts, send_as: self.send_as_for(peer) });
                 } else {
                     self.enqueue(peer, text, reply_to, &opts);
                 }
@@ -151,7 +151,7 @@ impl App {
         if let Some(doc) = send {
             self.draft.clear();
             let reply_to = self.take_reply();
-            self.send(Cmd::SendSticker { peer, doc, reply_to });
+            self.send(Cmd::SendSticker { peer, doc, reply_to, send_as: self.send_as_for(peer) });
         }
     }
 
@@ -229,7 +229,7 @@ impl App {
             && let Some(i) = self.inline.take()
         {
             let reply_to = self.take_reply();
-            self.send(Cmd::SendInline { peer, query_id: i.query_id, result, reply_to });
+            self.send(Cmd::SendInline { peer, query_id: i.query_id, result, reply_to, send_as: self.send_as_for(peer) });
             self.draft.clear();
             self.compose = Compose::New;
         }

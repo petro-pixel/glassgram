@@ -71,9 +71,9 @@ impl Worker {
         let (key, peer) = (q.key, q.peer);
         let fail = |error: String, retry: bool| Ev::QueueFailed { key, error, retry };
         // There may be no connection or no chat yet (cache before login) — also a reason to retry later.
-        let (client, r) = match (self.client(), self.peer_ref(peer)) {
-            (Ok(c), Ok(r)) => (c, r),
-            (Err(e), _) | (_, Err(e)) => {
+        let (client, r, send_as) = match (self.client(), self.peer_ref(peer), self.send_as_ref(q.send_as)) {
+            (Ok(c), Ok(r), Ok(a)) => (c, r, a),
+            (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => {
                 self.out.send(fail(e, true));
                 return Ok(());
             }
@@ -108,7 +108,7 @@ impl Worker {
             entities: (!ents.is_empty()).then(|| ents.clone()),
             schedule_date: None,
             schedule_repeat_period: None,
-            send_as: None,
+            send_as,
             quick_reply_shortcut: None,
             effect: q.effect,
             allow_paid_stars: None,
@@ -152,9 +152,9 @@ impl Worker {
         let (key, peer) = (q.key, q.peer);
         let fail = move |error: String, retry: bool| Ev::QueueFailed { key, error, retry };
         let reply = q.reply().map(|x| self.input_reply(&x)).transpose();
-        let (client, r, reply) = match (self.client(), self.peer_ref(peer), reply) {
-            (Ok(c), Ok(r), Ok(x)) => (c, r, x),
-            (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => {
+        let (client, r, reply, send_as) = match (self.client(), self.peer_ref(peer), reply, self.send_as_ref(q.send_as)) {
+            (Ok(c), Ok(r), Ok(x), Ok(a)) => (c, r, x, a),
+            (Err(e), _, _, _) | (_, Err(e), _, _) | (_, _, Err(e), _) | (_, _, _, Err(e)) => {
                 self.out.send(fail(e, true));
                 return Ok(());
             }
@@ -163,7 +163,7 @@ impl Worker {
         let cache = self.out.cache.clone();
         let dir = outbox_dir(&self.session_path, key);
         tokio::spawn(async move {
-            let res = queued_media(&client, r, &q, reply, &sent).await;
+            let res = queued_media(&client, r, send_as, &q, reply, &sent).await;
             sent.out.send(Ev::UploadDone(key as u64));
             match res {
                 Ok(()) => {
@@ -202,7 +202,7 @@ impl Worker {
 
 /// Uploads the files of a queued message and sends them. Message `i` of it gets the `random_id`
 /// `key + i`: one the server already has (an earlier attempt got through) counts as sent.
-async fn queued_media(client: &Client, r: PeerRef, q: &Queued, reply: Option<tl::enums::InputReplyTo>, sent: &Sent) -> Result<(), SendError> {
+async fn queued_media(client: &Client, r: PeerRef, send_as: Option<tl::enums::InputPeer>, q: &Queued, reply: Option<tl::enums::InputReplyTo>, sent: &Sent) -> Result<(), SendError> {
     let Some(media) = &q.media else { return Ok(()) };
     if let Some(gone) = media.paths().into_iter().find(|p| !p.exists()) {
         return Err(SendError::Other(lf!("файл зник: {}", "the file is gone: {}", gone.display())));
@@ -237,14 +237,14 @@ async fn queued_media(client: &Client, r: PeerRef, q: &Queued, reply: Option<tl:
             let attr = tl::types::DocumentAttributeAudio { voice: true, duration: duration.max(1.0).round() as i32, title: None, performer: None, waveform: Some(pack_waveform(waveform)) };
             let doc = reply::document(up(path).await?, "voice.ogg", Some("audio/ogg"), vec![attr.into()]);
             let (rid, cap, reply) = step(1);
-            emit(once(reply::send_raw(client, r, &cap, Some(doc), reply, opts, rid).await)?);
+            emit(once(reply::send_raw(client, r, &cap, Some(doc), reply, opts, send_as.clone(), rid).await)?);
         }
         QueuedMedia::Round { path, duration } => {
             let side = crate::camera::SIDE as i32;
             let attr = tl::types::DocumentAttributeVideo { round_message: true, supports_streaming: true, nosound: false, duration: duration.max(1.0), w: side, h: side, preload_prefix_size: None, video_start_ts: None, video_codec: None };
             let doc = reply::document(up(path).await?, "round.mp4", Some("video/mp4"), vec![attr.into()]);
             let (rid, cap, reply) = step(1);
-            emit(once(reply::send_raw(client, r, &cap, Some(doc), reply, opts, rid).await)?);
+            emit(once(reply::send_raw(client, r, &cap, Some(doc), reply, opts, send_as.clone(), rid).await)?);
         }
         QueuedMedia::Files { paths, as_file, spoiler, above: _, once: one_view } => {
             let (photos, docs): (Vec<&PathBuf>, Vec<&PathBuf>) = paths.iter().partition(|p| !as_file && is_image(p));
@@ -261,9 +261,9 @@ async fn queued_media(client: &Client, r: PeerRef, q: &Queued, reply: Option<tl:
                 match ups.len() {
                     1 => {
                         let photo = ups.pop().map(|u| reply::photo(u, *spoiler)).map(|m| if *one_view { viewonce::view_once(m) } else { m });
-                        emit(once(reply::send_raw(client, r, &cap, photo, reply, opts, rid).await)?)
+                        emit(once(reply::send_raw(client, r, &cap, photo, reply, opts, send_as.clone(), rid).await)?)
                     }
-                    _ => match reply::album_raw(client, r, ups, &cap, reply, opts, rid, *spoiler).await {
+                    _ => match reply::album_raw(client, r, ups, &cap, reply, opts, send_as.clone(), rid, *spoiler).await {
                         Ok(msgs) => msgs.into_iter().for_each(|m| emit(Some(m))),
                         Err(e) if e.duplicate() => {}
                         Err(e) => return Err(e),
@@ -276,7 +276,7 @@ async fn queued_media(client: &Client, r: PeerRef, q: &Queued, reply: Option<tl:
                 let doc = if *spoiler { reply::video_spoiler(doc) } else { doc };
                 let doc = if *one_view { viewonce::view_once(doc) } else { doc };
                 let (rid, cap, reply) = step(1);
-                emit(once(reply::send_raw(client, r, &cap, Some(doc), reply, opts, rid).await)?);
+                emit(once(reply::send_raw(client, r, &cap, Some(doc), reply, opts, send_as.clone(), rid).await)?);
             }
         }
     }

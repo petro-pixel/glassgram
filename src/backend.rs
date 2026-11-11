@@ -95,6 +95,8 @@ mod chatedit;
 mod birthdays;
 mod botstart;
 mod similar;
+mod sendas;
+pub use sendas::SendAsPeer;
 mod searchtabs;
 pub use searchtabs::PostsFlood;
 mod saved;
@@ -158,7 +160,8 @@ pub enum Cmd {
     ReloadDialogs,
     OpenChat(PeerId),
     LoadOlder { peer: PeerId, before: i32 },
-    Send { peer: PeerId, text: String, reply_to: Option<ReplyTo>, opts: SendOpts },
+    /// `send_as` (in every send command): the channel or account to post as, where the chat offers a choice.
+    Send { peer: PeerId, text: String, reply_to: Option<ReplyTo>, opts: SendOpts, send_as: Option<PeerId> },
     Edit { peer: PeerId, id: i32, text: String },
     /// Replace a sent message's photo or file with `path` (`as_file`: an image as a document),
     /// keeping its spoiler and caption position; answered with `Ev::MediaReplaced`.
@@ -180,7 +183,7 @@ pub enum Cmd {
     /// A message's contents were seen (`readMessageContents`): a voice or round video message
     /// listened to, or a mention looked at.
     MarkListened { peer: PeerId, id: i32 },
-    SendInline { peer: PeerId, query_id: i64, result: String, reply_to: Option<ReplyTo> },
+    SendInline { peer: PeerId, query_id: i64, result: String, reply_to: Option<ReplyTo>, send_as: Option<PeerId> },
     /// Create or edit a folder (a new one gets a free id, starting from 2).
     SaveFolder(Folder),
     DeleteFolder(i32),
@@ -253,7 +256,7 @@ pub enum Cmd {
     SetAccountTtl(i32),
     LoadCacheUsage,
     /// An emoji game (🎲 🎯 🏀 ⚽ 🎰 🎳); the server rolls the value.
-    SendDice { peer: PeerId, emoji: String, reply_to: Option<ReplyTo> },
+    SendDice { peer: PeerId, emoji: String, reply_to: Option<ReplyTo>, send_as: Option<PeerId> },
     ClearCache(Vec<CacheKind>),
     /// Remove the oldest cached files over this many bytes.
     TrimCache(u64),
@@ -281,7 +284,7 @@ pub enum Cmd {
     /// An inline button with callback data was pressed.
     PressButton { peer: PeerId, id: i32, data: Vec<u8> },
     /// A listed sticker or saved GIF.
-    SendSticker { peer: PeerId, doc: i64, reply_to: Option<ReplyTo> },
+    SendSticker { peer: PeerId, doc: i64, reply_to: Option<ReplyTo>, send_as: Option<PeerId> },
     /// Favourite and recent stickers and the installed sets, for the panel.
     LoadStickers,
     /// A set with all its stickers, for the box.
@@ -399,6 +402,10 @@ pub enum Cmd {
     LoadEffects,
     /// Channels similar to this one, for its profile.
     LoadSimilarChannels(PeerId),
+    /// Who we can post as in a supergroup or channel; answered with `Ev::SendAs` (nothing for other chats).
+    LoadSendAs(PeerId),
+    /// Post as `send_as` in this chat from now on (`messages.saveDefaultSendAs`).
+    SaveSendAs { peer: PeerId, send_as: PeerId },
     /// `t.me/<bot>?start=<param>`: open the bot chat ready to start with the parameter.
     OpenBotStart { username: String, param: String },
     /// Start a bot with a deep-link parameter (`messages.startBot`).
@@ -408,7 +415,7 @@ pub enum Cmd {
     /// Contacts' birthdays today, for the reminder above the chat list.
     LoadBirthdays,
     /// Send a new poll or quiz.
-    SendPoll { peer: PeerId, poll: NewPoll, reply_to: Option<ReplyTo> },
+    SendPoll { peer: PeerId, poll: NewPoll, reply_to: Option<ReplyTo>, send_as: Option<PeerId> },
     /// Who voted for what in a public poll, a page after `offset`; answered with `Ev::PollVotes`.
     PollVotes { peer: PeerId, id: i32, offset: Option<String> },
     /// Add our own answer to a poll open for them.
@@ -416,7 +423,7 @@ pub enum Cmd {
     /// Close our own poll for good (`messages.editMessage` with the poll marked closed).
     StopPoll { peer: PeerId, id: i32 },
     /// Send a new checklist (Premium on the server side).
-    SendTodo { peer: PeerId, todo: NewTodo, reply_to: Option<ReplyTo> },
+    SendTodo { peer: PeerId, todo: NewTodo, reply_to: Option<ReplyTo>, send_as: Option<PeerId> },
     /// Tick and untick checklist items by id.
     ToggleTodo { peer: PeerId, id: i32, completed: Vec<i32>, incompleted: Vec<i32> },
     /// Add items to a checklist: (new item id, title).
@@ -738,6 +745,8 @@ pub enum Ev {
     Gifts { peer: PeerId, gifts: Vec<Gift>, total: i32 },
     /// Recommended channels for a channel's profile; `total` counts those shown only with Premium.
     SimilarChannels { peer: PeerId, chats: Vec<ChatInfo>, total: i32 },
+    /// Who we can post as in a chat, and the chat's current choice.
+    SendAs { peer: PeerId, peers: Vec<SendAsPeer>, current: Option<PeerId> },
     /// The bot chat was opened from a start link: the Start bar carries `param`.
     BotStart { peer: PeerId, param: String },
     /// A group or channel got a new title.
@@ -1153,6 +1162,7 @@ impl Worker {
             cmd @ Cmd::LoadCustomEmoji(_) => self.custom_emoji_cmd(cmd).await,
             Cmd::LoadEffects => self.effects_cmd().await,
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
+            cmd @ (Cmd::LoadSendAs(_) | Cmd::SaveSendAs { .. }) => self.send_as_cmd(cmd).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
             cmd @ (Cmd::SetBirthday(_) | Cmd::LoadBirthdays) => self.birthdays_cmd(cmd).await,
             cmd @ (Cmd::EditChat { .. } | Cmd::SetChatPhoto { .. } | Cmd::SetChatRights { .. } | Cmd::SetSlowMode { .. } | Cmd::SetChatReactions { .. } | Cmd::SetMembersHidden { .. } | Cmd::SetAntiSpam { .. }) => self.chat_edit_cmd(cmd).await,
