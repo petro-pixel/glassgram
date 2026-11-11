@@ -247,6 +247,16 @@ pub(super) fn galley(p: &Painter, mut job: LayoutJob, spans: &[Span], revealed: 
     p.layout_job(job)
 }
 
+/// Draws one custom emoji in a square (emoji statuses); a missing picture is asked for.
+pub(super) fn paint_id(p: &Painter, id: i64, rect: Rect) {
+    let Some(shelf) = CustomEmoji::of(p.ctx()) else { return };
+    let Some(tex) = shelf.texture(id) else { return };
+    if p.clip_rect().intersects(rect) {
+        shelf.seen(id);
+        p.image(tex, rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+    }
+}
+
 /// Draws the pictures of custom emoji over a galley painted at `origin`.
 pub(super) fn paint(p: &Painter, galley: &Galley, origin: egui::Pos2, text: &str, spans: &[Span], revealed: bool) {
     let Some(shelf) = CustomEmoji::of(p.ctx()) else { return };

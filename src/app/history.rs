@@ -304,10 +304,10 @@ impl App {
             // The id belongs to another chat: name that chat instead of looking it up here.
             (Some(chat), _) => {
                 let chat = if chat.is_empty() { l!("Інший чат", "Another chat") } else { chat.as_str() };
-                (lf!("Відповідь у «{chat}»", "Reply in «{chat}»"), quoted.unwrap_or_else(|| l!("Повідомлення", "Message").to_owned()))
+                (lf!("Відповідь у «{chat}»", "Reply in «{chat}»"), quoted.unwrap_or_else(|| l!("Повідомлення", "Message").to_owned()), None)
             }
-            (None, Some(r)) => (author(r, &self.me), quoted.unwrap_or_else(|| quote(r))),
-            (None, None) => (l!("Відповідь", "Reply").to_owned(), quoted.unwrap_or_else(|| l!("Повідомлення", "Message").to_owned())),
+            (None, Some(r)) => (author(r, &self.me), quoted.unwrap_or_else(|| quote(r)), self.author_color(r)),
+            (None, None) => (l!("Відповідь", "Reply").to_owned(), quoted.unwrap_or_else(|| l!("Повідомлення", "Message").to_owned()), None),
         });
         let kind = m.media.as_ref().map(|i| i.kind);
         let manual = self.media_manual(peer, chat, m);
@@ -437,7 +437,12 @@ impl App {
         } else {
             let title_w = search_btn.left() - text_x - 12.0;
             let title = open_topic.as_ref().map_or(chat.title.as_str(), |t| t.title.as_str());
-            p.galley(pos2(text_x, header.center().y - 20.0), elided(ui, title, 16.5, ink(), title_w), ink());
+            let status = chat.emoji_status.filter(|_| open_topic.is_none());
+            let status_w = if status.is_some() { namecolor::STATUS_PT + 4.0 } else { 0.0 };
+            let g = elided(ui, title, 16.5, ink(), title_w - status_w);
+            let end = pos2(text_x + g.size().x, header.center().y - 20.0 + g.size().y / 2.0);
+            p.galley(pos2(text_x, header.center().y - 20.0), g, ink());
+            namecolor::status_after(&p, end, status, namecolor::STATUS_PT);
             let typing = self.typing.get(&peer).filter(|(_, until)| *until > now);
             let (sub, color) = match typing {
                 Some((who, _)) if group && !who.is_empty() => (lf!("{who} друкує…", "{who} is typing…"), ACCENT),

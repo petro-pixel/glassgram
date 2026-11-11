@@ -233,6 +233,7 @@ impl App {
                 self.login.code.clear();
                 self.login.password.clear();
                 self.refresh_lang_pack();
+                self.send(Cmd::LoadPeerColors);
             }
             Ev::LoggedOut => {
                 // Other accounts remain: remove this one and move to the next.

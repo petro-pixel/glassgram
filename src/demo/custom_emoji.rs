@@ -24,6 +24,14 @@ pub(super) fn message(base: Msg) -> Msg {
     Msg { id: 77, text, spans, ..base }
 }
 
+/// Olena's emoji status: the heart, so it beats after her name.
+pub(super) const STATUS: i64 = 9002;
+
+/// Emoji statuses offered in the demo picker: every demo emoji.
+pub(super) fn statuses() -> Vec<i64> {
+    EMOJI.iter().map(|(id, _)| *id).collect()
+}
+
 /// The animated one among them.
 const ANIMATED: i64 = 9002;
 

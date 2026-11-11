@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{AdminRights, InviteDraft, InviteLink, JoinRequest, PartList, Participant, SavedTag, PostsFlood, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, Ringtone, ReactFrom, ReactionNotify, Sound, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollVoter, TodoInfo, TodoTask, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit};
+use crate::backend::{AdminRights, ColorOption, InviteDraft, InviteLink, JoinRequest, PartList, Participant, SavedTag, PostsFlood, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, Ringtone, ReactFrom, ReactionNotify, Sound, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollVoter, TodoInfo, TodoTask, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit};
 use crate::format;
 use crate::i18n::{l, lf};
 
@@ -72,6 +72,7 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
                 id: i as i32 + 1,
                 out: *out,
                 sender: sender.to_string(),
+                sender_color: demo_color(sender),
                 spans: format::from_entities(&text, &ents, 0),
                 comments: (id == 4 && !*out).then_some(3),
                 // Pinned: each of these chats has something for the bar above history.
@@ -79,7 +80,12 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
                 views: (id == 4).then_some(12_400),
                 time: format!("{}:{:02}", 9 + i, (id * 7 + i as i64 * 13) % 60),
                 day: l!("Сьогодні", "Today").into(),
-                reply_to: (id == 1 && i == 3).then_some(3),
+                // In "Rust Team" Taras answers Iryna: the quote stripe takes her name colour.
+                reply_to: match (id, i) {
+                    (1, 3) => Some(3),
+                    (2, 3) => Some(2),
+                    _ => None,
+                },
                 photo: text == "📷",
                 file: (text == "📄").then(|| ("Mockups_v3.fig".to_owned(), "14.2 MB".to_owned())),
                 sticker: (text == "🐱").then(|| (900, "🐱".to_owned())),
@@ -134,6 +140,8 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
             can_pin: !matches!(kind, ChatKind::Channel) && id != 7,
             // The archived group is blocked by Telegram: its reason shows instead of the history.
             restricted: (id == 9).then(|| "This group is blocked for violating Telegram's Terms of Service.".to_owned()),
+            // Olena wears an emoji status: a custom emoji after her name.
+            emoji_status: (id == 1).then_some(custom_emoji::STATUS),
         });
         let mut msgs = msgs;
         extras(id, peer, &mut msgs);
@@ -637,6 +645,15 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::LoadCustomEmoji(ids) => custom_emoji::load(app, ids),
         Cmd::LoadEffects => effects::load(app),
+        Cmd::LoadPeerColors => app.push_event(Ev::PeerColors { names: peer_colors(), profiles: Vec::new() }),
+        Cmd::LoadEmojiStatuses => app.push_event(Ev::EmojiStatuses(custom_emoji::statuses())),
+        Cmd::SetNameColor { profile, color, emoji } => {
+            let p = app.demo_profile();
+            let p = if profile { Profile { profile_color: (color, emoji), ..p } } else { Profile { color: (color, emoji), ..p } };
+            app.push_event(Ev::Profile(p));
+            app.push_event(Ev::Notice(l!("Колір збережено", "Color saved").into()));
+        }
+        Cmd::SetEmojiStatus(emoji_status) => app.push_event(Ev::Profile(Profile { emoji_status, ..app.demo_profile() })),
         Cmd::LoadEmojiKeywords(lang) => {
             let w = |k: &str, e: &[&str]| (k.to_owned(), e.iter().map(|x| x.to_string()).collect());
             let words = if lang == "uk" {
@@ -1072,6 +1089,7 @@ fn person(id: i64, name: &str, status: &str, presence: Presence) -> ChatInfo {
         noforwards: false,
         can_pin: false,
         restricted: None,
+        emoji_status: None,
     }
 }
 
@@ -1179,8 +1197,39 @@ fn helper_bot() -> ChatInfo {
         noforwards: false,
         can_pin: false,
         restricted: None,
+        emoji_status: None,
     }
 }
+/// Name colours of demo people: built-in ones and the server's two-tone 9.
+fn demo_color(sender: &str) -> Option<i32> {
+    match sender {
+        "" => None,
+        "Taras" => Some(0),
+        "Iryna" => Some(3),
+        "Sofia" => Some(9),
+        "Maksym" => Some(1),
+        "Olena" => Some(5),
+        "Oleh" => Some(4),
+        _ => Some(2),
+    }
+}
+
+/// Extra name colours as `help.getPeerColors` sends them: two tones for each theme.
+fn peer_colors() -> Vec<ColorOption> {
+    [
+        (7, [0xe15052, 0xf9ae63], [0xff9380, 0x992f37]),
+        (8, [0xe0802b, 0xfac534], [0xecb04e, 0xc35714]),
+        (9, [0xa05ff3, 0xf48fff], [0xc697ff, 0x5e31c8]),
+        (10, [0x27a910, 0xa7dc57], [0xa7eb6e, 0x167e2d]),
+        (11, [0x27acce, 0x82e8d6], [0x40d8d0, 0x045c7f]),
+        (12, [0x3391d4, 0x7dd3f0], [0x52bfff, 0x0b5494]),
+        (13, [0xdd4371, 0xffbe9f], [0xff86a6, 0x8e366e]),
+    ]
+    .into_iter()
+    .map(|(id, light, dark)| ColorOption { id, light: light.to_vec(), dark: dark.to_vec() })
+    .collect()
+}
+
 /// The demo user's own id (for the avatar in settings).
 const ME: i64 = 1000;
 
@@ -1198,6 +1247,9 @@ fn demo_profile() -> Profile {
         // Premium: "About this ad" offers to hide ads.
         premium: true,
         ads_off: false,
+        color: (Some(5), None),
+        profile_color: (Some(4), None),
+        emoji_status: Some(9003),
     }
 }
 
@@ -1269,6 +1321,7 @@ fn forum_chat() -> (ChatInfo, Vec<Msg>) {
         noforwards: false,
         can_pin: true,
         restricted: None,
+        emoji_status: None,
     };
     (chat, msgs)
 }
@@ -1290,7 +1343,7 @@ fn demo_topics() -> Vec<Topic> {
 
 /// Extra demo messages: poll, place, contact, album, reactions.
 fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
-    let base = |n: i32, sender: &str| Msg { sender: sender.into(), out: sender.is_empty(), time: format!("12:{n:02}"), ..Msg::placeholder(peer) };
+    let base = |n: i32, sender: &str| Msg { sender: sender.into(), sender_color: demo_color(sender), out: sender.is_empty(), time: format!("12:{n:02}"), ..Msg::placeholder(peer) };
     match id {
         2 => {
             // A link with a preview card (its picture comes from `images()`).
@@ -1725,6 +1778,7 @@ fn demo_members() -> Vec<Member> {
                 noforwards: false,
                 can_pin: false,
                 restricted: None,
+                emoji_status: None,
             },
             role,
             rank: if id == 5 { "moderator".into() } else { String::new() },

@@ -42,8 +42,8 @@ impl App {
             let root = c.discussion.map(|d| d.1);
             for m in &c.msgs {
                 let reply = m.reply_to.filter(|r| Some(*r) != root).map(|id| match c.msgs.iter().find(|x| x.id == id) {
-                    Some(r) => (author(r, &self.me), quote(r)),
-                    None => (l!("Відповідь", "Reply").to_owned(), l!("Коментар", "Comment").to_owned()),
+                    Some(r) => (author(r, &self.me), quote(r), self.author_color(r)),
+                    None => (l!("Відповідь", "Reply").to_owned(), l!("Коментар", "Comment").to_owned(), None),
                 });
                 let photo = self.media_tex(m.peer, m);
                 let sticker = m.sticker.as_ref().and_then(|s| self.textures.get(&ImgKey::Sticker(s.0)));

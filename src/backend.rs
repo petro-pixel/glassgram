@@ -113,6 +113,8 @@ mod effects;
 pub use effects::Effect;
 mod viewonce;
 pub use viewonce::VIEW_ONCE;
+mod namecolor;
+pub use namecolor::{ColorOption, default_color};
 mod report;
 pub use report::ReportStep;
 pub use gifts::Gift;
@@ -400,6 +402,15 @@ pub enum Cmd {
     /// Message effects for the send menu and received messages (`messages.getAvailableEffects`),
     /// then each one's animation file.
     LoadEffects,
+    /// The server's name and profile colours beyond the built-in ones.
+    LoadPeerColors,
+    /// Our recent and the default emoji statuses, for the picker.
+    LoadEmojiStatuses,
+    /// Our name colour (`profile`: the profile one); `None` goes back to the default. `emoji` is
+    /// the background emoji, kept as it was: we don't pick it yet.
+    SetNameColor { profile: bool, color: Option<i32>, emoji: Option<i64> },
+    /// Our emoji status; `None` removes it.
+    SetEmojiStatus(Option<i64>),
     /// Channels similar to this one, for its profile.
     LoadSimilarChannels(PeerId),
     /// Who we can post as in a supergroup or channel; answered with `Ev::SendAs` (nothing for other chats).
@@ -607,6 +618,10 @@ pub enum Ev {
     Effects(Vec<Effect>),
     /// The `.tgs` animation of a message effect, played over its message.
     EffectFile { id: i64, path: std::path::PathBuf },
+    /// Colours from `help.getPeerColors` / `help.getPeerProfileColors`.
+    PeerColors { names: Vec<ColorOption>, profiles: Vec<ColorOption> },
+    /// Emoji statuses to pick from (document ids), recent first.
+    EmojiStatuses(Vec<i64>),
     Folders(Vec<Folder>),
     /// Whether chat rows show folder tags.
     FolderTags(bool),
@@ -1161,6 +1176,7 @@ impl Worker {
             cmd @ Cmd::LoadEmojiKeywords(_) => self.emoji_keywords_cmd(cmd).await,
             cmd @ Cmd::LoadCustomEmoji(_) => self.custom_emoji_cmd(cmd).await,
             Cmd::LoadEffects => self.effects_cmd().await,
+            cmd @ (Cmd::LoadPeerColors | Cmd::LoadEmojiStatuses | Cmd::SetNameColor { .. } | Cmd::SetEmojiStatus(_)) => self.namecolor_cmd(cmd).await,
             Cmd::LoadSimilarChannels(peer) => self.load_similar(peer).await,
             cmd @ (Cmd::LoadSendAs(_) | Cmd::SaveSendAs { .. }) => self.send_as_cmd(cmd).await,
             cmd @ (Cmd::OpenBotStart { .. } | Cmd::StartBot { .. }) => self.bot_start_cmd(cmd).await,
@@ -1474,6 +1490,7 @@ impl Worker {
                 noforwards: noforwards(peer),
                 can_pin: can_pin(peer),
                 restricted: chat_restriction(peer),
+                emoji_status: namecolor::emoji_status(peer).filter(|_| peer_kind(peer) != ChatKind::Saved),
             });
             peers.push(peer.clone());
         }

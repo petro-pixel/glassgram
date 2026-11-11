@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use eframe::egui::{self, Align2, Color32, FontId, Rect, Sense, Ui, UiBuilder, pos2, text::LayoutJob, vec2};
 use grammers_client::session::types::PeerId;
 
-use super::{App, SEARCH_DELAY, elided, kind_icon};
+use super::{App, SEARCH_DELAY, elided, kind_icon, namecolor};
 use crate::backend::{ChatDetails, ChatInfo, Sound, ChatKind, Cmd, Ev, ImgKey, MUTE_FOREVER, MediaKind, Member, MemberRole, Msg, SHARED_PAGE, SearchHit, SharedKind};
 use crate::format::Style;
 use crate::glass::{self, ACCENT, Glass, ink, ink_dim};
@@ -456,7 +456,13 @@ impl App {
         let video = info.avatar_video.as_ref().and_then(|c| c.tex.as_ref());
         let tex = video.or(self.textures.get(&ImgKey::Avatar(chat.id)));
         glass::avatar(p, pos2(r.center().x, r.top() + 46.0), AVATAR_R, &chat.title, chat.id.bot_api_dialog_id_unchecked(), kind_icon(chat.kind), tex);
-        p.galley(pos2(r.center().x, r.top() + 98.0) - vec2(elided(ui, &chat.title, 17.0, ink(), w - 24.0).size().x / 2.0, 0.0), elided(ui, &chat.title, 17.0, ink(), w - 24.0), ink());
+        // The emoji status follows the name; the pair stays centred.
+        let status_w = if chat.emoji_status.is_some() { namecolor::STATUS_PT + 4.0 } else { 0.0 };
+        let name = elided(ui, &chat.title, 17.0, ink(), w - 24.0 - status_w);
+        let at = pos2(r.center().x - (name.size().x + status_w) / 2.0, r.top() + 98.0);
+        let end = at + vec2(name.size().x, name.size().y / 2.0);
+        p.galley(at, name, ink());
+        namecolor::status_after(p, end, chat.emoji_status, namecolor::STATUS_PT);
         let d = info.details.as_ref();
         let (sub, color) = match chat.kind {
             ChatKind::User => match chat.presence.text() {

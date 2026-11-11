@@ -13,6 +13,9 @@ use eframe::egui::{
 
 use crate::icons::{self, Icon};
 
+mod palette;
+pub use palette::*;
+
 pub const ACCENT: Color32 = Color32::from_rgb(92, 124, 255);
 /// Light text over dark, for the photo viewer, which is always dark.
 pub const ON_DARK: Color32 = Color32::from_rgb(244, 246, 255);

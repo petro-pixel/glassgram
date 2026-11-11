@@ -19,6 +19,12 @@ pub struct Profile {
     pub premium: bool,
     /// Premium turned ads off (`sponsored_enabled` unset).
     pub ads_off: bool,
+    /// (colour index, background emoji) of the name; no index: the default one.
+    pub color: (Option<i32>, Option<i64>),
+    /// The same for the profile cover.
+    pub profile_color: (Option<i32>, Option<i64>),
+    /// Custom emoji after the name.
+    pub emoji_status: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -224,6 +230,9 @@ pub struct ChatInfo {
     /// Telegram hides the whole chat here (copyright, local law…): why, instead of its messages.
     #[serde(default)]
     pub restricted: Option<String>,
+    /// Custom emoji after the name (document id).
+    #[serde(default)]
+    pub emoji_status: Option<i64>,
 }
 
 /// Forum topic. The General topic has id 1.
@@ -611,6 +620,9 @@ pub struct Msg {
     pub peer: PeerId,
     pub out: bool,
     pub sender: String,
+    /// The sender's name colour index (`None`: unknown, e.g. cached before it was kept).
+    #[serde(default)]
+    pub sender_color: Option<i32>,
     pub text: String,
     pub time: String,
     pub ts: i64,
@@ -706,6 +718,7 @@ impl Msg {
             peer,
             out: false,
             sender: String::new(),
+            sender_color: None,
             text: String::new(),
             time: String::new(),
             ts: 0,

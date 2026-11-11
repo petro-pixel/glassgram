@@ -12,7 +12,7 @@ use crate::i18n::{l, lf};
 /// Side of the square profile photo, as after cropping in Telegram Desktop.
 const PHOTO_PX: u32 = 1280;
 
-fn rpc_name(e: &InvocationError) -> Option<&str> {
+pub(super) fn rpc_name(e: &InvocationError) -> Option<&str> {
     match e {
         InvocationError::Rpc(r) => Some(r.name.as_str()),
         _ => None,
@@ -57,6 +57,10 @@ impl Worker {
             loader.avatar(&Peer::User(me.clone()));
         }
         let premium = matches!(&me.raw, tl::enums::User::User(u) if u.premium);
+        let (color, profile_color, emoji_status) = match &me.raw {
+            tl::enums::User::User(u) => (super::namecolor::color_parts(u.color.as_ref()), super::namecolor::color_parts(u.profile_color.as_ref()), u.emoji_status.as_ref().and_then(super::namecolor::status_doc)),
+            _ => ((None, None), (None, None), None),
+        };
         let profile = Profile {
             id: Some(me.id()),
             first: me.first_name().unwrap_or_default().to_owned(),
@@ -72,6 +76,9 @@ impl Worker {
             premium,
             // Without Premium the flag means nothing: ads are always on.
             ads_off: premium && !ads,
+            color,
+            profile_color,
+            emoji_status,
         };
         self.out.send(Ev::Profile(profile));
     }

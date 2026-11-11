@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 68%** `██████████████░░░░░░` — 118 done, 12 partial, 52 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 68%** `██████████████░░░░░░` — 118 done, 13 partial, 51 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -25,7 +25,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Languages**: Ukrainian and English built into the code (always offline), every language Telegram Desktop offers (Settings → Language lists them with native names, "beta" and how much is translated; a click downloads the pack, caches it and switches at once, no restart), plus localisation files (`locales/*.json`, see below)
 - **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
 - **Settings** (⚙): language, theme (dark, light, system), interface scale, notifications, autoplay, SOCKS5 and MTProto proxies (several, switched on the fly, with ping), privacy, active sessions, local passcode; stored in `~/.local/share/glassgram/settings`
-- **Settings layout** as in Telegram Desktop: My Account (name, bio, username with availability check and its QR code, profile photo) · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language · My Stars (balance and history with All / Incoming / Outgoing tabs; a click on a transaction shows its details)
+- **Settings layout** as in Telegram Desktop: My Account (name, bio, username with availability check and its QR code, profile photo, name and profile colour with a live preview, emoji status) · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language · My Stars (balance and history with All / Incoming / Outgoing tabs; a click on a transaction shows its details)
 - **Send queue**: text messages, files, voice and round video messages show up at once (clock), are retried while offline and survive a restart; failed ones get a red mark with Retry / Delete
 - **Glass**: real blur via a wgpu shader (`src/blur.rs`, `src/glass.wgsl`); without wgpu — a vector fallback
 - **UI**: egui / eframe (wgpu), our own glass renderer — `src/glass.rs`
@@ -114,6 +114,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/cache.rs` | Local cache of dialogs, messages and the send queue (SQLite via `libsql`) |
 | `src/blur.rs`, `src/blur/content.rs`, `src/glass.wgsl` | GPU blur: background into a texture → Gaussian → glass panels: a clear refracting rim with dispersion and a light-facing glint over a frosted, slightly magnifying middle; the chat content under the header and composer is tessellated again (text as soft pills, pictures from thumbnails) over a copy of the background and blurred for the bars |
 | `src/glass.rs` | Live background, glass panels (gradient, specular rim, refraction halo, shadow), buttons, fields, avatars, glass behind egui menus and tooltips, accessibility modes |
+| `src/glass/palette.rs` | Telegram's peer colours: the 7 built-in name colours, the server's extra and profile colours, multi-tone stripes |
 | `src/app.rs` | `App`: state, events (`push_event`), user actions (`apply`), the frame loop |
 | `src/app/history.rs`, `src/app/bubbles.rs` | The open chat: history, header, overlays; drawing bubbles, albums, media cards, reactions |
 | `src/app/composer.rs`, `src/app/recording.rs` | The message field: text, files, stickers, emoji, inline bots; voice and round video recording |
@@ -140,6 +141,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/custom_emoji.rs`, `src/backend/custom_emoji.rs` | Custom emoji in message text: pictures drawn over the fallback emoji |
 | `src/app/effects.rs`, `src/backend/effects.rs` | Message effects: the emoji badge by the time, the animation played over the chat, the effects row in the send menu |
 | `src/app/viewonce.rs`, `src/backend/viewonce.rs` | View-once and timed photos and videos: the cover, opening once, "expired" afterwards; sending view once |
+| `src/app/namecolor.rs`, `src/backend/namecolor.rs` | Name colours of authors and reply stripes, emoji status after names; name colour, profile colour and emoji status pickers in My Account |
 | `src/app/report.rs`, `src/backend/report.rs` | "Report" box for messages |
 | `src/app/quote.rs`, `src/backend/reply.rs` | Replies with a quote and in another chat |
 | `src/app/newchat.rs`, `src/backend/newchat.rs` | "New chat": contacts, new group, new channel with its type, link and subscribers |
