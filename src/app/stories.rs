@@ -39,11 +39,20 @@ pub(super) struct StoryView {
     reply: String,
     /// The pause comes from typing, not from Space.
     held: bool,
+    /// Opened from a profile grid: that list instead of the strip's.
+    list: Option<StoryDeck>,
+}
+
+/// A profile's stories shown in the viewer, in grid order.
+pub(super) struct StoryDeck {
+    pub(super) title: String,
+    pub(super) kind: ChatKind,
+    pub(super) stories: Vec<Story>,
 }
 
 impl StoryView {
     fn new(peer: PeerId, now: f64) -> Self {
-        Self { peer, index: usize::MAX, started: now, paused_at: None, playing: None, clip: None, reply: String::new(), held: false }
+        Self { peer, index: usize::MAX, started: now, paused_at: None, playing: None, clip: None, reply: String::new(), held: false, list: None }
     }
 }
 
@@ -60,7 +69,7 @@ enum Step {
 }
 
 /// "14:05" today, "25.10 14:05" earlier.
-fn story_time(ts: i64) -> String {
+pub(super) fn story_time(ts: i64) -> String {
     let Ok(t) = jiff::Timestamp::from_second(ts) else { return String::new() };
     let z = t.to_zoned(jiff::tz::TimeZone::system());
     if z.date() == jiff::Zoned::now().date() { z.strftime("%H:%M").to_string() } else { z.strftime("%d.%m %H:%M").to_string() }
@@ -109,6 +118,17 @@ impl App {
             }
             None => self.send(Cmd::LoadPeerStories(peer)),
         }
+    }
+
+    /// The viewer over a profile's list, starting at `index`. Seen marks follow the strip's rules:
+    /// only a story still active in the strip counts, nothing new is sent for the rest.
+    pub(super) fn open_story_list(&mut self, peer: PeerId, list: StoryDeck, index: usize) {
+        let now = self.ctx.input(|i| i.time);
+        self.stop_story_video();
+        let mut v = StoryView::new(peer, now);
+        v.index = index.min(list.stories.len().saturating_sub(1));
+        v.list = Some(list);
+        self.stories.view = Some(v);
     }
 
     pub(super) fn on_story_video(&mut self, peer: PeerId, id: i32, path: PathBuf) {
@@ -228,6 +248,9 @@ impl App {
             if let Some(s) = self.stories.peers.iter_mut().find(|p| p.chat.id == peer).and_then(|p| p.stories.iter_mut().find(|s| s.id == story.id)) {
                 s.reaction = emoji.clone();
             }
+            if let Some(s) = self.stories.view.as_mut().and_then(|v| v.list.as_mut()).and_then(|l| l.stories.iter_mut().find(|s| s.id == story.id)) {
+                s.reaction = emoji.clone();
+            }
             self.send(Cmd::ReactStory { peer, id: story.id, emoji });
         }
         typing
@@ -270,10 +293,20 @@ impl App {
     pub(super) fn story_viewer(&mut self, ui: &mut Ui) {
         let Some(v) = &self.stories.view else { return };
         let now = ui.input(|i| i.time);
-        let Some(pi) = self.stories.peers.iter().position(|p| p.chat.id == v.peer) else {
-            self.stories.view = None;
-            return;
+        let pi = self.stories.peers.iter().position(|p| p.chat.id == v.peer);
+        let from_list = v.list.is_some();
+        let (peer, title, kind, stories) = match (&v.list, pi) {
+            (Some(l), _) => (v.peer, l.title.clone(), l.kind, l.stories.clone()),
+            (None, Some(pi)) => {
+                let p = &self.stories.peers[pi];
+                (v.peer, p.chat.title.clone(), p.chat.kind, p.stories.clone())
+            }
+            (None, None) => {
+                self.stories.view = None;
+                return;
+            }
         };
+        let viewers_open = self.profile_stories.viewers_open();
         let screen = ui.max_rect();
         let painter = ui.painter().clone();
         painter.rect_filled(screen, 0.0, Color32::from_black_alpha(235));
@@ -288,6 +321,8 @@ impl App {
         ui.input(|i| {
             if field {
                 // Esc first leaves the field (egui does that itself).
+            } else if viewers_open {
+                // Keys belong to the viewers list while it is open.
             } else if i.key_pressed(Key::Escape) {
                 step = Some(Step::Close);
             } else if i.key_pressed(Key::ArrowRight) {
@@ -302,12 +337,10 @@ impl App {
         // A 9:16 card, as tall as the window allows.
         let h = (screen.height() - 48.0).min(820.0);
         let card = Rect::from_center_size(screen.center(), vec2(h * 9.0 / 16.0, h));
-        let sp = &self.stories.peers[pi];
-        let chat = sp.chat.clone();
-        let n = sp.stories.len().max(1);
+        let n = stories.len().max(1);
         painter.rect_filled(card, 18.0, Color32::from_gray(18));
-        let story = sp.stories.get(v.index).cloned();
-        let ready = self.story_media(ui, chat.id, story.as_ref(), card, now);
+        let story = stories.get(v.index).cloned();
+        let ready = self.story_media(ui, peer, story.as_ref(), card, now);
 
         // Progress segments and who posted it, on a dark chip for any picture.
         let top = Rect::from_min_size(card.min + vec2(10.0, 10.0), vec2(card.width() - 20.0, 3.0));
@@ -325,9 +358,9 @@ impl App {
         }
         let head = Rect::from_min_size(card.min + vec2(10.0, 22.0), vec2(card.width() - 20.0, 44.0));
         painter.rect_filled(head, 22.0, Color32::from_black_alpha(110));
-        glass::avatar(&painter, pos2(head.left() + 22.0, head.center().y), 17.0, &chat.title, chat.id.bot_api_dialog_id_unchecked(), kind_icon(chat.kind), self.textures.get(&ImgKey::Avatar(chat.id)));
+        glass::avatar(&painter, pos2(head.left() + 22.0, head.center().y), 17.0, &title, peer.bot_api_dialog_id_unchecked(), kind_icon(kind), self.textures.get(&ImgKey::Avatar(peer)));
         let when = story.as_ref().map(|s| story_time(s.date)).unwrap_or_default();
-        let name = elided(ui, &chat.title, 14.0, glass::ON_DARK, head.width() - 140.0);
+        let name = elided(ui, &title, 14.0, glass::ON_DARK, head.width() - 140.0);
         let name_w = name.size().x;
         painter.galley(pos2(head.left() + 46.0, head.center().y - name.size().y / 2.0), name, glass::ON_DARK);
         painter.text(pos2(head.left() + 54.0 + name_w, head.center().y), Align2::LEFT_CENTER, when, FontId::proportional(12.0), glass::rgba(glass::ON_DARK, 170));
@@ -342,7 +375,12 @@ impl App {
             painter.rect_filled(chip, 16.0, Color32::from_black_alpha(140));
             painter.galley(chip.min + vec2(12.0, 10.0), g, glass::ON_DARK);
         }
-        let typing = story.as_ref().is_some_and(|s| self.story_bar(ui, chat.id, chat.kind, s, bar));
+        // Our own stories show who saw them instead of a reply.
+        let typing = match &story {
+            Some(s) if s.views.is_some() => self.story_stats_bar(ui, peer, s, bar, card),
+            Some(s) => self.story_bar(ui, peer, kind, s, bar),
+            None => false,
+        };
         // Left third goes back, the rest forward; outside the card closes.
         if bg.clicked()
             && let Some(pos) = bg.interact_pointer_pos()
@@ -367,15 +405,17 @@ impl App {
         {
             step = Some(Step::Next);
         }
-        // Seen: the owner gets us in the viewers list, as with any client.
-        if let Some(s) = &story
+        // Seen: the owner gets us in the viewers list, as with any client. Only stories the strip
+        // has as active count, so a profile grid marks nothing the strip wouldn't.
+        if let (Some(s), Some(pi)) = (&story, pi)
             && s.id > self.stories.peers[pi].max_read
+            && (!from_list || self.stories.peers[pi].ids.contains(&s.id))
         {
             self.stories.peers[pi].max_read = s.id;
-            self.send(Cmd::ReadStories { peer: chat.id, max_id: s.id });
+            self.send(Cmd::ReadStories { peer, max_id: s.id });
         }
         if let Some(step) = step {
-            self.story_step(step, pi, now);
+            self.story_step(step, pi, stories.len(), now);
         }
     }
 
@@ -410,14 +450,16 @@ impl App {
         }
     }
 
-    fn story_step(&mut self, step: Step, pi: usize, now: f64) {
+    fn story_step(&mut self, step: Step, pi: Option<usize>, count: usize, now: f64) {
         if matches!(step, Step::TogglePause) {
             let paused = self.stories.view.as_ref().is_some_and(|v| v.paused_at.is_some());
             return self.story_pause(!paused, now, false);
         }
         self.stop_story_video();
+        self.profile_stories.close_viewers();
         let Some(v) = &mut self.stories.view else { return };
-        let count = self.stories.peers[pi].stories.len();
+        // A profile list ends with itself; the strip goes on to the next person.
+        let pi = if v.list.is_some() { None } else { pi };
         match step {
             Step::Close | Step::TogglePause => self.stories.view = None,
             Step::Prev if v.index > 0 && v.index != usize::MAX => {
@@ -426,7 +468,7 @@ impl App {
                 v.paused_at = None;
                 v.reply.clear();
             }
-            Step::Prev => match pi.checked_sub(1) {
+            Step::Prev => match pi.and_then(|pi| pi.checked_sub(1)) {
                 Some(prev) => {
                     let peer = self.stories.peers[prev].chat.id;
                     self.open_stories(peer);
@@ -439,7 +481,7 @@ impl App {
                 v.paused_at = None;
                 v.reply.clear();
             }
-            Step::Next => match self.stories.peers.get(pi + 1).map(|p| p.chat.id) {
+            Step::Next => match pi.and_then(|pi| self.stories.peers.get(pi + 1)).map(|p| p.chat.id) {
                 Some(next) => self.open_stories(next),
                 None => self.stories.view = None,
             },

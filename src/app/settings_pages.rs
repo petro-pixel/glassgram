@@ -100,6 +100,7 @@ impl SettingsTab {
         match self {
             SettingsTab::Main => l!("Налаштування", "Settings"),
             SettingsTab::Account => l!("Мій акаунт", "My Account"),
+            SettingsTab::Stories => l!("Мої історії", "My Stories"),
             SettingsTab::Notifications => l!("Сповіщення", "Notifications"),
             SettingsTab::Privacy => l!("Конфіденційність", "Privacy and Security"),
             SettingsTab::Chats => l!("Налаштування чатів", "Chat Settings"),
@@ -115,6 +116,7 @@ impl SettingsTab {
         match self {
             SettingsTab::Main => Icon::Gear,
             SettingsTab::Account => Icon::User,
+            SettingsTab::Stories => Icon::PlayCircle,
             SettingsTab::Notifications => Icon::Bell,
             SettingsTab::Privacy => Icon::Lock,
             SettingsTab::Chats => Icon::Chat,
@@ -128,8 +130,9 @@ impl SettingsTab {
 }
 
 /// Section order on the main page, as in Telegram Desktop.
-const SECTIONS: [SettingsTab; 9] = [
+const SECTIONS: [SettingsTab; 10] = [
     SettingsTab::Account,
+    SettingsTab::Stories,
     SettingsTab::Notifications,
     SettingsTab::Privacy,
     SettingsTab::Chats,
@@ -197,6 +200,11 @@ impl App {
             }
             SettingsTab::Devices => self.send(Cmd::LoadSessions),
             SettingsTab::Stars => self.open_stars(),
+            SettingsTab::Stories => match self.profile.id {
+                Some(me) => self.open_profile_stories(me),
+                // The page asks for the stories once the profile is here.
+                None => self.send(Cmd::LoadProfile),
+            },
             SettingsTab::Advanced => self.load_cache_usage(),
             SettingsTab::Folders => self.send(Cmd::LoadSuggestedFolders),
             SettingsTab::Language => self.open_language_page(),
@@ -226,6 +234,7 @@ impl App {
             SettingsTab::Devices => self.devices_tab(ui),
             SettingsTab::Language => self.language_page(ui),
             SettingsTab::Stars => self.stars_page(ui),
+            SettingsTab::Stories => self.my_stories_page(ui),
         }
     }
 
@@ -659,7 +668,7 @@ impl App {
             }
         }
         // Esc goes back to the main page first; the windows on top handle their own Esc.
-        let esc = self.folder_edit.is_none() && !self.user_qr.is_open() && self.wallpapers.picker.is_none() && ui.input(|i| i.key_pressed(Key::Escape));
+        let esc = self.folder_edit.is_none() && self.stories.view.is_none() && !self.user_qr.is_open() && self.wallpapers.picker.is_none() && ui.input(|i| i.key_pressed(Key::Escape));
         if back || esc || done {
             self.two_step.reset();
         }

@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{AdminRights, ColorOption, InviteDraft, InviteLink, JoinRequest, PartList, Participant, SavedTag, PostsFlood, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, Ringtone, ReactFrom, ReactionNotify, Sound, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollVoter, TodoInfo, TodoTask, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit};
+use crate::backend::{AdminRights, ColorOption, InviteDraft, InviteLink, JoinRequest, PartList, Participant, SavedTag, PostsFlood, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, StoryAlbum, StoryList, StoryViewer, STORY_PAGE, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, Ringtone, ReactFrom, ReactionNotify, Sound, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollVoter, TodoInfo, TodoTask, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit};
 use crate::format;
 use crate::i18n::{l, lf};
 
@@ -578,7 +578,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let stories = ids
                 .iter()
                 .enumerate()
-                .map(|(k, id)| Story { id: *id, date: now - 3600 * (ids.len() - k) as i64, video: *id == 2, duration: if *id == 2 { 5.0 } else { 0.0 }, caption: captions.get(*id as usize - 1).copied().unwrap_or_default().into(), reaction: None })
+                .map(|(k, id)| Story { id: *id, date: now - 3600 * (ids.len() - k) as i64, video: *id == 2, duration: if *id == 2 { 5.0 } else { 0.0 }, caption: captions.get(*id as usize - 1).copied().unwrap_or_default().into(), reaction: None, views: None, reactions: 0 })
                 .collect();
             for id in &ids {
                 app.push_event(Ev::Image { key: ImgKey::Story(peer, *id), image: story_picture(*id) });
@@ -587,6 +587,56 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::PeerStories { peer, stories, max_read });
         }
         Cmd::ReadStories { .. } | Cmd::ReactStory { .. } => {}
+        Cmd::LoadProfileStories { peer, list, offset } => {
+            let all = profile_story_ids(peer, list);
+            let rest: Vec<i32> = match list {
+                StoryList::Album(_) => all.iter().copied().skip(offset as usize).collect(),
+                _ => all.iter().copied().filter(|id| offset == 0 || *id < offset).collect(),
+            };
+            let page: Vec<i32> = rest.iter().copied().take(STORY_PAGE as usize).collect();
+            let now = jiff::Timestamp::now().as_second();
+            let own = peer == PeerId::user_unchecked(ME);
+            let captions = ["Morning in the Carpathians 🏔", "", "Glassgram in light theme", "", "Coffee and code ☕"];
+            let stories = page
+                .iter()
+                .map(|&id| {
+                    let video = id % 10 == 4;
+                    // Our own stories carry the counters, as the server sends them only to the owner.
+                    let views = own.then_some((id * 37) % 180 + 12);
+                    Story { id, date: now - 86_400 * (1 + (id % 100) as i64), video, duration: if video { 5.0 } else { 0.0 }, caption: captions[id as usize % captions.len()].into(), reaction: None, views, reactions: if own { id % 9 } else { 0 } }
+                })
+                .collect();
+            for id in &page {
+                app.push_event(Ev::Image { key: ImgKey::Story(peer, *id), image: story_picture(*id) });
+            }
+            let next = match list {
+                StoryList::Album(_) => offset + page.len() as i32,
+                _ => page.iter().copied().min().unwrap_or(0),
+            };
+            let done = rest.len() <= STORY_PAGE as usize;
+            app.push_event(Ev::ProfileStories { peer, list, stories, total: all.len() as i32, next, done, append: offset != 0 });
+        }
+        Cmd::LoadStoryAlbums(peer) => {
+            let albums = match peer.bot_api_dialog_id_unchecked() {
+                1 => vec![(1, "Travel ✈"), (2, "Glassgram")],
+                4 => vec![(3, "Releases")],
+                ME => vec![(4, "Kyiv")],
+                _ => Vec::new(),
+            };
+            let albums = albums.into_iter().map(|(id, title)| StoryAlbum { id, title: title.into() }).collect();
+            app.push_event(Ev::StoryAlbums { peer, albums });
+        }
+        Cmd::LoadStoryViewers { peer, id, offset: _ } => {
+            let now = jiff::Timestamp::now().as_second();
+            let people = [(1, "Olena Koval", Some("❤")), (8, "Maria Shevchenko", Some("🔥")), (5, "Andriy", None), (21, "Taras Bondar", None), (22, "Iryna Melnyk", Some("👍")), (23, "Dmytro Hnatiuk", None)];
+            let viewers = people
+                .iter()
+                .enumerate()
+                .map(|(k, (uid, name, r))| StoryViewer { peer: PeerId::user_unchecked(*uid), name: (*name).into(), date: now - 600 * (k as i64 + 1), reaction: r.map(Into::into) })
+                .collect();
+            let views = (id * 37) % 180 + 12;
+            app.push_event(Ev::StoryViewers { peer, id, viewers, views, reactions: id % 9, next: String::new(), append: false });
+        }
         // Story 2 is a video: an upright test picture with a tone.
         Cmd::LoadStoryVideo { peer, id } => match clip(86) {
             Some(path) => app.push_event(Ev::StoryVideo { peer, id, path }),
@@ -1639,6 +1689,23 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
 }
 
 /// A tall gradient for a demo story, a different hue per story.
+/// Story ids of a demo profile list, newest first: Olena, the channel and our own profile have some.
+fn profile_story_ids(peer: PeerId, list: StoryList) -> Vec<i32> {
+    let ids: Vec<i32> = match (peer.bot_api_dialog_id_unchecked(), list) {
+        (1, StoryList::Pinned) => (101..=107).collect(),
+        (1, StoryList::Album(1)) => vec![101, 103, 105],
+        (1, StoryList::Album(2)) => vec![102, 106],
+        (4, StoryList::Pinned) => (201..=205).collect(),
+        (4, StoryList::Album(3)) => vec![201, 203],
+        (ME, StoryList::Pinned) => (301..=304).collect(),
+        (ME, StoryList::Album(4)) => vec![301, 302],
+        // Over one page, so "Show more" appears.
+        (ME, StoryList::Archive) => (401..=440).collect(),
+        _ => Vec::new(),
+    };
+    ids.into_iter().rev().collect()
+}
+
 fn story_picture(id: i32) -> ColorImage {
     let (w, h) = (360, 640);
     let mut img = ColorImage::filled([w, h], Color32::BLACK);

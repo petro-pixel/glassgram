@@ -57,6 +57,7 @@ mod sendas;
 mod saved;
 mod chatsearch;
 mod stories;
+mod profile_stories;
 mod login;
 mod accounts_ui;
 mod forum;
@@ -364,6 +365,7 @@ struct FolderEdit {
 enum SettingsTab {
     Main,
     Account,
+    Stories,
     Notifications,
     Privacy,
     Chats,
@@ -633,6 +635,8 @@ pub struct App {
     saved: saved::Saved,
     /// The story strip and the story being watched.
     stories: stories::Stories,
+    /// Stories kept in profiles, our archive and who saw our stories.
+    profile_stories: profile_stories::ProfileStories,
     /// Full-screen video player and its picture-in-picture window.
     video: videoplayer::VideoPlayer,
     /// The music player bar and its queue.
@@ -918,6 +922,7 @@ impl App {
             user_qr: Default::default(),
             quoting: Default::default(),
             stories: stories::Stories::default(),
+            profile_stories: profile_stories::ProfileStories::default(),
             video: videoplayer::VideoPlayer::default(),
             music: music::Music::default(),
             saved: saved::Saved::default(),
@@ -986,6 +991,7 @@ impl App {
             Ev::Stories(list) => self.on_stories(list),
             Ev::PeerStories { peer, stories, max_read } => self.on_peer_stories(peer, stories, max_read),
             Ev::StoryVideo { peer, id, path } => self.on_story_video(peer, id, path),
+            ev @ (Ev::ProfileStories { .. } | Ev::StoryAlbums { .. } | Ev::StoryViewers { .. }) => self.profile_stories_event(ev),
             Ev::SavedHistory { source, msgs, older } => self.on_saved_history(source, msgs, older),
             Ev::SavedTags(tags) => self.on_saved_tags(tags),
             Ev::FolderTags(on) => self.folder_meta.tags = on,
@@ -1774,15 +1780,16 @@ impl eframe::App for App {
             self.viewer_view(ui);
         }
         self.video_view(ui);
-        if self.stories.view.is_some() {
-            self.story_viewer(ui);
-        }
         self.new_chat_overlays(ui);
         if self.accounts_open {
             self.accounts_menu(ui);
         }
         if self.settings_open {
             self.settings_view(ui);
+        }
+        // Above the settings: stories also open from "My Stories".
+        if self.stories.view.is_some() {
+            self.story_viewer(ui);
         }
         // Above the settings: folders are also edited from the "Folders" page.
         if self.folder_edit.is_some() {

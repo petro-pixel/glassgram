@@ -28,6 +28,9 @@ pub struct Story {
     pub caption: String,
     /// The emoji we reacted with.
     pub reaction: Option<String>,
+    /// How many saw it: only our own stories (and our channels') carry it.
+    pub views: Option<i32>,
+    pub reactions: i32,
 }
 
 /// A person or channel in the strip: the stories, if loaded, and the last one seen.
@@ -46,7 +49,7 @@ impl StoryPeer {
     }
 }
 
-fn peers_by_id(client: &Client, users: Vec<tl::enums::User>, chats: Vec<tl::enums::Chat>) -> HashMap<PeerId, Peer> {
+pub(super) fn peers_by_id(client: &Client, users: Vec<tl::enums::User>, chats: Vec<tl::enums::Chat>) -> HashMap<PeerId, Peer> {
     let users = users.into_iter().map(|u| Peer::User(User::from_raw(client, u)));
     let chats = chats.into_iter().map(|c| Peer::from_raw(client, c));
     users.chain(chats).map(|p| (p.id(), p)).collect()
@@ -84,6 +87,24 @@ fn video_secs(doc: &tl::types::Document) -> f64 {
             _ => None,
         })
         .unwrap_or(0.0)
+}
+
+/// A story from the server, its picture asked from the loader.
+pub(super) fn story_of(loader: Option<&Loader>, peer: PeerId, x: &tl::types::StoryItem) -> Story {
+    if let Some(l) = loader {
+        l.story_media(peer, x);
+    }
+    let reaction = match &x.sent_reaction {
+        Some(tl::enums::Reaction::Emoji(e)) => Some(e.emoticon.clone()),
+        _ => None,
+    };
+    let video = video_doc(x);
+    let duration = video.as_ref().map_or(0.0, video_secs);
+    let (views, reactions) = match &x.views {
+        Some(tl::enums::StoryViews::Views(v)) => (Some(v.views_count), v.reactions_count.unwrap_or(0)),
+        None => (None, 0),
+    };
+    Story { id: x.id, date: x.date.into(), video: video.is_some(), duration, caption: x.caption.clone().unwrap_or_default(), reaction, views, reactions }
 }
 
 impl Loader {
@@ -142,17 +163,7 @@ impl Worker {
                 for item in &ps.stories {
                     // The full list has no skipped items; anything else is gone already.
                     let tl::enums::StoryItem::Item(x) = item else { continue };
-                    if let Some(l) = &self.loader {
-                        l.story_media(peer, x);
-                    }
-                    let caption = x.caption.clone().unwrap_or_default();
-                    let reaction = match &x.sent_reaction {
-                        Some(tl::enums::Reaction::Emoji(e)) => Some(e.emoticon.clone()),
-                        _ => None,
-                    };
-                    let video = video_doc(x);
-                    let duration = video.as_ref().map_or(0.0, video_secs);
-                    stories.push(Story { id: x.id, date: x.date.into(), video: video.is_some(), duration, caption, reaction });
+                    stories.push(story_of(self.loader.as_ref(), peer, x));
                 }
                 stories.sort_by_key(|s| s.id);
                 self.out.send(Ev::PeerStories { peer, stories, max_read: ps.max_read_id.unwrap_or(0) });

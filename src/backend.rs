@@ -122,6 +122,8 @@ mod report;
 pub use report::ReportStep;
 pub use gifts::Gift;
 pub use stories::{Story, StoryPeer};
+mod profile_stories;
+pub use profile_stories::{STORY_PAGE, StoryAlbum, StoryList, StoryViewer};
 pub use birthdays::Birthday;
 pub use chatedit::{ChatRights, ReactionMode};
 mod music;
@@ -385,6 +387,12 @@ pub enum Cmd {
     ReactStory { peer: PeerId, id: i32, emoji: Option<String> },
     /// A private reply to a story: a message to its owner quoting it.
     ReplyStory { peer: PeerId, id: i32, text: String },
+    /// A page of a profile's stories; `offset` is 0 for the first page, then `next` of the last answer.
+    LoadProfileStories { peer: PeerId, list: StoryList, offset: i32 },
+    /// The story albums of a profile.
+    LoadStoryAlbums(PeerId),
+    /// Who saw our story (`offset` empty for the first page). Read only.
+    LoadStoryViewers { peer: PeerId, id: i32, offset: String },
     /// Where the messages in Saved Messages came from.
     LoadSavedDialogs,
     /// Saved Messages from one source; `saved` is the Saved Messages chat itself.
@@ -764,6 +772,11 @@ pub enum Ev {
     PeerStories { peer: PeerId, stories: Vec<Story>, max_read: i32 },
     /// A video story is on disk.
     StoryVideo { peer: PeerId, id: i32, path: PathBuf },
+    /// A page of a profile's stories, `total` in all; `next` asks for the following page.
+    ProfileStories { peer: PeerId, list: StoryList, stories: Vec<Story>, total: i32, next: i32, done: bool, append: bool },
+    StoryAlbums { peer: PeerId, albums: Vec<StoryAlbum> },
+    /// A page of the viewers of our story and its counters.
+    StoryViewers { peer: PeerId, id: i32, viewers: Vec<StoryViewer>, views: i32, reactions: i32, next: String, append: bool },
     /// Sources of Saved Messages, newest first.
     SavedDialogs(Vec<ChatInfo>),
     /// A page of Saved Messages from one source.
@@ -1204,6 +1217,7 @@ impl Worker {
                 Ok(())
             }
             cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. } | Cmd::LoadStoryVideo { .. } | Cmd::ReactStory { .. } | Cmd::ReplyStory { .. }) => self.stories_cmd(cmd).await,
+            cmd @ (Cmd::LoadProfileStories { .. } | Cmd::LoadStoryAlbums(_) | Cmd::LoadStoryViewers { .. }) => self.profile_stories_cmd(cmd).await,
             cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. } | Cmd::LoadSavedTags | Cmd::LoadSavedTagged { .. } | Cmd::RenameSavedTag { .. }) => self.saved_cmd(cmd).await,
             cmd @ Cmd::LoadGifts(_) => self.gifts_cmd(cmd).await,
             cmd @ Cmd::Report { .. } => self.report_cmd(cmd).await,

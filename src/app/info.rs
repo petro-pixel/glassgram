@@ -25,6 +25,8 @@ pub(super) enum Tab {
     Similar,
     /// Gifts in a person's profile.
     Gifts,
+    /// Stories kept in the profile (people and channels).
+    Stories,
 }
 
 /// Destructive action waiting for confirmation.
@@ -156,6 +158,9 @@ impl App {
         if kind == ChatKind::User {
             self.send(Cmd::LoadSavedMusic(peer));
         }
+        if matches!(kind, ChatKind::User | ChatKind::Channel) {
+            self.open_profile_stories(peer);
+        }
         self.select_info_tab(tab);
     }
 
@@ -194,7 +199,7 @@ impl App {
                     self.send(Cmd::LoadShared { peer, kind, before: None });
                 }
             }
-            Tab::Similar | Tab::Gifts => {}
+            Tab::Similar | Tab::Gifts | Tab::Stories => {}
         }
     }
 
@@ -346,7 +351,7 @@ impl App {
             self.info_profile(ui, &chat, &info);
             self.info_rows(ui, &chat, &mut info, &mut todo);
             ui.add_space(8.0);
-            info_tabs(ui, &chat, &info, &mut todo);
+            info_tabs(ui, &chat, &info, self.profile_story_count(info.peer), &mut todo);
             ui.add_space(6.0);
             match info.tab {
                 Tab::Members => self.info_members(ui, &mut info, now, &mut todo),
@@ -356,6 +361,7 @@ impl App {
                         self.gift_grid(ui, gifts, *total);
                     }
                 }
+                Tab::Stories => self.story_grid(ui, info.peer, &chat.title, chat.kind, false),
                 Tab::Similar => {
                     let (chats, total) = info.similar.as_ref().map_or((&[][..], 0), |(c, t)| (&c[..], *t));
                     if let Some(c) = self.similar_list(ui, chats, total) {
@@ -839,7 +845,7 @@ impl App {
 }
 
 /// Capsule tabs: members first (groups and channels), then the shared media kinds.
-fn info_tabs(ui: &mut Ui, chat: &ChatInfo, info: &InfoPanel, todo: &mut Vec<Do>) {
+fn info_tabs(ui: &mut Ui, chat: &ChatInfo, info: &InfoPanel, stories: Option<i32>, todo: &mut Vec<Do>) {
     let count = |k: SharedKind| info.details.as_ref().and_then(|d| d.counts.iter().find(|c| c.0 == k)).map(|c| c.1);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
@@ -852,6 +858,12 @@ fn info_tabs(ui: &mut Ui, chat: &ChatInfo, info: &InfoPanel, todo: &mut Vec<Do>)
             if chip(ui, &label, info.tab == Tab::Members).clicked() {
                 todo.push(Do::Tab(Tab::Members));
             }
+        }
+        // Stories come first, as in Telegram Desktop's profile.
+        if let Some(n) = stories
+            && chip(ui, &lf!("Історії {n}", "Stories {n}"), info.tab == Tab::Stories).clicked()
+        {
+            todo.push(Do::Tab(Tab::Stories));
         }
         for k in SharedKind::ALL {
             let label = match count(k) {

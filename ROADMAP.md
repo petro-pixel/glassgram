@@ -147,7 +147,7 @@ Time estimate — [at the end of the file](#time-estimate).
 ## 8. Stories
 - ✅ Story strip above the chat list (ring while unseen) and a viewer: progress segments, auto-advance, click/arrows to move between stories and people, Space pauses, seen marks (`stories.getAllStories`, `getPeerStories`, `readStories`); video stories play with sound (downloaded via `getStoriesByID`, the progress follows their length), a private reply to people (`inputReplyToStory`; typing holds the story), a reaction with ❤ or the quick row on right click (`stories.sendReaction`)
 - ⬜ **P2** Posting a story from a photo or video, caption, privacy (`stories.sendStory`)
-- ⬜ **P2** Pinned stories and albums in the profile, archive, view statistics
+- ✅ **P2** Pinned stories and albums in the profile, archive, view statistics: a person's or channel's info gets a "Stories" tab with their pinned stories as a grid of upright tiles, paged (`stories.getPinnedStories`), and album chips above it that filter it (`stories.getAlbums`, `getAlbumStories`); Settings → My Stories shows our own grid, albums and the archive of expired stories (`getStoriesArchive`). A tile opens the existing viewer at that story within that list (the list ends with itself); seen marks follow the strip's rule, so only stories the strip has as active are marked and no new `readStories` calls are made. Our own stories show the views counter (and reactions) on their tiles and in the viewer; a click opens the viewers list with their reactions and reposts, paged (`stories.getStoryViewsList`), read only
 - ⬜ **P3** Anonymous viewing (Premium), live streams in stories (`stories.startLive`)
 
 ## 9. Gifts, Stars, Premium
