@@ -592,7 +592,7 @@ pub(super) fn bubble(
     let link = glass::link(m.out);
     let body = (!m.text.is_empty()).then(|| custom_emoji::galley(&p, format::layout(&m.text, &m.spans, glass::msg_font(), ink(), link, text_w, revealed), &m.spans, revealed));
     // Trailing spaces leave room for the ticks drawn on top.
-    let meta_text = format!("{}{}{}{}", chatview::views_label(m, look), if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
+    let meta_text = format!("{}{}{}{}{}", chatview::views_label(m, look), if look.translated { l!("переклад · ", "translated · ") } else { "" }, if m.edited { l!("ред. ", "edited ") } else { "" }, m.time, if look.ticks.is_some() || look.pending.is_some() { TICKS_GAP } else { "" });
     let badge = effects::badge(ui.ctx(), m);
     let (meta, badge_w) = effects::meta(&p, badge.as_deref(), &meta_text, rgba(ink(), 170));
     let mut badge_rect = None;

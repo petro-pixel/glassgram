@@ -368,8 +368,13 @@ impl App {
         let Some(chat) = self.chats.iter().find(|c| c.id == peer).cloned() else { return };
         // Forum topics have their own pins; the chat-wide bar would be misleading there.
         let in_topic = chat.forum && self.forum.open.is_some();
+        // The translate bar comes first under the header, as in Telegram Desktop.
+        let tr_h = self.translate_bar_h(peer);
+        if tr_h > 0.0 {
+            self.translate_bar(ui, peer, Rect::from_min_size(pos2(rect.left(), header.bottom() + 8.0), vec2(rect.width(), tr_h - 8.0)));
+        }
         if self.pin_bar_h(peer) > 0.0 && !in_topic {
-            let bar = Rect::from_min_size(pos2(rect.left(), header.bottom() + 8.0), vec2(rect.width(), PIN_BAR_H));
+            let bar = Rect::from_min_size(pos2(rect.left(), header.bottom() + 8.0 + tr_h), vec2(rect.width(), PIN_BAR_H));
             self.pinned_bar(ui, peer, &chat, bar);
             if self.pinned.open {
                 let w = rect.width().min(420.0);
@@ -379,7 +384,7 @@ impl App {
         }
         let saved_h = self.saved_bar_h(peer);
         if saved_h > 0.0 {
-            let bar = Rect::from_min_size(pos2(rect.left(), header.bottom() + 8.0 + self.pin_bar_h(peer)), vec2(rect.width(), saved_h - 8.0));
+            let bar = Rect::from_min_size(pos2(rect.left(), header.bottom() + 8.0 + tr_h + self.pin_bar_h(peer)), vec2(rect.width(), saved_h - 8.0));
             self.saved_bar(ui, peer, bar);
         }
         self.jump_buttons(ui, peer, &chat, rect, above);

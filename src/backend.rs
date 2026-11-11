@@ -69,6 +69,7 @@ mod stream;
 pub mod proxy;
 pub use sounds::{RINGTONE_EXTS, ReactFrom, ReactionNotify, Ringtone, Sound};
 mod translate;
+pub use translate::{TRANSLATE_BATCH, TRANSLATE_CHARS};
 mod contacts;
 mod webapp;
 mod polls;
@@ -441,6 +442,12 @@ pub enum Cmd {
     AppendTodo { peer: PeerId, id: i32, items: Vec<(i32, String)> },
     /// Translate a message's text into `to` (a language code).
     Translate { peer: PeerId, id: i32, to: String },
+    /// Whether the chat's full info lets us offer whole-chat translation; answered with `Ev::TranslationOffer`.
+    LoadTranslationOffer(PeerId),
+    /// Translate several messages at once (whole-chat translation), at most `TRANSLATE_BATCH` ids.
+    TranslateMany { peer: PeerId, ids: Vec<i32>, to: String },
+    /// Turn the translation bar off (`disabled`) or back on for a chat, for all our devices.
+    TogglePeerTranslations { peer: PeerId, disabled: bool },
     /// Find the first message sent at or after `date` (unix time), for the calendar.
     JumpToDate { peer: PeerId, date: i32 },
     /// Days with photos or videos before `before` (unix time), for the calendar.
@@ -774,6 +781,10 @@ pub enum Ev {
     BlockedList(Vec<ChatInfo>),
     /// Translated text (formatting as spans), or the server's error.
     Translated { peer: PeerId, id: i32, to: String, result: Result<(String, Vec<Span>), String> },
+    /// `translations_disabled` from the chat's full info, inverted.
+    TranslationOffer { peer: PeerId, offered: bool },
+    /// Translations of `ids` in order (id, text, spans), or the server's error for the whole batch.
+    TranslatedMany { peer: PeerId, ids: Vec<i32>, to: String, result: Result<Vec<(i32, String, Vec<Span>)>, String> },
     /// The message to jump to for a calendar date (`None`: the chat is empty).
     DateFound { peer: PeerId, id: Option<i32> },
     /// Calendar periods with photos and videos: (start of the day, how many).
@@ -1161,6 +1172,7 @@ impl Worker {
                 self.chat_view_cmd(cmd).await
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
+            cmd @ (Cmd::LoadTranslationOffer(_) | Cmd::TranslateMany { .. } | Cmd::TogglePeerTranslations { .. }) => self.translate_cmd(cmd).await,
             cmd @ (Cmd::SendPoll { .. } | Cmd::PollVotes { .. } | Cmd::AddPollAnswer { .. } | Cmd::StopPoll { .. }) => self.polls_cmd(cmd).await,
             cmd @ (Cmd::SendTodo { .. } | Cmd::ToggleTodo { .. } | Cmd::AppendTodo { .. }) => self.todo_cmd(cmd).await,
             Cmd::ReloadImages(keys) => {

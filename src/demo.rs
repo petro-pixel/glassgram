@@ -18,6 +18,7 @@ mod effects;
 mod wallpapers;
 mod langpack;
 mod sendas;
+mod translate;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -150,6 +151,10 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let (forum, msgs) = forum_chat();
     history.insert(forum.id, msgs);
     infos.insert(3, forum);
+    // A German group: the translate bar and whole-chat translation.
+    let (german, msgs) = translate::chat();
+    history.insert(german.id, msgs);
+    infos.insert(4, german);
     let bot = helper_bot();
     history.insert(bot.id, Vec::new());
     infos.push(bot);
@@ -676,6 +681,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         cmd @ (Cmd::SearchChannels(_) | Cmd::SearchApps(_) | Cmd::CheckPostsFlood(_) | Cmd::SearchPosts(_)) => search_tabs(app, cmd),
         cmd @ (Cmd::LoadSendAs(_) | Cmd::SaveSendAs { .. }) => sendas::handle(app, cmd),
+        cmd @ (Cmd::LoadTranslationOffer(_) | Cmd::TranslateMany { .. } | Cmd::TogglePeerTranslations { .. }) => translate::handle(app, cmd),
         Cmd::LoadSimilarChannels(peer) => {
             let chats = [(61, "Rust Weekly", 12480), (62, "Design Daily", 8115), (63, "Open Source UA", 3902)]
                 .into_iter()

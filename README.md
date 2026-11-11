@@ -168,7 +168,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/sendbox.rs`, `src/app/spoiler.rs`, `src/zip.rs` | "Send files" box (previews, caption, compression, spoiler, caption above, folders and "one archive" packed into zip); spoiler cover over hidden media |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Mini apps: server requests, the WebView window process (`glassgram --webview`) and its bridge |
 | `src/app/contacts.rs`, `src/backend/contacts.rs` | "New contact" box, add / delete contact and block from user info, blocked list in Privacy and Security |
-| `src/app/translate.rs`, `src/backend/translate.rs` | "Translate" window from the message menu |
+| `src/app/translate.rs`, `src/backend/translate.rs` | "Translate" window from the message menu; whole-chat translation: the translate bar under the header, batched `messages.translateText`, `messages.togglePeerTranslations` (`translate/detect.rs` guesses a chat's language) |
 | `src/app/calendar.rs` | "Jump to date" calendar over the chat (the request is `Cmd::JumpToDate` in `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Notifications for chats: private / groups / channels defaults, exceptions, resolving a chat's mute state from its category |
 | `src/app/alerts.rs` | Message notifications: "Reply" and "Mark as read" buttons, a click opens the chat, one notification per chat with a counter (Linux) |
@@ -219,6 +219,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - A link preview appears above the composer; ✕ sends the message without it.
 - Right-click "Send": in a private chat, a row of message effects on top (★ — Premium) sends the message with that effect; then send silently, schedule, or (in a private chat whose last seen time is visible) send when online. A message with an effect plays it when it first appears; a click on the effect's emoji by the time plays it again.
 - In a group or channel that lets you post as a channel you run, a round avatar left of 📎 shows who messages go as; a click lists your account and those channels (Premium-only ones are marked) and picks the default for that chat.
+- A chat in another language (where Telegram allows it) shows "Translate to …" under the header: a click shows its messages translated in place, marked "translated" by the time (Telegram Premium), "Show original" switches back. ⚙ on the bar picks the language, "Don't translate …" stops offering that language, "Hide the bar" hides it for the chat.
 - "Select" in the message menu turns on selection mode; Esc leaves it.
 - A message of just 🎲 🎯 🏀 ⚽ 🎰 or 🎳 is sent as a game.
 - A `t.me/addlist/…` link adds a shared folder; its right-click menu checks for new chats, and deleting it offers to leave its chats.

@@ -260,6 +260,8 @@ struct Look<'a> {
     pending: Option<bool>,
     /// The media waits for a click: auto-download is off for it.
     manual: bool,
+    /// The text is a whole-chat translation: marked next to the time.
+    translated: bool,
 }
 
 /// Playback state for a media card.
@@ -567,6 +569,8 @@ pub struct App {
     /// "Translate" window and the last language chosen in it.
     translate: Option<translate::TranslateView>,
     translate_to: Option<String>,
+    /// Whole-chat translation: the bar, translations kept per chat.
+    chat_translate: translate::ChatTranslate,
     /// "New contact" / "Add to contacts" box.
     contact_form: Option<contacts::ContactForm>,
     /// Blocked users for Privacy and Security (`None` — not loaded).
@@ -856,6 +860,7 @@ impl App {
             calendar: None,
             translate: None,
             translate_to: None,
+            chat_translate: Default::default(),
             contact_form: None,
             blocked: None,
             polls: polls::Polls::default(),
@@ -1106,6 +1111,7 @@ impl App {
             Ev::DateFound { peer, id } => self.date_found(peer, id),
             Ev::MediaDays { peer, days } => self.media_days(peer, days),
             Ev::Translated { peer, id, to, result } => self.translated(peer, id, to, result),
+            ev @ (Ev::TranslationOffer { .. } | Ev::TranslatedMany { .. }) => self.chat_translate_event(ev),
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. } | Ev::BotWriteAccess { .. } | Ev::PhoneShared { .. }) => self.web_app_event(ev),
             ev @ (Ev::ContactSaved(_) | Ev::ContactRemoved(_) | Ev::Blocked { .. } | Ev::BlockedList(_)) => self.contacts_event(ev),
             ev @ (Ev::NotifyDefault { .. } | Ev::NotifyExceptions { .. }) => self.notify_prefs_event(ev),
