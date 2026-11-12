@@ -121,6 +121,10 @@ pub enum Icon {
     Pip,
     QrCode,
     Image,
+    /// Outgoing call.
+    ArrowUpRight,
+    /// Incoming or missed call.
+    ArrowDownLeft,
 }
 
 /// The Lucide SVG file of an icon; `None` for our own filled icons.
@@ -211,6 +215,8 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Pip => include_str!("../assets/icons/picture-in-picture-2.svg"),
         Icon::QrCode => include_str!("../assets/icons/qr-code.svg"),
         Icon::Image => include_str!("../assets/icons/image.svg"),
+        Icon::ArrowUpRight => include_str!("../assets/icons/arrow-up-right.svg"),
+        Icon::ArrowDownLeft => include_str!("../assets/icons/arrow-down-left.svg"),
         Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
     })
 }
@@ -360,7 +366,7 @@ mod tests {
             Icon::Gear, Icon::Lock, Icon::ChevronDown, Icon::ChevronUp, Icon::At, Icon::Heart, Icon::Eye, Icon::List, Icon::Link, Icon::Commands,
             Icon::Info, Icon::Phone, Icon::User, Icon::Chat, Icon::Folder, Icon::Globe, Icon::Laptop, Icon::Chats, Icon::Users,
             Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle, Icon::Flag, Icon::Calendar, Icon::Translate, Icon::Poll, Icon::Todo, Icon::Cake, Icon::Megaphone, Icon::Star, Icon::Volume, Icon::Maximize, Icon::Minimize, Icon::Pip,
-            Icon::SkipBack, Icon::SkipForward, Icon::Repeat, Icon::RepeatOne, Icon::Shuffle, Icon::Music,
+            Icon::SkipBack, Icon::SkipForward, Icon::Repeat, Icon::RepeatOne, Icon::Shuffle, Icon::Music, Icon::ArrowUpRight, Icon::ArrowDownLeft,
             Icon::Bold, Icon::Italic, Icon::Strike, Icon::Code, Icon::EyeOff, Icon::ClearFormat,
         ];
         for icon in all {
