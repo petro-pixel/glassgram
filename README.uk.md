@@ -176,6 +176,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/app/contacts.rs`, `src/backend/contacts.rs` | Вікно «Новий контакт», додавання / видалення контакту й блокування з інформації про користувача, список заблокованих у «Конфіденційності» |
 | `src/app/translate.rs`, `src/backend/translate.rs` | Вікно «Перекласти» з меню повідомлення; переклад цілого чату: панель перекладу під шапкою, `messages.translateText` пакетами, `messages.togglePeerTranslations` (`translate/detect.rs` вгадує мову чату) |
 | `src/app/aitext.rs`, `src/backend/aitext.rs` | Розшифровка голосових і кружечків («→A», живі `updateTranscribedAudio`), ШІ-підсумки довгих дописів |
+| `src/app/factcheck.rs`, `src/backend/factcheck.rs` | Перевірки фактів під повідомленнями (`getFactCheck` для показаних із `need_check`, згортання), теги учасників біля імен авторів |
 | `src/app/calendar.rs` | Календар «Перейти до дати» над чатом (запит — `Cmd::JumpToDate` у `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Сповіщення для чатів: типові налаштування для особистих чатів, груп і каналів, винятки, стан чату за його категорією |
 | `src/app/alerts.rs` | Сповіщення про повідомлення: кнопки «Відповісти» й «Позначити прочитаним», клік відкриває чат, одне сповіщення на чат із лічильником (Linux) |

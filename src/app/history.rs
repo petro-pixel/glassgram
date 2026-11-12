@@ -270,6 +270,7 @@ impl App {
         self.track_bottom(&scrolled);
         self.translate_wanted(peer);
         self.effects_frame(ui, peer, rect, now);
+        self.fact_check_frame(peer);
         self.view_once_frame();
         if let Some(before) = load_older {
             self.loading_older = true;

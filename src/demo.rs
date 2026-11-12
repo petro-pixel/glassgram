@@ -21,6 +21,7 @@ mod wallpapers;
 mod langpack;
 mod sendas;
 mod aitext;
+mod factcheck;
 mod translate;
 mod attach;
 mod calls;
@@ -302,6 +303,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::PressButton { data, .. } => {
             let text = match data.as_slice() {
                 b"tomorrow" => "Tomorrow in Kyiv: +21°, partly cloudy",
+                b"stop" => "You will no longer get the daily forecast",
                 _ => "Updated: +18°, clear",
             };
             app.push_event(Ev::BotAnswer { text: text.into(), alert: false });
@@ -537,6 +539,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::Transcribe { peer, id } => aitext::transcribe(app, peer, id),
         Cmd::Summarize { peer, id } => aitext::summarize(app, peer, id),
+        Cmd::LoadFactChecks { peer, ids } => factcheck::answer(app, peer, ids),
         Cmd::JumpToDate { peer, date } => {
             let msgs = app.demo_history().find(|(p, _, _)| *p == peer).map(|(_, _, msgs)| msgs.clone()).unwrap_or_default();
             let id = msgs.iter().find(|m| m.ts >= date as i64).or(msgs.last()).map(|m| m.id);
@@ -1530,14 +1533,19 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
         }
         _ => {}
     }
+    factcheck::extras(id, msgs, base);
 }
 
 fn weather_buttons() -> Vec<Vec<Button>> {
-    let b = |text: &str, action| Button { text: text.into(), action };
+    use crate::backend::ButtonStyle;
+    let b = |text: &str, action| Button { text: text.into(), action, style: ButtonStyle::Plain };
+    // Bots may colour their buttons (`keyboardButtonStyle`).
+    let styled = |style, b: Button| Button { style, ..b };
     vec![
-        vec![b("Refresh",ButtonAction::Callback(b"now".to_vec())), b("Tomorrow",ButtonAction::Callback(b"tomorrow".to_vec()))],
+        vec![styled(ButtonStyle::Success, b("Refresh", ButtonAction::Callback(b"now".to_vec()))), b("Tomorrow", ButtonAction::Callback(b"tomorrow".to_vec()))],
         vec![b("Weather map",ButtonAction::Url("https://www.windy.com".into())), b("Radar", ButtonAction::WebApp { url: "https://example.org/radar".into(), simple: false, bot: 6 })],
-        vec![b("Log in to the site", ButtonAction::UrlAuth { url: "https://example.org/weather/login".into(), button_id: 3 })],
+        vec![styled(ButtonStyle::Primary, b("Log in to the site", ButtonAction::UrlAuth { url: "https://example.org/weather/login".into(), button_id: 3 }))],
+        vec![styled(ButtonStyle::Danger, b("Unsubscribe", ButtonAction::Callback(b"stop".to_vec())))],
     ]
 }
 

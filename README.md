@@ -176,6 +176,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/contacts.rs`, `src/backend/contacts.rs` | "New contact" box, add / delete contact and block from user info, blocked list in Privacy and Security |
 | `src/app/translate.rs`, `src/backend/translate.rs` | "Translate" window from the message menu; whole-chat translation: the translate bar under the header, batched `messages.translateText`, `messages.togglePeerTranslations` (`translate/detect.rs` guesses a chat's language) |
 | `src/app/aitext.rs`, `src/backend/aitext.rs` | Voice and round video transcription ("→A", live `updateTranscribedAudio`), AI summaries of long posts |
+| `src/app/factcheck.rs`, `src/backend/factcheck.rs` | Fact checks under messages (`getFactCheck` for shown `need_check` messages, folding), member tags by author names |
 | `src/app/calendar.rs` | "Jump to date" calendar over the chat (the request is `Cmd::JumpToDate` in `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Notifications for chats: private / groups / channels defaults, exceptions, resolving a chat's mute state from its category |
 | `src/app/alerts.rs` | Message notifications: "Reply" and "Mark as read" buttons, a click opens the chat, one notification per chat with a counter (Linux) |
