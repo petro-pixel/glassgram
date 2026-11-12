@@ -84,7 +84,7 @@ enum NewKind {
 }
 
 impl App {
-    /// Pencil button next to search: a menu with "New group", "New channel", "Contacts".
+    /// Pencil button next to search: a menu with "New group", "New channel", "Contacts", "Calls".
     pub(super) fn new_chat_button(&mut self, ui: &mut Ui, rect: Rect) {
         let open = self.new_chat_menu.is_some();
         // The anchor follows the button when the window is resized.
@@ -103,7 +103,13 @@ impl App {
             self.new_chat_menu = None;
             return;
         }
-        let items = [(NewKind::Group, Icon::Users, l!("Нова група", "New group")), (NewKind::Channel, Icon::Channel, l!("Новий канал", "New channel")), (NewKind::Contacts, Icon::User, l!("Контакти", "Contacts"))];
+        // `None` is "Calls", which opens its own box (the side menu of Telegram Desktop has it here).
+        let items = [
+            (Some(NewKind::Group), Icon::Users, l!("Нова група", "New group")),
+            (Some(NewKind::Channel), Icon::Channel, l!("Новий канал", "New channel")),
+            (Some(NewKind::Contacts), Icon::User, l!("Контакти", "Contacts")),
+            (None, Icon::Phone, l!("Дзвінки", "Calls")),
+        ];
         let rect = Rect::from_min_size(pos2(anchor.right() - 220.0, anchor.bottom() + 8.0), vec2(220.0, items.len() as f32 * 40.0 + 16.0));
         glass::glass(ui.painter(), rect, Glass::panel(20.0).with_shadow());
         ui.interact(rect, ui.scope_id().with("new-chat-panel"), Sense::click());
@@ -122,7 +128,10 @@ impl App {
                 pick = Some(kind);
             }
         }
-        if let Some(kind) = pick {
+        if let Some(None) = pick {
+            self.new_chat_menu = None;
+            self.open_calls();
+        } else if let Some(Some(kind)) = pick {
             self.new_chat_menu = None;
             if kind != NewKind::Channel && self.contacts.is_empty() {
                 self.send(Cmd::LoadContacts);

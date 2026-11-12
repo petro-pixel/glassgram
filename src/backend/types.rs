@@ -713,6 +713,9 @@ pub struct Msg {
     /// A long post the server can summarize: the language it is written in.
     #[serde(default)]
     pub summary_lang: Option<String>,
+    /// A call's service message: drawn as a call card.
+    #[serde(default)]
+    pub call: Option<CallInfo>,
 }
 
 impl Msg {
@@ -765,6 +768,7 @@ impl Msg {
             ttl: None,
             as_channel: false,
             summary_lang: None,
+            call: None,
         }
     }
 

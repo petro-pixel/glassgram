@@ -1002,3 +1002,15 @@ fn chat_restriction_for_desktop() {
     let stale = Peer::from_raw(&client, tl::types::Channel { restricted: false, restriction_reason: Some(vec![reason("all", "x")]), ..news() }.into());
     assert_eq!(chat_restriction(&stale), None);
 }
+
+#[test]
+fn call_messages_become_call_cards() {
+    let action = tl::types::MessageActionPhoneCall { video: true, call_id: 9, reason: Some(tl::enums::PhoneCallDiscardReason::Missed), duration: None };
+    let wire = deliver(service(30, peer_user(OLENA), Some(peer_user(OLENA)), action.into()));
+    let m = convert(&wire, &names());
+    let call = m.call.expect("a call card");
+    assert!(call.video && call.end == crate::backend::CallEnd::Missed);
+    // The card shows the label itself: no placeholder text under it.
+    assert!(m.text.is_empty());
+    assert_eq!(preview_text(&wire), ui("Пропущений відеодзвінок", "Missed video call"));
+}

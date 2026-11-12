@@ -22,6 +22,7 @@ mod sendas;
 mod aitext;
 mod translate;
 mod attach;
+mod calls;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -149,6 +150,7 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
         });
         let mut msgs = msgs;
         extras(id, peer, &mut msgs);
+        calls::add(id, peer, &mut msgs);
         history.insert(peer, msgs);
     }
     let (forum, msgs) = forum_chat();
@@ -987,6 +989,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let list = list.into_iter().filter(|s| !DEMO_WEB_GONE.with_borrow(|g| g.contains(&s.hash))).collect();
             app.push_event(Ev::Websites(list));
         }
+        cmd @ (Cmd::LoadCalls { .. } | Cmd::DeleteCalls { .. }) => calls::handle(app, cmd),
         Cmd::LoadContentSettings => app.push_event(Ev::ContentSettings { enabled: false, can_change: true }),
         Cmd::SetSensitive(enabled) => app.push_event(Ev::ContentSettings { enabled, can_change: true }),
         cmd @ (Cmd::LoadParticipants { .. } | Cmd::EditAdmin { .. } | Cmd::RestrictMember { .. } | Cmd::BanMember { .. } | Cmd::UnbanMember { .. }) => manage(app, cmd),

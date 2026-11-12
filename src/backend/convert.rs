@@ -129,7 +129,8 @@ pub(super) fn media_label(m: &Message) -> Option<&'static str> {
 pub(super) fn preview_text(m: &Message) -> String {
     let text = m.text().replace('\n', " ");
     let todo = matches!(&m.raw, tl::enums::Message::Message(x) if matches!(x.media, Some(tl::enums::MessageMedia::ToDo(_))));
-    let label = if todo { Some(l!("☑️ Чеклист", "☑️ Checklist")) } else { media_label(m) };
+    let call = calls::call_info(&m.raw).map(|c| c.label(m.outgoing()));
+    let label = if todo { Some(l!("☑️ Чеклист", "☑️ Checklist")) } else { call.or_else(|| media_label(m)) };
     match (label, text.is_empty()) {
         (Some(label), true) => label.to_owned(),
         (Some(label), false) => format!("{label} · {text}"),
@@ -208,8 +209,10 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
     let photo = matches!(m.media(), Some(Media::Photo(_)));
     // Polls, places and contacts are drawn as cards: no label needed in the text.
     let card = unsupported(m) || matches!(m.media(), Some(Media::Poll(_) | Media::Geo(_) | Media::GeoLive(_) | Media::Venue(_) | Media::Contact(_)));
+    let call = calls::call_info(&m.raw);
     let text = match (media_label(m), m.text().is_empty()) {
-        _ if photo || card => m.text().to_owned(),
+        // The call card shows the label itself.
+        _ if photo || card || call.is_some() => m.text().to_owned(),
         (Some(label), true) => label.to_owned(),
         (Some(label), false) => format!("{label}\n{}", m.text()),
         (None, true) if m.action().is_some() => l!("Сервісне повідомлення", "Service message").to_owned(),
@@ -313,6 +316,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         ttl: viewonce::ttl(&m.raw).map(|t| t.secs),
         as_channel: m.outgoing() && m.sender_id().is_some_and(|p| p.kind() != grammers_client::session::types::PeerKind::User),
         summary_lang: aitext::summary_lang(&m.raw),
+        call,
     };
     let mut msg = msg;
     if let Some(t) = viewonce::ttl(&m.raw).filter(|t| t.expired) {

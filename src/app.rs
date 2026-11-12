@@ -80,6 +80,7 @@ use bubbles::*;
 mod sendbox;
 mod editmedia;
 mod websites;
+mod calls;
 mod langpack;
 mod stars;
 mod sounds;
@@ -601,6 +602,8 @@ pub struct App {
     ai_text: aitext::AiText,
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
+    /// The "Calls" box.
+    calls: calls::Calls,
     langpacks: langpack::LangPacks,
     stars: stars::Stars,
     send_as: sendas::SendAs,
@@ -895,6 +898,7 @@ impl App {
             ai_text: aitext::AiText::default(),
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
+            calls: calls::Calls::default(),
             langpacks: langpack::LangPacks::default(),
             stars: stars::Stars::default(),
             send_as: sendas::SendAs::default(),
@@ -1109,6 +1113,7 @@ impl App {
             Ev::Sessions(list) => self.sessions = list,
             Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
             Ev::Websites(list) => self.on_websites(list),
+            ev @ (Ev::CallLog { .. } | Ev::CallsDeleted(_)) => self.calls_event(ev),
             ev @ (Ev::Languages(_) | Ev::LangPack { .. }) => self.langpack_event(ev),
             Ev::StarsBalance { stars, nanos } => self.on_stars_balance(stars, nanos),
             Ev::StarsHistory { dir, list, next, append } => self.on_stars_history(dir, list, next, append),
@@ -1834,6 +1839,7 @@ impl eframe::App for App {
         self.privacy_pick_view(ui);
         self.tag_rename_view(ui);
         self.user_qr_view(ui);
+        self.calls_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);
         glass::glass_popups(ui.ctx());
@@ -1852,6 +1858,7 @@ fn author(m: &Msg, me: &str) -> String {
 
 fn quote(m: &Msg) -> String {
     match (m.photo, m.text.is_empty()) {
+        _ if let Some(c) = m.call => c.label(m.out).to_owned(),
         (true, true) => l!("📷 Фото", "📷 Photo").to_owned(),
         (true, false) => format!("📷 {}", m.text.replace('\n', " ")),
         _ => m.text.replace('\n', " "),

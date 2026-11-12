@@ -163,7 +163,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ⬜ **P1** 1-on-1 voice calls: `phone.requestCall` / `acceptCall` / `confirmCall`, DH key exchange, call window, incoming call as a notification
 - ⬜ **P2** Video calls and screen sharing
 - ⬜ **P2** Group calls and live streams in channels (`phone.joinGroupCall`); end-to-end encrypted conference calls (`createConferenceCall`)
-- ⬜ **P2** Call log, rating a finished call with stars in the call panel
+- 🟡 **P2** Call log, rating a finished call with stars in the call panel — the "Calls" box as in Telegram Desktop (from the ✎ menu next to search, where Desktop's side menu has it): every private chat's calls from `messages.search` with `inputMessagesFilterPhoneCalls` (empty peer, pages of 50 by offset id, the next page loads when the last row scrolls into view); each row has the avatar, name, an in/out arrow (missed and declined incoming calls in red), the kind of call, date, time and duration, a phone or video icon; consecutive calls with the same person, direction and day merge into one row with "(3)"; a click opens the chat at the call, the context menu "Delete" asks first with "Also delete for …" (`messages.deleteMessages`; not checked on a real account yet). Call service messages (`messageActionPhoneCall`) are drawn as a card in history — "Outgoing call" / "Missed video call" / "Cancelled" / "Declined", an arrow and the duration — and named the same in chat list previews and replies. Left: rating a finished call with stars (`phone.setCallRating`) and "call back" buttons — both wait for calls themselves; a "Missed" tab (`missed` flag); live updates of the open box
 - ⬜ **P3** RTMP streams, call recording
 
 ## 11. Privacy and security

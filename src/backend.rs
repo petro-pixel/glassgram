@@ -76,6 +76,8 @@ mod polls;
 mod todo;
 mod privacy;
 mod websites;
+mod calls;
+pub use calls::{CallDir, CallEnd, CallInfo};
 pub mod langpack;
 pub use langpack::{LangInfo, LangPack};
 mod adminlog;
@@ -280,6 +282,10 @@ pub enum Cmd {
     LoadLangPack { code: String, name: String },
     LogoutWebsite(i64),
     LogoutAllWebsites,
+    /// A page of the call log, older than `offset_id` (0 — the newest); answered with `Ev::CallLog`.
+    LoadCalls { offset_id: i32 },
+    /// Delete call log entries (`messages.deleteMessages`); `revoke` — for the other side too.
+    DeleteCalls { ids: Vec<(PeerId, i32)>, revoke: bool },
     /// A page of the own Stars history (`offset` empty — the first, which also refreshes the balance);
     /// answered with `Ev::StarsBalance` and `Ev::StarsHistory`. Read only: nothing here spends Stars.
     LoadStars { dir: StarsDir, offset: String },
@@ -733,6 +739,10 @@ pub enum Ev {
     /// Sensitive content: shown unfiltered, and whether the account may change that.
     ContentSettings { enabled: bool, can_change: bool },
     Websites(Vec<WebSession>),
+    /// Calls, newest first, each as its service message; `append` continues the list, `more` — older ones exist.
+    CallLog { calls: Vec<SearchHit>, append: bool, more: bool },
+    /// Call log entries that were deleted.
+    CallsDeleted(Vec<(PeerId, i32)>),
     Languages(Vec<LangInfo>),
     /// A language pack, already saved to the cache, or why it couldn't be loaded.
     LangPack { code: String, pack: Result<LangPack, String> },
@@ -1204,6 +1214,7 @@ impl Worker {
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ Cmd::LoadStars { .. } => self.stars_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
+            cmd @ (Cmd::LoadCalls { .. } | Cmd::DeleteCalls { .. }) => self.calls_cmd(cmd).await,
             cmd @ (Cmd::LoadLanguages | Cmd::LoadLangPack { .. }) => self.langpack_cmd(cmd).await,
             cmd @ (Cmd::LoadAdminLog { .. } | Cmd::SetSignatures { .. } | Cmd::LoadDiscussionGroups(_) | Cmd::SetDiscussionGroup { .. }) => self.admin_cmd(cmd).await,
             cmd @ (Cmd::LoadParticipants { .. } | Cmd::EditAdmin { .. } | Cmd::RestrictMember { .. } | Cmd::BanMember { .. } | Cmd::UnbanMember { .. }) => self.manage_cmd(cmd).await,

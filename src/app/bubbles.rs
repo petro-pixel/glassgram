@@ -214,6 +214,9 @@ pub(super) fn card_height(ui: &Ui, m: &Msg, w: f32, chosen: &[Vec<u8>]) -> f32 {
     if m.contact.is_some() {
         return 52.0 * card_k();
     }
+    if m.call.is_some() {
+        return calls::card_height(card_k());
+    }
     if m.unsupported {
         return 84.0 * card_k();
     }
@@ -269,6 +272,8 @@ pub(super) fn draw_card(ui: &mut Ui, m: &Msg, rect: Rect, look: Look) -> Option<
         if resp.clicked() {
             action = Some(Action::Copy2(phone.clone(), l!("Номер скопійовано", "Number copied")));
         }
+    } else if let Some(call) = m.call {
+        calls::draw_card(ui, m, call, rect, k);
     } else if m.unsupported {
         // As the official apps do for content their version can't show.
         icons::draw(&p, Rect::from_min_size(rect.min + vec2(0.0, 2.0 * k), vec2(20.0 * k, 20.0 * k)), Icon::Info, rgba(ink(), 200));
