@@ -183,6 +183,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/suggest.rs`, `src/backend/suggest.rs` | Link previews (in bubbles and above the composer), @mention and bot command suggestions, "Start" for bots |
 | `src/app/info.rs`, `src/backend/info.rs` | Chat info column: profile, members, shared media, per-chat notifications, leave / clear / delete |
 | `src/app/settings_pages.rs` | Settings pages (Telegram Desktop layout), My Account editor |
+| `src/app/photoedit.rs`, `src/app/photoedit/render.rs` | Photo editor in the "Send files" box: crop with aspect presets, rotate, flip, drawing, text in three styles and fonts; rendered on a thread (`vello_cpu`) into a temporary file |
 | `src/app/userqr.rs`, `src/draw.rs` | QR code of a public username in six designs, drawn on the CPU (`vello_cpu`): copy, save as PNG |
 | `src/app/layout.rs` | Window layout modes: narrow (one column), normal, wide (chat info as a third column) |
 | `src/app/motion.rs` | Spring animations (Apple-style, 150–350 ms): new bubbles, the folder tab capsule and list slide, column transitions; "Reduce motion" snaps them |
@@ -245,6 +246,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - "→A" by a voice message's waveform (beside a round video) transcribes it (Telegram Premium; without it the server's few free tries): a spinner while the server works, then the text under the waveform; a second click folds it.
 - A long channel post shows a "Summary" capsule above its text: a click puts the AI summary in its place, "Show original" in its header brings the text back.
 - Playing a music file shows the player bar under the chat header: ⏮ / ⏭ — previous / next track (⏮ after 3 s restarts the track), the line along its bottom seeks, then volume, speed, repeat (playlist → track → off), shuffle and ✕ to close. The bar stays while you switch chats; the next track of the chat starts on its own. Clicking the title opens the playlist. A user's profile music is a row in their info: a click plays it.
+- The pencil on a photo in the "Send files" box opens the photo editor: "Crop" (drag the corners or edges, move the frame; rotate left, flip, aspect presets), "Draw" (colour, brush size, undo), "Text" (click the photo to add text, drag it to move; style, font, colour and size). Ctrl+Z — undo, Enter — done, Esc — cancel. The edited photo replaces the original in the box; the pencil again continues the same edit.
 - 🎤 (the "Send" button when the composer is empty) starts voice recording; ➤ sends, ■ stops for review, Esc cancels.
 - Right-click the microphone — record a video message (camera — in Settings or `GLASSGRAM_CAMERA`).
 

@@ -400,8 +400,10 @@ pub fn char_to_byte(text: &str, chars: usize) -> usize {
     text.char_indices().nth(chars).map_or(text.len(), |(i, _)| i)
 }
 
-/// Ubuntu Bold, also drawn on the CPU (the username QR picture).
+/// Ubuntu faces, also drawn on the CPU (the username QR picture, text in the photo editor).
 pub const UBUNTU_BOLD: &[u8] = include_bytes!("../assets/fonts/Ubuntu-Bold.ttf");
+pub const UBUNTU_REGULAR: &[u8] = include_bytes!("../assets/fonts/Ubuntu-Regular.ttf");
+pub const UBUNTU_ITALIC: &[u8] = include_bytes!("../assets/fonts/Ubuntu-Italic.ttf");
 
 /// Ubuntu font (Ubuntu Font Licence, `assets/fonts/UFL.txt`), embedded in the program.
 /// The default egui fonts stay as fallbacks, for emoji and symbols missing from Ubuntu.
@@ -409,9 +411,9 @@ pub fn install_fonts(ctx: &eframe::egui::Context) {
     use eframe::egui::{FontData, FontDefinitions};
     use std::sync::Arc;
     const FACES: [(&str, &[u8]); 4] = [
-        ("ubuntu", include_bytes!("../assets/fonts/Ubuntu-Regular.ttf")),
+        ("ubuntu", UBUNTU_REGULAR),
         (BOLD, UBUNTU_BOLD),
-        (ITALIC, include_bytes!("../assets/fonts/Ubuntu-Italic.ttf")),
+        (ITALIC, UBUNTU_ITALIC),
         (BOLD_ITALIC, include_bytes!("../assets/fonts/Ubuntu-BoldItalic.ttf")),
     ];
     let mut fonts = FontDefinitions::default();

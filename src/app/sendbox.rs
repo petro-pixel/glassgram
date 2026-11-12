@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use eframe::egui::ColorImage;
 use crate::backend::is_image;
 use crate::zip;
+use super::photoedit::{Edit, Outcome, PhotoEditor};
 
 /// Long side of a preview in the box.
 const THUMB_PX: u32 = 360;
@@ -37,6 +38,11 @@ pub(super) struct SendBox {
     folders: HashMap<PathBuf, zip::Summary>,
     /// Packing after "Send": the box stays open with a spinner until the archives are ready.
     packing: Option<Packing>,
+    /// The photo editor over the box, and what each edited photo was made from (to edit it again).
+    editor: Option<PhotoEditor>,
+    edits: HashMap<PathBuf, (PathBuf, Edit)>,
+    /// Edited photos: temporary files, deleted once queued or cancelled.
+    temp: Vec<PathBuf>,
 }
 
 /// Archives being packed on a thread. Dropping it (the box closed) cancels the work.
@@ -109,6 +115,10 @@ impl SendBox {
             self.folders.insert(dir.clone(), zip::summary(std::slice::from_ref(dir)));
         }
         self.paths.extend(paths);
+        self.decode(ctx, images);
+    }
+
+    fn decode(&self, ctx: &egui::Context, images: Vec<PathBuf>) {
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
         std::thread::spawn(move || {
             for path in images {
@@ -168,9 +178,50 @@ impl SendBox {
     }
 
     fn remove(&mut self, i: usize) {
-        self.paths.remove(i);
+        let path = self.paths.remove(i);
+        self.forget_edit(&path);
         // Previews are keyed by index: shift the ones after the removed file.
         self.thumbs = std::mem::take(&mut self.thumbs).into_iter().filter(|(k, _)| *k != i).map(|(k, t)| (if k > i { k - 1 } else { k }, t)).collect();
+    }
+}
+
+impl SendBox {
+    /// Drops what is kept for an edited photo leaving the box, and its file.
+    fn forget_edit(&mut self, path: &PathBuf) {
+        self.edits.remove(path);
+        if let Some(k) = self.temp.iter().position(|p| p == path) {
+            let _ = std::fs::remove_file(self.temp.remove(k));
+        }
+    }
+
+    fn drop_temp(&self) {
+        for p in &self.temp {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+
+    fn open_editor(&mut self, ctx: &egui::Context, i: usize) {
+        let target = self.paths[i].clone();
+        let (source, edit) = match self.edits.get(&target) {
+            Some((s, e)) => (s.clone(), Some(e.clone())),
+            None => (target.clone(), None),
+        };
+        self.editor = Some(PhotoEditor::open(ctx, target, source, edit));
+    }
+
+    /// The editor's result takes the photo's place; its preview is decoded again.
+    fn on_edited(&mut self, ctx: &egui::Context, target: PathBuf, file: PathBuf, edit: Edit) {
+        let Some(i) = self.paths.iter().position(|p| *p == target) else {
+            let _ = std::fs::remove_file(file);
+            return;
+        };
+        let source = self.edits.get(&target).map_or_else(|| target.clone(), |(s, _)| s.clone());
+        self.forget_edit(&target);
+        self.paths[i] = file.clone();
+        self.thumbs.remove(&i);
+        self.edits.insert(file.clone(), (source, edit));
+        self.temp.push(file.clone());
+        self.decode(ctx, vec![file]);
     }
 }
 
@@ -188,7 +239,7 @@ impl App {
         let caption = if self.selected == Some(peer) { std::mem::take(&mut self.draft) } else { String::new() };
         let (tx, rx) = mpsc::channel();
         let private = self.chats.iter().any(|c| c.id == peer && c.kind == ChatKind::User);
-        let mut b = SendBox { peer, paths: Vec::new(), caption, compress: !as_file, spoiler: false, above: false, private, once: false, thumbs: HashMap::new(), tx, rx, focused: false, archive: false, folders: HashMap::new(), packing: None };
+        let mut b = SendBox { peer, paths: Vec::new(), caption, compress: !as_file, spoiler: false, above: false, private, once: false, thumbs: HashMap::new(), tx, rx, focused: false, archive: false, folders: HashMap::new(), packing: None, editor: None, edits: HashMap::new(), temp: Vec::new() };
         b.add(&self.ctx, paths);
         self.send_box = Some(b);
     }
@@ -197,6 +248,7 @@ impl App {
         let Some(b) = self.send_box.take() else { return };
         if !send {
             // Cancelling gives the caption back to the field.
+            b.drop_temp();
             if self.selected == Some(b.peer) && self.draft.trim().is_empty() {
                 self.draft = b.caption;
             }
@@ -230,10 +282,11 @@ impl App {
         let media = QueuedMedia::Files { paths, as_file: !compress, spoiler: b.spoiler && compress, above: b.above && compress, once };
         // Through the send queue: offline the files wait for the network, like text.
         self.enqueue_media(b.peer, b.caption.trim().to_owned(), reply_to, media, false);
-        // The queue keeps its own copy of the archives.
+        // The queue keeps its own copy of the archives and edited photos.
         if let Some(p) = packed {
             p.cleanup();
         }
+        b.drop_temp();
     }
 
     pub(super) fn send_box_view(&mut self, ui: &mut Ui) {
@@ -266,6 +319,22 @@ impl App {
                 b.thumbs.insert(i, (ui.ctx().load_texture(format!("send-box-{i}"), img, TextureOptions::LINEAR), blur));
             }
         }
+        if let Some(ed) = &mut b.editor {
+            match ed.view(ui) {
+                Some(Outcome::Done { file, edit }) => {
+                    let target = ed.target.clone();
+                    b.editor = None;
+                    b.on_edited(ui.ctx(), target, file, edit);
+                }
+                Some(Outcome::Cancel) => b.editor = None,
+                Some(Outcome::Failed(e)) => {
+                    b.editor = None;
+                    self.toast = Some((lf!("Не вдалося змінити фото: {e}", "Could not edit the photo: {e}"), 0.0, true));
+                }
+                None => {}
+            }
+            return;
+        }
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
         ui.interact(screen, ui.scope_id().with("send-box-bg"), Sense::click());
@@ -291,6 +360,7 @@ impl App {
         let mut child = ui.new_child(UiBuilder::new().max_rect(body));
         child.set_clip_rect(body);
         let mut remove = None;
+        let mut edit = None;
         let now = ui.input(|i| i.time);
         egui::ScrollArea::vertical().id_salt("send-box").auto_shrink(false).show(&mut child, |ui| {
             ui.spacing_mut().item_spacing.y = 4.0;
@@ -314,6 +384,10 @@ impl App {
                     let x = Rect::from_min_size(pos2(r.right() - 38.0, r.top() + 6.0), vec2(32.0, 32.0));
                     if glass::icon_button(ui, x, ("send-box-remove", i), Icon::Close, false, true).on_hover_text(l!("Прибрати", "Remove")).clicked() {
                         remove = Some(i);
+                    }
+                    let pen = x.translate(vec2(-38.0, 0.0));
+                    if b.packing.is_none() && glass::icon_button(ui, pen, ("send-box-edit", i), Icon::Pencil, false, true).on_hover_text(l!("Редагувати", "Edit")).clicked() {
+                        edit = Some(i);
                     }
                 }
             }
@@ -358,6 +432,8 @@ impl App {
         });
         if let Some(i) = remove {
             b.remove(i);
+        } else if let Some(i) = edit {
+            b.open_editor(ui.ctx(), i);
         }
         let caption = glass::text_field(ui, field, &mut b.caption, l!("Підпис", "Caption"), false);
         if !b.focused {

@@ -2136,3 +2136,21 @@ fn demo_link(d: InviteDraft) -> InviteLink {
     InviteLink { title: d.title, usage_limit: d.usage_limit, expire: d.expire, request_needed: d.request_needed, ..Default::default() }
 }
 
+/// A sunset picture in a temporary file, for trying the send box and the photo editor in the demo.
+pub fn sample_photo() -> Result<std::path::PathBuf, String> {
+    let (w, h) = (1200u32, 800u32);
+    let img = image::RgbImage::from_fn(w, h, |x, y| {
+        let (fx, fy) = (x as f32 / w as f32, y as f32 / h as f32);
+        let d = ((fx - 0.5).powi(2) + (fy - 0.62).powi(2)).sqrt();
+        let sun = (1.0 - d * 6.0).clamp(0.0, 1.0);
+        let sea = if fy > 0.65 { 0.45 } else { 1.0 };
+        let r = ((255.0 * (0.55 + 0.45 * fy) + 255.0 * sun) * sea).min(255.0);
+        let g = ((90.0 + 120.0 * fy * fy + 200.0 * sun) * sea).min(255.0);
+        let b = ((170.0 - 110.0 * fy + 120.0 * sun) * sea).min(255.0);
+        image::Rgb([r as u8, g as u8, b as u8])
+    });
+    let path = crate::platform::temp_file("sunset.jpg");
+    img.save(&path).map_err(|e| e.to_string())?;
+    Ok(path)
+}
+

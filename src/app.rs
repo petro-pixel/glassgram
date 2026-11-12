@@ -78,6 +78,7 @@ mod report;
 mod bubbles;
 use bubbles::*;
 mod sendbox;
+mod photoedit;
 mod editmedia;
 mod websites;
 mod langpack;
