@@ -12,6 +12,13 @@ base64 = "0.23.1"
 bytemuck = { version = "1.25.2", features = ["derive"] }
 dirs = "6"
 eframe = "0.37.0"
+# Colour emoji (format.rs): egui's own text renderer draws COLR glyphs with vello_cpu once this
+# feature is on. Already in the build via eframe, pure Rust.
+epaint = { version = "0.37.0", features = ["color_fonts"] }
+# Emoji properties (Unicode 17) and grapheme clusters for skin tones and big-emoji messages
+# (emoji.rs). Both already in the build via epaint, pure Rust.
+unicode-properties = { version = "0.1.4", default-features = false, features = ["emoji"] }
+unicode-segmentation = "1.13"
 grammers-client = { version = "0.11", features = ["proxy"] }
 grammers-session = "0.11.0"
 # Two-step verification (backend/password.rs): grammers' SRP proof for the current password, and the

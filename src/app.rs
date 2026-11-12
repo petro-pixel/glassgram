@@ -73,6 +73,7 @@ mod confirm;
 mod gifts;
 mod textures;
 mod emojikw;
+mod emojipanel;
 mod newchat;
 mod quote;
 mod report;
@@ -499,6 +500,8 @@ pub struct App {
     folder: Option<i32>,
     /// The sticker and emoji panel: sets, the open set, thumbnails asked for.
     stickers: stickers::StickerPanel,
+    /// Skin tones picked in the emoji tab and its open tone row.
+    emoji_panel: emojipanel::EmojiPanel,
     uploads: Vec<Upload>,
     /// Selected messages of the open chat.
     picked: Vec<i32>,
@@ -802,6 +805,7 @@ impl App {
             folder_meta: folders::FolderMeta::default(),
             folder: None,
             stickers: stickers::StickerPanel::default(),
+            emoji_panel: emojipanel::EmojiPanel::default(),
             uploads: Vec::new(),
             picked: Vec::new(),
             forward: None,

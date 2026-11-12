@@ -259,41 +259,6 @@ impl App {
         self.send_files(peer, files, false);
     }
 
-    /// Emoji grid by category; a click adds the emoji to the input field.
-    pub(super) fn emoji_grid(&mut self, ui: &mut Ui, rect: Rect) {
-        let mut picked = None;
-        let mut child = ui.new_child(UiBuilder::new().max_rect(rect));
-        child.set_clip_rect(rect);
-        egui::ScrollArea::vertical().id_salt("emoji-grid").auto_shrink(false).show(&mut child, |ui| {
-            let cols = ((rect.width() / 40.0).floor() as usize).max(1);
-            let cell = rect.width() / cols as f32 - 1.0;
-            for (title, chars) in emoji::CATEGORIES {
-                let title = title();
-                ui.label(egui::RichText::new(title).size(12.5).color(ink_dim()));
-                for row in emoji::list(chars).chunks(cols) {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 1.0;
-                        for e in row {
-                            let (r, resp) = ui.allocate_exact_size(vec2(cell, cell), Sense::click());
-                            if resp.hovered() {
-                                ui.painter().rect_filled(r, 10.0, glass::veil(22));
-                            }
-                            ui.painter().text(r.center(), Align2::CENTER_CENTER, e, FontId::proportional(cell * 0.62), ink());
-                            if resp.clicked() {
-                                picked = Some(e.clone());
-                            }
-                        }
-                    });
-                }
-                ui.add_space(6.0);
-            }
-        });
-        if let Some(e) = picked {
-            self.draft.push_str(&e);
-            self.draft_edited_at = ui.input(|i| i.time);
-        }
-    }
-
     /// Highlight while dragging files into the window.
     pub(super) fn drop_overlay(&mut self, ui: &mut Ui) {
         let (hovering, dropped) = ui.input(|i| (!i.raw.hovered_files.is_empty(), i.raw.dropped_files.clone()));
