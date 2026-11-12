@@ -61,6 +61,13 @@ fn sound_key(id: i32) -> i32 {
     -1_000_000_000 - id
 }
 
+/// What was clicked in the strip.
+pub(super) enum StripPick {
+    Open(PeerId),
+    /// "+" on our own avatar: post a story.
+    Add,
+}
+
 enum Step {
     Prev,
     Next,
@@ -89,6 +96,10 @@ impl App {
             }
         }
         self.stories.peers = list;
+        // Our own avatar heads the strip.
+        if self.profile.id.is_none() {
+            self.send(Cmd::LoadProfile);
+        }
     }
 
     pub(super) fn on_peer_stories(&mut self, peer: PeerId, stories: Vec<Story>, max_read: i32) {
@@ -256,9 +267,10 @@ impl App {
         typing
     }
 
-    /// Round avatars of everyone with active stories; `None` when there are none.
-    pub(super) fn story_strip(&self, ui: &mut Ui) -> Option<PeerId> {
-        if self.stories.peers.is_empty() {
+    /// Our own avatar first, then everyone with active stories.
+    pub(super) fn story_strip(&self, ui: &mut Ui) -> Option<StripPick> {
+        let me = self.profile.id;
+        if self.stories.peers.is_empty() && me.is_none() {
             return None;
         }
         let mut open = None;
@@ -266,7 +278,8 @@ impl App {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 ui.add_space(4.0);
-                for p in &self.stories.peers {
+                open = self.own_story_cell(ui);
+                for p in self.stories.peers.iter().filter(|p| Some(p.chat.id) != me) {
                     let (r, resp) = ui.allocate_exact_size(vec2(64.0, STRIP_H), Sense::click());
                     let c = pos2(r.center().x, r.top() + 30.0);
                     let painter = ui.painter();
@@ -281,7 +294,7 @@ impl App {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
                     if resp.on_hover_text(&chat.title).clicked() {
-                        open = Some(chat.id);
+                        open = Some(StripPick::Open(chat.id));
                     }
                 }
             });

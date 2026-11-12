@@ -136,6 +136,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/chatsearch.rs` | In-chat search panel: type and sender filters, results |
 | `src/app/searchtabs.rs`, `src/backend/searchtabs.rs` | Global search tabs: channels, apps (popular mini app bots), public posts, media |
 | `src/app/stories.rs`, `src/backend/stories.rs` | Stories: strip above the chat list and the viewer (video with sound, replies, reactions) |
+| `src/app/story_post.rs`, `src/backend/story_post.rs` | Posting a story: "+" in the strip, the box with preview, caption, privacy, duration, profile and channel choice |
 | `src/app/profile_stories.rs`, `src/backend/profile_stories.rs` | Stories in profiles: the pinned grid with album chips in chat info, Settings → My Stories with the archive, views and the viewers list of our own stories (read only) |
 | `src/app/confirm.rs` | "Open this link?" for hidden links and "Run this file?" for received programs |
 | `src/app/gifts.rs`, `src/backend/gifts.rs` | "Gifts" tab in a profile |
@@ -219,6 +220,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Right-click a chat: pin, mute, mark as read, archive.
 - A wide window shows chat info as a third column beside the chat; a narrow one shows the chat list or the open chat alone, with a back arrow in the chat header (Esc also returns to the list).
 - Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat; admins right-click a member to promote, restrict or remove them), shared media tabs, a "Stories" tab with a person's or channel's pinned stories (album chips filter them; a click opens the viewer at that story), leave / clear history / delete chat. Admins open invite links, join requests, administrators, restricted and removed users from the "Edit" box (pencil) or, without the right to edit, from the people icon in the header.
+- "+" on your avatar at the head of the story strip (or "Add story" in Settings → My Stories) picks a photo or video for a new story: the box previews it and sets the caption, who can see it, how long it stays, screenshots, keeping it on the profile and posting as a channel.
 - Composer markup: `**bold**`, `__italic__`, `~~strike~~`, `||spoiler||`, `` `code` ``, ```` ```block``` ````, `[text](https://…)`; the field shows it styled with the markers faded. Selecting text shows a formatting bar above it; shortcuts: Ctrl+B bold, Ctrl+I italic, Ctrl+Shift+X strikethrough, Ctrl+Shift+M monospace, Ctrl+Shift+P spoiler, Ctrl+K link, Ctrl+Shift+N clear formatting.
 - Clicking a hashtag searches for it in the chat; clicking a bot command sends it.
 - `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way.

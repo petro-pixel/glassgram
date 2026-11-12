@@ -336,6 +336,8 @@ impl App {
                 "Stories saved to the profile stay after the day is over. The archive keeps all your expired stories; only you see it."
             ));
             ui.add_space(8.0);
+            self.add_story_button(ui);
+            ui.add_space(8.0);
             self.story_grid(ui, me, &name, ChatKind::User, true);
         });
     }

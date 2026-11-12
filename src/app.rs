@@ -58,6 +58,7 @@ mod saved;
 mod chatsearch;
 mod stories;
 mod profile_stories;
+mod story_post;
 mod login;
 mod accounts_ui;
 mod forum;
@@ -646,6 +647,8 @@ pub struct App {
     stories: stories::Stories,
     /// Stories kept in profiles, our archive and who saw our stories.
     profile_stories: profile_stories::ProfileStories,
+    /// The box for posting a story.
+    story_post: story_post::StoryPost,
     /// Full-screen video player and its picture-in-picture window.
     video: videoplayer::VideoPlayer,
     /// The music player bar and its queue.
@@ -935,6 +938,7 @@ impl App {
             quoting: Default::default(),
             stories: stories::Stories::default(),
             profile_stories: profile_stories::ProfileStories::default(),
+            story_post: story_post::StoryPost::default(),
             video: videoplayer::VideoPlayer::default(),
             music: music::Music::default(),
             saved: saved::Saved::default(),
@@ -1004,6 +1008,7 @@ impl App {
             Ev::PeerStories { peer, stories, max_read } => self.on_peer_stories(peer, stories, max_read),
             Ev::StoryVideo { peer, id, path } => self.on_story_video(peer, id, path),
             ev @ (Ev::ProfileStories { .. } | Ev::StoryAlbums { .. } | Ev::StoryViewers { .. }) => self.profile_stories_event(ev),
+            ev @ (Ev::StoryTargets(_) | Ev::StoryCanPost { .. } | Ev::StoryPosted { .. } | Ev::StoryPostFailed(_) | Ev::StoryChanged(_)) => self.story_post_event(ev),
             Ev::SavedHistory { source, msgs, older } => self.on_saved_history(source, msgs, older),
             Ev::SavedTags(tags) => self.on_saved_tags(tags),
             Ev::FolderTags(on) => self.folder_meta.tags = on,
@@ -1814,6 +1819,7 @@ impl eframe::App for App {
         if self.stories.view.is_some() {
             self.story_viewer(ui);
         }
+        self.story_post_view(ui);
         // Above the settings: folders are also edited from the "Folders" page.
         if self.folder_edit.is_some() {
             self.folder_editor(ui);

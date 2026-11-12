@@ -100,6 +100,7 @@ pub(super) fn raw_event(u: &tl::enums::Update, names: &Names, notifs: &notify::N
         U::SavedReactionTags => Ev::SavedTagsChanged,
         U::AttachMenuBots => Ev::AttachBotsChanged,
         U::SavedRingtones => Ev::RingtonesChanged,
+        U::Story(s) => Ev::StoryChanged(PeerId::from(&s.peer)),
         U::DraftMessage(d) if d.top_msg_id.is_none() => Ev::Draft { peer: PeerId::from(&d.peer), text: draft_text(&Some(d.draft.clone())) },
         _ => return None,
     })

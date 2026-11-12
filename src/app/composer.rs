@@ -367,6 +367,7 @@ impl App {
                 if let Some(u) = self.uploads.iter_mut().find(|u| u.id == id) {
                     (u.done, u.total) = (done, total);
                 }
+                self.story_post.progress(id, done, total);
             }
             Ev::UploadDone(id) => self.uploads.retain(|u| u.id != id),
             Ev::InlineResults { peer, bot, query, query_id, results } => {

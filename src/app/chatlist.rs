@@ -724,8 +724,10 @@ impl App {
         if let Some(a) = birthday {
             self.birthday_action(a);
         }
-        if let Some(peer) = story {
-            self.open_stories(peer);
+        match story {
+            Some(super::stories::StripPick::Open(peer)) => self.open_stories(peer),
+            Some(super::stories::StripPick::Add) => self.add_story(),
+            None => {}
         }
         if let Some(chat) = found {
             let id = chat.id;
