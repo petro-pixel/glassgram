@@ -500,6 +500,19 @@ pub enum ButtonAction {
 pub struct Button {
     pub text: String,
     pub action: ButtonAction,
+    /// The colour the bot gave it (`keyboardButtonStyle`).
+    #[serde(default)]
+    pub style: ButtonStyle,
+}
+
+/// A bot button's colour: the bot marks the main, the dangerous or the confirming choice.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ButtonStyle {
+    #[default]
+    Plain,
+    Primary,
+    Danger,
+    Success,
 }
 
 /// A user's online status.
@@ -713,6 +726,12 @@ pub struct Msg {
     /// A long post the server can summarize: the language it is written in.
     #[serde(default)]
     pub summary_lang: Option<String>,
+    /// A clarification by fact checkers, shown under the text.
+    #[serde(default)]
+    pub factcheck: Option<FactCheck>,
+    /// The author's member tag in this group, shown by the name.
+    #[serde(default)]
+    pub rank: Option<String>,
 }
 
 impl Msg {
@@ -765,6 +784,8 @@ impl Msg {
             ttl: None,
             as_channel: false,
             summary_lang: None,
+            factcheck: None,
+            rank: None,
         }
     }
 

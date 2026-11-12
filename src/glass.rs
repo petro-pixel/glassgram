@@ -21,6 +21,8 @@ pub const ACCENT: Color32 = Color32::from_rgb(92, 124, 255);
 pub const ON_DARK: Color32 = Color32::from_rgb(244, 246, 255);
 /// Errors and destructive states (failed send, taken username); readable in both themes.
 pub const DANGER: Color32 = Color32::from_rgb(235, 87, 96);
+/// Confirming choices (green bot buttons); light text stays readable on it in both themes.
+pub const SUCCESS: Color32 = Color32::from_rgb(46, 166, 98);
 
 static LIGHT: AtomicBool = AtomicBool::new(false);
 
@@ -529,6 +531,20 @@ pub fn accent_glass(rect: Rect, enabled: bool, hover: f32) -> Glass {
     };
     let tint = if is_light() { Color32::from_rgb(52, 84, 228) } else { ACCENT };
     Glass::tinted(rect.height() / 2.0, tint, (base + hover * 40.0).min(255.0) as u8).with_shadow().frosted(1.0)
+}
+
+/// A glass capsule button in a colour of its own (a bot's red or green button), light text on it.
+pub fn tone_button(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt::Debug, label: &str, tint: Color32) -> Response {
+    let resp = ui.interact(rect, ui.scope_id().with(id), Sense::click());
+    let hover = ui.ctx().animate_bool(resp.id.with("hover"), resp.hovered());
+    let rect = rect.expand(hover * 1.5).shrink(if resp.is_pointer_button_down_on() { 2.0 } else { 0.0 });
+    let base = if is_light() { 215.0 } else { 165.0 };
+    glass(ui.painter(), rect, Glass::tinted(rect.height() / 2.0, tint, (base + hover * 40.0).min(255.0) as u8).with_shadow().frosted(1.0));
+    ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, label, FontId::proportional(15.0), ON_DARK);
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp
 }
 
 /// Glass button with hover and press animation.

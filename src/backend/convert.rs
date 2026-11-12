@@ -150,6 +150,7 @@ pub(super) fn buttons(m: &Message) -> Vec<Vec<Button>> {
                 row.buttons
                     .into_iter()
                     .map(|I::Button(b)| Button {
+                        style: button_style(&b.style),
                         text: b.text,
                         action: match b.r#type {
                             T::Callback(c) => ButtonAction::Callback(c.data),
@@ -170,6 +171,7 @@ pub(super) fn buttons(m: &Message) -> Vec<Vec<Button>> {
                 row.buttons
                     .into_iter()
                     .map(|K::Button(b)| Button {
+                        style: button_style(&b.style),
                         action: match b.r#type {
                             tl::enums::ButtonType::Default => ButtonAction::Text,
                             tl::enums::ButtonType::SimpleWebView(w) => ButtonAction::WebApp { url: w.url, simple: true, bot },
@@ -181,6 +183,16 @@ pub(super) fn buttons(m: &Message) -> Vec<Vec<Button>> {
             })
             .collect(),
         _ => Vec::new(),
+    }
+}
+
+/// The colour a bot gave its button; the custom emoji icon is not drawn yet.
+fn button_style(s: &Option<tl::enums::KeyboardButtonStyle>) -> ButtonStyle {
+    match s {
+        Some(tl::enums::KeyboardButtonStyle::Style(s)) if s.bg_danger => ButtonStyle::Danger,
+        Some(tl::enums::KeyboardButtonStyle::Style(s)) if s.bg_success => ButtonStyle::Success,
+        Some(tl::enums::KeyboardButtonStyle::Style(s)) if s.bg_primary => ButtonStyle::Primary,
+        _ => ButtonStyle::Plain,
     }
 }
 
@@ -313,6 +325,8 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         ttl: viewonce::ttl(&m.raw).map(|t| t.secs),
         as_channel: m.outgoing() && m.sender_id().is_some_and(|p| p.kind() != grammers_client::session::types::PeerKind::User),
         summary_lang: aitext::summary_lang(&m.raw),
+        factcheck: factcheck::of_message(&m.raw),
+        rank: factcheck::rank(&m.raw),
     };
     let mut msg = msg;
     if let Some(t) = viewonce::ttl(&m.raw).filter(|t| t.expired) {

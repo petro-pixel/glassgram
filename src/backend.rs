@@ -117,6 +117,8 @@ pub use viewonce::VIEW_ONCE;
 mod namecolor;
 mod aitext;
 pub use aitext::Transcript;
+mod factcheck;
+pub use factcheck::{FACT_CHECK_BATCH, FactCheck};
 pub use namecolor::{ColorOption, default_color};
 mod report;
 pub use report::ReportStep;
@@ -481,6 +483,8 @@ pub enum Cmd {
     Transcribe { peer: PeerId, id: i32 },
     /// The AI summary of a long post.
     Summarize { peer: PeerId, id: i32 },
+    /// Fresh fact checks of shown messages marked `need_check`, at most `FACT_CHECK_BATCH` ids.
+    LoadFactChecks { peer: PeerId, ids: Vec<i32> },
     /// Whether the chat's full info lets us offer whole-chat translation; answered with `Ev::TranslationOffer`.
     LoadTranslationOffer(PeerId),
     /// Translate several messages at once (whole-chat translation), at most `TRANSLATE_BATCH` ids.
@@ -847,6 +851,8 @@ pub enum Ev {
     Transcribed { peer: PeerId, id: i32, result: Result<Transcript, String> },
     /// A post's AI summary (formatting as spans), or the server's error.
     Summarized { peer: PeerId, id: i32, result: Result<(String, Vec<Span>), String> },
+    /// Fact checks by message id, from `messages.getFactCheck`.
+    FactChecks { peer: PeerId, checks: Vec<(i32, FactCheck)> },
     /// `translations_disabled` from the chat's full info, inverted.
     TranslationOffer { peer: PeerId, offered: bool },
     /// Translations of `ids` in order (id, text, spans), or the server's error for the whole batch.
@@ -1239,6 +1245,7 @@ impl Worker {
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             cmd @ (Cmd::Transcribe { .. } | Cmd::Summarize { .. }) => self.aitext_cmd(cmd).await,
+            cmd @ Cmd::LoadFactChecks { .. } => self.factcheck_cmd(cmd).await,
             cmd @ (Cmd::LoadTranslationOffer(_) | Cmd::TranslateMany { .. } | Cmd::TogglePeerTranslations { .. }) => self.translate_cmd(cmd).await,
             cmd @ (Cmd::SendPoll { .. } | Cmd::PollVotes { .. } | Cmd::AddPollAnswer { .. } | Cmd::StopPoll { .. }) => self.polls_cmd(cmd).await,
             cmd @ (Cmd::SendTodo { .. } | Cmd::ToggleTodo { .. } | Cmd::AppendTodo { .. }) => self.todo_cmd(cmd).await,

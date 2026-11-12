@@ -102,6 +102,7 @@ mod effects;
 mod viewonce;
 mod namecolor;
 mod aitext;
+mod factcheck;
 mod videoplayer;
 mod music;
 mod attachbots;
@@ -599,6 +600,7 @@ pub struct App {
     view_once: viewonce::ViewOnce,
     name_colors: namecolor::NameColors,
     ai_text: aitext::AiText,
+    fact_checks: factcheck::FactChecks,
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
     langpacks: langpack::LangPacks,
@@ -893,6 +895,7 @@ impl App {
             view_once: viewonce::ViewOnce::default(),
             name_colors: namecolor::NameColors::default(),
             ai_text: aitext::AiText::default(),
+            fact_checks: factcheck::FactChecks::default(),
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
             langpacks: langpack::LangPacks::default(),
@@ -1141,6 +1144,7 @@ impl App {
             Ev::Translated { peer, id, to, result } => self.translated(peer, id, to, result),
             Ev::Transcribed { peer, id, result } => self.on_transcribed(peer, id, result),
             Ev::Summarized { peer, id, result } => self.on_summarized(peer, id, result),
+            Ev::FactChecks { peer, checks } => self.on_fact_checks(peer, checks),
             ev @ (Ev::TranslationOffer { .. } | Ev::TranslatedMany { .. }) => self.chat_translate_event(ev),
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. } | Ev::BotWriteAccess { .. } | Ev::PhoneShared { .. }) => self.web_app_event(ev),
             ev @ (Ev::AttachBots { .. } | Ev::AttachBotFound { .. } | Ev::AttachBotToggled { .. } | Ev::AttachBotsChanged) => self.attach_bots_event(ev),

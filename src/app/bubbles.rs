@@ -118,7 +118,13 @@ pub(super) fn bot_buttons(ui: &mut Ui, m: &Msg, x: f32, width: f32) -> Option<Ac
                 ButtonAction::Url(_) | ButtonAction::UrlAuth { .. } => format!("{} ↗", b.text),
                 _ => b.text.clone(),
             };
-            let resp = glass::button(ui, br, ("bot-btn", m.id, i, j), &label, false, true);
+            let id = ("bot-btn", m.id, i, j);
+            let resp = match b.style {
+                backend::ButtonStyle::Plain => glass::button(ui, br, id, &label, false, true),
+                backend::ButtonStyle::Primary => glass::button(ui, br, id, &label, true, true),
+                backend::ButtonStyle::Danger => glass::tone_button(ui, br, id, &label, glass::DANGER),
+                backend::ButtonStyle::Success => glass::tone_button(ui, br, id, &label, glass::SUCCESS),
+            };
             if resp.clicked() {
                 action = Some(Action::Button(m.id, i, j));
             }
@@ -607,8 +613,11 @@ pub(super) fn bubble(
     let (meta, badge_w) = effects::meta(&p, badge.as_deref(), &meta_text, rgba(ink(), 170));
     let mut badge_rect = None;
     let name_color = namecolor::sender_color(m);
+    // The member tag sits at the right end of the name's line, like admin titles in Telegram Desktop.
+    let rank = m.rank.as_ref().filter(|_| show_sender && !m.out).map(|r| elided(ui, r, 12.0, rgba(ink(), 140), text_w * 0.45));
+    let rank_w = rank.as_ref().map_or(0.0, |r| r.size().x + 12.0);
     let sender = (show_sender && (!m.out || m.as_channel) && !m.sender.is_empty())
-        .then(|| elided(ui, &m.sender, 13.0, name_color, text_w));
+        .then(|| elided(ui, &m.sender, 13.0, name_color, text_w - rank_w));
     let (quote_accent, quote_text) = if m.out { (ink(), rgba(ink(), 200)) } else { (ACCENT, ink_dim()) };
     // In incoming bubbles the quote takes the replied author's colour, as in Telegram.
     let reply = reply.map(|(who, what, color)| {
@@ -627,7 +636,7 @@ pub(super) fn bubble(
         block.y += f.size().y + 4.0;
     }
     if let Some(s) = &sender {
-        block.x = block.x.max(s.size().x);
+        block.x = block.x.max(s.size().x + rank_w);
         block.y += s.size().y + 2.0;
     }
     if let Some((a, b, _)) = &reply {
@@ -663,10 +672,15 @@ pub(super) fn bubble(
         block.x = block.x.max(c.width);
         block.y += c.height() + 6.0;
     }
+    let fact = factcheck::Block::layout(&p, m, text_w);
+    if let Some(f) = &fact {
+        block.x = block.x.max(f.width);
+        block.y += f.height() + 6.0;
+    }
     match &body {
         Some(body) => {
             let last_row_w = body.rows.last().map_or(0.0, |r| r.rect().width());
-            let meta_inline = last_row_w + meta.size().x + 10.0 <= text_w && web.is_none();
+            let meta_inline = last_row_w + meta.size().x + 10.0 <= text_w && web.is_none() && fact.is_none();
             block.x = block.x.max(body.size().x);
             block.y += body.size().y;
             if meta_inline {
@@ -675,6 +689,11 @@ pub(super) fn bubble(
                 block.x = block.x.max(meta.size().x);
                 block.y += meta.size().y + 2.0;
             }
+        }
+        // The time goes under the fact check.
+        None if fact.is_some() => {
+            block.x = block.x.max(meta.size().x);
+            block.y += meta.size().y + 2.0;
         }
         // Time goes in the bottom right corner of the media card, next to the duration.
         None if m.media.is_some() && heard.is_none() => {
@@ -706,6 +725,7 @@ pub(super) fn bubble(
         Glass::tinted(18.0, glass::bubble_in().0, glass::bubble_in().1).frosted(1.0)
     };
     glass::glass(&p, rect, g);
+    factcheck::want(ui, m, rect);
 
     let mut cursor = rect.min + pad;
     let img_rect = img_size.map(|is| Rect::from_min_size(pos2(rect.left() + 4.0, if above { rect.bottom() - 4.0 - is.y } else { rect.top() + 4.0 }), is));
@@ -745,6 +765,9 @@ pub(super) fn bubble(
     if let Some(s) = sender {
         let h = s.size().y;
         p.galley(cursor, s, ink());
+        if let Some(r) = rank {
+            p.galley(pos2(cursor.x + block.x - r.size().x, cursor.y + (h - r.size().y) / 2.0), r, ink());
+        }
         cursor.y += h + 2.0;
     }
     if let Some((a, b, tones)) = reply {
@@ -789,9 +812,14 @@ pub(super) fn bubble(
             body_pos = Some(cursor);
         }
     }
+    let mut tail = cursor.y + body.as_ref().map_or(0.0, |b| b.size().y + 6.0);
     if let Some(c) = web {
-        let top = cursor.y + body.as_ref().map_or(0.0, |b| b.size().y + 6.0);
-        card_action = c.draw(ui, m, pos2(cursor.x, top), photo, quote_accent).or(card_action);
+        let h = c.height();
+        card_action = c.draw(ui, m, pos2(cursor.x, tail), photo, quote_accent).or(card_action);
+        tail += h + 6.0;
+    }
+    if let Some(f) = fact {
+        f.draw(ui, m, pos2(cursor.x, tail), block.x);
     }
     if (has_block && !above) || img_size.is_none() {
         let at = Rect::from_min_size(rect.max - pad - meta.size(), meta.size());
