@@ -5,6 +5,11 @@ use vello_cpu::kurbo::{self, BezPath};
 
 /// `text` in Ubuntu Bold as one path with its baseline at y = 0, and its advance width.
 pub fn text_path(text: &str, size: f64) -> Option<(BezPath, f64)> {
+    text_path_in(crate::format::UBUNTU_BOLD, text, size)
+}
+
+/// `text_path` in another font (a TrueType file).
+pub fn text_path_in(font: &[u8], text: &str, size: f64) -> Option<(BezPath, f64)> {
     struct Pen<'a> {
         path: &'a mut BezPath,
         x: f64,
@@ -36,7 +41,7 @@ pub fn text_path(text: &str, size: f64) -> Option<(BezPath, f64)> {
             self.path.close_path();
         }
     }
-    let face = ttf_parser::Face::parse(crate::format::UBUNTU_BOLD, 0).ok()?;
+    let face = ttf_parser::Face::parse(font, 0).ok()?;
     let s = size / face.units_per_em() as f64;
     let mut path = BezPath::new();
     let mut x = 0.0;

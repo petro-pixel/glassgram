@@ -125,6 +125,13 @@ pub enum Icon {
     ArrowUpRight,
     /// Incoming or missed call.
     ArrowDownLeft,
+    /// Photo editor: rotate left, mirror, crop, draw, text, undo.
+    RotateCcw,
+    Flip,
+    Crop,
+    Brush,
+    Text,
+    Undo,
 }
 
 /// The Lucide SVG file of an icon; `None` for our own filled icons.
@@ -217,6 +224,12 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Image => include_str!("../assets/icons/image.svg"),
         Icon::ArrowUpRight => include_str!("../assets/icons/arrow-up-right.svg"),
         Icon::ArrowDownLeft => include_str!("../assets/icons/arrow-down-left.svg"),
+        Icon::RotateCcw => include_str!("../assets/icons/rotate-ccw.svg"),
+        Icon::Flip => include_str!("../assets/icons/flip-horizontal-2.svg"),
+        Icon::Crop => include_str!("../assets/icons/crop.svg"),
+        Icon::Brush => include_str!("../assets/icons/brush.svg"),
+        Icon::Text => include_str!("../assets/icons/type.svg"),
+        Icon::Undo => include_str!("../assets/icons/undo-2.svg"),
         Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
     })
 }

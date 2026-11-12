@@ -670,6 +670,7 @@ impl App {
                 self.open_todo_form(peer);
             }
             self.attach_menu_items(ui, peer);
+            self.demo_photo_item(ui, peer);
         });
         if glass::icon_button(ui, sticker_btn, "stickers", Icon::Smile, self.stickers.open, true).on_hover_text(l!("Стікери", "Stickers")).clicked() {
             self.stickers.open = !self.stickers.open;
