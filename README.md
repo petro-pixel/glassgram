@@ -201,7 +201,8 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/tray.rs`, `src/logo.rs`, `src/badge.rs` | Tray icon (`ksni` on Linux, `tray-icon` on Windows and macOS), the app logo, and the unread badge on the taskbar or dock icon |
 | `src/icons.rs`, `assets/icons/` | Vector icons: Lucide SVG files (24×24), parsed with `roxmltree` and flattened with `kurbo` |
 | `src/i18n.rs`, `src/i18n/plural.rs`, `locales/` | UI language: `l!`/`lf!`/`lp!` (counted, CLDR plural rules) for Ukrainian and English, JSON localisation files and Telegram packs (via `tdesktop-keys.json`) for the rest |
-| `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts |
+| `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts (Ubuntu, Noto Color Emoji) |
+| `src/emoji.rs`, `assets/emoji.txt`, `src/app/emojipanel.rs` | Emoji 17.0: the panel list by category (generated from Unicode's `emoji-test.txt`), skin tones, the emoji tab and big-emoji messages |
 | `src/demo.rs`, `src/demo/` | Demo data |
 | `build.rs` | Telegram API keys from the build environment (masked), the Windows exe icon |
 | `packaging/`, `.github/workflows/release.yml` | Windows installer (Inno Setup), Flatpak manifest, `.desktop`, metainfo, icons; release builds |
@@ -213,7 +214,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Double-click — reply. Click the reply bar above the field to quote a part of the message or to reply in another chat.
 - Esc cancels a reply or edit and closes the sticker panel.
 - 📎 — send files (or drag them into the window, or paste them): a box shows what goes, with the caption (the composer text), "Compress images", "Hide with spoiler", "Caption above media" and (one photo or video in a private chat) "View once"; more files dropped on it join it. A dropped folder goes as a zip archive; with several items, "Send as one archive" packs them all into one. Right click on 📎: send without compression, create a poll or quiz, create a checklist, and the attachment menu bots allowed in this chat (a click opens the bot's mini app for the chat, a right click removes it from the menu); a `t.me/<bot>?startattach` link asks to add its bot there first. A "Log in" button under a bot message (or a link to a site that supports it) asks "Log in to <domain> as <name>?", optionally letting the bot message you; "Don't log in" opens the plain address. A click on a checklist item ticks it; "View results" under a public poll lists who voted for what; a poll's menu retracts your vote or stops your own poll. A photo or video under a spoiler opens with a click. A view-once or timed photo or video shows a cover: a click opens it once, then it expires. Editing a photo or file ("Edit" in its menu): ⟳ in the "Editing" bar replaces it (right click — without compression), or drop a file on the chat.
-- 🙂 — sticker panel: emoji, GIF (saved GIFs), 🔍 (search sticker sets; empty — trending), ★ favourite and 🕒 recent stickers, then the installed sets; ⚙ — your sets: order (↑/↓) and removing. Right click on a sticker: add to / remove from favourites, view its set. A click on a sticker in a chat (or a `t.me/addstickers/…` link) opens its set: all stickers, "Add" / "Remove", copy link; right click on a sticker in a chat — "View sticker set", "Add to Favourites", on a GIF — "Save GIF". An emoji typed alone offers matching stickers above the field.
+- 🙂 — sticker panel: emoji (right click or a long press on 👋 and other people picks the skin tone, remembered for that emoji), GIF (saved GIFs), 🔍 (search sticker sets; empty — trending), ★ favourite and 🕒 recent stickers, then the installed sets; ⚙ — your sets: order (↑/↓) and removing. Right click on a sticker: add to / remove from favourites, view its set. A click on a sticker in a chat (or a `t.me/addstickers/…` link) opens its set: all stickers, "Add" / "Remove", copy link; right click on a sticker in a chat — "View sticker set", "Add to Favourites", on a GIF — "Save GIF". An emoji typed alone offers matching stickers above the field.
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.
 - A wide window shows chat info as a third column beside the chat; a narrow one shows the chat list or the open chat alone, with a back arrow in the chat header (Esc also returns to the list).
@@ -257,5 +258,6 @@ Rules for agents and the design code are in [AGENTS.md](AGENTS.md).
 
 GPL-3.0-or-later, like Telegram Desktop. See [LICENSE](LICENSE).
 The Ubuntu font is under the Ubuntu Font Licence, see [assets/fonts/UFL.txt](assets/fonts/UFL.txt).
+Colour emoji are [Noto Color Emoji](https://github.com/googlefonts/noto-emoji) under the SIL Open Font License 1.1, see [assets/fonts/OFL-NotoColorEmoji.txt](assets/fonts/OFL-NotoColorEmoji.txt).
 Icons are from [Lucide](https://lucide.dev) under the ISC licence, see [assets/icons/LUCIDE-LICENSE.txt](assets/icons/LUCIDE-LICENSE.txt).
 Glassgram is an unofficial client and is not affiliated with Telegram FZ-LLC.

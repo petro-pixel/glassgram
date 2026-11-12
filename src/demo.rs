@@ -14,6 +14,7 @@ use crate::i18n::{l, lf};
 mod stickers;
 mod stars;
 mod custom_emoji;
+mod emoji17;
 mod effects;
 mod music;
 mod wallpapers;
@@ -1500,6 +1501,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
             msgs.push(Msg { id: 76, unsupported: true, ..base(27, "Olena") });
             msgs.push(custom_emoji::message(base(28, "Olena")));
             msgs.extend(effects::messages(base(29, "Olena")));
+            msgs.extend(emoji17::messages(base(29, "Olena")));
         }
         4 => msgs.push(aitext::post(base(30, "Tech News"))),
         9 => {

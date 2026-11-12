@@ -403,8 +403,12 @@ pub fn char_to_byte(text: &str, chars: usize) -> usize {
 /// Ubuntu Bold, also drawn on the CPU (the username QR picture).
 pub const UBUNTU_BOLD: &[u8] = include_bytes!("../assets/fonts/Ubuntu-Bold.ttf");
 
+/// Noto Color Emoji (SIL OFL 1.1, `assets/fonts/OFL-NotoColorEmoji.txt`), the COLRv1 build of
+/// release v2.051: Emoji 17.0, with ZWJ sequences, skin tones and flags shaped as ligatures.
+const NOTO_COLOR_EMOJI: &[u8] = include_bytes!("../assets/fonts/NotoColorEmoji-COLRv1.ttf");
+
 /// Ubuntu font (Ubuntu Font Licence, `assets/fonts/UFL.txt`), embedded in the program.
-/// The default egui fonts stay as fallbacks, for emoji and symbols missing from Ubuntu.
+/// The default egui fonts stay as fallbacks, for symbols missing from Ubuntu and the emoji font.
 pub fn install_fonts(ctx: &eframe::egui::Context) {
     use eframe::egui::{FontData, FontDefinitions};
     use std::sync::Arc;
@@ -414,8 +418,14 @@ pub fn install_fonts(ctx: &eframe::egui::Context) {
         (ITALIC, include_bytes!("../assets/fonts/Ubuntu-Italic.ttf")),
         (BOLD_ITALIC, include_bytes!("../assets/fonts/Ubuntu-BoldItalic.ttf")),
     ];
+    const EMOJI: &str = "noto-color-emoji";
     let mut fonts = FontDefinitions::default();
-    let fallback = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
+    // Colour emoji go before egui's old monochrome ones but after Ubuntu: the emoji font also
+    // has digits, `#` and `*` (for keycaps), which must stay plain text.
+    fonts.font_data.insert(EMOJI.into(), Arc::new(FontData::from_static(NOTO_COLOR_EMOJI)));
+    let fallback: Vec<String> = std::iter::once(EMOJI.to_owned())
+        .chain(fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default())
+        .collect();
     for (name, bytes) in FACES {
         fonts.font_data.insert(name.into(), Arc::new(FontData::from_static(bytes)));
         let chain = std::iter::once(name.to_owned()).chain(fallback.iter().cloned()).collect();
