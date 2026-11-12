@@ -122,6 +122,8 @@ mod report;
 pub use report::ReportStep;
 pub use gifts::Gift;
 pub use stories::{Story, StoryPeer};
+mod story_post;
+pub use story_post::{StoryAudience, StoryDraft, is_story_video, probe_video};
 mod profile_stories;
 pub use profile_stories::{STORY_PAGE, StoryAlbum, StoryList, StoryViewer};
 pub use birthdays::Birthday;
@@ -411,6 +413,12 @@ pub enum Cmd {
     LoadStoryAlbums(PeerId),
     /// Who saw our story (`offset` empty for the first page). Read only.
     LoadStoryViewers { peer: PeerId, id: i32, offset: String },
+    /// Channels and groups we may post stories as (`stories.getChatsToSend`).
+    LoadStoryTargets,
+    /// Whether a story can go out now (`stories.canSendStory`); `None` is ourselves.
+    CanPostStory(Option<PeerId>),
+    /// Upload a photo or video and post it as a story (`stories.sendStory`).
+    PostStory(StoryDraft),
     /// Where the messages in Saved Messages came from.
     LoadSavedDialogs,
     /// Saved Messages from one source; `saved` is the Saved Messages chat itself.
@@ -809,6 +817,15 @@ pub enum Ev {
     StoryAlbums { peer: PeerId, albums: Vec<StoryAlbum> },
     /// A page of the viewers of our story and its counters.
     StoryViewers { peer: PeerId, id: i32, viewers: Vec<StoryViewer>, views: i32, reactions: i32, next: String, append: bool },
+    /// Channels and groups we may post stories as.
+    StoryTargets(Vec<ChatInfo>),
+    /// Stories left to post today, or why none can go out (limit, Premium).
+    StoryCanPost { target: Option<PeerId>, result: Result<i32, String> },
+    /// Our story went out: its owner and the server's copy, when the answer carried them.
+    StoryPosted { peer: Option<PeerId>, story: Option<Story> },
+    StoryPostFailed(String),
+    /// Someone's stories changed (`updateStory`): the strip is stale.
+    StoryChanged(PeerId),
     /// Sources of Saved Messages, newest first.
     SavedDialogs(Vec<ChatInfo>),
     /// A page of Saved Messages from one source.
@@ -1250,6 +1267,7 @@ impl Worker {
             }
             cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. } | Cmd::LoadStoryVideo { .. } | Cmd::ReactStory { .. } | Cmd::ReplyStory { .. }) => self.stories_cmd(cmd).await,
             cmd @ (Cmd::LoadProfileStories { .. } | Cmd::LoadStoryAlbums(_) | Cmd::LoadStoryViewers { .. }) => self.profile_stories_cmd(cmd).await,
+            cmd @ (Cmd::LoadStoryTargets | Cmd::CanPostStory(_) | Cmd::PostStory(_)) => self.story_post_cmd(cmd).await,
             cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. } | Cmd::LoadSavedTags | Cmd::LoadSavedTagged { .. } | Cmd::RenameSavedTag { .. }) => self.saved_cmd(cmd).await,
             cmd @ Cmd::LoadGifts(_) => self.gifts_cmd(cmd).await,
             cmd @ Cmd::Report { .. } => self.report_cmd(cmd).await,

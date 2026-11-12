@@ -22,6 +22,7 @@ mod sendas;
 mod aitext;
 mod translate;
 mod attach;
+mod story_post;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -566,12 +567,14 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::LoadStories => {
             // Olena and the channel have unseen stories, Andriy's were watched.
-            let list = [(1, vec![1, 2, 3], 0), (4, vec![7], 0), (5, vec![4, 5], 5)]
+            let demo = [(1, vec![1, 2, 3], 0), (4, vec![7], 0), (5, vec![4, 5], 5)]
                 .into_iter()
-                .filter_map(|(id, ids, max_read)| app.demo_chat(PeerId::user_unchecked(id)).cloned().map(|chat| StoryPeer { chat, ids, stories: Vec::new(), max_read }))
-                .collect();
+                .filter_map(|(id, ids, max_read)| app.demo_chat(PeerId::user_unchecked(id)).cloned().map(|chat| StoryPeer { chat, ids, stories: Vec::new(), max_read }));
+            let list = story_post::strip().into_iter().chain(demo).collect();
             app.push_event(Ev::Stories(list));
         }
+        cmd @ (Cmd::LoadStoryTargets | Cmd::CanPostStory(_) | Cmd::PostStory(_)) => story_post::handle(app, cmd),
+        cmd @ (Cmd::LoadPeerStories(peer) | Cmd::LoadStoryVideo { peer, .. }) if story_post::owns(peer) => story_post::handle(app, cmd),
         Cmd::LoadPeerStories(peer) => {
             let ids = app.stories_ids(peer);
             let now = jiff::Timestamp::now().as_second();
