@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 70%** `██████████████░░░░░░` — 119 done, 17 partial, 46 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 71%** `██████████████░░░░░░` — 120 done, 17 partial, 45 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -169,6 +169,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |
 | `src/app/editmedia.rs`, `src/backend/editmedia.rs` | Editing media messages: caption, replacing the photo or file |
 | `src/app/richtext.rs` | Formatting bar over selected text in the composer, formatting shortcuts |
+| `src/app/spellcheck.rs`, `src/spell.rs` | Spell checking in the composer: red wavy underlines, the suggestions menu, "Spell checker" in Settings → Advanced; Hunspell dictionaries (`spellbook`) downloaded on demand, the personal dictionary |
 | `src/app/sendbox.rs`, `src/app/spoiler.rs`, `src/zip.rs` | "Send files" box (previews, caption, compression, spoiler, caption above, folders and "one archive" packed into zip); spoiler cover over hidden media |
 | `src/app/webapp.rs`, `src/backend/webapp.rs`, `src/webview.rs` | Mini apps: server requests, the WebView window process (`glassgram --webview`) and its bridge |
 | `src/app/contacts.rs`, `src/backend/contacts.rs` | "New contact" box, add / delete contact and block from user info, blocked list in Privacy and Security |
@@ -219,6 +220,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - A wide window shows chat info as a third column beside the chat; a narrow one shows the chat list or the open chat alone, with a back arrow in the chat header (Esc also returns to the list).
 - Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat; admins right-click a member to promote, restrict or remove them), shared media tabs, a "Stories" tab with a person's or channel's pinned stories (album chips filter them; a click opens the viewer at that story), leave / clear history / delete chat. Admins open invite links, join requests, administrators, restricted and removed users from the "Edit" box (pencil) or, without the right to edit, from the people icon in the header.
 - Composer markup: `**bold**`, `__italic__`, `~~strike~~`, `||spoiler||`, `` `code` ``, ```` ```block``` ````, `[text](https://…)`; the field shows it styled with the markers faded. Selecting text shows a formatting bar above it; shortcuts: Ctrl+B bold, Ctrl+I italic, Ctrl+Shift+X strikethrough, Ctrl+Shift+M monospace, Ctrl+Shift+P spoiler, Ctrl+K link, Ctrl+Shift+N clear formatting.
+- Spell checking: misspelled words in the composer get a red wavy underline; a right click on one offers up to five corrections, "Add to dictionary" and "Ignore". Settings → Advanced → "Spell checker" turns it on and off; "Manage dictionaries" picks the languages and downloads their Hunspell dictionaries (the interface and system language and English by default) into `dictionaries/` in the data folder.
 - Clicking a hashtag searches for it in the chat; clicking a bot command sends it.
 - `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way.
 - A link preview appears above the composer; ✕ sends the message without it.

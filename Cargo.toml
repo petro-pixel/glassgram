@@ -50,6 +50,11 @@ aes = "0.9"
 ctr = "0.10"
 crc32fast = "1"
 sys-locale = "0.3"
+# Spell checking in the composer (spell.rs): reads Hunspell .aff/.dic dictionaries, pure Rust.
+spellbook = "0.4"
+# Downloading those dictionaries over HTTPS: rustls with ring (needs only a C compiler, like SQLite)
+# and the bundled webpki roots, so no system TLS library on any OS.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
 tokio = { version = "1.54.1", features = ["full"] }
 
 # Desktop notifications: D-Bus via zbus on Linux (pure Rust), WinRT toasts on Windows, Notification Center on macOS.

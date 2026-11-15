@@ -122,7 +122,12 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
             muted: id == 4,
             archived: id == 9,
             unread_mark: false,
-            draft: if id == 5 { "Don't forget the **slides**".into() } else { String::new() },
+            // The open chat's draft has two slips for the spell checker to underline.
+            draft: match id {
+                1 => "Sure, I'll send a better screenshot tonihgt. Дякую за терпіня 🙂".into(),
+                5 => "Don't forget the **slides**".into(),
+                _ => String::new(),
+            },
             presence: match id {
                 1 => Presence::Online(i64::MAX),
                 5 => Presence::Offline(jiff::Timestamp::now().as_second() - 3600),

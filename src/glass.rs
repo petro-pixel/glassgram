@@ -616,13 +616,55 @@ pub const AREA_FONT: f32 = 15.5;
 /// `send`: the modifiers that send with Enter (`NONE`: Enter sends, Shift+Enter breaks the line;
 /// `COMMAND`: Ctrl/Cmd+Enter sends, Enter breaks the line).
 pub fn text_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modifiers) -> (Response, bool) {
-    area(ui, rect, text, hint, send, false)
+    let (resp, submitted, _) = area(ui, rect, text, hint, send, None);
+    (resp, submitted)
 }
 
 /// The message field: like `text_area`, but the markup shows as it will look (bold bold, markers
 /// faded), and the selection's place on screen is kept for the formatting bar (`selection_rect`).
-pub fn rich_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modifiers) -> (Response, bool) {
-    area(ui, rect, text, hint, send, true)
+/// `misspelled` (character ranges) get a red wavy underline; the third value is the character a
+/// right click landed on, for the spelling menu.
+pub fn rich_area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modifiers, misspelled: &[std::ops::Range<usize>]) -> (Response, bool, Option<usize>) {
+    area(ui, rect, text, hint, send, Some(misspelled))
+}
+
+/// Telegram Desktop's mark for a misspelled word: a thin red wave along the bottom of its glyphs.
+fn wavy_underlines(p: &Painter, galley: &egui::Galley, origin: Pos2, ranges: &[std::ops::Range<usize>]) {
+    use egui::text::CCursor;
+    let stroke = Stroke::new(1.0, danger());
+    let wave = |x0: f32, x1: f32, y: f32| {
+        let n = (x1 - x0).ceil().max(1.0) as usize;
+        let pts: Vec<Pos2> = (0..=n)
+            .map(|i| {
+                let x = x0 + (x1 - x0) * i as f32 / n as f32;
+                pos2(x, y + (x * std::f32::consts::PI / 2.5).sin() * 1.2)
+            })
+            .collect();
+        p.add(Shape::line(pts, stroke));
+    };
+    for r in ranges {
+        // A word may wrap across rows: one wave per row.
+        let mut seg: Option<(f32, f32, f32)> = None;
+        for c in r.start..r.end {
+            let (a, b) = (galley.pos_from_cursor(CCursor::new(c)), galley.pos_from_cursor(CCursor::new(c + 1)));
+            if (a.top() - b.top()).abs() > 1.0 {
+                continue;
+            }
+            let y = origin.y + a.bottom() - 1.5;
+            let (x0, x1) = (origin.x + a.left(), origin.x + b.left());
+            seg = match seg {
+                Some((s0, _, sy)) if (sy - y).abs() < 1.0 => Some((s0, x1, sy)),
+                Some((s0, s1, sy)) => {
+                    wave(s0, s1, sy);
+                    Some((x0, x1, y))
+                }
+                None => Some((x0, x1, y)),
+            };
+        }
+        if let Some((s0, s1, sy)) = seg {
+            wave(s0, s1, sy);
+        }
+    }
 }
 
 /// Where the selected text of the `rich_area` with this hint was drawn last frame, if any is selected.
@@ -630,7 +672,8 @@ pub fn selection_rect(ctx: &egui::Context, edit_id: egui::Id) -> Option<Rect> {
     ctx.data(|d| d.get_temp::<Option<Rect>>(edit_id.with("selection")).flatten())
 }
 
-fn area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modifiers, rich: bool) -> (Response, bool) {
+fn area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modifiers, misspelled: Option<&[std::ops::Range<usize>]>) -> (Response, bool, Option<usize>) {
+    let rich = misspelled.is_some();
     let edit_id = ui.scope_id().with(("edit", hint));
     let focus = ui.ctx().animate_bool(ui.scope_id().with(("field", hint)), ui.memory(|m| m.has_focus(edit_id)));
     let radius = (rect.height() / 2.0).min(25.0);
@@ -662,6 +705,7 @@ fn area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modi
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
     // Inside a scrolled box the field must stay clipped by it too.
     child.set_clip_rect(inner.expand(2.0).intersect(ui.clip_rect()));
+    let clip = child.clip_rect();
     let resp = egui::ScrollArea::vertical()
         .id_salt(("area-scroll", hint))
         .max_height(inner.height())
@@ -676,7 +720,20 @@ fn area(ui: &mut Ui, rect: Rect, text: &mut String, hint: &str, send: egui::Modi
         });
         ui.data_mut(|d| d.insert_temp(edit_id.with("selection"), sel));
     }
-    (resp.response.response, submitted)
+    if let Some(marks) = misspelled.filter(|m| !m.is_empty()) {
+        // The galley is this frame's text; ranges found before an edit may run past its end.
+        let n = resp.galley.text().chars().count();
+        let marks: Vec<_> = marks.iter().filter(|r| r.end <= n).cloned().collect();
+        wavy_underlines(&ui.painter().with_clip_rect(clip), &resp.galley, resp.galley_pos, &marks);
+    }
+    let mut at = None;
+    if rich
+        && resp.response.response.secondary_clicked()
+        && let Some(p) = resp.response.response.interact_pointer_pos()
+    {
+        at = Some(resp.galley.cursor_from_pos(p - resp.galley_pos).index.0);
+    }
+    (resp.response.response, submitted, at)
 }
 
 const PALETTE: [(Color32, Color32); 7] = [
