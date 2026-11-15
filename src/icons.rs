@@ -121,6 +121,8 @@ pub enum Icon {
     Pip,
     QrCode,
     Image,
+    /// Channel boosts.
+    Zap,
 }
 
 /// The Lucide SVG file of an icon; `None` for our own filled icons.
@@ -211,6 +213,7 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Pip => include_str!("../assets/icons/picture-in-picture-2.svg"),
         Icon::QrCode => include_str!("../assets/icons/qr-code.svg"),
         Icon::Image => include_str!("../assets/icons/image.svg"),
+        Icon::Zap => include_str!("../assets/icons/zap.svg"),
         Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
     })
 }

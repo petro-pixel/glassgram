@@ -3,7 +3,7 @@
 //! Only what our own admin rights allow is offered.
 
 use super::*;
-use super::info::{chip, danger_row};
+use super::info::{action_row, chip, danger_row};
 use super::invites::Invites;
 use crate::backend::{AdminRights, ChatDetails, ChatRights, Member, MemberRole, PartList, Participant};
 
@@ -165,6 +165,10 @@ impl App {
 
     pub(super) fn manage_peer(&self) -> Option<PeerId> {
         self.manage.peer
+    }
+
+    pub(super) fn close_manage(&mut self) {
+        self.manage = Manage::default();
     }
 
     /// Opens the box on a page, with what the info panel knows about our rights.
@@ -425,6 +429,7 @@ impl App {
         let mut child = ui.new_child(UiBuilder::new().max_rect(body));
         child.set_clip_rect(body);
         let mut extra: Option<Cmd> = None;
+        let mut transfer: Option<ChatInfo> = None;
         egui::ScrollArea::vertical().id_salt("manage-editor").auto_shrink(false).show(&mut child, |ui| {
             ui.spacing_mut().item_spacing.y = 6.0;
             let user = match editor {
@@ -451,6 +456,11 @@ impl App {
                     }
                     if *existing {
                         ui.add_space(6.0);
+                        // Only the owner, and only to a person with every right ticked.
+                        let label = if me.channel { l!("Передати права на канал", "Transfer channel ownership") } else { l!("Передати права на групу", "Transfer group ownership") };
+                        if me.owner && user.kind != ChatKind::Bot && super::transfer::offered(rights, me.channel, me.basic, me.forum) && action_row(ui, label, ACCENT).clicked() {
+                            transfer = Some(user.clone());
+                        }
                         if danger_row(ui, l!("Звільнити адміністратора", "Dismiss admin")).clicked() {
                             extra = Some(Cmd::EditAdmin { peer, user: user.id, rights: None, rank: String::new() });
                         }
@@ -497,7 +507,9 @@ impl App {
         let cancel = glass::button(ui, Rect::from_min_size(buttons.min, vec2(half, buttons.height())), "manage-cancel", l!("Скасувати", "Cancel"), false, true).clicked();
         let ok_label = if matches!(editor, Editor::Ban { .. }) { l!("Вилучити", "Remove") } else { l!("Зберегти", "Save") };
         let save = glass::button(ui, Rect::from_min_size(pos2(buttons.right() - half, buttons.top()), vec2(half, buttons.height())), "manage-save", ok_label, true, true).clicked();
-        if let Some(cmd) = extra {
+        if let Some(user) = transfer {
+            self.ask_transfer(peer, user, me.channel);
+        } else if let Some(cmd) = extra {
             self.manage.editor = None;
             self.send(cmd);
         } else if cancel {

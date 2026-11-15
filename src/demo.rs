@@ -22,6 +22,7 @@ mod sendas;
 mod aitext;
 mod translate;
 mod attach;
+mod boosts;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -56,6 +57,7 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
             (false, "Tech News", "📷 Photo\nThe new Wi-Fi standard promises half the latency."),
             (false, "Tech News", "Linux 7.3 is out: a new scheduler and faster file systems."),
             (false, "Tech News", "Europe agrees on one charging port for laptops."),
+            (false, "Tech News", "Premium subscribers, boost the channel so we can post stories: [t.me/boost/tech_news_demo](https://t.me/boost/tech_news_demo)"),
         ],
         &[(false, "Andriy", "Call tomorrow at 10:00?"), (true, "", "Yes, deal 👍"), (false, "Andriy", "Here's [the quarterly report](https://example.org/q3-report), have a look before the call")],
         &[(true, "", "/weather Kyiv"), (false, "WeatherBot", "☀ Kyiv: +18°, clear, wind 3 m/s")],
@@ -974,6 +976,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::DiscussionGroups { peer, groups });
         }
         cmd @ Cmd::LoadStars { .. } => stars::handle(app, cmd),
+        cmd @ (Cmd::LoadBoosts(_) | Cmd::ApplyBoost { .. } | Cmd::LoadBoosters { .. } | Cmd::OpenBoostLink(_) | Cmd::TransferOwnership { .. }) => boosts::handle(app, cmd),
         cmd @ (Cmd::LoadLanguages | Cmd::LoadLangPack { .. }) => langpack::handle(app, cmd),
         Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites => {
             let gone = match &cmd {
@@ -1805,6 +1808,11 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             d.admin_log = true;
             d.linked = Some((PeerId::user_unchecked(2), "Rust Team 🦀".into()));
             d.my_rights = Some(AdminRights::all());
+            // We own it until it is transferred to Andriy (`demo/boosts.rs`).
+            d.creator = boosts::owned(peer);
+            if boosts::transferred(peer) {
+                d.my_rights = Some(AdminRights { add_admins: false, ..AdminRights::all() });
+            }
         }
         _ => {}
     }
@@ -2046,6 +2054,9 @@ fn manage(app: &mut App, cmd: Cmd) {
                     None => part(id),
                 };
                 match &list {
+                    // Olena owns the group; the news channel is ours, or Andriy's after the transfer.
+                    PartList::Admins if boosts::owned(peer) => m.admins.iter().map(|a| a.0).map(admin).collect::<Vec<_>>(),
+                    PartList::Admins if boosts::transferred(peer) => vec![Participant { owner: true, admin: Some(AdminRights::all()), can_edit: false, ..part(5) }],
                     PartList::Admins => std::iter::once(1).chain(m.admins.iter().map(|a| a.0)).map(admin).collect::<Vec<_>>(),
                     PartList::Restricted => m.restricted.iter().map(|r| Participant { restricted: Some((r.1, r.2)), by: "Andriy".into(), ..part(r.0) }).collect(),
                     PartList::Removed => m.removed.iter().map(|id| Participant { by: "Andriy".into(), ..part(*id) }).collect(),

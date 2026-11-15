@@ -110,6 +110,8 @@ enum Do {
     Wallpaper,
     /// Play the user's profile music.
     ProfileMusic,
+    /// The boost box; `true` for admins.
+    Boost(bool),
 }
 
 fn has_members(kind: ChatKind) -> bool {
@@ -447,6 +449,7 @@ impl App {
                 self.open_chat_edit(peer, d);
             }
             Do::Manage(page) => self.open_manage(peer, page),
+            Do::Boost(admin) => self.open_boosts(peer, chat.title.clone(), chat.kind == ChatKind::Channel, admin),
             Do::ManageMember(m, pick) => self.manage_member(peer, &m, pick),
             Do::AddContact => self.open_contact_form(Some((peer, &chat.title))),
             Do::Unblock => self.send(Cmd::Block { peer, blocked: false }),
@@ -567,6 +570,18 @@ impl App {
             let n = d.requests;
             if info_row(ui, Icon::User, &lf!("Заявок на вступ: {n}", "{n} join requests"), l!("Чекають на схвалення", "Waiting for approval")).clicked() {
                 todo.push(Do::Manage(super::manage::Page::Requests));
+            }
+        }
+        // Channels and supergroups can be boosted; admins also see who boosted.
+        if chat.kind == ChatKind::Channel || (chat.kind == ChatKind::Group && !d.basic_group) {
+            let admin = d.my_rights.is_some();
+            let (text, caption) = match (admin, chat.kind == ChatKind::Channel) {
+                (true, _) => (l!("Підсилення", "Boosts"), l!("Рівень, хто підсилив і посилання", "Level, boosters and the boost link")),
+                (false, true) => (l!("Підсилити канал", "Boost channel"), l!("Віддайте каналу своє підсилення Premium", "Give the channel your Premium boost")),
+                (false, false) => (l!("Підсилити групу", "Boost group"), l!("Віддайте групі своє підсилення Premium", "Give the group your Premium boost")),
+            };
+            if info_row(ui, Icon::Zap, text, caption).clicked() {
+                todo.push(Do::Boost(admin));
             }
         }
         let icon = if d.notify.muted() { Icon::Muted } else { Icon::Bell };
@@ -988,7 +1003,7 @@ pub(super) fn danger_row(ui: &mut Ui, label: &str) -> egui::Response {
     action_row(ui, label, glass::danger())
 }
 
-fn action_row(ui: &mut Ui, label: &str, color: Color32) -> egui::Response {
+pub(super) fn action_row(ui: &mut Ui, label: &str, color: Color32) -> egui::Response {
     let w = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(vec2(w, 40.0), Sense::click());
     let hover = ui.ctx().animate_bool(resp.id, resp.hovered());

@@ -92,6 +92,10 @@ pub use adminlog::AdminLogEntry;
 pub use chatlists::{Chatlist, ChatlistAction};
 mod password;
 pub use password::{PasswordChange, PasswordState};
+mod boosts;
+pub use boosts::{BoostSlot, BoostStatus, Booster};
+mod transfer;
+pub use transfer::TransferStep;
 mod chatedit;
 mod birthdays;
 mod botstart;
@@ -618,6 +622,16 @@ pub enum Cmd {
     AskLeaveChatlist(i32),
     /// Join, update or leave a shared folder with the ticked chats.
     ApplyChatlist { action: ChatlistAction, peers: Vec<PeerId> },
+    /// A chat's boost level (`premium.getBoostsStatus`) and our slots (`premium.getMyBoosts`).
+    LoadBoosts(PeerId),
+    /// Boost `peer` with these slots, moving them from other chats (`premium.applyBoost`).
+    ApplyBoost { peer: PeerId, slots: Vec<i32> },
+    /// A page of the chat's boosters, for admins (`premium.getBoostsList`); `offset` empty — the first.
+    LoadBoosters { peer: PeerId, offset: String },
+    /// A `t.me/boost/<name>` or `t.me/<name>?boost` link: resolve the chat, answer `Ev::BoostLink`.
+    OpenBoostLink(String),
+    /// Make `user` the owner (`messages.editChatCreator`); `password: None` only checks whether we may.
+    TransferOwnership { peer: PeerId, user: PeerId, password: Option<String> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -907,6 +921,17 @@ pub enum Ev {
     JoinRequests { peer: PeerId, list: Vec<JoinRequest> },
     /// A shared folder box to show.
     Chatlist(Chatlist),
+    BoostStatus { peer: PeerId, status: BoostStatus },
+    /// Our boost slots; empty without Premium.
+    MyBoosts(Vec<BoostSlot>),
+    /// Our boost went to `peer`.
+    Boosted(PeerId),
+    BoostFailed { peer: PeerId, error: String },
+    Boosters { peer: PeerId, count: i32, list: Vec<Booster>, next: String, append: bool },
+    /// The chat of a boost link: open its boost box.
+    BoostLink(ChatInfo),
+    /// Where an ownership transfer of `peer` to `user` stands.
+    Transfer { peer: PeerId, user: PeerId, step: TransferStep },
 }
 
 /// The General forum topic.
@@ -1200,6 +1225,8 @@ impl Worker {
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ Cmd::LoadStars { .. } => self.stars_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
+            cmd @ (Cmd::LoadBoosts(_) | Cmd::ApplyBoost { .. } | Cmd::LoadBoosters { .. } | Cmd::OpenBoostLink(_)) => self.boosts_cmd(cmd).await,
+            cmd @ Cmd::TransferOwnership { .. } => self.transfer_cmd(cmd).await,
             cmd @ (Cmd::LoadLanguages | Cmd::LoadLangPack { .. }) => self.langpack_cmd(cmd).await,
             cmd @ (Cmd::LoadAdminLog { .. } | Cmd::SetSignatures { .. } | Cmd::LoadDiscussionGroups(_) | Cmd::SetDiscussionGroup { .. }) => self.admin_cmd(cmd).await,
             cmd @ (Cmd::LoadParticipants { .. } | Cmd::EditAdmin { .. } | Cmd::RestrictMember { .. } | Cmd::BanMember { .. } | Cmd::UnbanMember { .. }) => self.manage_cmd(cmd).await,
