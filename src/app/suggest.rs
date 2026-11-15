@@ -257,7 +257,7 @@ impl App {
         let h = items.len().min(ROWS) as f32 * ROW_H + 16.0;
         let panel = Rect::from_min_max(pos2(rect.left(), (rect.bottom() - h).max(rect.top())), rect.max);
         glass::glass(ui.painter(), panel, Glass::tinted(22.0, glass::chrome(), 160).frosted(1.0).with_shadow());
-        ui.interact(panel, ui.scope_id().with("suggest-bg"), Sense::click());
+        ui.interact(panel, ui.scope_id().with("suggest-bg"), Sense::CLICK);
         let inner = panel.shrink2(vec2(8.0, 8.0));
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
         child.set_clip_rect(inner);

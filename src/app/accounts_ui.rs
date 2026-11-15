@@ -127,7 +127,7 @@ impl App {
     pub(super) fn accounts_menu(&mut self, ui: &mut Ui) {
         let screen = ui.max_rect();
         // A click outside the menu closes it.
-        if ui.interact(screen, ui.scope_id().with("accounts-bg"), Sense::click()).clicked() {
+        if ui.interact(screen, ui.scope_id().with("accounts-bg"), Sense::CLICK).clicked() {
             self.accounts_open = false;
             return;
         }

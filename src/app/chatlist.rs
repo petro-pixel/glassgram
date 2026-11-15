@@ -260,7 +260,7 @@ impl App {
                             continue;
                         }
                         let r = slot.translate(vec2(glide(ui, gid, rel) - rel, 0.0));
-                        let grip = ui.interact(r, gid.with("drag"), Sense::drag());
+                        let grip = ui.interact(r, gid.with("drag"), Sense::DRAG);
                         grabs.push((grip, *id, r.left()));
                         let resp = glass::button(ui, r, ("folder", *id), &text, false, true);
                         if resp.clicked() {
@@ -287,7 +287,7 @@ impl App {
                         let widths: Vec<(i32, f32)> = items.iter().filter_map(|(id, t, u)| id.filter(|x| *x != ARCHIVE).map(|id| (id, tab_w(t, *u)))).collect();
                         let span: f32 = widths.iter().map(|(_, w)| w + TAB_GAP).sum::<f32>() - TAB_GAP;
                         let gid = ui.scope_id().with(("tab-x", id));
-                        let grip = ui.interact(slot, gid.with("drag"), Sense::drag());
+                        let grip = ui.interact(slot, gid.with("drag"), Sense::DRAG);
                         if let (Some(d), Some(p)) = (self.folder_drag.as_mut(), ui.input(|i| i.pointer.interact_pos())) {
                             let pos = (p.x - d.grab - origin).clamp(first, first + span - slot.width());
                             d.follow(pos - first, |k| widths.iter().find(|(i, _)| *i == k).map_or(0.0, |(_, w)| *w), TAB_GAP);
@@ -354,7 +354,7 @@ impl App {
                         continue;
                     }
                     let r = slot.translate(vec2(0.0, glide(ui, gid, rel) - rel));
-                    let grip = ui.interact(r, gid.with("drag"), Sense::drag());
+                    let grip = ui.interact(r, gid.with("drag"), Sense::DRAG);
                     grabs.push((grip, *id, r.top()));
                     let resp = self.folder_cell(ui, r, *id, title, *unread, false);
                     if resp.clicked() {
@@ -364,7 +364,7 @@ impl App {
                 }
                 if let Some((id, title, unread, slot)) = lifted {
                     let gid = ui.scope_id().with(("cell-y", id));
-                    let grip = ui.interact(slot, gid.with("drag"), Sense::drag());
+                    let grip = ui.interact(slot, gid.with("drag"), Sense::DRAG);
                     let step = CELL_H + CELL_GAP;
                     if let (Some(d), Some(p)) = (self.folder_drag.as_mut(), ui.input(|i| i.pointer.interact_pos())) {
                         // Only folders move: "All chats" stays first, the archive stays last.
@@ -398,6 +398,7 @@ impl App {
     /// Column item: icon, the name below it and the unread badge at the icon corner.
     fn folder_cell(&self, ui: &mut Ui, rect: Rect, id: Option<i32>, title: &str, unread: usize, lifted: bool) -> egui::Response {
         let resp = ui.interact(rect, ui.scope_id().with(("folder-cell", id)), Sense::click());
+        resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Tab, true, self.folder == id, title));
         let hover = ui.ctx().animate_bool(resp.id, resp.hovered());
         let sel = ui.ctx().animate_bool(resp.id.with("sel"), self.folder == id);
         let p = ui.painter();
@@ -500,7 +501,7 @@ impl App {
                 }
                 let rel = slot.top() - origin;
                 let r = slot.translate(vec2(0.0, glide(ui, gid, rel) - rel));
-                let grip = ui.interact(r, gid.with("drag"), Sense::drag());
+                let grip = ui.interact(r, gid.with("drag"), Sense::DRAG);
                 let mut row = ui.new_child(UiBuilder::new().max_rect(r).id_salt(("pin-row", chat.id)));
                 let resp = chat_row(&mut row, chat, selected, tex, typing, draft, &tags, density);
                 if drag.is_none()
@@ -525,7 +526,7 @@ impl App {
         // The lifted row is drawn last, on top; it follows the pointer within the pinned block.
         if let Some((chat, slot)) = lifted {
             let gid = ui.scope_id().with(("pin-y", self.folder, chat.id));
-            let grip = ui.interact(slot, gid.with("drag"), Sense::drag());
+            let grip = ui.interact(slot, gid.with("drag"), Sense::DRAG);
             let step = row_h + ROW_GAP;
             if let (Some((_, d)), Some(p)) = (drag.as_mut(), ui.input(|i| i.pointer.interact_pos())) {
                 let pos = (p.y - d.grab - origin).clamp(0.0, step * (pinned as f32 - 1.0).max(0.0));

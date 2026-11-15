@@ -268,7 +268,7 @@ impl App {
         };
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        ui.interact(screen, ui.scope_id().with("web-ask-bg"), Sense::click());
+        ui.interact(screen, ui.scope_id().with("web-ask-bg"), Sense::CLICK);
         let w = 380.0;
         let g = ui.painter().layout(body, FontId::proportional(14.0), ink_dim(), w - 36.0);
         let rect = Rect::from_center_size(screen.center(), vec2(w, 18.0 + 30.0 + g.size().y + 20.0 + 34.0 + 18.0));

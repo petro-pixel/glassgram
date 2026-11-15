@@ -71,7 +71,7 @@ impl App {
         let (username, own) = (open.username.clone(), open.own);
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        let bg = ui.interact(screen, ui.scope_id().with("user-qr-bg"), Sense::click());
+        let bg = ui.interact(screen, ui.scope_id().with("user-qr-bg"), Sense::CLICK);
         let esc = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
         if username.is_empty() {
             self.user_qr_none(ui, screen, own, esc || bg.clicked());

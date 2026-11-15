@@ -92,7 +92,7 @@ impl App {
         let Some((peer, id, title, color)) = &mut self.forum.edit else { return };
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        ui.interact(screen, ui.scope_id().with("topic-bg"), Sense::click());
+        ui.interact(screen, ui.scope_id().with("topic-bg"), Sense::CLICK);
         let rect = Rect::from_center_size(screen.center(), vec2(360.0, if id.is_none() { 210.0 } else { 160.0 }));
         glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());
         let inner = rect.shrink(18.0);

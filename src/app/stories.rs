@@ -310,7 +310,7 @@ impl App {
         let screen = ui.max_rect();
         let painter = ui.painter().clone();
         painter.rect_filled(screen, 0.0, Color32::from_black_alpha(235));
-        let bg = ui.interact(screen, ui.scope_id().with("story-bg"), Sense::click());
+        let bg = ui.interact(screen, ui.scope_id().with("story-bg"), Sense::CLICK);
         let mut step = None;
         let close = Rect::from_min_size(pos2(screen.right() - 58.0, screen.top() + 16.0), vec2(42.0, 42.0));
         if glass::icon_button(ui, close, "story-close", Icon::Close, false, true).on_hover_text(l!("Закрити (Esc)", "Close (Esc)")).clicked() {

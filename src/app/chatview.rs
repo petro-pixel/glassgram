@@ -97,7 +97,7 @@ pub(super) fn pin_menu(ui: &mut Ui, m: &Msg, chat: &ChatInfo, action: &mut Optio
 }
 
 /// One-line preview for the pinned bar and list: cards and media have no text of their own.
-fn preview(m: &Msg) -> String {
+pub(super) fn preview(m: &Msg) -> String {
     let label = if let Some(poll) = &m.poll {
         format!("📊 {}", poll.question)
     } else if let Some(t) = &m.todo {

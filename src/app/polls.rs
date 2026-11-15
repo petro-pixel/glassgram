@@ -95,7 +95,7 @@ impl PollForm {
 pub(super) fn modal(ui: &mut Ui, id: &str, w: f32, h: f32) -> Rect {
     let screen = ui.max_rect();
     ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-    ui.interact(screen, ui.scope_id().with((id, "bg")), Sense::click());
+    ui.interact(screen, ui.scope_id().with((id, "bg")), Sense::CLICK);
     let rect = Rect::from_center_size(screen.center(), vec2(screen.width().min(w) - 20.0, (screen.height() - 60.0).min(h)));
     glass::glass(ui.painter(), rect, Glass::panel(26.0).with_shadow());
     rect.shrink(18.0)

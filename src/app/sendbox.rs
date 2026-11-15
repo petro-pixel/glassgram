@@ -268,7 +268,7 @@ impl App {
         }
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        ui.interact(screen, ui.scope_id().with("send-box-bg"), Sense::click());
+        ui.interact(screen, ui.scope_id().with("send-box-bg"), Sense::CLICK);
         let w = screen.width().min(460.0) - 20.0;
         let tiles = b.tiles();
         let rows = b.paths.len() - tiles.len();

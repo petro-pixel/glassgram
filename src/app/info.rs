@@ -311,7 +311,7 @@ impl App {
         let mut todo = Vec::new();
         glass::glass(ui.painter(), rect, Glass::panel(26.0).with_shadow());
         // Swallow clicks so they do not reach the chat underneath in overlay mode.
-        ui.interact(rect, ui.scope_id().with("info-bg"), Sense::click());
+        ui.interact(rect, ui.scope_id().with("info-bg"), Sense::CLICK);
 
         let title = match chat.kind {
             ChatKind::User | ChatKind::Bot => l!("Інформація", "User info"),
@@ -810,7 +810,7 @@ impl App {
         let can_revoke = kind == ChatKind::User && matches!(what, Confirm::Clear | Confirm::Delete);
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        ui.interact(screen, ui.scope_id().with("info-confirm-bg"), Sense::click());
+        ui.interact(screen, ui.scope_id().with("info-confirm-bg"), Sense::CLICK);
         let rect = Rect::from_center_size(screen.center(), vec2(380.0, if can_revoke { 210.0 } else { 180.0 }));
         glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());
         let inner = rect.shrink(18.0);

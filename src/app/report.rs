@@ -41,7 +41,7 @@ impl App {
         let h = (60.0 + rows as f32 * 40.0 + 16.0).min(rect.height() - 40.0);
         let panel = Rect::from_center_size(rect.center(), vec2(rect.width().min(380.0), h));
         glass::glass(ui.painter(), panel, Glass::panel(24.0).with_shadow());
-        ui.interact(panel, ui.scope_id().with("report-bg"), Sense::click());
+        ui.interact(panel, ui.scope_id().with("report-bg"), Sense::CLICK);
         let title = match &b.step {
             Some(ReportStep::Choose { title, .. }) if !title.is_empty() => title.clone(),
             _ => l!("Поскаржитися", "Report").to_owned(),

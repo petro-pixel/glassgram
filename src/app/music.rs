@@ -426,7 +426,7 @@ impl App {
     /// The queue with the current track marked; a click plays a track.
     fn music_playlist(&mut self, ui: &mut Ui, panel: Rect, peer: PeerId) {
         glass::glass(ui.painter(), panel, Glass::panel(24.0).with_shadow());
-        ui.interact(panel, ui.scope_id().with("music-playlist-bg"), Sense::click());
+        ui.interact(panel, ui.scope_id().with("music-playlist-bg"), Sense::CLICK);
         let n = self.music.queue.len();
         let profile = self.music.current.is_some_and(|c| c.1 < 0);
         let title = if profile { l!("Музика профілю", "Profile music") } else { l!("Плейлист", "Playlist") };

@@ -43,6 +43,7 @@ pub(super) fn dice_bubble(ui: &mut Ui, m: &Msg, emoji: &str, value: i32, look: L
     const SIZE: f32 = 120.0;
     let avail = ui.available_width();
     let (row, resp) = ui.allocate_exact_size(vec2(avail, SIZE + 40.0), Sense::click());
+    a11y::describe_msg(&resp, m);
     pick_mark(ui, row, look);
     if look.picking && resp.clicked() {
         return Some(Action::Pick(m.id));
