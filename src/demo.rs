@@ -12,6 +12,7 @@ use crate::format;
 use crate::i18n::{l, lf};
 
 mod stickers;
+mod own_stickers;
 mod stars;
 mod custom_emoji;
 mod emoji17;
@@ -331,6 +332,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         | Cmd::SaveGif { .. }
         | Cmd::LoadStickerThumbs(_)
         | Cmd::SendSticker { .. }) => stickers::handle(app, cmd),
+        cmd @ Cmd::OwnStickers(_) => own_stickers::handle(app, cmd),
         cmd @ (Cmd::LoadWallPapers | Cmd::LoadChatThemes | Cmd::LoadChatWallPaper(_) | Cmd::DownloadWallPaper(_) | Cmd::SetChatWallPaper { .. } | Cmd::SetChatTheme { .. }) => wallpapers::handle(app, cmd),
         Cmd::SendDice { peer, emoji, reply_to, send_as } => {
             let top = match emoji.as_str() {

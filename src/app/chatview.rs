@@ -343,6 +343,7 @@ impl App {
             Action::Summary(id) => self.summary(peer, id),
             Action::Report(id) => self.start_report(peer, vec![id]),
             a @ (Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_)) => self.sticker_msg_action(peer, a),
+            Action::AddToStickerSet(id) => self.add_to_own_set(peer, id),
             a @ (Action::View(id) | Action::Play(id)) if self.is_view_once(peer, id) => return self.open_view_once(peer, a),
             Action::Effect(id) => self.replay_effect(peer, id),
             Action::InstantView(id) => self.open_instant_view(peer, id),

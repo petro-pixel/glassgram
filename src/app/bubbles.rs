@@ -65,6 +65,9 @@ pub(super) fn message_menu(ui: &mut Ui, m: &Msg, chat: Option<&ChatInfo>, action
             *action = Some(Action::FaveSticker(m.id));
         }
     }
+    if !protected && m.id > 0 && (m.sticker.is_some() || m.photo) && glass::menu_button(ui, Icon::Plus, l!("Додати до набору стікерів", "Add to sticker set")).clicked() {
+        *action = Some(Action::AddToStickerSet(m.id));
+    }
     if !protected && m.id > 0 && m.media.as_ref().is_some_and(|i| i.kind == MediaKind::Gif) && glass::menu_button(ui, Icon::Bookmark, l!("Зберегти GIF", "Save GIF")).clicked() {
         *action = Some(Action::SaveGif(m.id));
     }

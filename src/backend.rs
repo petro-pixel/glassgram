@@ -125,6 +125,8 @@ mod stars;
 pub use stars::{StarsDir, StarsTx};
 mod stickers;
 pub use stickers::{DocRef, FAVED_SET, RECENT_SET, StickerSetInfo, StickerSetRef, addstickers_name};
+mod own_stickers;
+pub use own_stickers::{NewSticker, OWN_EMOJI_MAX, OWN_STICKERS_MAX, OwnEv, OwnOp, OwnSet, STICKER_FILE_EXTS, short_name_ok};
 mod emojikw;
 mod custom_emoji;
 mod effects;
@@ -362,6 +364,8 @@ pub enum Cmd {
     LoadSavedGifs,
     SaveGif { doc: DocRef, unsave: bool },
     LoadStickerThumbs(Vec<i64>),
+    /// Our own sticker and emoji sets: creating, adding and editing stickers, renaming, deleting.
+    OwnStickers(OwnOp),
     Download { peer: PeerId, id: i32 },
     /// What downloads without a click; photos are held back here, the rest in the UI.
     SetAutoDownload(crate::settings::AutoDownload),
@@ -760,6 +764,8 @@ pub enum Ev {
     StickerSet(StickerSetInfo),
     /// A set was installed (with its stickers) or removed (`installed: false`).
     StickerSetChanged(StickerSetInfo),
+    /// Answers about our own sticker sets.
+    OwnStickers(OwnEv),
     /// Found sets, or trending ones for an empty query.
     FoundStickerSets { query: String, sets: Vec<StickerSetInfo> },
     FavedStickers(Vec<(i64, String)>),
@@ -1374,6 +1380,7 @@ impl Worker {
             cmd @ (Cmd::LoadStickers | Cmd::OpenStickerSet(_) | Cmd::InstallStickerSet { .. } | Cmd::SearchStickerSets(_) | Cmd::ReorderStickerSets(_) | Cmd::FaveSticker { .. } | Cmd::LoadSavedGifs | Cmd::SaveGif { .. }) => {
                 self.stickers_cmd(cmd).await
             }
+            cmd @ Cmd::OwnStickers(_) => self.own_stickers_cmd(cmd).await,
             Cmd::LoadScheduled(peer) => self.load_scheduled(peer).await,
             Cmd::Search { peer, query, kind, from } => self.search(peer, query, kind, from).await,
             cmd @ (Cmd::LoadPinned(_) | Cmd::PinMessage { .. } | Cmd::UnpinAll(_) | Cmd::LoadUnreadMarks { .. } | Cmd::ReadMarks { .. } | Cmd::LoadReadBy { .. } | Cmd::JumpToDate { .. } | Cmd::LoadMediaDays { .. }) => {

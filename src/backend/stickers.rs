@@ -168,7 +168,7 @@ impl Worker {
     }
 
     /// The input of a set we have listed.
-    fn set_input(&self, id: i64) -> Result<tl::enums::InputStickerSet, String> {
+    pub(super) fn set_input(&self, id: i64) -> Result<tl::enums::InputStickerSet, String> {
         let access_hash = *self.set_hashes.get(&id).ok_or(l!("Набір стікерів не знайдено", "Sticker set not found"))?;
         Ok(tl::types::InputStickerSetId { id, access_hash }.into())
     }
@@ -186,7 +186,7 @@ impl Worker {
         Ok(self.set_info(set, stickers))
     }
 
-    fn set_info(&mut self, set: tl::types::StickerSet, stickers: Vec<(i64, String)>) -> StickerSetInfo {
+    pub(super) fn set_info(&mut self, set: tl::types::StickerSet, stickers: Vec<(i64, String)>) -> StickerSetInfo {
         self.set_hashes.insert(set.id, set.access_hash);
         StickerSetInfo {
             id: set.id,
@@ -255,6 +255,7 @@ impl Worker {
                     .iter()
                     .find_map(|a| match a {
                         tl::enums::DocumentAttribute::Sticker(s) => Some(s.alt.clone()),
+                        tl::enums::DocumentAttribute::CustomEmoji(e) => Some(e.alt.clone()),
                         _ => None,
                     })
                     .unwrap_or_default();
@@ -266,7 +267,7 @@ impl Worker {
     }
 }
 
-fn input_doc(d: &tl::types::Document) -> tl::enums::InputDocument {
+pub(super) fn input_doc(d: &tl::types::Document) -> tl::enums::InputDocument {
     tl::types::InputDocument { id: d.id, access_hash: d.access_hash, file_reference: d.file_reference.clone() }.into()
 }
 

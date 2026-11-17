@@ -106,6 +106,7 @@ mod manage;
 mod invites;
 mod chatlists;
 mod stickers;
+mod own_stickers;
 mod wallpapers;
 mod searchtabs;
 mod autodl;
@@ -242,6 +243,8 @@ enum Action {
     /// Open the set of a sticker in a message.
     StickerSet(i32),
     FaveSticker(i32),
+    /// Add a sticker or photo from a message to one of our own sets.
+    AddToStickerSet(i32),
     SaveGif(i32),
     /// Play the message's effect again (a click on its badge).
     Effect(i32),
@@ -514,6 +517,8 @@ pub struct App {
     folder: Option<i32>,
     /// The sticker and emoji panel: sets, the open set, thumbnails asked for.
     stickers: stickers::StickerPanel,
+    /// Our own sticker sets: creating and editing them.
+    own_stickers: own_stickers::OwnStickers,
     /// Skin tones picked in the emoji tab and its open tone row.
     emoji_panel: emojipanel::EmojiPanel,
     uploads: Vec<Upload>,
@@ -833,6 +838,7 @@ impl App {
             folder_meta: folders::FolderMeta::default(),
             folder: None,
             stickers: stickers::StickerPanel::default(),
+            own_stickers: own_stickers::OwnStickers::default(),
             emoji_panel: emojipanel::EmojiPanel::default(),
             uploads: Vec::new(),
             picked: Vec::new(),
@@ -1032,6 +1038,7 @@ impl App {
             ev @ (Ev::Exported { .. } | Ev::ExportProgress { .. } | Ev::Scheduled { .. }) => self.dialogs_event(ev),
             ev @ (Ev::InlineResults { .. } | Ev::UploadProgress { .. } | Ev::UploadDone(..)) => self.composer_event(ev),
             ev @ (Ev::Stickers(..) | Ev::StickerSet(..) | Ev::StickerSetChanged(..) | Ev::FoundStickerSets { .. } | Ev::FavedStickers(..) | Ev::SavedGifs(..)) => self.stickers_event(ev),
+            Ev::OwnStickers(ev) => self.own_stickers_event(ev),
             ev @ (Ev::MediaReady { .. } | Ev::Listened { .. }) => self.media_event(ev),
             ev @ (Ev::Music { .. } | Ev::SavedMusic { .. }) => self.music_event(ev),
             Ev::MediaStream { peer, id, url } => self.on_media_stream(peer, id, url),
@@ -1668,7 +1675,7 @@ impl App {
                 }
             },
             // Handled by `chat_view_action`.
-            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_) | Action::Effect(_) | Action::InstantView(_) => {}
+            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::AddToStickerSet(_) | Action::SaveGif(_) | Action::Effect(_) | Action::InstantView(_) => {}
         }
     }
 
@@ -1903,6 +1910,7 @@ impl eframe::App for App {
         self.boosts_view(ui);
         self.chatlist_view(ui);
         self.sticker_set_box(ui);
+        self.own_stickers_box(ui);
         self.privacy_pick_view(ui);
         self.tag_rename_view(ui);
         self.user_qr_view(ui);
