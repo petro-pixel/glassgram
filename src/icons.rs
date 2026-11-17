@@ -132,6 +132,8 @@ pub enum Icon {
     Brush,
     Text,
     Undo,
+    /// Channel boosts.
+    Zap,
 }
 
 /// The Lucide SVG file of an icon; `None` for our own filled icons.
@@ -230,6 +232,7 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Brush => include_str!("../assets/icons/brush.svg"),
         Icon::Text => include_str!("../assets/icons/type.svg"),
         Icon::Undo => include_str!("../assets/icons/undo-2.svg"),
+        Icon::Zap => include_str!("../assets/icons/zap.svg"),
         Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
     })
 }

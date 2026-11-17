@@ -84,6 +84,8 @@ mod photoedit;
 mod editmedia;
 mod websites;
 mod calls;
+mod boosts;
+mod transfer;
 mod langpack;
 mod stars;
 mod sounds;
@@ -611,6 +613,10 @@ pub struct App {
     websites: websites::Websites,
     /// The "Calls" box.
     calls: calls::Calls,
+    /// The boost box of a channel or supergroup.
+    boosts: boosts::Boosts,
+    /// Transferring a chat's ownership from the admin editor.
+    transfer: transfer::Transfer,
     langpacks: langpack::LangPacks,
     stars: stars::Stars,
     send_as: sendas::SendAs,
@@ -910,6 +916,8 @@ impl App {
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
             calls: calls::Calls::default(),
+            boosts: boosts::Boosts::default(),
+            transfer: transfer::Transfer::default(),
             langpacks: langpack::LangPacks::default(),
             stars: stars::Stars::default(),
             send_as: sendas::SendAs::default(),
@@ -1127,6 +1135,8 @@ impl App {
             Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
             Ev::Websites(list) => self.on_websites(list),
             ev @ (Ev::CallLog { .. } | Ev::CallsDeleted(_)) => self.calls_event(ev),
+            ev @ (Ev::BoostStatus { .. } | Ev::MyBoosts(_) | Ev::Boosted(_) | Ev::BoostFailed { .. } | Ev::Boosters { .. } | Ev::BoostLink(_)) => self.boosts_event(ev),
+            Ev::Transfer { peer, user, step } => self.on_transfer(peer, user, step),
             ev @ (Ev::Languages(_) | Ev::LangPack { .. }) => self.langpack_event(ev),
             Ev::StarsBalance { stars, nanos } => self.on_stars_balance(stars, nanos),
             Ev::StarsHistory { dir, list, next, append } => self.on_stars_history(dir, list, next, append),
@@ -1584,6 +1594,11 @@ impl App {
                     Ok(_) => self.opening = Some(confirm::Opening::Proxy(target)),
                     Err(e) => self.toast = Some((e.to_owned(), 0.0, true)),
                 },
+                _ if boosts::tme_boost(&target).is_some() => {
+                    if let Some(name) = boosts::tme_boost(&target) {
+                        self.open_boost_link(name);
+                    }
+                }
                 _ if botstart::tme_bot_start(&target).is_some() => {
                     if let Some((username, param)) = botstart::tme_bot_start(&target) {
                         self.open_bot_start(username, param);
@@ -1849,6 +1864,8 @@ impl eframe::App for App {
         self.chat_edit_view(ui);
         self.admin_log_view(ui);
         self.manage_view(ui);
+        self.transfer_view(ui);
+        self.boosts_view(ui);
         self.chatlist_view(ui);
         self.sticker_set_box(ui);
         self.privacy_pick_view(ui);

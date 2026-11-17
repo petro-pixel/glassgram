@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 71%** `██████████████░░░░░░` — 119 done, 22 partial, 41 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 72%** `██████████████░░░░░░` — 120 done, 22 partial, 40 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -160,6 +160,8 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/storage.rs`, `src/backend/storage.rs` | "Data and storage": cache usage by type, clearing, size limit |
 | `src/app/adminlog.rs`, `src/backend/adminlog.rs` | "Recent actions" admin log; author signatures and the discussion group of a channel |
 | `src/app/manage.rs`, `src/backend/manage.rs` | "Manage" box: administrators and their rights and titles, restricted and removed members |
+| `src/app/boosts.rs`, `src/backend/boosts.rs` | Boost box of a channel or supergroup: level and progress, boosting with a Premium slot or reassigning one, boosters and the boost link for admins, `t.me/boost/…` links |
+| `src/app/transfer.rs`, `src/backend/transfer.rs` | Transferring a group's or channel's ownership from the admin editor: confirmation, security check, cloud password (SRP) |
 | `src/app/invites.rs`, `src/backend/invites.rs` | Invite links (name, expiry, limit, approval; revoke, delete) and join requests |
 | `src/app/chatlists.rs`, `src/backend/chatlists.rs` | Shared folders by link: adding, new chats, leaving |
 | `src/app/stickers.rs`, `src/backend/stickers.rs` | The sticker panel, the sticker set box, set search and order, favourite stickers, saved GIFs |
@@ -222,8 +224,8 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Click a photo or file — download it to Downloads and open it.
 - Right-click a chat: pin, mute, mark as read, archive.
 - A wide window shows chat info as a third column beside the chat; a narrow one shows the chat list or the open chat alone, with a back arrow in the chat header (Esc also returns to the list).
-- Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat; admins right-click a member to promote, restrict or remove them), shared media tabs, a "Stories" tab with a person's or channel's pinned stories (album chips filter them; a click opens the viewer at that story), leave / clear history / delete chat. Admins open invite links, join requests, administrators, restricted and removed users from the "Edit" box (pencil) or, without the right to edit, from the people icon in the header.
 - "+" on your avatar at the head of the story strip (or "Add story" in Settings → My Stories) picks a photo or video for a new story: the box previews it and sets the caption, who can see it, how long it stays, screenshots, keeping it on the profile and posting as a channel.
+- Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat; admins right-click a member to promote, restrict or remove them), shared media tabs, a "Stories" tab with a person's or channel's pinned stories (album chips filter them; a click opens the viewer at that story), leave / clear history / delete chat. Admins open invite links, join requests, administrators, restricted and removed users from the "Edit" box (pencil) or, without the right to edit, from the people icon in the header. "Boost channel" / "Boost group" (admins: "Boosts") in a channel's or supergroup's info opens the boost box; so do `t.me/boost/<name>` and `t.me/<name>?boost` links. The owner sees "Transfer channel ownership" / "Transfer group ownership" in an admin's rights editor once every right is ticked.
 - Composer markup: `**bold**`, `__italic__`, `~~strike~~`, `||spoiler||`, `` `code` ``, ```` ```block``` ````, `[text](https://…)`; the field shows it styled with the markers faded. Selecting text shows a formatting bar above it; shortcuts: Ctrl+B bold, Ctrl+I italic, Ctrl+Shift+X strikethrough, Ctrl+Shift+M monospace, Ctrl+Shift+P spoiler, Ctrl+K link, Ctrl+Shift+N clear formatting.
 - Clicking a hashtag searches for it in the chat; clicking a bot command sends it.
 - `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way.

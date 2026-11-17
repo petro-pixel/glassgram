@@ -122,7 +122,7 @@ impl Worker {
     }
 }
 
-fn raw_peer_id(p: &tl::enums::Peer) -> PeerId {
+pub(super) fn raw_peer_id(p: &tl::enums::Peer) -> PeerId {
     match p {
         tl::enums::Peer::User(u) => PeerId::user_unchecked(u.user_id),
         tl::enums::Peer::Chat(c) => PeerId::chat_unchecked(c.chat_id),

@@ -46,7 +46,7 @@ impl PasswordState {
     }
 }
 
-async fn get(client: &Client) -> Result<tl::types::account::Password, String> {
+pub(super) async fn get(client: &Client) -> Result<tl::types::account::Password, String> {
     let tl::enums::account::Password::Password(p) =
         client.invoke(&tl::functions::account::GetPassword {}).await.map_err(|e| lf!("Пароль: {e}", "Password: {e}"))?;
     Ok(p)
@@ -71,7 +71,7 @@ fn modpow_algo(algo: &tl::enums::PasswordKdfAlgo) -> Result<&tl::types::Password
 }
 
 /// SRP proof of the current password, or "no password" when there is none.
-fn proof(p: &tl::types::account::Password, password: &str) -> Result<tl::enums::InputCheckPasswordSrp, String> {
+pub(super) fn proof(p: &tl::types::account::Password, password: &str) -> Result<tl::enums::InputCheckPasswordSrp, String> {
     if !p.has_password {
         return Ok(tl::enums::InputCheckPasswordSrp::InputCheckPasswordEmpty);
     }
