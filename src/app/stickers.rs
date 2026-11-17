@@ -391,8 +391,9 @@ impl App {
 
     /// Installed sets in the panel's order: move up or down, remove.
     fn manage_sets_view(&mut self, ui: &mut Ui, body: Rect) {
-        ui.painter().text(pos2(body.left() + 4.0, body.top()), Align2::LEFT_TOP, l!("Мої набори стікерів", "My sticker sets"), FontId::proportional(13.0), ink_dim());
-        let list = Rect::from_min_max(pos2(body.left(), body.top() + 22.0), body.max);
+        ui.painter().text(pos2(body.left() + 4.0, body.top() + 6.0), Align2::LEFT_TOP, l!("Мої набори стікерів", "My sticker sets"), FontId::proportional(13.0), ink_dim());
+        self.own_stickers_entry(ui, Rect::from_min_max(pos2(body.left() + 150.0, body.top()), pos2(body.right(), body.top() + 28.0)));
+        let list = Rect::from_min_max(pos2(body.left(), body.top() + 34.0), body.max);
         let rows: Vec<(usize, i64, String, usize, Option<(i64, String)>)> =
             self.stickers.sets.iter().enumerate().filter(|(_, s)| installed(s)).map(|(i, s)| (i, s.id, s.title.clone(), s.count, s.stickers.first().cloned())).collect();
         if rows.is_empty() {
@@ -551,7 +552,7 @@ impl App {
         }
     }
 
-    fn on_set_changed(&mut self, set: StickerSetInfo) {
+    pub(super) fn on_set_changed(&mut self, set: StickerSetInfo) {
         let (id, now) = (set.id, set.installed);
         let shown = match self.stickers.tab {
             PanelTab::Set(i) => self.stickers.sets.get(i).map(|s| s.id),

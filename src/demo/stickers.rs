@@ -35,7 +35,7 @@ fn emoji_of(id: i64) -> String {
 }
 
 fn set(id: i64) -> Option<StickerSetInfo> {
-    let (id, title, short, emoji) = *SETS.iter().find(|s| s.0 == id)?;
+    let Some(&(id, title, short, emoji)) = SETS.iter().find(|s| s.0 == id) else { return super::own_stickers::panel_set(id) };
     let stickers: Vec<(i64, String)> = emoji.chars().enumerate().map(|(i, c)| (id * 100 + i as i64, c.to_string())).collect();
     let installed = STATE.with_borrow(|s| s.installed.contains(&id));
     Some(StickerSetInfo { id, title: title.into(), short_name: short.into(), count: stickers.len(), installed, stickers })
@@ -67,6 +67,7 @@ pub(super) fn handle(app: &mut App, cmd: Cmd) {
             let recent = [200, 301, 207, 309, 203].map(|id| (id, emoji_of(id))).to_vec();
             let mut sets = vec![pseudo(FAVED_SET, "Favourites", faved()), pseudo(RECENT_SET, "Recent", recent)];
             sets.extend(STATE.with_borrow(|s| s.installed.clone()).into_iter().filter_map(set));
+            sets.extend(super::own_stickers::installed());
             app.push_event(Ev::Stickers(sets));
         }
         Cmd::OpenStickerSet(r) => {
