@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 73%** `███████████████░░░░░` — 121 done, 25 partial, 36 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 74%** `███████████████░░░░░` — 122 done, 25 partial, 35 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -156,6 +156,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/todo.rs`, `src/backend/todo.rs` | Checklists: the card, ticking and adding items, the "New checklist" box |
 | `src/errlog.rs` | Error log file, panic hook, report for the developer |
 | `src/app/selfdestruct.rs`, `src/backend/selfdestruct.rs` | "Delete my account if away for…" |
+| `src/app/account_actions.rs`, `src/backend/account_actions.rs` | "Change Number" (warning, new number with its country, code) and "Delete my account" (reason, typed confirmation and the 2FA password, then local logout) |
 | `src/app/dice.rs`, `src/backend/dice.rs` | Emoji games (🎲 🎯 🏀 ⚽ 🎰 🎳): sending and outcomes |
 | `src/app/storage.rs`, `src/backend/storage.rs` | "Data and storage": cache usage by type, clearing, size limit |
 | `src/app/stats.rs`, `src/app/stats_chart.rs`, `src/backend/stats.rs` | Channel and supergroup statistics: overview, graphs drawn from Telegram's chart JSON (tooltip, legend), recent posts and a post's own page (views, reactions, public shares), top members; requests sent to the statistics DC |
@@ -244,6 +245,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - A `t.me/addlist/…` link adds a shared folder; its right-click menu checks for new chats, and deleting it offers to leave its chats.
 - Settings → Chat Settings → Chat background: the server gallery (pictures, patterns, colours and gradients), a picture from a file, or the live background; a private chat's info → "Chat wallpaper and theme" sets that chat's own wallpaper and emoji or gift theme.
 - Settings → Chat Settings → Accessibility: reduce transparency (solid glass), increase contrast, reduce motion (a still background).
+- Settings → My Account → "Change Number" moves the account to a new number: a warning, the number with its country (picked from the list or recognised from the code), then the code sent to it. "Delete my account" at the bottom of My Account and of Privacy and Security takes two steps: what is lost with an optional reason, then typing DELETE (and the two-step verification password, if set) unlocks the red button; Enter never confirms it. In `--demo` nothing is deleted.
 - Settings → Advanced → "Automatic media download" picks what loads on its own in private chats, groups and channels; other media show an arrow and load on a click.
 - Enter sends, Shift+Enter — new line.
 - Jump to a date: the calendar button in chat search, or click a date chip between messages.

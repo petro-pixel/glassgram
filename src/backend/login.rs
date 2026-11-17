@@ -73,17 +73,23 @@ impl Worker {
                 self.stop_qr();
                 let client = self.client()?;
                 let _ = client.sign_out().await;
-                self.client = None;
-                self.session = None;
-                self.loader = None;
-                let _ = std::fs::remove_file(&self.session_path);
-                if let Some(c) = &self.out.cache {
-                    c.clear();
-                }
-                self.out.send(Ev::LoggedOut);
+                self.forget_session();
                 Ok(())
             }
             _ => Ok(()),
         }
+    }
+
+    /// Drops the connection, the session file and the cache: after logging out or deleting the account.
+    pub(super) fn forget_session(&mut self) {
+        self.stop_qr();
+        self.client = None;
+        self.session = None;
+        self.loader = None;
+        let _ = std::fs::remove_file(&self.session_path);
+        if let Some(c) = &self.out.cache {
+            c.clear();
+        }
+        self.out.send(Ev::LoggedOut);
     }
 }
