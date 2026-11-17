@@ -29,6 +29,7 @@ mod calls;
 mod story_post;
 mod boosts;
 mod stats;
+mod account_actions;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -946,6 +947,10 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             let made_up = [(K::Photos, 184 << 20, 640), (K::Videos, 1210 << 20, 38), (K::Audio, 23 << 20, 51), (K::Stickers, 46 << 20, 412), (K::Profiles, 12 << 20, 230), (K::Other, 3 << 20, 4)];
             let usage = made_up.into_iter().map(|(k, b, n)| if DEMO_CLEARED.with_borrow(|c| c.contains(&k)) { (k, 0, 0) } else { (k, b, n) }).collect();
             app.push_event(Ev::CacheUsage(usage));
+        }
+        cmd @ (Cmd::LoadCountries(_) | Cmd::SendChangePhoneCode(_) | Cmd::ChangePhone { .. } | Cmd::DeleteAccount { .. }) => {
+            let check = |pw: &str| PASSWORD.with_borrow(|(p, s)| s.has_password.then(|| p == pw));
+            account_actions::answer(app, cmd, check);
         }
         Cmd::LoadAccountTtl => app.push_event(Ev::AccountTtl(DEMO_ACCOUNT_TTL.get())),
         Cmd::SetAccountTtl(days) => {

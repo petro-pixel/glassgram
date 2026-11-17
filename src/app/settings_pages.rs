@@ -173,6 +173,18 @@ pub(super) fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, value: &mut T, 
     });
 }
 
+/// "Delete my account" in red text: it only opens the two-step box.
+fn delete_account_row(ui: &mut Ui) -> bool {
+    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_filled(r, 14.0, glass::veil(16));
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    ui.painter().text(pos2(r.left() + 12.0, r.center().y), Align2::LEFT_CENTER, l!("Видалити мій акаунт", "Delete my account"), FontId::proportional(14.5), glass::danger());
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, l!("Видалити мій акаунт", "Delete my account")));
+    resp.clicked()
+}
+
 pub(super) fn hint(ui: &mut Ui, text: &str) {
     ui.label(egui::RichText::new(text).color(ink_dim()).size(12.5));
 }
@@ -374,6 +386,7 @@ impl App {
         let mut bday_cmd = None;
         let mut color_cmd = None;
         let mut show_qr = false;
+        let (mut change_phone, mut delete_account) = (false, false);
         egui::ScrollArea::vertical().id_salt("settings-account").auto_shrink(false).show(ui, |ui| {
             let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 96.0), Sense::hover());
             let name = format!("{} {}", e.first, e.last);
@@ -457,9 +470,18 @@ impl App {
             if !p.phone.is_empty() {
                 section_title(ui, l!("Телефон", "Phone number"));
                 ui.label(egui::RichText::new(&p.phone).color(ink()).size(14.5));
-                hint(ui, l!("Номер змінюється в мобільному застосунку Telegram", "The number is changed in the Telegram mobile app"));
+                let r = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::hover()).0;
+                change_phone = glass::button(ui, r, "change-phone", l!("Змінити номер", "Change Number"), false, true).clicked();
             }
+            ui.add_space(12.0);
+            delete_account = delete_account_row(ui);
         });
+        if change_phone {
+            self.open_change_phone();
+        }
+        if delete_account {
+            self.open_delete_account();
+        }
         if pick_photo {
             self.pick_profile_photo();
         }
@@ -670,7 +692,7 @@ impl App {
             }
         }
         // Esc goes back to the main page first; the windows on top handle their own Esc.
-        let esc = self.folder_edit.is_none() && self.stories.view.is_none() && !self.user_qr.is_open() && self.wallpapers.picker.is_none() && ui.input(|i| i.key_pressed(Key::Escape));
+        let esc = self.folder_edit.is_none() && self.stories.view.is_none() && !self.user_qr.is_open() && !self.account_actions.is_open() && self.wallpapers.picker.is_none() && ui.input(|i| i.key_pressed(Key::Escape));
         if back || esc || done {
             self.two_step.reset();
         }
@@ -687,6 +709,7 @@ impl App {
     /// "Privacy" tab: who sees what, and the local passcode.
     pub(super) fn privacy_tab(&mut self, ui: &mut Ui) {
         let mut set = None;
+        let mut delete_account = false;
         let mut lock_now = false;
         egui::ScrollArea::vertical().id_salt("privacy-body").auto_shrink(false)
             .show(ui, |ui| {
@@ -720,6 +743,9 @@ impl App {
             self.websites_section(ui);
             ui.add_space(6.0);
             self.self_destruct_section(ui);
+            if delete_account_row(ui) {
+                delete_account = true;
+            }
             ui.add_space(6.0);
             self.two_step_section(ui);
             ui.add_space(6.0);
@@ -772,6 +798,9 @@ impl App {
         if lock_now {
             self.settings_open = false;
             self.lock.on = true;
+        }
+        if delete_account {
+            self.open_delete_account();
         }
     }
 

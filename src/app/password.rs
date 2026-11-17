@@ -39,6 +39,11 @@ impl TwoStep {
         *self = Self { state: self.state.take(), ..Self::default() };
     }
 
+    /// Whether a cloud password is set (`None` — not loaded yet).
+    pub(super) fn has_password(&self) -> Option<bool> {
+        self.state.as_ref().map(|s| s.has_password)
+    }
+
     fn clear_form(&mut self) {
         self.form = None;
         for f in [&mut self.new, &mut self.again, &mut self.hint, &mut self.email] {

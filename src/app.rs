@@ -96,6 +96,7 @@ mod autodelete;
 mod storage;
 mod dice;
 mod selfdestruct;
+mod account_actions;
 mod adminlog;
 mod stats;
 mod stats_chart;
@@ -678,6 +679,8 @@ pub struct App {
     report: Option<report::ReportBox>,
     /// The QR code box of a public username.
     user_qr: userqr::UserQr,
+    /// The "Change number" and "Delete my account" boxes.
+    account_actions: account_actions::AccountActions,
     /// Picking a quote for the reply, and the chosen one.
     quoting: quote::Quoting,
     /// A hidden link or a received program waiting for "Open anyway".
@@ -964,6 +967,7 @@ impl App {
             opening: None,
             report: None,
             user_qr: Default::default(),
+            account_actions: Default::default(),
             quoting: Default::default(),
             stories: stories::Stories::default(),
             profile_stories: profile_stories::ProfileStories::default(),
@@ -1163,6 +1167,7 @@ impl App {
             Ev::Chatlist(list) => self.on_chatlist(list),
             Ev::CacheUsage(usage) => self.on_cache_usage(usage),
             Ev::AccountTtl(days) => self.on_account_ttl(days),
+            ev @ (Ev::Countries(_) | Ev::ChangePhoneCode { .. } | Ev::PhoneChanged(_) | Ev::AccountDeleted | Ev::AccountActionFailed(_)) => self.account_actions_event(ev),
             Ev::DefaultTtl(period) => self.on_default_ttl(period),
             ev @ (Ev::WallPapers(_) | Ev::ChatThemes(_) | Ev::WallPaperFile { .. } | Ev::ChatWallPaper { .. } | Ev::ChatTheme { .. }) => self.wallpapers_event(ev),
             Ev::HistoryTtl { peer, period } => self.on_history_ttl(peer, period),
@@ -1890,6 +1895,7 @@ impl eframe::App for App {
         self.privacy_pick_view(ui);
         self.tag_rename_view(ui);
         self.user_qr_view(ui);
+        self.account_actions_view(ui);
         self.calls_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);

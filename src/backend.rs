@@ -89,6 +89,8 @@ mod chatlists;
 mod storage;
 mod dice;
 mod selfdestruct;
+mod account_actions;
+pub use account_actions::{CountryCode, country_of, phone_digits};
 pub use storage::CacheKind;
 mod autodelete;
 mod wallpapers;
@@ -280,6 +282,15 @@ pub enum Cmd {
     /// Days away before the account deletes itself; answered with `Ev::AccountTtl`.
     LoadAccountTtl,
     SetAccountTtl(i32),
+    /// Countries and their calling codes in this language (`help.getCountriesList`); `Ev::Countries`.
+    LoadCountries(String),
+    /// A code to move the account to this number (`account.sendChangePhoneCode`); `Ev::ChangePhoneCode`.
+    SendChangePhoneCode(String),
+    /// Moves the account to the new number (`account.changePhone`); `Ev::PhoneChanged`.
+    ChangePhone { phone: String, hash: String, code: String },
+    /// Deletes the account for good (`account.deleteAccount`); `password` — the 2FA one, if set.
+    /// Answered with `Ev::AccountDeleted` and `Ev::LoggedOut`. Only ever sent from the confirmed box.
+    DeleteAccount { reason: String, password: String },
     LoadCacheUsage,
     /// An emoji game (🎲 🎯 🏀 ⚽ 🎰 🎳); the server rolls the value.
     SendDice { peer: PeerId, emoji: String, reply_to: Option<ReplyTo>, send_as: Option<PeerId> },
@@ -797,6 +808,16 @@ pub enum Ev {
     CacheUsage(Vec<(CacheKind, u64, usize)>),
     DefaultTtl(i32),
     AccountTtl(i32),
+    /// Calling codes for the change-number form.
+    Countries(Vec<CountryCode>),
+    /// The code to the new number is on its way: `length` digits, in Telegram (`via_app`) or by SMS.
+    ChangePhoneCode { phone: String, hash: String, length: i32, via_app: bool },
+    /// The account now has this number.
+    PhoneChanged(String),
+    /// The account was deleted on the server; `LoggedOut` follows.
+    AccountDeleted,
+    /// Changing the number or deleting the account was refused.
+    AccountActionFailed(String),
     HistoryTtl { peer: PeerId, period: i32 },
     WallPapers(Vec<WallPaper>),
     ChatThemes(Vec<ChatTheme>),
@@ -1280,6 +1301,7 @@ impl Worker {
             cmd @ (Cmd::LoadDefaultTtl | Cmd::SetDefaultTtl(_) | Cmd::SetHistoryTtl { .. }) => self.autodelete_cmd(cmd).await,
             cmd @ (Cmd::LoadWallPapers | Cmd::LoadChatThemes | Cmd::LoadChatWallPaper(_) | Cmd::DownloadWallPaper(_) | Cmd::SetChatWallPaper { .. } | Cmd::SetChatTheme { .. }) => self.wallpapers_cmd(cmd).await,
             cmd @ (Cmd::LoadAccountTtl | Cmd::SetAccountTtl(_)) => self.self_destruct_cmd(cmd).await,
+            cmd @ (Cmd::LoadCountries(_) | Cmd::SendChangePhoneCode(_) | Cmd::ChangePhone { .. } | Cmd::DeleteAccount { .. }) => self.account_actions_cmd(cmd).await,
             cmd @ Cmd::SendDice { .. } => self.dice_cmd(cmd).await,
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ Cmd::LoadStars { .. } => self.stars_cmd(cmd).await,
