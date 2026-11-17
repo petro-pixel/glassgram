@@ -99,7 +99,7 @@ impl App {
     fn new_chat_menu_view(&mut self, ui: &mut Ui) {
         let Some(anchor) = self.new_chat_menu else { return };
         let screen = ui.max_rect();
-        if ui.interact(screen, ui.scope_id().with("new-chat-bg"), Sense::click()).clicked() {
+        if ui.interact(screen, ui.scope_id().with("new-chat-bg"), Sense::CLICK).clicked() {
             self.new_chat_menu = None;
             return;
         }
@@ -418,7 +418,7 @@ impl App {
         let now = ui.input(|i| i.time);
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        ui.interact(screen, ui.scope_id().with("new-chat-modal-bg"), Sense::click());
+        ui.interact(screen, ui.scope_id().with("new-chat-modal-bg"), Sense::CLICK);
         let tall = nc.kind != NewKind::Channel || nc.subscribers();
         let short = if nc.created.is_some() { 330.0 } else { 300.0 };
         let rect = Rect::from_center_size(screen.center(), vec2(screen.width().min(440.0) - 20.0, if tall { (screen.height() - 60.0).min(620.0) } else { short }));

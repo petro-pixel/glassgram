@@ -180,7 +180,7 @@ impl App {
         let Some(pick) = &mut self.privacy.pick else { return };
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        ui.interact(screen, ui.scope_id().with("privacy-pick-bg"), Sense::click());
+        ui.interact(screen, ui.scope_id().with("privacy-pick-bg"), Sense::CLICK);
         let rect = Rect::from_center_size(screen.center(), vec2(screen.width().min(420.0) - 20.0, (screen.height() - 60.0).min(560.0)));
         glass::glass(ui.painter(), rect, Glass::panel(26.0).with_shadow());
         let inner = rect.shrink(18.0);

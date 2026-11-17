@@ -42,7 +42,7 @@ impl App {
         let Some(b) = &mut self.chatlist_box else { return };
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        ui.interact(screen, ui.scope_id().with("chatlist-bg"), Sense::click());
+        ui.interact(screen, ui.scope_id().with("chatlist-bg"), Sense::CLICK);
         let h = (150.0 + b.list.chats.len() as f32 * 50.0).clamp(240.0, (screen.height() - 60.0).min(600.0));
         let rect = Rect::from_center_size(screen.center(), vec2(screen.width().min(420.0) - 20.0, h));
         glass::glass(ui.painter(), rect, Glass::panel(26.0).with_shadow());

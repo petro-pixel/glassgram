@@ -35,7 +35,7 @@ impl App {
         let body_h = if rows == 0 { 0.0 } else { rows as f32 * 58.0 + 12.0 };
         let full = Rect::from_min_size(rect.min, vec2(rect.width(), (FILTERS_H + body_h + 8.0).min(rect.height())));
         glass::glass(ui.painter(), full, Glass::tinted(22.0, glass::chrome(), 150).frosted(1.0).with_shadow());
-        ui.interact(full, ui.scope_id().with("chat-search-bg"), Sense::click());
+        ui.interact(full, ui.scope_id().with("chat-search-bg"), Sense::CLICK);
         // Sender (groups), then the types as in the profile's shared media; a second click clears.
         // The server rejects a type filter together with a sender, so they replace each other.
         let strip = Rect::from_min_size(full.min + vec2(10.0, 8.0), vec2(full.width() - 20.0, 32.0));

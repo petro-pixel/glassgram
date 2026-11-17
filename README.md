@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 73%** `███████████████░░░░░` — 121 done, 22 partial, 39 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 73%** `███████████████░░░░░` — 121 done, 23 partial, 38 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -194,6 +194,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/layout.rs` | Window layout modes: narrow (one column), normal, wide (chat info as a third column) |
 | `src/app/motion.rs` | Spring animations (Apple-style, 150–350 ms): new bubbles, the folder tab capsule and list slide, column transitions; "Reduce motion" snaps them |
 | `src/app/hotkeys.rs` | Keyboard shortcuts |
+| `src/app/a11y.rs` | Accessibility: screen reader names for chat rows, messages and dialogs (AccessKit), the keyboard focus ring, Esc and arrows in menus |
 | `src/app/outbox.rs` | Send queue: pending/failed bubbles, retries with backoff |
 | `src/app/chatlist.rs` | Folder column and tabs, dragging pinned chats and folders |
 | `src/player.rs` | Voice, audio and video sound via `ffplay`: pause, seeking, speed, volume |
@@ -244,7 +245,8 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Enter sends, Shift+Enter — new line.
 - Jump to a date: the calendar button in chat search, or click a date chip between messages.
 - Enter sends, Shift+Enter starts a new line; Settings → Chat Settings switches sending to Ctrl+Enter (Cmd+Enter on macOS) and sets the message text size and the chat list density (compact, standard, large).
-- Hotkeys (as in Telegram Desktop): Ctrl+F — search in the chat (or the chat list), Ctrl+K — chat list search, Ctrl+1…9 — folders, Alt+↑/↓ or Ctrl+Tab / Ctrl+Shift+Tab — previous/next chat, Ctrl+E or ↑ in an empty composer — edit your last message, Esc — close the topmost panel, then the chat.
+- Hotkeys (as in Telegram Desktop): Ctrl+F — search in the chat (or the chat list), Ctrl+K — chat list search, Ctrl+1…9 — folders, Alt+↑/↓ or Ctrl+Tab / Ctrl+Shift+Tab — previous/next chat, Ctrl+E or ↑ in an empty composer — edit your last message, Esc — close the topmost menu or panel, then the chat.
+- Keyboard navigation: Tab / Shift+Tab move through the controls (the focused one gets an accent ring), Enter or Space presses it, arrows move between neighbours and step into an open context menu. Screen readers (Orca, NVDA, Narrator, VoiceOver) get names through AccessKit: buttons, chats with their unread count and last message, messages with author, text and time.
 - In `--demo`, a message containing `#offline` pretends there is no network (clock → retries → red mark).
 - Folders: "+" to the right of the tabs (or at the bottom of the column) — new; right-click a folder — edit or delete; dragging changes the order. Tabs on top or a column on the left — in Settings.
 - Pinned chats can be dragged to change their order (in folders and in the archive too).

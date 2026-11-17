@@ -138,6 +138,7 @@ pub(super) fn sticker_bubble(ui: &mut Ui, m: &Msg, emoji: &str, tex: Option<&Tex
     const SIZE: f32 = 160.0;
     let avail = ui.available_width();
     let (row, resp) = ui.allocate_exact_size(vec2(avail, SIZE + 12.0), Sense::click());
+    a11y::describe_msg(&resp, m);
     pick_mark(ui, row, look);
     if look.picking && resp.clicked() {
         return Some(Action::Pick(m.id));
@@ -447,6 +448,7 @@ pub(super) fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHa
     let text_h = body.as_ref().map_or(0.0, |b| b.size().y + meta.size().y + 22.0);
     let size = vec2(w + 8.0, grid_h + 8.0 + text_h);
     let (row, resp) = ui.allocate_exact_size(vec2(avail, size.y + 6.0), Sense::click());
+    a11y::describe_msg(&resp, cap.unwrap_or(first));
     pick_mark(ui, row, look);
     let x = if first.out { row.right() - 10.0 - size.x } else { row.left() + 10.0 + if look.picking { 30.0 } else { 0.0 } };
     let rect = Rect::from_min_size(pos2(x, row.top() + 3.0), size);
@@ -724,6 +726,7 @@ pub(super) fn bubble(
     };
 
     let (row, resp) = ui.allocate_exact_size(vec2(avail, size.y + 6.0), Sense::click());
+    a11y::describe_msg(&resp, m);
     pick_mark(ui, row, look);
     let x = if m.out { row.right() - 10.0 - size.x } else { row.left() + 10.0 + if look.picking { 30.0 } else { 0.0 } };
     let rect = Rect::from_min_size(pos2(x, row.top() + 3.0), size);
@@ -970,6 +973,7 @@ pub(super) fn round_bubble(ui: &mut Ui, m: &Msg, tex: Option<&TextureHandle>, lo
     let heard = aitext::transcript(ui.painter(), m, (avail * 0.72).min(320.0) - 28.0);
     let heard_h = heard.as_ref().map_or(0.0, |g| g.size().y + 24.0);
     let (row, resp) = ui.allocate_exact_size(vec2(avail, size + 12.0 + heard_h), Sense::click());
+    a11y::describe_msg(&resp, m);
     pick_mark(ui, row, look);
     if look.picking && resp.clicked() {
         return Some(Action::Pick(m.id));

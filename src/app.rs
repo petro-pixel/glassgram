@@ -34,6 +34,7 @@ mod chatview;
 mod suggest;
 mod info;
 mod hotkeys;
+mod a11y;
 mod richtext;
 mod spellcheck;
 mod proxy;
@@ -1819,6 +1820,7 @@ impl eframe::App for App {
             return;
         }
 
+        self.a11y_keys(ui.ctx());
         self.hotkeys(ui.ctx());
         match &self.screen {
             Screen::Login(step) => {
@@ -1877,6 +1879,7 @@ impl eframe::App for App {
         self.calls_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);
+        self.a11y_after(ui.ctx());
         glass::glass_popups(ui.ctx());
     }
 }
@@ -1925,6 +1928,7 @@ fn chat_row(
 ) -> egui::Response {
     let w = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(vec2(w, density.row_h()), Sense::click());
+    a11y::describe_chat(&resp, chat, selected);
     let (above, below) = density.lines();
     let mid = rect.center().y;
     let hover = ui.ctx().animate_bool(resp.id, resp.hovered());

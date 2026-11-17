@@ -147,7 +147,7 @@ impl App {
         let buttons = if quotable { 92.0 } else { 52.0 };
         let panel = Rect::from_center_size(rect.center(), vec2(w, (text_h + buttons).clamp(110.0, (rect.height() - 100.0).min(460.0))));
         glass::glass(ui.painter(), panel, Glass::panel(24.0).with_shadow());
-        ui.interact(panel, ui.scope_id().with("quote-bg"), Sense::click());
+        ui.interact(panel, ui.scope_id().with("quote-bg"), Sense::CLICK);
         let p = ui.painter().clone();
         p.text(pos2(panel.left() + 18.0, panel.top() + 26.0), Align2::LEFT_CENTER, l!("Відповідь", "Reply"), FontId::proportional(16.0), ink());
         let close = Rect::from_center_size(pos2(panel.right() - 26.0, panel.top() + 26.0), vec2(32.0, 32.0));

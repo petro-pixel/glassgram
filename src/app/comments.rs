@@ -6,7 +6,7 @@ impl App {
     /// Comments panel: bubbles from the discussion group and a field for your own comment.
     pub(super) fn comments_view(&mut self, ui: &mut Ui, rect: Rect) {
         let Some(c) = &self.comments else { return };
-        ui.interact(rect, ui.scope_id().with("comments-bg"), Sense::click());
+        ui.interact(rect, ui.scope_id().with("comments-bg"), Sense::CLICK);
         glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());
         let inner = rect.shrink(14.0);
         let title = match (c.discussion.is_some(), c.msgs.len()) {

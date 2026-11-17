@@ -100,7 +100,7 @@ impl App {
         let Some(f) = &mut self.contact_form else { return };
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        ui.interact(screen, ui.scope_id().with("contact-form-bg"), Sense::click());
+        ui.interact(screen, ui.scope_id().with("contact-form-bg"), Sense::CLICK);
         let by_phone = f.user.is_none();
         let rect = Rect::from_center_size(screen.center(), vec2(380.0, if by_phone { 300.0 } else { 250.0 }));
         glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());

@@ -269,7 +269,7 @@ impl App {
 
     fn story_viewers_panel(&mut self, ui: &mut Ui, panel: Rect) {
         // Swallow clicks so they don't step the story underneath.
-        ui.interact(panel, ui.scope_id().with("story-viewers-bg"), Sense::click());
+        ui.interact(panel, ui.scope_id().with("story-viewers-bg"), Sense::CLICK);
         let painter = ui.painter().clone();
         painter.rect_filled(panel, 18.0, Color32::from_black_alpha(205));
         let Some(v) = &self.profile_stories.viewers else { return };

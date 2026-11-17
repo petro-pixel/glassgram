@@ -126,7 +126,7 @@ impl App {
         let w = (ids.len() as f32 * cell + 16.0).min(rect.width());
         let panel = Rect::from_min_size(pos2(rect.left(), rect.bottom() - cell - 16.0), vec2(w, cell + 16.0));
         glass::glass(ui.painter(), panel, Glass::tinted(22.0, glass::chrome(), 160).frosted(1.0).with_shadow());
-        ui.interact(panel, ui.scope_id().with("sticker-suggest-bg"), Sense::click());
+        ui.interact(panel, ui.scope_id().with("sticker-suggest-bg"), Sense::CLICK);
         let mut send = None;
         for (k, (id, emoji)) in ids.iter().enumerate() {
             let r = Rect::from_min_size(pos2(panel.left() + 8.0 + k as f32 * cell, panel.top() + 8.0), vec2(cell, cell));
@@ -190,7 +190,7 @@ impl App {
         let rows = (i.results.len().max(1) as f32 * 58.0 + 20.0).min(rect.height());
         let rect = Rect::from_min_max(pos2(rect.left(), rect.bottom() - rows), rect.max);
         glass::glass(ui.painter(), rect, Glass::tinted(22.0, glass::chrome(), 160).frosted(1.0).with_shadow());
-        ui.interact(rect, ui.scope_id().with("inline-bg"), Sense::click());
+        ui.interact(rect, ui.scope_id().with("inline-bg"), Sense::CLICK);
         if i.results.is_empty() {
             let text = lf!("@{} нічого не знайшов", "@{} found nothing", i.bot);
             ui.painter().text(rect.center(), Align2::CENTER_CENTER, text, FontId::proportional(14.0), ink_dim());

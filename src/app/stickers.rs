@@ -152,7 +152,7 @@ impl App {
     pub(super) fn sticker_view(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
         glass::glass(ui.painter(), rect, Glass::tinted(24.0, glass::chrome(), 120).frosted(1.0).with_shadow());
         // Swallow clicks so they don't reach the messages under the panel.
-        ui.interact(rect, ui.scope_id().with("sticker-bg"), Sense::click());
+        ui.interact(rect, ui.scope_id().with("sticker-bg"), Sense::CLICK);
         let inner = rect.shrink(10.0);
         let tabs = Rect::from_min_size(inner.min, vec2(inner.width() - 46.0, 40.0));
         let manage = Rect::from_min_size(pos2(inner.right() - 40.0, inner.top()), vec2(40.0, 40.0));
@@ -450,7 +450,7 @@ impl App {
         let Some(slot) = &self.stickers.set_box else { return };
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        let bg = ui.interact(screen, ui.scope_id().with("set-box-bg"), Sense::click());
+        let bg = ui.interact(screen, ui.scope_id().with("set-box-bg"), Sense::CLICK);
         let rect = Rect::from_center_size(screen.center(), vec2(screen.width().min(440.0) - 20.0, (screen.height() - 60.0).min(560.0)));
         glass::glass(ui.painter(), rect, Glass::panel(26.0).with_shadow());
         let inner = rect.shrink(18.0);

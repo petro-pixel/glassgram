@@ -47,6 +47,18 @@ pub fn is_light() -> bool {
     LIGHT.load(Ordering::Relaxed)
 }
 
+/// Whether the user is moving around by keyboard (Tab, arrows) rather than the mouse: only then
+/// the focused widget shows its ring (`app/a11y.rs`).
+static KEYBOARD: AtomicBool = AtomicBool::new(false);
+
+pub fn set_keyboard(on: bool) {
+    KEYBOARD.store(on, Ordering::Relaxed);
+}
+
+pub fn keyboard() -> bool {
+    KEYBOARD.load(Ordering::Relaxed)
+}
+
 /// Accessibility switches, as on Apple: "Reduce transparency", "Increase contrast", "Reduce motion".
 static SOLID: AtomicBool = AtomicBool::new(false);
 static CONTRAST: AtomicBool = AtomicBool::new(false);
@@ -550,6 +562,16 @@ pub fn tone_button(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt:
 /// Glass button with hover and press animation.
 pub fn button_with(ui: &mut Ui, rect: Rect, id: impl std::hash::Hash + std::fmt::Debug, label: Label<'_>, accent: bool, enabled: bool) -> Response {
     let resp = ui.interact(rect, ui.scope_id().with(id), if enabled { Sense::click() } else { Sense::hover() });
+    // Screen readers: icon-only buttons are named after their icon; a tooltip adds the details.
+    let name = match &label {
+        Label::Text(t) => *t,
+        Label::Icon(icon) => icons::name(*icon),
+    };
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, name));
+    // Tabbing onto a button in a scrolled strip (folder tabs) brings it into view.
+    if resp.gained_focus() && keyboard() {
+        resp.scroll_to_me(None);
+    }
     let hover = ui.ctx().animate_bool(resp.id.with("hover"), resp.hovered() && enabled);
     let press = resp.is_pointer_button_down_on() && enabled;
     let rect = rect.expand(hover * 1.5).shrink(if press { 2.0 } else { 0.0 });

@@ -293,7 +293,7 @@ impl App {
         let (aspect, fullscreen) = (s.aspect, s.fullscreen);
         let p = ui.painter().clone();
         p.rect_filled(screen, 0.0, Color32::from_black_alpha(if fullscreen { 255 } else { 235 }));
-        let bg = ui.interact(screen, ui.scope_id().with("video-bg"), Sense::click());
+        let bg = ui.interact(screen, ui.scope_id().with("video-bg"), Sense::CLICK);
         let area = if fullscreen { screen } else { screen.shrink2(vec2(40.0, 70.0)) };
         let fit = (area.width() / aspect).min(area.height());
         let rect = Rect::from_center_size(area.center(), vec2(fit * aspect, fit));

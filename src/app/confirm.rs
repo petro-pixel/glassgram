@@ -45,7 +45,7 @@ impl App {
         };
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        ui.interact(screen, ui.scope_id().with("opening-bg"), Sense::click());
+        ui.interact(screen, ui.scope_id().with("opening-bg"), Sense::CLICK);
         let w = 400.0;
         let text_w = w - 36.0;
         let body_g = ui.painter().layout(body, FontId::proportional(14.0), ink_dim(), text_w);
@@ -95,7 +95,7 @@ impl App {
 pub(super) fn ask_box(ui: &mut Ui, id: &str, title: &str, body: &str, check: Option<(&str, &mut bool)>, buttons: &[&str]) -> Option<usize> {
     let screen = ui.max_rect();
     ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-    ui.interact(screen, ui.scope_id().with((id, "bg")), Sense::click());
+    ui.interact(screen, ui.scope_id().with((id, "bg")), Sense::CLICK);
     let w = 420.0;
     let text_w = w - 36.0;
     let title_g = ui.painter().layout(title.to_owned(), FontId::proportional(17.0), ink(), text_w);
@@ -105,6 +105,7 @@ pub(super) fn ask_box(ui: &mut Ui, id: &str, title: &str, body: &str, check: Opt
     let rect = Rect::from_center_size(screen.center(), vec2(w, 18.0 + title_h + 10.0 + body_h + 16.0 + check_h + 34.0 + 18.0));
     glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());
     let inner = rect.shrink(18.0);
+    a11y::title(ui, Rect::from_min_size(inner.left_top(), title_g.size()), id, title);
     ui.painter().galley(inner.left_top(), title_g, ink());
     let mut y = inner.top() + title_h + 10.0;
     ui.painter().galley(pos2(inner.left(), y), body_g, ink_dim());

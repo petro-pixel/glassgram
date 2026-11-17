@@ -10,7 +10,7 @@ impl App {
         let title = self.chats.iter().find(|c| c.id == peer).map(|c| c.title.clone()).unwrap_or_default();
         let screen = ui.max_rect();
         ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(90));
-        ui.interact(screen, ui.scope_id().with("export-bg"), Sense::click());
+        ui.interact(screen, ui.scope_id().with("export-bg"), Sense::CLICK);
         let rect = Rect::from_center_size(screen.center(), vec2(380.0, 200.0));
         glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());
         let inner = rect.shrink(18.0);
@@ -40,7 +40,7 @@ impl App {
         let Some(fw) = &mut self.forward else { return };
         // Dim the background and swallow clicks under the window.
         ui.painter().rect_filled(ui.max_rect(), 0.0, Color32::from_black_alpha(90));
-        ui.interact(ui.max_rect(), ui.scope_id().with("forward-bg"), Sense::click());
+        ui.interact(ui.max_rect(), ui.scope_id().with("forward-bg"), Sense::CLICK);
         glass::glass(ui.painter(), rect, Glass::panel(26.0).with_shadow());
         let inner = rect.shrink(16.0);
         let title = if fw.reply { l!("Відповісти в…", "Reply in…").to_owned() } else { lf!("Переслати ({})", "Forward ({})", fw.ids.len()) };
@@ -87,7 +87,7 @@ impl App {
     /// Scheduled send time picker.
     pub(super) fn schedule_view(&mut self, ui: &mut Ui, rect: Rect) {
         glass::glass(ui.painter(), rect, Glass::tinted(22.0, glass::chrome(), 150).frosted(1.0).with_shadow());
-        ui.interact(rect, ui.scope_id().with("schedule-bg"), Sense::click());
+        ui.interact(rect, ui.scope_id().with("schedule-bg"), Sense::CLICK);
         let inner = rect.shrink(14.0);
         let title = match self.schedule {
             Some((ScheduleFor::Existing(_), _)) => l!("Новий час надсилання", "New send time"),
@@ -142,7 +142,7 @@ impl App {
         let rows = list.len() as f32 * 62.0 + 46.0;
         let rect = Rect::from_min_max(pos2(rect.left(), (rect.bottom() - rows).max(rect.top())), rect.max);
         glass::glass(ui.painter(), rect, Glass::tinted(22.0, glass::chrome(), 160).frosted(1.0).with_shadow());
-        ui.interact(rect, ui.scope_id().with("scheduled-bg"), Sense::click());
+        ui.interact(rect, ui.scope_id().with("scheduled-bg"), Sense::CLICK);
         let inner = rect.shrink2(vec2(12.0, 12.0));
         ui.painter().text(inner.left_top() + vec2(4.0, 0.0), Align2::LEFT_TOP, l!("Заплановані повідомлення", "Scheduled messages"), FontId::proportional(15.0), ink());
         let area = Rect::from_min_max(pos2(inner.left(), inner.top() + 28.0), inner.max);
