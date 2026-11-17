@@ -29,6 +29,7 @@ mod calls;
 mod story_post;
 mod boosts;
 mod stats;
+mod login_security;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -997,6 +998,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         cmd @ (Cmd::LoadBoosts(_) | Cmd::ApplyBoost { .. } | Cmd::LoadBoosters { .. } | Cmd::OpenBoostLink(_) | Cmd::TransferOwnership { .. }) => boosts::handle(app, cmd),
         cmd @ (Cmd::LoadStats { .. } | Cmd::LoadStatsGraph { .. } | Cmd::LoadMessageStats { .. }) => stats::handle(app, cmd),
         cmd @ (Cmd::LoadLanguages | Cmd::LoadLangPack { .. }) => langpack::handle(app, cmd),
+        cmd @ (Cmd::LoadLoginSecurity | Cmd::ChangeLoginEmail(_) | Cmd::VerifyLoginEmail(_) | Cmd::DeletePasskey(_)) => login_security::handle(app, cmd),
         Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites => {
             let gone = match &cmd {
                 Cmd::LogoutWebsite(h) => vec![*h],

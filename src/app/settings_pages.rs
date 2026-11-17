@@ -197,6 +197,8 @@ impl App {
                 self.send(Cmd::LoadAccountTtl);
                 self.two_step.reset();
                 self.send(Cmd::LoadPassword);
+                self.login_security.reset();
+                self.send(Cmd::LoadLoginSecurity);
             }
             SettingsTab::Devices => self.send(Cmd::LoadSessions),
             SettingsTab::Stars => self.open_stars(),
@@ -673,6 +675,7 @@ impl App {
         let esc = self.folder_edit.is_none() && self.stories.view.is_none() && !self.user_qr.is_open() && self.wallpapers.picker.is_none() && ui.input(|i| i.key_pressed(Key::Escape));
         if back || esc || done {
             self.two_step.reset();
+            self.login_security.reset();
         }
         if back || (esc && tab != SettingsTab::Main) {
             self.settings_tab = SettingsTab::Main;
@@ -722,6 +725,10 @@ impl App {
             self.self_destruct_section(ui);
             ui.add_space(6.0);
             self.two_step_section(ui);
+            ui.add_space(6.0);
+            self.passkeys_section(ui);
+            ui.add_space(6.0);
+            self.login_email_section(ui);
             ui.add_space(6.0);
             section_title(ui, l!("Локальний пароль", "Local passcode"));
             let s = &mut self.settings;

@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use base64::Engine as _;
 use eframe::egui::ColorImage;
-use grammers_client::client::{LoginToken, PasswordToken};
+use grammers_client::client::PasswordToken;
 use grammers_client::media::{Downloadable, Media, Photo, Uploaded};
 use grammers_client::message::InputReactions;
 use grammers_client::message::{InputMessage, Message};
@@ -43,6 +43,7 @@ mod inline;
 mod folders;
 mod sessions;
 mod login;
+pub use login::CodeVia;
 mod sending;
 mod scheduled;
 mod dialogs;
@@ -97,6 +98,8 @@ pub use websites::WebSession;
 pub use adminlog::AdminLogEntry;
 pub use chatlists::{Chatlist, ChatlistAction};
 mod password;
+mod login_security;
+pub use login_security::Passkey;
 pub use password::{PasswordChange, PasswordState};
 mod boosts;
 pub use boosts::{BoostSlot, BoostStatus, Booster};
@@ -179,7 +182,12 @@ pub enum Cmd {
     /// Snapshot of the chat list from the UI (with new previews and counters) for the local cache.
     CacheDialogs(Vec<ChatInfo>),
     RequestCode(String),
+    /// The sign-in code; an email code goes as `email_verification`, a new login email's code confirms it.
     SubmitCode(String),
+    /// The login email an account without one has to bind (`account.sendVerifyEmailCode`, LoginSetup).
+    SetUpLoginEmail(String),
+    /// The login email is out of reach: ask to reset it (`auth.resetLoginEmail`).
+    ResetLoginEmail,
     SubmitPassword(String),
     QrLogin,
     CancelQr,
@@ -287,6 +295,14 @@ pub enum Cmd {
     /// Remove the oldest cached files over this many bytes.
     TrimCache(u64),
     LoadWebsites,
+    /// The login email pattern and the passkeys; answered with `Ev::LoginEmail` and `Ev::Passkeys`.
+    LoadLoginSecurity,
+    /// Send a code to a new login email (`account.sendVerifyEmailCode`, LoginChange): `Ev::LoginEmailCode`.
+    ChangeLoginEmail(String),
+    /// Confirm the new login email with the code sent to it (`account.verifyEmail`).
+    VerifyLoginEmail(String),
+    /// Delete a passkey by its id (`account.deletePasskey`).
+    DeletePasskey(String),
     /// The interface languages Telegram Desktop offers; answered with `Ev::Languages`.
     LoadLanguages,
     /// A language's strings, from the cache brought up to date or downloaded; answered with `Ev::LangPack`.
@@ -692,7 +708,7 @@ pub enum ImgKey {
 
 pub enum Ev {
     NeedPhone,
-    NeedCode,
+    NeedCode(CodeVia),
     NeedPassword(Option<String>),
     Qr(String),
     LoggedIn(String),
@@ -782,6 +798,13 @@ pub enum Ev {
     /// Sensitive content: shown unfiltered, and whether the account may change that.
     ContentSettings { enabled: bool, can_change: bool },
     Websites(Vec<WebSession>),
+    /// The masked login email (`None` — none is set).
+    LoginEmail(Option<String>),
+    /// A code went to the new login email.
+    LoginEmailCode { pattern: String },
+    Passkeys(Vec<Passkey>),
+    /// A login email or passkey request was refused.
+    LoginSecurityFailed(String),
     /// Calls, newest first, each as its service message; `append` continues the list, `more` — older ones exist.
     CallLog { calls: Vec<SearchHit>, append: bool, more: bool },
     /// Call log entries that were deleted.
@@ -1127,7 +1150,7 @@ struct Worker {
     loader: Option<Loader>,
     api_id: i32,
     api_hash: String,
-    login_token: Option<LoginToken>,
+    login_token: Option<login::CodeToken>,
     password_token: Option<PasswordToken>,
     authorized: Arc<Notify>,
     login_update: Arc<Notify>,
@@ -1284,6 +1307,7 @@ impl Worker {
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ Cmd::LoadStars { .. } => self.stars_cmd(cmd).await,
             cmd @ (Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites) => self.websites_cmd(cmd).await,
+            cmd @ (Cmd::LoadLoginSecurity | Cmd::ChangeLoginEmail(_) | Cmd::VerifyLoginEmail(_) | Cmd::DeletePasskey(_)) => self.login_security_cmd(cmd).await,
             cmd @ (Cmd::LoadCalls { .. } | Cmd::DeleteCalls { .. }) => self.calls_cmd(cmd).await,
             cmd @ (Cmd::LoadBoosts(_) | Cmd::ApplyBoost { .. } | Cmd::LoadBoosters { .. } | Cmd::OpenBoostLink(_)) => self.boosts_cmd(cmd).await,
             cmd @ Cmd::TransferOwnership { .. } => self.transfer_cmd(cmd).await,
@@ -1295,7 +1319,7 @@ impl Worker {
             cmd @ (Cmd::CheckChatlist(_) | Cmd::CheckChatlistUpdates(_) | Cmd::AskLeaveChatlist(_) | Cmd::ApplyChatlist { .. }) => self.chatlists_cmd(cmd).await,
             cmd @ Cmd::EditMedia { .. } => self.edit_media_cmd(cmd).await,
             cmd @ (Cmd::Send { .. } | Cmd::SendSticker { .. } | Cmd::Forward { .. } | Cmd::Edit { .. } | Cmd::Delete { .. } | Cmd::React { .. } | Cmd::Vote { .. }) => self.send_cmd(cmd).await,
-            cmd @ (Cmd::RequestCode(..) | Cmd::SubmitCode(..) | Cmd::SubmitPassword(..) | Cmd::QrLogin | Cmd::QrPassword(..) | Cmd::QrSuccess(..) | Cmd::Logout) => self.login_cmd(cmd).await,
+            cmd @ (Cmd::RequestCode(..) | Cmd::SubmitCode(..) | Cmd::SetUpLoginEmail(..) | Cmd::ResetLoginEmail | Cmd::SubmitPassword(..) | Cmd::QrLogin | Cmd::QrPassword(..) | Cmd::QrSuccess(..) | Cmd::Logout) => self.login_cmd(cmd).await,
             cmd @ (Cmd::LoadSessions | Cmd::TerminateSession(..) | Cmd::TerminateOtherSessions) => self.sessions_cmd(cmd).await,
             cmd @ (Cmd::SaveFolder(..) | Cmd::DeleteFolder(..) | Cmd::ReorderFolders(..) | Cmd::SetFolderTags(_) | Cmd::LoadSuggestedFolders) => self.folders_cmd(cmd).await,
             cmd @ (Cmd::InlineQuery { .. } | Cmd::SendInline { .. } | Cmd::PressButton { .. }) => self.inline_cmd(cmd).await,
