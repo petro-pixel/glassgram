@@ -449,10 +449,14 @@ pub(super) struct WebCard {
     title: Option<std::sync::Arc<egui::Galley>>,
     desc: Option<std::sync::Arc<egui::Galley>>,
     img_h: f32,
+    /// Has an Instant View: a button under the card.
+    iv: bool,
     pub(super) width: f32,
 }
 
 const CARD_PAD: f32 = 10.0;
+/// Height of the "Instant View" button under a card.
+const IV_H: f32 = 32.0;
 
 impl WebCard {
     pub(super) fn layout(ui: &Ui, w: &WebPageInfo, width: f32, tex: Option<&TextureHandle>, accent: egui::Color32) -> Self {
@@ -471,15 +475,15 @@ impl WebCard {
             None if w.photo => 140.0,
             None => 0.0,
         };
-        Self { site, title, desc, img_h, width }
+        Self { site, title, desc, img_h, iv: w.iv, width }
     }
 
     pub(super) fn height(&self) -> f32 {
         let g = |x: &Option<std::sync::Arc<egui::Galley>>| x.as_ref().map_or(0.0, |g| g.size().y + 2.0);
-        8.0 + g(&self.site) + g(&self.title) + g(&self.desc) + if self.img_h > 0.0 { self.img_h + 6.0 } else { 0.0 } + 6.0
+        8.0 + g(&self.site) + g(&self.title) + g(&self.desc) + if self.img_h > 0.0 { self.img_h + 6.0 } else { 0.0 } + 6.0 + if self.iv { IV_H + 6.0 } else { 0.0 }
     }
 
-    /// Draws the card at `min`; a click opens the link.
+    /// Draws the card at `min`; a click opens the link, or the Instant View when there is one.
     pub(super) fn draw(self, ui: &mut Ui, m: &Msg, min: egui::Pos2, tex: Option<&TextureHandle>, accent: egui::Color32) -> Option<Action> {
         let rect = Rect::from_min_size(min, vec2(self.width, self.height()));
         let p = ui.painter().clone();
@@ -491,6 +495,7 @@ impl WebCard {
             p.galley(pos2(rect.left() + CARD_PAD, y), g, ink());
             y += h + 2.0;
         }
+        let iv = self.iv;
         if self.img_h > 0.0 {
             let ir = Rect::from_min_size(pos2(rect.left() + CARD_PAD, y + 4.0), vec2(self.width - CARD_PAD - 6.0, self.img_h));
             match tex {
@@ -502,12 +507,19 @@ impl WebCard {
             }
         }
         let resp = ui.interact(rect, ui.scope_id().with(("webpage", m.id)), Sense::click());
+        if iv {
+            // Telegram Desktop's button: the accent label in a light capsule along the card's bottom.
+            let b = Rect::from_min_max(pos2(rect.left() + CARD_PAD, rect.bottom() - IV_H - 6.0), pos2(rect.right() - 6.0, rect.bottom() - 6.0));
+            p.rect_filled(b, IV_H / 2.0, glass::veil(if resp.hovered() { 26 } else { 16 }));
+            let font = FontId::new(13.0, egui::FontFamily::Name(format::BOLD.into()));
+            p.text(b.center(), egui::Align2::CENTER_CENTER, l!("МИТТЄВИЙ ПЕРЕГЛЯД", "INSTANT VIEW"), font, accent);
+        }
         let url = m.webpage.as_ref().map(|w| w.url.clone()).unwrap_or_default();
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
         let resp = resp.on_hover_text(&url);
-        resp.clicked().then_some(Action::Open(url))
+        resp.clicked().then_some(if iv { Action::InstantView(m.id) } else { Action::Open(url) })
     }
 }
 

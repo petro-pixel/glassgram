@@ -24,6 +24,9 @@ pub struct WebPageInfo {
     pub description: String,
     /// Has a picture: in a bubble it is loaded as the message thumbnail.
     pub photo: bool,
+    /// The server has an Instant View of it (`cached_page`): the card gets an "Instant View" button.
+    #[serde(default)]
+    pub iv: bool,
 }
 
 /// Chat member for the @mention popup.
@@ -55,6 +58,7 @@ pub(super) fn web_page(w: &tl::enums::WebPage) -> Option<WebPageInfo> {
         title: p.title.clone().or_else(|| p.author.clone()).unwrap_or_default(),
         description: p.description.clone().unwrap_or_default(),
         photo: matches!(p.photo, Some(tl::enums::Photo::Photo(_))),
+        iv: p.cached_page.is_some(),
     };
     (!info.title.is_empty() || !info.description.is_empty() || info.photo).then_some(info)
 }

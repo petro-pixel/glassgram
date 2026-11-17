@@ -111,6 +111,7 @@ mod viewonce;
 mod namecolor;
 mod aitext;
 mod factcheck;
+mod instant_view;
 mod videoplayer;
 mod music;
 mod attachbots;
@@ -239,6 +240,8 @@ enum Action {
     SaveGif(i32),
     /// Play the message's effect again (a click on its badge).
     Effect(i32),
+    /// Open the Instant View of the message's link preview.
+    InstantView(i32),
 }
 
 /// What is being scheduled: a draft from the input field or an already scheduled message (time change).
@@ -611,6 +614,7 @@ pub struct App {
     name_colors: namecolor::NameColors,
     ai_text: aitext::AiText,
     fact_checks: factcheck::FactChecks,
+    instant_view: instant_view::InstantView,
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
     /// The "Calls" box.
@@ -916,6 +920,7 @@ impl App {
             name_colors: namecolor::NameColors::default(),
             ai_text: aitext::AiText::default(),
             fact_checks: factcheck::FactChecks::default(),
+            instant_view: instant_view::InstantView::default(),
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
             calls: calls::Calls::default(),
@@ -1174,6 +1179,7 @@ impl App {
             Ev::Transcribed { peer, id, result } => self.on_transcribed(peer, id, result),
             Ev::Summarized { peer, id, result } => self.on_summarized(peer, id, result),
             Ev::FactChecks { peer, checks } => self.on_fact_checks(peer, checks),
+            Ev::InstantView { url, result } => self.on_instant_view(url, result),
             ev @ (Ev::TranslationOffer { .. } | Ev::TranslatedMany { .. }) => self.chat_translate_event(ev),
             ev @ (Ev::WebAppOpened(_) | Ev::BotMenuApp { .. } | Ev::WebAppMethodResult { .. } | Ev::BotWriteAccess { .. } | Ev::PhoneShared { .. }) => self.web_app_event(ev),
             ev @ (Ev::AttachBots { .. } | Ev::AttachBotFound { .. } | Ev::AttachBotToggled { .. } | Ev::AttachBotsChanged) => self.attach_bots_event(ev),
@@ -1640,7 +1646,7 @@ impl App {
                 }
             },
             // Handled by `chat_view_action`.
-            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_) | Action::Effect(_) => {}
+            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_) | Action::Effect(_) | Action::InstantView(_) => {}
         }
     }
 

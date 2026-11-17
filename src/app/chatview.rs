@@ -345,6 +345,7 @@ impl App {
             a @ (Action::StickerSet(_) | Action::FaveSticker(_) | Action::SaveGif(_)) => self.sticker_msg_action(peer, a),
             a @ (Action::View(id) | Action::Play(id)) if self.is_view_once(peer, id) => return self.open_view_once(peer, a),
             Action::Effect(id) => self.replay_effect(peer, id),
+            Action::InstantView(id) => self.open_instant_view(peer, id),
             a => return Some(a),
         }
         None
@@ -405,6 +406,7 @@ impl App {
         self.translate_view(ui, peer, rect);
         self.report_view(ui, peer, rect);
         self.quote_view(ui, peer, rect);
+        self.instant_view_window(ui, peer, rect);
         if self.viewer.is_none() && (self.read_by.is_some() || self.pinned.open) && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
             if self.read_by.is_some() {
                 self.read_by = None;

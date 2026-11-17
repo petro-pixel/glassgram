@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 73%** `███████████████░░░░░` — 121 done, 23 partial, 38 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 73%** `███████████████░░░░░` — 121 done, 24 partial, 37 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -187,6 +187,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/sounds.rs`, `src/backend/sounds.rs` | Notification sounds: the built-in chime, saved ringtones (list, add, delete, cached files), a chat's own sound, reaction notification settings |
 | `src/app/sponsored.rs`, `src/backend/sponsored.rs` | Sponsored messages in channel history (after the newest post and between posts, media ads): "Ad" bubble, view and click reports, "About this ad", reporting, hiding for Premium |
 | `src/app/suggest.rs`, `src/backend/suggest.rs` | Link previews (in bubbles and above the composer), @mention and bot command suggestions, "Start" for bots |
+| `src/app/instant_view.rs`, `src/backend/instant_view.rs` | Instant View: the "Instant View" button on link previews and the article reader (`messages.getWebPage`, `Page` blocks) |
 | `src/app/info.rs`, `src/backend/info.rs` | Chat info column: profile, members, shared media, per-chat notifications, leave / clear / delete |
 | `src/app/settings_pages.rs` | Settings pages (Telegram Desktop layout), My Account editor |
 | `src/app/photoedit.rs`, `src/app/photoedit/render.rs` | Photo editor in the "Send files" box: crop with aspect presets, rotate, flip, drawing, text in three styles and fonts; rendered on a thread (`vello_cpu`) into a temporary file |
@@ -233,6 +234,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Clicking a hashtag searches for it in the chat; clicking a bot command sends it.
 - `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way.
 - A link preview appears above the composer; ✕ sends the message without it.
+- A link preview with an Instant View has an "INSTANT VIEW" button: a click opens the article in a reading window over the chat (links inside open in the browser, 🌐 opens the whole page there); Esc or ✕ closes it.
 - Right-click "Send": in a private chat, a row of message effects on top (★ — Premium) sends the message with that effect; then send silently, schedule, or (in a private chat whose last seen time is visible) send when online. A message with an effect plays it when it first appears; a click on the effect's emoji by the time plays it again.
 - In a group or channel that lets you post as a channel you run, a round avatar left of 📎 shows who messages go as; a click lists your account and those channels (Premium-only ones are marked) and picks the default for that chat.
 - A chat in another language (where Telegram allows it) shows "Translate to …" under the header: a click shows its messages translated in place, marked "translated" by the time (Telegram Premium), "Show original" switches back. ⚙ on the bar picks the language, "Don't translate …" stops offering that language, "Hide the bar" hides it for the chat; "Translate chat" in the chat's menu in the list brings it back.
