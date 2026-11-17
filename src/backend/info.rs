@@ -124,6 +124,8 @@ pub struct ChatDetails {
     pub blocked: bool,
     /// A user's birthday, if they share it.
     pub birthday: Option<Birthday>,
+    /// A business account's address and opening hours.
+    pub business: Option<super::BusinessInfo>,
     /// A user's other active usernames, without "@".
     pub usernames: Vec<String>,
     /// The channel a user shows in their profile.
@@ -479,6 +481,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
         PeerKind::User => {
             let tl::enums::users::UserFull::Full(f) = client.invoke(&tl::functions::users::GetFullUser { id: r.into() }).await.map_err(|e| e.to_string())?;
             let tl::enums::UserFull::Full(u) = f.full_user;
+            d.business = super::business::info_of(client, &u).await;
             d.about = u.about.unwrap_or_default();
             d.common = u.common_chats_count;
             d.blocked = u.blocked;

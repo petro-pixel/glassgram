@@ -33,6 +33,7 @@ mod stats;
 mod account_actions;
 mod login_security;
 mod takeout;
+mod business;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -176,6 +177,10 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let (german, msgs) = translate::chat();
     history.insert(german.id, msgs);
     infos.insert(4, german);
+    // A business contact: address and opening hours in its profile.
+    let (shop, msgs) = business::chat();
+    history.insert(shop.id, msgs);
+    infos.insert(5, shop);
     let bot = helper_bot();
     history.insert(bot.id, Vec::new());
     infos.push(bot);
@@ -1003,6 +1008,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::DiscussionGroups { peer, groups });
         }
         cmd @ Cmd::LoadStars { .. } => stars::handle(app, cmd),
+        Cmd::Business(cmd) => business::handle(app, cmd),
         cmd @ (Cmd::LoadBoosts(_) | Cmd::ApplyBoost { .. } | Cmd::LoadBoosters { .. } | Cmd::OpenBoostLink(_) | Cmd::TransferOwnership { .. }) => boosts::handle(app, cmd),
         cmd @ (Cmd::LoadStats { .. } | Cmd::LoadStatsGraph { .. } | Cmd::LoadMessageStats { .. }) => stats::handle(app, cmd),
         cmd @ (Cmd::LoadLanguages | Cmd::LoadLangPack { .. }) => langpack::handle(app, cmd),
@@ -1815,6 +1821,10 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             }
             if id == 5 {
                 d.birthday = Some(Birthday { day: 3, month: 9, year: None });
+            }
+            if id == business::SHOP {
+                d.business = Some(business::shop_info());
+                d.about = "Specialty coffee and pastries. Order ahead in this chat ☕".into();
             }
             d.common = 2;
         }

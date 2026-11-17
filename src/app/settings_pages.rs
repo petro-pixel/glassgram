@@ -109,6 +109,7 @@ impl SettingsTab {
             SettingsTab::Devices => l!("Пристрої", "Devices"),
             SettingsTab::Language => "Мова · Language",
             SettingsTab::Stars => l!("Мої зірки", "My Stars"),
+            SettingsTab::Business => l!("Telegram Business", "Telegram Business"),
         }
     }
 
@@ -125,12 +126,13 @@ impl SettingsTab {
             SettingsTab::Devices => Icon::Laptop,
             SettingsTab::Language => Icon::Globe,
             SettingsTab::Stars => Icon::Star,
+            SettingsTab::Business => Icon::Briefcase,
         }
     }
 }
 
 /// Section order on the main page, as in Telegram Desktop.
-const SECTIONS: [SettingsTab; 10] = [
+const SECTIONS: [SettingsTab; 11] = [
     SettingsTab::Account,
     SettingsTab::Stories,
     SettingsTab::Notifications,
@@ -141,6 +143,7 @@ const SECTIONS: [SettingsTab; 10] = [
     SettingsTab::Devices,
     SettingsTab::Language,
     SettingsTab::Stars,
+    SettingsTab::Business,
 ];
 
 /// Row of the section list: icon, title and a chevron.
@@ -214,6 +217,7 @@ impl App {
             }
             SettingsTab::Devices => self.send(Cmd::LoadSessions),
             SettingsTab::Stars => self.open_stars(),
+            SettingsTab::Business => self.open_business(),
             SettingsTab::Stories => match self.profile.id {
                 Some(me) => self.open_profile_stories(me),
                 // The page asks for the stories once the profile is here.
@@ -248,6 +252,7 @@ impl App {
             SettingsTab::Devices => self.devices_tab(ui),
             SettingsTab::Language => self.language_page(ui),
             SettingsTab::Stars => self.stars_page(ui),
+            SettingsTab::Business => self.business_page(ui),
             SettingsTab::Stories => self.my_stories_page(ui),
         }
     }
@@ -256,8 +261,11 @@ impl App {
         self.profile.clone()
     }
 
-    pub(super) fn settings_title(&self) -> &'static str {
-        self.settings_tab.title()
+    pub(super) fn settings_title(&self) -> String {
+        if self.settings_tab == SettingsTab::Business {
+            return self.business_title();
+        }
+        self.settings_tab.title().to_owned()
     }
 
     fn profile_name(&self) -> String {
@@ -701,7 +709,9 @@ impl App {
             self.two_step.reset();
             self.login_security.reset();
         }
-        if back || (esc && tab != SettingsTab::Main) {
+        if (back || esc) && tab == SettingsTab::Business && self.business_back() {
+            // An inner page of Telegram Business goes back to the section's first page.
+        } else if back || (esc && tab != SettingsTab::Main) {
             self.settings_tab = SettingsTab::Main;
             self.profile_edit = None;
         } else if done || esc {

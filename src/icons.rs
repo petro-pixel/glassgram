@@ -141,6 +141,10 @@ pub enum Icon {
     /// Login email and passkeys.
     Mail,
     KeyRound,
+    /// Telegram Business: the section, greeting and away messages.
+    Briefcase,
+    Hand,
+    Moon,
 }
 
 /// The Lucide SVG file of an icon; `None` for our own filled icons.
@@ -243,6 +247,9 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Text => include_str!("../assets/icons/type.svg"),
         Icon::Undo => include_str!("../assets/icons/undo-2.svg"),
         Icon::Zap => include_str!("../assets/icons/zap.svg"),
+        Icon::Briefcase => include_str!("../assets/icons/briefcase.svg"),
+        Icon::Hand => include_str!("../assets/icons/hand.svg"),
+        Icon::Moon => include_str!("../assets/icons/moon.svg"),
         Icon::Send | Icon::Play | Icon::Pause | Icon::Stop => return None,
     })
 }
@@ -425,6 +432,9 @@ pub fn name(icon: Icon) -> &'static str {
         Icon::Chart => l!("Статистика", "Statistics"),
         Icon::Mail => l!("Пошта", "Email"),
         Icon::KeyRound => l!("Ключ доступу", "Passkey"),
+        Icon::Briefcase => l!("Telegram Business", "Telegram Business"),
+        Icon::Hand => l!("Привітання", "Greeting"),
+        Icon::Moon => l!("Відсутність", "Away"),
     }
 }
 

@@ -549,6 +549,9 @@ impl App {
             let text = if today { format!("🎂 {}", super::birthdays::birthday_label(b)) } else { super::birthdays::birthday_label(b) };
             info_row(ui, Icon::Cake, &text, if today { l!("Сьогодні день народження", "Birthday today") } else { l!("День народження", "Birthday") });
         }
+        if let Some(b) = &d.business {
+            self.business_rows(ui, b);
+        }
         if chat.kind == ChatKind::User && self.profile_music_row(ui, chat.id) {
             todo.push(Do::ProfileMusic);
         }

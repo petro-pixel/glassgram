@@ -92,6 +92,7 @@ mod transfer;
 mod takeout;
 mod langpack;
 mod stars;
+mod business;
 mod sounds;
 mod alerts;
 mod autodelete;
@@ -396,6 +397,7 @@ enum SettingsTab {
     Devices,
     Language,
     Stars,
+    Business,
 }
 
 /// Auto-lock options in minutes (0 means only at startup).
@@ -637,6 +639,7 @@ pub struct App {
     takeout: takeout::Takeout,
     langpacks: langpack::LangPacks,
     stars: stars::Stars,
+    business: business::Business,
     send_as: sendas::SendAs,
     sounds: sounds::Sounds,
     alerts: alerts::Alerts,
@@ -948,6 +951,7 @@ impl App {
             takeout: takeout::Takeout::default(),
             langpacks: langpack::LangPacks::default(),
             stars: stars::Stars::default(),
+            business: business::Business::default(),
             send_as: sendas::SendAs::default(),
             sounds: sounds::Sounds::default(),
             alerts: alerts::Alerts::default(),
@@ -1174,6 +1178,7 @@ impl App {
             ev @ (Ev::Languages(_) | Ev::LangPack { .. }) => self.langpack_event(ev),
             Ev::StarsBalance { stars, nanos } => self.on_stars_balance(stars, nanos),
             Ev::StarsHistory { dir, list, next, append } => self.on_stars_history(dir, list, next, append),
+            Ev::Business(ev) => self.business_event(ev),
             Ev::AdminLog { peer, entries, older } => self.on_admin_log(peer, entries, older),
             Ev::Stats { peer, stats } => self.on_stats(peer, stats),
             Ev::StatsGraph { peer, msg, index, graph } => self.on_stats_graph(peer, msg, index, graph),
