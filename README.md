@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 75%** `███████████████░░░░░` — 123 done, 27 partial, 32 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 75%** `███████████████░░░░░` — 123 done, 28 partial, 31 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -25,7 +25,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Languages**: Ukrainian and English built into the code (always offline), every language Telegram Desktop offers (Settings → Language lists them with native names, "beta" and how much is translated; a click downloads the pack, caches it and switches at once, no restart), plus localisation files (`locales/*.json`, see below)
 - **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
 - **Settings** (⚙): language, theme (dark, light, system), interface scale, notifications, autoplay, SOCKS5 and MTProto proxies (several, switched on the fly, with ping), privacy, active sessions, local passcode; stored in `~/.local/share/glassgram/settings`
-- **Settings layout** as in Telegram Desktop: My Account (name, bio, username with availability check and its QR code, profile photo, name and profile colour with a live preview, emoji status) · My Stories (stories saved to the profile, albums and the archive) · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language · My Stars (balance and history with All / Incoming / Outgoing tabs; a click on a transaction shows its details)
+- **Settings layout** as in Telegram Desktop: My Account (name, bio, username with availability check and its QR code, profile photo, name and profile colour with a live preview, emoji status) · My Stories (stories saved to the profile, albums and the archive) · Notifications · Privacy and Security · Chat Settings · Folders · Advanced · Devices · Language · My Stars (balance and history with All / Incoming / Outgoing tabs; a click on a transaction shows its details) · Telegram Business (location, opening hours, quick replies, greeting and away messages, chatbots, links to chat; a promo without Premium)
 - **Send queue**: text messages, files, voice and round video messages show up at once (clock), are retried while offline and survive a restart; failed ones get a red mark with Retry / Delete
 - **Glass**: real blur via a wgpu shader (`src/blur.rs`, `src/glass.wgsl`); without wgpu — a vector fallback
 - **UI**: egui / eframe (wgpu), our own glass renderer — `src/glass.rs`
@@ -141,6 +141,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/confirm.rs` | "Open this link?" for hidden links and "Run this file?" for received programs |
 | `src/app/gifts.rs`, `src/backend/gifts.rs` | "Gifts" tab in a profile |
 | `src/app/stars.rs`, `src/backend/stars.rs` | Settings → My Stars: balance and transaction history (read only) |
+| `src/app/business.rs` (+ `business/`), `src/backend/business.rs` | Settings → Telegram Business: location, opening hours, quick replies, greeting and away messages, chatbots, chat links; a business's hours and address in its profile |
 | `src/app/textures.rs` | Pictures on the GPU with a memory budget; dropped ones come back from the disk cache |
 | `src/app/emojikw.rs`, `src/backend/emojikw.rs` | Emoji suggestions while typing `:word` |
 | `src/app/custom_emoji.rs`, `src/backend/custom_emoji.rs` | Custom emoji in message text: pictures drawn over the fallback emoji |
@@ -237,7 +238,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Composer markup: `**bold**`, `__italic__`, `~~strike~~`, `||spoiler||`, `` `code` ``, ```` ```block``` ````, `[text](https://…)`; the field shows it styled with the markers faded. Selecting text shows a formatting bar above it; shortcuts: Ctrl+B bold, Ctrl+I italic, Ctrl+Shift+X strikethrough, Ctrl+Shift+M monospace, Ctrl+Shift+P spoiler, Ctrl+K link, Ctrl+Shift+N clear formatting.
 - Spell checking: misspelled words in the composer get a red wavy underline; a right click on one offers up to five corrections, "Add to dictionary" and "Ignore". Settings → Advanced → "Spell checker" turns it on and off; "Manage dictionaries" picks the languages and downloads their Hunspell dictionaries (the interface and system language and English by default) into `dictionaries/` in the data folder.
 - Clicking a hashtag searches for it in the chat; clicking a bot command sends it.
-- `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way.
+- `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way. In a private chat `/` also lists your Telegram Business quick replies: Enter or a click sends the shortcut's messages, Tab inserts `/name`.
 - A link preview appears above the composer; ✕ sends the message without it.
 - A link preview with an Instant View has an "INSTANT VIEW" button: a click opens the article in a reading window over the chat (links inside open in the browser, 🌐 opens the whole page there); Esc or ✕ closes it.
 - Right-click "Send": in a private chat, a row of message effects on top (★ — Premium) sends the message with that effect; then send silently, schedule, or (in a private chat whose last seen time is visible) send when online. A message with an effect plays it when it first appears; a click on the effect's emoji by the time plays it again.

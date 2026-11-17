@@ -7,7 +7,7 @@ use eframe::egui::{self, FontId, Key, Rect, Sense, TextureHandle, Ui, pos2, text
 use grammers_client::session::types::PeerId;
 
 use super::{Action, App, COMPOSE_BAR_H, COMPOSER_H, SEARCH_DELAY, elided};
-use crate::backend::{BotCmd, ChatKind, Cmd, Ev, ImgKey, Mentionable, Msg, WebPageInfo};
+use crate::backend::{BotCmd, ChatKind, Cmd, Ev, ImgKey, Mentionable, Msg, QuickReply, WebPageInfo};
 use crate::format;
 use crate::glass::{self, ACCENT, Glass, ink, ink_dim};
 use crate::i18n::l;
@@ -63,6 +63,8 @@ enum Item {
     Command(BotCmd),
     /// (emoji, the keyword it matched)
     Emoji(String, String),
+    /// A Telegram Business quick reply (private chats only).
+    Quick(QuickReply),
 }
 
 impl App {
@@ -222,7 +224,11 @@ impl App {
                 if self.suggest.commands_requested.insert(peer) {
                     self.send(Cmd::LoadBotCommands(peer));
                 }
-                self.command_items(peer, q)
+                let mut items = self.command_items(peer, q);
+                if kind == ChatKind::User {
+                    items.extend(self.quick_reply_items(q).into_iter().map(Item::Quick));
+                }
+                items
             }
             Some(Popup::Emoji(q)) => {
                 // English always, plus the language of the interface.
@@ -297,6 +303,14 @@ impl App {
                 replace_token(&mut self.draft, &e);
                 focus_end(ui, &self.draft);
             }
+            Item::Quick(r) => {
+                if send {
+                    self.send_quick_reply(peer, r.id);
+                } else {
+                    self.draft = format!("/{} ", r.name);
+                    focus_end(ui, &self.draft);
+                }
+            }
             Item::Command(c) => {
                 let cmd = if several_bots && !c.bot.is_empty() { format!("/{}@{}", c.command, c.bot) } else { format!("/{}", c.command) };
                 if send {
@@ -363,7 +377,7 @@ fn item_avatar(item: &Item) -> ImgKey {
     match item {
         Item::Member(m) => ImgKey::Avatar(m.id),
         // Bot avatars are not loaded separately; the key just finds nothing.
-        Item::Command(_) | Item::Emoji(..) => ImgKey::WebPage(0),
+        Item::Command(_) | Item::Emoji(..) | Item::Quick(_) => ImgKey::WebPage(0),
     }
 }
 
@@ -385,18 +399,24 @@ fn self_row(ui: &Ui, row: Rect, item: &Item, avatar: Option<&TextureHandle>) {
             p.text(pos2(row.left() + 26.0, row.center().y), egui::Align2::CENTER_CENTER, e, FontId::proportional(24.0), ink());
             p.galley(pos2(row.left() + 54.0, row.center().y - 8.0), elided(ui, &format!(":{keyword}"), 13.5, ink_dim(), w), ink_dim());
         }
-        Item::Command(c) => {
-            let badge = Rect::from_center_size(pos2(row.left() + 26.0, row.center().y), vec2(34.0, 34.0));
-            glass::glass(p, badge, Glass::tinted(17.0, ACCENT, 150));
-            icons::draw(p, Rect::from_center_size(badge.center(), vec2(18.0, 18.0)), Icon::Commands, ink());
-            let bold = FontId::new(14.5, egui::FontFamily::Name(format::BOLD.into()));
-            let cmd = p.layout_no_wrap(format!("/{}", c.command), bold, ink());
-            let cmd_w = cmd.size().x;
-            p.galley(pos2(row.left() + 54.0, row.center().y - 9.0), cmd, ink());
-            let at = pos2(row.left() + 54.0 + cmd_w + 10.0, row.center().y - 8.0);
-            p.galley(at, elided(ui, &c.description, 13.0, ink_dim(), (w - cmd_w - 10.0).max(0.0)), ink_dim());
-        }
+        Item::Command(c) => command_row(ui, row, Icon::Commands, &c.command, &c.description),
+        Item::Quick(r) => command_row(ui, row, Icon::Reply, &r.name, &r.top.replace('\n', " ")),
     }
+}
+
+/// A badge with an icon, "/name" in bold and a description after it.
+fn command_row(ui: &Ui, row: Rect, icon: Icon, name: &str, about: &str) {
+    let p = ui.painter();
+    let w = row.width() - 66.0;
+    let badge = Rect::from_center_size(pos2(row.left() + 26.0, row.center().y), vec2(34.0, 34.0));
+    glass::glass(p, badge, Glass::tinted(17.0, ACCENT, 150));
+    icons::draw(p, Rect::from_center_size(badge.center(), vec2(18.0, 18.0)), icon, ink());
+    let bold = FontId::new(14.5, egui::FontFamily::Name(format::BOLD.into()));
+    let cmd = p.layout_no_wrap(format!("/{name}"), bold, ink());
+    let cmd_w = cmd.size().x;
+    p.galley(pos2(row.left() + 54.0, row.center().y - 9.0), cmd, ink());
+    let at = pos2(row.left() + 54.0 + cmd_w + 10.0, row.center().y - 8.0);
+    p.galley(at, elided(ui, about, 13.0, ink_dim(), (w - cmd_w - 10.0).max(0.0)), ink_dim());
 }
 
 /// Puts the cursor at the end of the composer text and keeps the focus there.
