@@ -592,7 +592,7 @@ impl App {
         }
     }
 
-    /// "Advanced": connection (proxy), data and storage, camera and media tools.
+    /// "Advanced": connection (proxy), data and storage, spell checker, camera and media tools.
     fn advanced_page(&mut self, ui: &mut Ui) {
         let cameras = self.cameras.get_or_insert_with(camera::list).clone();
         let (can_play, can_record) = (self.playback.available, self.rec.available);
@@ -619,6 +619,8 @@ impl App {
             hint(ui, &yes_no(can_record, l!("ffmpeg — відео в чаті й запис голосових", "ffmpeg — in-chat video and voice recording")));
             ui.add_space(10.0);
             self.autodl_section(ui);
+            ui.add_space(10.0);
+            self.spell_section(ui);
             ui.add_space(10.0);
             self.storage_section(ui);
             ui.add_space(10.0);

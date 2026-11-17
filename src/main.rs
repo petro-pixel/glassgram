@@ -28,6 +28,7 @@ mod player;
 mod progress;
 mod recorder;
 mod settings;
+mod spell;
 mod tray;
 mod video;
 mod viewer;

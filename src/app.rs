@@ -35,6 +35,7 @@ mod suggest;
 mod info;
 mod hotkeys;
 mod richtext;
+mod spellcheck;
 mod proxy;
 mod outbox;
 mod settings_pages;
@@ -623,6 +624,7 @@ pub struct App {
     sounds: sounds::Sounds,
     alerts: alerts::Alerts,
     richtext: richtext::RichText,
+    spell: spellcheck::SpellCheck,
     proxies: proxy::Proxies,
     autodelete: autodelete::AutoDelete,
     /// Chat backgrounds and themes.
@@ -924,6 +926,7 @@ impl App {
             sounds: sounds::Sounds::default(),
             alerts: alerts::Alerts::default(),
             richtext: richtext::RichText::default(),
+            spell: spellcheck::SpellCheck::default(),
             proxies: proxy::Proxies::default(),
             autodelete: autodelete::AutoDelete::default(),
             wallpapers: wallpapers::Wallpapers::default(),

@@ -552,7 +552,9 @@ impl App {
         let arrow_edit = self.can_edit_by_arrow() && ui.input(|i| i.key_pressed(Key::ArrowUp) && i.modifiers.is_none());
         let send_mods = self.send_mods();
         self.format_keys(ui, l!("Повідомлення", "Message"));
-        let (resp, submitted) = glass::rich_area(ui, input, &mut self.draft, l!("Повідомлення", "Message"), send_mods);
+        let marks = self.spell_marks();
+        let (resp, submitted, at) = glass::rich_area(ui, input, &mut self.draft, l!("Повідомлення", "Message"), send_mods, &marks);
+        self.spell_menu(&resp, at);
         if self.take_composer_focus() {
             resp.request_focus();
         }

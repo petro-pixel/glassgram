@@ -391,7 +391,7 @@ impl App {
             }
             section_title(ui, l!("Підпис", "Caption"));
             let (r, _) = ui.allocate_exact_size(vec2(w, 76.0), Sense::hover());
-            let (_, submit) = glass::rich_area(ui, r, &mut d.caption, l!("Додати підпис…", "Add a caption…"), mods);
+            let (_, submit, _) = glass::rich_area(ui, r, &mut d.caption, l!("Додати підпис…", "Add a caption…"), mods, &[]);
             if submit && d.upload.is_none() {
                 act = Some(Act::Post);
             }
