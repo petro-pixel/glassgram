@@ -22,6 +22,7 @@ mod langpack;
 mod sendas;
 mod aitext;
 mod factcheck;
+mod instant_view;
 mod translate;
 mod attach;
 mod calls;
@@ -266,6 +267,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 description: "In demo mode the preview is made up without the network.".into(),
                 site,
                 photo: false,
+                iv: false,
             };
             app.push_event(Ev::WebPreview { text, page: Some(page) });
         }
@@ -548,6 +550,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::Transcribe { peer, id } => aitext::transcribe(app, peer, id),
         Cmd::Summarize { peer, id } => aitext::summarize(app, peer, id),
         Cmd::LoadFactChecks { peer, ids } => factcheck::answer(app, peer, ids),
+        Cmd::InstantView { url } => instant_view::open(app, url),
         Cmd::JumpToDate { peer, date } => {
             let msgs = app.demo_history().find(|(p, _, _)| *p == peer).map(|(_, _, msgs)| msgs.clone()).unwrap_or_default();
             let id = msgs.iter().find(|m| m.ts >= date as i64).or(msgs.last()).map(|m| m.id);
@@ -1439,6 +1442,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
                     title: "Lonami/grammers".into(),
                     description: "(tele)gramme.rs — a set of Rust crates for the Telegram MTProto API".into(),
                     photo: true,
+                    iv: false,
                 });
             }
             if let Some(m) = msgs.first_mut() {
@@ -1544,6 +1548,10 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
         _ => {}
     }
     factcheck::extras(id, msgs, base);
+    if id == 4 {
+        // After the fact-checked post, so ids stay ascending.
+        msgs.push(instant_view::post(base(32, "Tech News")));
+    }
 }
 
 fn weather_buttons() -> Vec<Vec<Button>> {
@@ -1703,7 +1711,7 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
         img
     };
     let id = PeerId::user_unchecked(1);
-    vec![
+    let mut list = vec![
         (ImgKey::Photo(id, 6), sunset(480, 320)),
         (ImgKey::Photo(id, 70), sunset(400, 300)),
         (ImgKey::Photo(id, 71), sunset(300, 300)),
@@ -1715,7 +1723,9 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
         (ImgKey::Photo(PeerId::user_unchecked(2), 5), sunset(480, 250)),
         (ImgKey::Sponsored(DEMO_AD_PHOTO), sunset(112, 112)),
         (ImgKey::Sponsored(DEMO_AD_MEDIA), sunset(640, 360)),
-    ]
+    ];
+    list.extend(instant_view::images());
+    list
 }
 
 /// A tall gradient for a demo story, a different hue per story.

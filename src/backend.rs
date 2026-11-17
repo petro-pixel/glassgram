@@ -58,6 +58,8 @@ use crate::i18n::{l, lf};
 
 mod chatview;
 mod suggest;
+mod instant_view;
+pub use instant_view::{IvArticle, IvBlock, IvPage, IvText};
 pub use suggest::{BotCmd, Mentionable, WebPageInfo};
 mod info;
 pub use info::{ChatDetails, MUTE_FOREVER, Member, MemberRole, NotifyState, SHARED_PAGE, SharedKind};
@@ -546,6 +548,8 @@ pub enum Cmd {
     SetReactionNotify(ReactionNotify),
     /// Preview for the link being typed (`messages.getWebPagePreview`).
     WebPreview(String),
+    /// The Instant View of a page by its URL (`messages.getWebPage`); answered with `Ev::InstantView`.
+    InstantView { url: String },
     /// Chat members for the @mention popup.
     LoadMentions { peer: PeerId, query: String },
     /// Chat bot commands for the `/` menu.
@@ -682,6 +686,8 @@ pub enum ImgKey {
     Emoji(i64),
     /// A wallpaper's gallery thumbnail (by document id).
     Wall(i64),
+    /// An Instant View picture or video cover (by photo or document id).
+    Page(i64),
 }
 
 pub enum Ev {
@@ -933,6 +939,8 @@ pub enum Ev {
     ReactionNotify(ReactionNotify),
     /// `page: None`: the text has no link with a preview.
     WebPreview { text: String, page: Option<WebPageInfo> },
+    /// A page for Instant View, or why there is none.
+    InstantView { url: String, result: Result<IvPage, String> },
     Mentions { peer: PeerId, query: String, members: Vec<Mentionable> },
     BotCommands { peer: PeerId, commands: Vec<BotCmd> },
     ChatDetails { peer: PeerId, details: ChatDetails },
@@ -1352,6 +1360,7 @@ impl Worker {
             cmd @ (Cmd::LoadRingtones | Cmd::UploadRingtone(_) | Cmd::DeleteRingtone(_) | Cmd::LoadReactionNotify | Cmd::SetReactionNotify(_)) => self.sounds_cmd(cmd).await,
             cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. } | Cmd::SetAdsEnabled(_)) => self.sponsored_cmd(cmd).await,
             Cmd::WebPreview(text) => self.web_preview(text),
+            cmd @ Cmd::InstantView { .. } => self.instant_view_cmd(cmd).await,
             Cmd::LoadMentions { peer, query } => self.load_members(peer, query),
             Cmd::LoadBotCommands(peer) => self.load_bot_commands(peer),
             Cmd::LoadChatInfo(_)
