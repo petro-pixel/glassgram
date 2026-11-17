@@ -109,6 +109,8 @@ mod transfer;
 pub use transfer::TransferStep;
 mod chatedit;
 mod birthdays;
+mod takeout;
+pub use takeout::{TakeoutEv, TakeoutOptions, TakeoutProgress};
 mod botstart;
 mod similar;
 mod sendas;
@@ -241,6 +243,10 @@ pub enum Cmd {
     OpenComments { peer: PeerId, id: i32, before: Option<i32> },
     /// Export the whole chat history to Downloads (HTML + JSON, optionally with media).
     ExportChat { peer: PeerId, title: String, media: bool },
+    /// Full account export (`account.initTakeoutSession`, requests in `invokeWithTakeout`).
+    StartTakeout(TakeoutOptions),
+    /// Stop the running account export; the takeout session is closed as failed.
+    CancelTakeout,
     /// Find a public chat by @username and open it without joining.
     ResolveUsername(String),
     /// Search public groups, channels and bots by name.
@@ -790,6 +796,8 @@ pub enum Ev {
     /// Export: how many messages have been exported so far.
     ExportProgress { peer: PeerId, done: usize },
     Exported { peer: PeerId, dir: PathBuf, count: usize },
+    /// Full account export: progress, the 24-hour wait, the result.
+    Takeout(TakeoutEv),
     /// A public chat found by username (may not be in the dialog list).
     ChatFound(ChatInfo),
     PublicResults { query: String, chats: Vec<ChatInfo> },
@@ -1186,6 +1194,8 @@ struct Worker {
     /// Category notification defaults, to tell which chats are muted.
     notifs: notify::Notifs,
     autodl: crate::settings::AutoDownload,
+    /// Cancel flag of the running account export.
+    takeout: Option<Arc<std::sync::atomic::AtomicBool>>,
 }
 
 impl Worker {
@@ -1211,6 +1221,7 @@ impl Worker {
             bots: HashMap::new(),
             notifs: Arc::default(),
             autodl: Default::default(),
+            takeout: None,
         }
     }
 
@@ -1312,6 +1323,7 @@ impl Worker {
     async fn handle(&mut self, cmd: Cmd) -> Result<(), String> {
         match cmd {
             cmd @ Cmd::ExportChat { .. } => self.export_cmd(cmd).await,
+            cmd @ (Cmd::StartTakeout(_) | Cmd::CancelTakeout) => self.takeout_cmd(cmd).await,
             cmd @ (Cmd::StoreQueued(..) | Cmd::DropQueued(..)) => self.queue_cmd(cmd).await,
             cmd @ (Cmd::LoadPrivacy | Cmd::SetPrivacy { .. }) => self.privacy_rules_cmd(cmd).await,
             cmd @ (Cmd::SearchPublic(..) | Cmd::ResolveUsername(..)) => self.search_cmd(cmd).await,
