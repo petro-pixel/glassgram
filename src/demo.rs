@@ -29,6 +29,7 @@ mod calls;
 mod story_post;
 mod boosts;
 mod stats;
+mod takeout;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -1010,6 +1011,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::Websites(list));
         }
         cmd @ (Cmd::LoadCalls { .. } | Cmd::DeleteCalls { .. }) => calls::handle(app, cmd),
+        cmd @ (Cmd::StartTakeout(_) | Cmd::CancelTakeout) => takeout::handle(app, cmd),
         Cmd::LoadContentSettings => app.push_event(Ev::ContentSettings { enabled: false, can_change: true }),
         Cmd::SetSensitive(enabled) => app.push_event(Ev::ContentSettings { enabled, can_change: true }),
         cmd @ (Cmd::LoadParticipants { .. } | Cmd::EditAdmin { .. } | Cmd::RestrictMember { .. } | Cmd::BanMember { .. } | Cmd::UnbanMember { .. }) => manage(app, cmd),

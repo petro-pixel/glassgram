@@ -624,6 +624,8 @@ impl App {
             ui.add_space(10.0);
             self.storage_section(ui);
             ui.add_space(10.0);
+            self.takeout_section(ui);
+            ui.add_space(10.0);
             self.error_log_section(ui);
         });
     }

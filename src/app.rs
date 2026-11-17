@@ -88,6 +88,7 @@ mod websites;
 mod calls;
 mod boosts;
 mod transfer;
+mod takeout;
 mod langpack;
 mod stars;
 mod sounds;
@@ -625,6 +626,7 @@ pub struct App {
     boosts: boosts::Boosts,
     /// Transferring a chat's ownership from the admin editor.
     transfer: transfer::Transfer,
+    takeout: takeout::Takeout,
     langpacks: langpack::LangPacks,
     stars: stars::Stars,
     send_as: sendas::SendAs,
@@ -929,6 +931,7 @@ impl App {
             calls: calls::Calls::default(),
             boosts: boosts::Boosts::default(),
             transfer: transfer::Transfer::default(),
+            takeout: takeout::Takeout::default(),
             langpacks: langpack::LangPacks::default(),
             stars: stars::Stars::default(),
             send_as: sendas::SendAs::default(),
@@ -1150,6 +1153,7 @@ impl App {
             ev @ (Ev::CallLog { .. } | Ev::CallsDeleted(_)) => self.calls_event(ev),
             ev @ (Ev::BoostStatus { .. } | Ev::MyBoosts(_) | Ev::Boosted(_) | Ev::BoostFailed { .. } | Ev::Boosters { .. } | Ev::BoostLink(_)) => self.boosts_event(ev),
             Ev::Transfer { peer, user, step } => self.on_transfer(peer, user, step),
+            Ev::Takeout(ev) => self.takeout_event(ev),
             ev @ (Ev::Languages(_) | Ev::LangPack { .. }) => self.langpack_event(ev),
             Ev::StarsBalance { stars, nanos } => self.on_stars_balance(stars, nanos),
             Ev::StarsHistory { dir, list, next, append } => self.on_stars_history(dir, list, next, append),
@@ -1884,6 +1888,7 @@ impl eframe::App for App {
         self.stats_view(ui);
         self.manage_view(ui);
         self.transfer_view(ui);
+        self.takeout_view(ui);
         self.boosts_view(ui);
         self.chatlist_view(ui);
         self.sticker_set_box(ui);

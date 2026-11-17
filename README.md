@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 73%** `███████████████░░░░░` — 121 done, 25 partial, 36 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 74%** `███████████████░░░░░` — 121 done, 26 partial, 35 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -163,6 +163,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/manage.rs`, `src/backend/manage.rs` | "Manage" box: administrators and their rights and titles, restricted and removed members |
 | `src/app/boosts.rs`, `src/backend/boosts.rs` | Boost box of a channel or supergroup: level and progress, boosting with a Premium slot or reassigning one, boosters and the boost link for admins, `t.me/boost/…` links |
 | `src/app/transfer.rs`, `src/backend/transfer.rs` | Transferring a group's or channel's ownership from the admin editor: confirmation, security check, cloud password (SRP) |
+| `src/app/takeout.rs`, `src/backend/takeout.rs`, `src/demo/takeout.rs` | "Export Telegram data" (Settings → Advanced): takeout session with the chosen data, chats by type, media by type and size, HTML / JSON, progress and stop, the 24-hour wait |
 | `src/app/invites.rs`, `src/backend/invites.rs` | Invite links (name, expiry, limit, approval; revoke, delete) and join requests |
 | `src/app/chatlists.rs`, `src/backend/chatlists.rs` | Shared folders by link: adding, new chats, leaving |
 | `src/app/stickers.rs`, `src/backend/stickers.rs` | The sticker panel, the sticker set box, set search and order, favourite stickers, saved GIFs |
@@ -204,7 +205,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/lottie.rs` | Animated (Lottie) stickers drawn on the CPU: `velato` + `vello_cpu`, with limits for untrusted files |
 | `src/camera.rs` | Video message recording: camera + microphone → MP4, round preview; the microphone for all recordings (`Mic`) |
 | `src/recorder.rs` | Voice recording via `ffmpeg`, level and waveform |
-| `src/export.rs` | Chat history export to HTML and JSON |
+| `src/export.rs` | HTML and JSON writers for chat history and the account export |
 | `src/platform.rs` | Everything that differs between Linux, Windows and macOS: folders, ffmpeg/ffplay, notifications; the safe openers for links (`open_url`) and received files (`open_file`, `safe_file_name`), private temp files |
 | `src/settings.rs` | Settings and saving them |
 | `src/lock.rs` | Local passcode (salt + SHA-256) |
@@ -245,6 +246,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Settings → Chat Settings → Chat background: the server gallery (pictures, patterns, colours and gradients), a picture from a file, or the live background; a private chat's info → "Chat wallpaper and theme" sets that chat's own wallpaper and emoji or gift theme.
 - Settings → Chat Settings → Accessibility: reduce transparency (solid glass), increase contrast, reduce motion (a still background).
 - Settings → Advanced → "Automatic media download" picks what loads on its own in private chats, groups and channels; other media show an arrow and load on a click.
+- Settings → Advanced → "Export Telegram data": tick the account info, contacts, sessions, chat types (public groups can be limited to your own messages) and media types with a size limit, pick HTML, JSON or both and the folder (Downloads by default); the export runs in the background with a progress bar and a Stop button and ends with "Show my data". On first use Telegram makes you wait 24 hours and says when to come back. In the demo it writes the demo chats to a temporary folder.
 - Enter sends, Shift+Enter — new line.
 - Jump to a date: the calendar button in chat search, or click a date chip between messages.
 - Enter sends, Shift+Enter starts a new line; Settings → Chat Settings switches sending to Ctrl+Enter (Cmd+Enter on macOS) and sets the message text size and the chat list density (compact, standard, large).
