@@ -1,6 +1,7 @@
 //! Sign-in screens (phone, code, password, QR) and the local passcode lock.
 
 use super::*;
+use crate::backend::CodeVia;
 
 /// Local passcode lock: whether locked, the typed passcode, the last error, the last input.
 pub(super) struct Lock {
@@ -22,6 +23,10 @@ pub(super) struct LoginForm {
     pub(super) api_id: String,
     pub(super) api_hash: String,
     pub(super) phone: String,
+    /// The login email an account without one is asked to bind.
+    pub(super) email: String,
+    /// Unix time the code screen came up: an email reset waits from here.
+    pub(super) code_at: i64,
     pub(super) code: String,
     pub(super) password: String,
 }
@@ -69,6 +74,8 @@ impl App {
             Step::Creds => 400.0,
             Step::Connecting => 300.0,
             Step::Phone => 420.0,
+            Step::Code(CodeVia::Email { .. }) => 500.0,
+            Step::Code(CodeVia::SetUpEmail { .. }) => 420.0,
             _ => 360.0,
         };
         let card = Rect::from_center_size(screen.center(), vec2(380.0_f32.min(screen.width() - 32.0), card_h));
@@ -101,7 +108,7 @@ impl App {
             Step::Creds => l!("Введіть API ID та API hash з my.telegram.org", "Enter API ID and API hash from my.telegram.org").to_owned(),
             Step::Connecting => l!("Підключення до Telegram…", "Connecting to Telegram…").to_owned(),
             Step::Phone => l!("Ваш номер телефону у міжнародному форматі", "Your phone number in international format").to_owned(),
-            Step::Code => l!("Код надіслано в Telegram або SMS", "The code was sent via Telegram or SMS").to_owned(),
+            Step::Code(via) => code_subtitle(via),
             Step::Password(h) => match h {
                 Some(h) => lf!("Пароль двоетапної перевірки (підказка: {h})", "Two-step verification password (hint: {h})"),
                 None => l!("Пароль двоетапної перевірки", "Two-step verification password").to_owned(),
@@ -124,7 +131,8 @@ impl App {
             Step::Creds if NO_KEY_SCREEN => Vec::new(),
             Step::Creds => vec![(&mut self.login.api_id, "API ID", false), (&mut self.login.api_hash, "API hash", false)],
             Step::Phone => vec![(&mut self.login.phone, "+380 00 000 00 00", false)],
-            Step::Code => vec![(&mut self.login.code, l!("Код", "Code"), false)],
+            Step::Code(CodeVia::SetUpEmail { .. }) => vec![(&mut self.login.email, l!("Електронна пошта", "Email"), false)],
+            Step::Code(_) => vec![(&mut self.login.code, l!("Код", "Code"), false)],
             Step::Password(_) => vec![(&mut self.login.password, l!("Пароль", "Password"), true)],
             Step::Connecting | Step::Qr(_) => unreachable!(),
         };
@@ -140,6 +148,7 @@ impl App {
             (Step::Creds, _) if NO_KEY_SCREEN => l!("Повторити", "Retry"),
             (Step::Creds, _) => l!("Підключитися", "Connect"),
             (Step::Phone, _) => l!("Отримати код", "Get code"),
+            (Step::Code(CodeVia::SetUpEmail { .. } | CodeVia::SetUpEmailCode { .. }), _) => l!("Далі", "Next"),
             _ => l!("Увійти", "Log in"),
         };
         y += 6.0;
@@ -151,6 +160,47 @@ impl App {
             self.screen = Screen::Login(Step::Qr(None));
             self.send(Cmd::QrLogin);
         }
+        if let Step::Code(via) = &step {
+            self.email_code_extras(ui, card, y + 58.0, via);
+        }
+    }
+
+    /// Under an email code: resetting the email, and the Apple / Google sign-in the official apps offer.
+    fn email_code_extras(&mut self, ui: &mut Ui, card: Rect, mut y: f32, via: &CodeVia) {
+        let (apple, google) = match via {
+            CodeVia::Email { apple, google, .. } | CodeVia::SetUpEmail { apple, google } => (*apple, *google),
+            _ => return,
+        };
+        let p = ui.painter().clone();
+        let note = |text: String, y: &mut f32| {
+            let g = p.layout(text, FontId::proportional(12.5), ink_dim(), card.width() - 64.0);
+            p.galley(pos2(card.center().x - g.size().x / 2.0, *y), g.clone(), ink_dim());
+            *y += g.size().y + 8.0;
+        };
+        if let CodeVia::Email { reset_after, reset_at, .. } = via {
+            let now = jiff::Timestamp::now().as_second();
+            if let Some(at) = reset_at {
+                note(lf!("Пошту буде скинуто {}", "The email will be reset on {}", when(*at as i64)), &mut y);
+            } else if let Some(wait) = reset_after {
+                let left = self.login.code_at + *wait as i64 - now;
+                let r = Rect::from_min_size(pos2(card.left() + 32.0, y), vec2(card.width() - 64.0, 38.0));
+                if glass::button(ui, r, "email-reset", l!("Скинути пошту", "Reset email"), false, left <= 0 && !self.busy).clicked() && left <= 0 && !self.busy {
+                    self.busy = true;
+                    self.send(Cmd::ResetLoginEmail);
+                }
+                y += 46.0;
+                if left > 0 {
+                    note(lf!("Скинути можна буде {}", "You can reset it on {}", when(now + left)), &mut y);
+                }
+            }
+        }
+        let other = match (apple, google) {
+            (true, true) => l!("Також можна увійти через Apple або Google в офіційному застосунку.", "You can also sign in with Apple or Google in the official app."),
+            (true, false) => l!("Також можна увійти через Apple в офіційному застосунку.", "You can also sign in with Apple in the official app."),
+            (false, true) => l!("Також можна увійти через Google в офіційному застосунку.", "You can also sign in with Google in the official app."),
+            (false, false) => return,
+        };
+        note(other.to_owned(), &mut y);
     }
 
     pub(super) fn qr_view(&mut self, ui: &mut Ui, url: Option<&str>) {
@@ -204,7 +254,12 @@ impl App {
                 }
             },
             Step::Phone => Cmd::RequestCode(self.login.phone.clone()),
-            Step::Code => Cmd::SubmitCode(self.login.code.clone()),
+            Step::Code(CodeVia::SetUpEmail { .. }) if !self.login.email.contains('@') => {
+                self.toast = Some((l!("Невірна адреса пошти", "Invalid email address").into(), 0.0, true));
+                return;
+            }
+            Step::Code(CodeVia::SetUpEmail { .. }) => Cmd::SetUpLoginEmail(self.login.email.trim().to_owned()),
+            Step::Code(_) => Cmd::SubmitCode(self.login.code.clone()),
             Step::Password(_) => Cmd::SubmitPassword(self.login.password.clone()),
             Step::Connecting | Step::Qr(_) => return,
         };
@@ -218,7 +273,11 @@ impl App {
     pub(super) fn login_event(&mut self, ev: Ev) {
         match ev {
             Ev::NeedPhone => self.screen = Screen::Login(Step::Phone),
-            Ev::NeedCode => self.screen = Screen::Login(Step::Code),
+            Ev::NeedCode(via) => {
+                self.login.code.clear();
+                self.login.code_at = jiff::Timestamp::now().as_second();
+                self.screen = Screen::Login(Step::Code(via));
+            }
             Ev::NeedPassword(hint) => self.screen = Screen::Login(Step::Password(hint)),
             Ev::Qr(url) => {
                 if matches!(self.screen, Screen::Login(Step::Qr(_))) {
@@ -256,4 +315,24 @@ impl App {
             _ => {}
         }
     }
+}
+
+/// What the code screen says about where the code went, as Telegram Desktop words it.
+fn code_subtitle(via: &CodeVia) -> String {
+    match via {
+        CodeVia::App => l!("Код надіслано в застосунок Telegram на іншому пристрої", "We've sent the code to the Telegram app on your other device").to_owned(),
+        CodeVia::Sms => l!("Ми надіслали SMS із кодом", "We've sent you an SMS with the code").to_owned(),
+        CodeVia::Call => l!("Ми телефонуємо, щоб продиктувати код", "We're calling your phone to tell you the code").to_owned(),
+        CodeVia::Other => l!("Код надіслано в Telegram або SMS", "The code was sent via Telegram or SMS").to_owned(),
+        CodeVia::Email { pattern, .. } => lf!(
+            "Перевірте пошту {pattern} (і теку «Спам») та введіть код, який ми надіслали",
+            "Check your email {pattern} (don't forget the spam folder) and enter the code we sent"
+        ),
+        CodeVia::SetUpEmail { .. } => l!("Додайте пошту для входу: на неї приходитимуть коди", "Add a login email: sign-in codes will be sent to it").to_owned(),
+        CodeVia::SetUpEmailCode { pattern, .. } => lf!("Введіть код, надісланий на {pattern}", "Enter the code sent to {pattern}"),
+    }
+}
+
+fn when(t: i64) -> String {
+    jiff::Timestamp::from_second(t).map(|t| t.to_zoned(jiff::tz::TimeZone::system()).strftime("%d.%m.%Y %H:%M").to_string()).unwrap_or_default()
 }

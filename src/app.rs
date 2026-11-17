@@ -85,6 +85,7 @@ mod sendbox;
 mod photoedit;
 mod editmedia;
 mod websites;
+mod login_security;
 mod calls;
 mod boosts;
 mod transfer;
@@ -155,7 +156,7 @@ enum Step {
     Connecting,
     Phone,
     Qr(Option<String>),
-    Code,
+    Code(backend::CodeVia),
     Password(Option<String>),
 }
 
@@ -620,6 +621,7 @@ pub struct App {
     instant_view: instant_view::InstantView,
     edit_media: editmedia::EditMedia,
     websites: websites::Websites,
+    login_security: login_security::LoginSecurity,
     /// The "Calls" box.
     calls: calls::Calls,
     /// The boost box of a channel or supergroup.
@@ -794,6 +796,8 @@ impl App {
                 api_id: String::new(),
                 api_hash: String::new(),
                 phone: String::new(),
+                email: String::new(),
+                code_at: 0,
                 code: String::new(),
                 password: String::new(),
             },
@@ -929,6 +933,7 @@ impl App {
             instant_view: instant_view::InstantView::default(),
             edit_media: editmedia::EditMedia::default(),
             websites: websites::Websites::default(),
+            login_security: login_security::LoginSecurity::default(),
             calls: calls::Calls::default(),
             boosts: boosts::Boosts::default(),
             transfer: transfer::Transfer::default(),
@@ -1029,7 +1034,7 @@ impl App {
             Ev::MediaStream { peer, id, url } => self.on_media_stream(peer, id, url),
             ev @ Ev::Comments { .. } => self.comments_event(ev),
             ev @ (Ev::Topics { .. } | Ev::TopicHistory { .. }) => self.forum_event(ev),
-            ev @ (Ev::NeedPhone | Ev::NeedCode | Ev::NeedPassword(..) | Ev::Qr(..) | Ev::LoggedIn(..) | Ev::LoggedOut) => self.login_event(ev),
+            ev @ (Ev::NeedPhone | Ev::NeedCode(..) | Ev::NeedPassword(..) | Ev::Qr(..) | Ev::LoggedIn(..) | Ev::LoggedOut) => self.login_event(ev),
             Ev::ReportStep { peer, ids, step } => self.on_report_step(peer, ids, step),
             Ev::Downloaded(path) => {
                 self.toast = Some((lf!("Збережено: {}", "Saved: {}", path.display()), 0.0, false));
@@ -1151,6 +1156,7 @@ impl App {
             Ev::Sessions(list) => self.sessions = list,
             Ev::GlobalPrivacy(p) => self.privacy.global = Some(p),
             Ev::Websites(list) => self.on_websites(list),
+            ev @ (Ev::LoginEmail(..) | Ev::LoginEmailCode { .. } | Ev::Passkeys(..) | Ev::LoginSecurityFailed(..)) => self.login_security_event(ev),
             ev @ (Ev::CallLog { .. } | Ev::CallsDeleted(_)) => self.calls_event(ev),
             ev @ (Ev::BoostStatus { .. } | Ev::MyBoosts(_) | Ev::Boosted(_) | Ev::BoostFailed { .. } | Ev::Boosters { .. } | Ev::BoostLink(_)) => self.boosts_event(ev),
             Ev::Transfer { peer, user, step } => self.on_transfer(peer, user, step),

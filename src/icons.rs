@@ -138,6 +138,9 @@ pub enum Icon {
     Zap,
     /// Statistics.
     Chart,
+    /// Login email and passkeys.
+    Mail,
+    KeyRound,
 }
 
 /// The Lucide SVG file of an icon; `None` for our own filled icons.
@@ -213,6 +216,8 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Sparkles => include_str!("../assets/icons/sparkles.svg"),
         Icon::Poll => include_str!("../assets/icons/chart-bar.svg"),
         Icon::Chart => include_str!("../assets/icons/chart-line.svg"),
+        Icon::Mail => include_str!("../assets/icons/mail.svg"),
+        Icon::KeyRound => include_str!("../assets/icons/key-round.svg"),
         Icon::Todo => include_str!("../assets/icons/list-todo.svg"),
         Icon::Cake => include_str!("../assets/icons/cake.svg"),
         Icon::Megaphone => include_str!("../assets/icons/megaphone.svg"),
@@ -418,6 +423,8 @@ pub fn name(icon: Icon) -> &'static str {
         Icon::Undo => l!("Скасувати дію", "Undo"),
         Icon::Zap => l!("Підсилення", "Boosts"),
         Icon::Chart => l!("Статистика", "Statistics"),
+        Icon::Mail => l!("Пошта", "Email"),
+        Icon::KeyRound => l!("Ключ доступу", "Passkey"),
     }
 }
 
@@ -493,7 +500,7 @@ mod tests {
             Icon::Info, Icon::Phone, Icon::User, Icon::Chat, Icon::Folder, Icon::Globe, Icon::Laptop, Icon::Chats, Icon::Users,
             Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle, Icon::Flag, Icon::Calendar, Icon::Translate, Icon::Poll, Icon::Todo, Icon::Cake, Icon::Megaphone, Icon::Star, Icon::Volume, Icon::Maximize, Icon::Minimize, Icon::Pip,
             Icon::SkipBack, Icon::SkipForward, Icon::Repeat, Icon::RepeatOne, Icon::Shuffle, Icon::Music, Icon::ArrowUpRight, Icon::ArrowDownLeft,
-            Icon::Bold, Icon::Italic, Icon::Strike, Icon::Code, Icon::EyeOff, Icon::ClearFormat,
+            Icon::Bold, Icon::Italic, Icon::Strike, Icon::Code, Icon::EyeOff, Icon::ClearFormat, Icon::Mail, Icon::KeyRound,
         ];
         for icon in all {
             let text = svg(icon).unwrap_or_else(|| panic!("{icon:?} has no SVG"));

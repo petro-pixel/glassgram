@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 74%** `███████████████░░░░░` — 122 done, 25 partial, 35 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 74%** `███████████████░░░░░` — 122 done, 26 partial, 34 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -15,7 +15,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/K8Z3299QVD)
 
-- **MTProto**: [grammers](https://codeberg.org/Lonami/grammers): sign-in by phone number or QR code, 2FA, chats, history, replies, editing and deleting, live updates
+- **MTProto**: [grammers](https://codeberg.org/Lonami/grammers): sign-in by phone number (code via the app, SMS or email) or QR code, 2FA, chats, history, replies, editing and deleting, live updates
 - **Media**: avatars, photos, stickers with a disk cache (`~/.local/share/glassgram/cache`); sending files and stickers; voice and audio with a waveform, seeking and speed, a music player bar with the chat's music as its queue (repeat, shuffle, playlist) and profile music; GIFs, round videos and webm stickers right in the chat, a video player with full screen and picture-in-picture that streams large videos instead of downloading them first; voice recording (needs ffmpeg with `ffplay`)
 - **Chats**: forums with topics, channel comments, folders and archive, pinning, muting, drafts, "online" and "typing…" statuses
 - **Search**: global (the field above the chat list, with Chats, Channels, Apps, Posts and Media tabs) and in-chat (🔍 in the header)
@@ -107,7 +107,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/backend/types.rs` | Data handed to the UI: chats, messages, media, folders, privacy, presence |
 | `src/backend/loader.rs`, `src/backend/convert.rs` | Background image downloads with a disk cache; Telegram objects → our types (tests on recorded server replies in `convert/tests.rs`) |
 | `src/backend/updates.rs`, `src/backend/upload.rs` | Live updates and QR login loops; sending files, downloads, media cache |
-| `src/backend/login.rs`, `src/backend/sessions.rs` | Signing in (code, 2FA, QR) and out; active sessions |
+| `src/backend/login.rs`, `src/backend/sessions.rs` | Signing in (phone or email code, binding a login email, 2FA, QR) and out; active sessions |
 | `src/backend/sending.rs`, `src/backend/scheduled.rs`, `src/backend/inline.rs` | Sending, editing, deleting, reactions, votes; scheduled messages; inline bots and buttons |
 | `src/backend/dialogs.rs`, `src/backend/folders.rs`, `src/backend/topics.rs`, `src/backend/comments.rs` | Chat list actions, folders, forum topics, channel comments |
 | `src/backend/account.rs`, `src/backend/outbox.rs` | Own profile, username and photo; one send attempt from the queue (text, or files uploaded in the background) |
@@ -172,6 +172,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/wallpapers.rs`, `src/backend/wallpapers.rs`, `src/wallpaper.rs` | Chat backgrounds and themes: the gallery, a picture from a file, a chat's own wallpaper and theme; fills and patterns drawn on the CPU |
 | `src/app/langpack.rs`, `src/backend/langpack.rs` | Settings → Language: Telegram's language list, downloading and caching packs (`langpacks/`), refreshing them with `getDifference`, live switching |
 | `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |
+| `src/app/login_security.rs`, `src/backend/login_security.rs` | Login email (the masked address, changing it by a code) and passkeys (list, delete) in Privacy and Security |
 | `src/app/calls.rs`, `src/backend/calls.rs` | The "Calls" box (call log) and call cards in history |
 | `src/app/editmedia.rs`, `src/backend/editmedia.rs` | Editing media messages: caption, replacing the photo or file |
 | `src/app/richtext.rs` | Formatting bar over selected text in the composer, formatting shortcuts |
