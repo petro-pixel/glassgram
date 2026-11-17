@@ -124,6 +124,22 @@ pub fn danger() -> Color32 {
     if is_light() { Color32::from_rgb(214, 48, 72) } else { Color32::from_rgb(255, 110, 130) }
 }
 
+/// Growth in statistics, the pair of `danger()`.
+pub fn positive() -> Color32 {
+    if is_light() { Color32::from_rgb(38, 156, 74) } else { Color32::from_rgb(110, 214, 140) }
+}
+
+/// A chart series colour from the server, made calm for the current theme: Telegram's light-theme
+/// tones are lifted on dark glass, dark-theme ones deepened on light.
+pub fn chart_color(rgb: [u8; 3], sent_dark: bool) -> Color32 {
+    let c = Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+    match (is_light(), sent_dark) {
+        (false, false) => c.lerp_to_gamma(Color32::from_rgb(232, 236, 255), 0.18),
+        (true, true) => c.lerp_to_gamma(Color32::from_rgb(20, 24, 44), 0.15),
+        _ => c,
+    }
+}
+
 /// Folder tag colours as Telegram numbers them: red, orange, violet, green, cyan, blue, pink.
 pub const TAG_COLORS: usize = 7;
 
