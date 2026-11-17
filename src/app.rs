@@ -97,6 +97,8 @@ mod storage;
 mod dice;
 mod selfdestruct;
 mod adminlog;
+mod stats;
+mod stats_chart;
 mod manage;
 mod invites;
 mod chatlists;
@@ -681,6 +683,7 @@ pub struct App {
     /// "Edit group / channel" box and the photos picked in it.
     chat_edit: Option<chatedit::ChatEdit>,
     admin_log: adminlog::AdminLog,
+    stats: stats::StatsView,
     manage: manage::Manage,
     chatlist_box: Option<chatlists::ChatlistBox>,
     search_tabs: searchtabs::SearchTabs,
@@ -946,6 +949,7 @@ impl App {
             photo_rx,
             chat_edit: None,
             admin_log: Default::default(),
+            stats: Default::default(),
             manage: Default::default(),
             chatlist_box: None,
             search_tabs: Default::default(),
@@ -1145,6 +1149,9 @@ impl App {
             Ev::StarsBalance { stars, nanos } => self.on_stars_balance(stars, nanos),
             Ev::StarsHistory { dir, list, next, append } => self.on_stars_history(dir, list, next, append),
             Ev::AdminLog { peer, entries, older } => self.on_admin_log(peer, entries, older),
+            Ev::Stats { peer, stats } => self.on_stats(peer, stats),
+            Ev::StatsGraph { peer, msg, index, graph } => self.on_stats_graph(peer, msg, index, graph),
+            Ev::MessageStats { peer, msg, stats } => self.on_message_stats(peer, msg, stats),
             Ev::DiscussionGroups { peer, groups } => self.on_discussion_groups(peer, groups),
             Ev::SendAs { peer, peers, current } => self.on_send_as(peer, peers, current),
             ev @ (Ev::Participants { .. } | Ev::ParticipantsChanged(_) | Ev::InviteLinks { .. } | Ev::JoinRequests { .. }) => self.manage_event(ev),
@@ -1868,6 +1875,7 @@ impl eframe::App for App {
         self.send_box_view(ui);
         self.chat_edit_view(ui);
         self.admin_log_view(ui);
+        self.stats_view(ui);
         self.manage_view(ui);
         self.transfer_view(ui);
         self.boosts_view(ui);

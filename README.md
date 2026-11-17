@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 73%** `███████████████░░░░░` — 121 done, 23 partial, 38 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 73%** `███████████████░░░░░` — 121 done, 24 partial, 37 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -158,6 +158,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/selfdestruct.rs`, `src/backend/selfdestruct.rs` | "Delete my account if away for…" |
 | `src/app/dice.rs`, `src/backend/dice.rs` | Emoji games (🎲 🎯 🏀 ⚽ 🎰 🎳): sending and outcomes |
 | `src/app/storage.rs`, `src/backend/storage.rs` | "Data and storage": cache usage by type, clearing, size limit |
+| `src/app/stats.rs`, `src/app/stats_chart.rs`, `src/backend/stats.rs` | Channel and supergroup statistics: overview, graphs drawn from Telegram's chart JSON (tooltip, legend), recent posts and a post's own page (views, reactions, public shares), top members; requests sent to the statistics DC |
 | `src/app/adminlog.rs`, `src/backend/adminlog.rs` | "Recent actions" admin log; author signatures and the discussion group of a channel |
 | `src/app/manage.rs`, `src/backend/manage.rs` | "Manage" box: administrators and their rights and titles, restricted and removed members |
 | `src/app/boosts.rs`, `src/backend/boosts.rs` | Boost box of a channel or supergroup: level and progress, boosting with a Premium slot or reassigning one, boosters and the boost link for admins, `t.me/boost/…` links |
@@ -227,7 +228,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Right-click a chat: pin, mute, mark as read, archive.
 - A wide window shows chat info as a third column beside the chat; a narrow one shows the chat list or the open chat alone, with a back arrow in the chat header (Esc also returns to the list).
 - "+" on your avatar at the head of the story strip (or "Add story" in Settings → My Stories) picks a photo or video for a new story: the box previews it and sets the caption, who can see it, how long it stays, screenshots, keeping it on the profile and posting as a channel.
-- Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat; admins right-click a member to promote, restrict or remove them), shared media tabs, a "Stories" tab with a person's or channel's pinned stories (album chips filter them; a click opens the viewer at that story), leave / clear history / delete chat. Admins open invite links, join requests, administrators, restricted and removed users from the "Edit" box (pencil) or, without the right to edit, from the people icon in the header. "Boost channel" / "Boost group" (admins: "Boosts") in a channel's or supergroup's info opens the boost box; so do `t.me/boost/<name>` and `t.me/<name>?boost` links. The owner sees "Transfer channel ownership" / "Transfer group ownership" in an admin's rights editor once every right is ticked.
+- Click the chat title in the header to open chat info (Esc closes it): bio/description, links, notifications, members (click opens a private chat; admins right-click a member to promote, restrict or remove them), shared media tabs, a "Stories" tab with a person's or channel's pinned stories (album chips filter them; a click opens the viewer at that story), leave / clear history / delete chat. Admins open invite links, join requests, administrators, restricted and removed users from the "Edit" box (pencil) or, without the right to edit, from the people icon in the header. "Boost channel" / "Boost group" (admins: "Boosts") in a channel's or supergroup's info opens the boost box; so do `t.me/boost/<name>` and `t.me/<name>?boost` links. The owner sees "Transfer channel ownership" / "Transfer group ownership" in an admin's rights editor once every right is ticked. Channels and supergroups whose statistics you may see have "Statistics" there: overview numbers, graphs (hover for the values of a day, click a legend chip to hide a line), recent posts (a click opens a post's own statistics and public shares) and, in groups, the most active members.
 - Composer markup: `**bold**`, `__italic__`, `~~strike~~`, `||spoiler||`, `` `code` ``, ```` ```block``` ````, `[text](https://…)`; the field shows it styled with the markers faded. Selecting text shows a formatting bar above it; shortcuts: Ctrl+B bold, Ctrl+I italic, Ctrl+Shift+X strikethrough, Ctrl+Shift+M monospace, Ctrl+Shift+P spoiler, Ctrl+K link, Ctrl+Shift+N clear formatting.
 - Spell checking: misspelled words in the composer get a red wavy underline; a right click on one offers up to five corrections, "Add to dictionary" and "Ignore". Settings → Advanced → "Spell checker" turns it on and off; "Manage dictionaries" picks the languages and downloads their Hunspell dictionaries (the interface and system language and English by default) into `dictionaries/` in the data folder.
 - Clicking a hashtag searches for it in the chat; clicking a bot command sends it.

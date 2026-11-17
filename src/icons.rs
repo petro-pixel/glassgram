@@ -136,6 +136,8 @@ pub enum Icon {
     Undo,
     /// Channel boosts.
     Zap,
+    /// Statistics.
+    Chart,
 }
 
 /// The Lucide SVG file of an icon; `None` for our own filled icons.
@@ -210,6 +212,7 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Translate => include_str!("../assets/icons/languages.svg"),
         Icon::Sparkles => include_str!("../assets/icons/sparkles.svg"),
         Icon::Poll => include_str!("../assets/icons/chart-bar.svg"),
+        Icon::Chart => include_str!("../assets/icons/chart-line.svg"),
         Icon::Todo => include_str!("../assets/icons/list-todo.svg"),
         Icon::Cake => include_str!("../assets/icons/cake.svg"),
         Icon::Megaphone => include_str!("../assets/icons/megaphone.svg"),
@@ -414,6 +417,7 @@ pub fn name(icon: Icon) -> &'static str {
         Icon::Text => l!("Текст", "Text"),
         Icon::Undo => l!("Скасувати дію", "Undo"),
         Icon::Zap => l!("Підсилення", "Boosts"),
+        Icon::Chart => l!("Статистика", "Statistics"),
     }
 }
 

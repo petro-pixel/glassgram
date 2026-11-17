@@ -150,6 +150,8 @@ pub struct ChatDetails {
     pub can_link: bool,
     /// "Recent actions" is there for us (admins of channels and supergroups).
     pub admin_log: bool,
+    /// Statistics are there for us (`can_view_stats`), with the DC that keeps them, if the server named it.
+    pub stats: Option<Option<i32>>,
     pub notify: NotifyState,
     /// Item counts per shared media tab.
     pub counts: Vec<(SharedKind, i32)>,
@@ -544,6 +546,7 @@ async fn details(client: &Client, r: PeerRef) -> Result<(ChatDetails, Option<Pee
                 // The server refuses to hide members of small groups (PARTICIPANTS_TOO_FEW).
                 d.members_hidden = (c.participants_hidden || c.participants_count.unwrap_or(0) >= HIDDEN_MEMBERS_MIN).then_some(c.participants_hidden);
                 d.antispam = Some(c.antispam);
+                d.stats = c.can_view_stats.then_some(c.stats_dc);
                 d.linked = c.linked_chat_id.and_then(|id| f.chats.iter().find(|x| x.id() == id)).and_then(|x| match x {
                     tl::enums::Chat::Channel(l) => Some((PeerId::channel_unchecked(l.id), l.title.clone())),
                     _ => None,

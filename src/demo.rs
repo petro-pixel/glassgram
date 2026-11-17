@@ -27,6 +27,7 @@ mod attach;
 mod calls;
 mod story_post;
 mod boosts;
+mod stats;
 
 pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
     let chats = [
@@ -991,6 +992,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         cmd @ Cmd::LoadStars { .. } => stars::handle(app, cmd),
         cmd @ (Cmd::LoadBoosts(_) | Cmd::ApplyBoost { .. } | Cmd::LoadBoosters { .. } | Cmd::OpenBoostLink(_) | Cmd::TransferOwnership { .. }) => boosts::handle(app, cmd),
+        cmd @ (Cmd::LoadStats { .. } | Cmd::LoadStatsGraph { .. } | Cmd::LoadMessageStats { .. }) => stats::handle(app, cmd),
         cmd @ (Cmd::LoadLanguages | Cmd::LoadLangPack { .. }) => langpack::handle(app, cmd),
         Cmd::LoadWebsites | Cmd::LogoutWebsite(_) | Cmd::LogoutAllWebsites => {
             let gone = match &cmd {
@@ -1809,6 +1811,7 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             d.slowmode = Some(if id == 2 { 30 } else { 0 });
             if id == 2 {
                 d.admin_log = true;
+                d.stats = Some(Some(2));
                 d.my_rights = Some(AdminRights { anonymous: false, ..AdminRights::all() });
                 d.requests = MANAGE.with_borrow_mut(|m| demo_manage(m).requests.len() as i32);
                 d.reactions = Some(crate::backend::ReactionMode::Some(vec!["👍".into(), "❤".into(), "🔥".into(), "🎉".into()]));
@@ -1827,6 +1830,7 @@ fn demo_details(peer: PeerId, kind: Option<ChatKind>) -> ChatDetails {
             d.signatures = Some(false);
             d.can_link = true;
             d.admin_log = true;
+            d.stats = Some(Some(2));
             d.linked = Some((PeerId::user_unchecked(2), "Rust Team 🦀".into()));
             d.my_rights = Some(AdminRights::all());
             // We own it until it is transferred to Andriy (`demo/boosts.rs`).

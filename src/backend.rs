@@ -81,6 +81,8 @@ pub use calls::{CallDir, CallEnd, CallInfo};
 pub mod langpack;
 pub use langpack::{LangInfo, LangPack};
 mod adminlog;
+mod stats;
+pub use stats::{ChannelStats, Chart, ChartKind, GraphState, MessageStats, PostStat, PublicForward, StatTile, StatsGraph, TopMember, parse_chart};
 mod chatlists;
 mod storage;
 mod dice;
@@ -603,6 +605,15 @@ pub enum Cmd {
     SetChannelUsername { peer: PeerId, name: String },
     /// Add people to a channel (`channels.inviteToChannel`).
     InviteToChannel { peer: PeerId, users: Vec<PeerId> },
+    /// Statistics of a channel or supergroup (`stats.getBroadcastStats` / `getMegagroupStats`), asked in
+    /// `dc` (`full.stats_dc`) when known; `dark` asks for chart colours for the dark theme.
+    LoadStats { peer: PeerId, megagroup: bool, dc: Option<i32>, dark: bool },
+    /// A statistics graph sent as a token (`stats.loadAsyncGraph`); `index` is its place in the list
+    /// of the overview, or of post `msg`'s page.
+    LoadStatsGraph { peer: PeerId, dc: Option<i32>, msg: Option<i32>, index: usize, token: String },
+    /// Statistics of one channel post (`stats.getMessageStats`) and who shared it publicly
+    /// (`stats.getMessagePublicForwards`).
+    LoadMessageStats { peer: PeerId, msg: i32, dc: Option<i32>, dark: bool },
     /// "Recent actions" of a channel or supergroup, older than event `before`.
     LoadAdminLog { peer: PeerId, before: Option<i64> },
     /// Author signatures under channel posts (`channels.toggleSignatures`).
@@ -950,6 +961,9 @@ pub enum Ev {
     /// A freshly created group or channel: add it to the list and open it.
     ChatCreated(ChatInfo),
     AdminLog { peer: PeerId, entries: Vec<AdminLogEntry>, older: bool },
+    Stats { peer: PeerId, stats: Result<Box<ChannelStats>, String> },
+    StatsGraph { peer: PeerId, msg: Option<i32>, index: usize, graph: GraphState },
+    MessageStats { peer: PeerId, msg: i32, stats: Result<Box<MessageStats>, String> },
     DiscussionGroups { peer: PeerId, groups: Vec<ChatInfo> },
     Participants { peer: PeerId, list: PartList, items: Vec<Participant> },
     /// An admin, restriction or ban changed: lists showing members should reload.
@@ -1266,6 +1280,7 @@ impl Worker {
             cmd @ (Cmd::LoadBoosts(_) | Cmd::ApplyBoost { .. } | Cmd::LoadBoosters { .. } | Cmd::OpenBoostLink(_)) => self.boosts_cmd(cmd).await,
             cmd @ Cmd::TransferOwnership { .. } => self.transfer_cmd(cmd).await,
             cmd @ (Cmd::LoadLanguages | Cmd::LoadLangPack { .. }) => self.langpack_cmd(cmd).await,
+            cmd @ (Cmd::LoadStats { .. } | Cmd::LoadStatsGraph { .. } | Cmd::LoadMessageStats { .. }) => self.stats_cmd(cmd).await,
             cmd @ (Cmd::LoadAdminLog { .. } | Cmd::SetSignatures { .. } | Cmd::LoadDiscussionGroups(_) | Cmd::SetDiscussionGroup { .. }) => self.admin_cmd(cmd).await,
             cmd @ (Cmd::LoadParticipants { .. } | Cmd::EditAdmin { .. } | Cmd::RestrictMember { .. } | Cmd::BanMember { .. } | Cmd::UnbanMember { .. }) => self.manage_cmd(cmd).await,
             cmd @ (Cmd::LoadInviteLinks(_) | Cmd::SaveInviteLink { .. } | Cmd::RevokeInviteLink { .. } | Cmd::DeleteInviteLink { .. } | Cmd::DeleteRevokedInvites(_) | Cmd::LoadJoinRequests(_) | Cmd::AnswerJoinRequest { .. }) => self.invites_cmd(cmd).await,

@@ -112,6 +112,8 @@ enum Do {
     ProfileMusic,
     /// The boost box; `true` for admins.
     Boost(bool),
+    /// The statistics page, with the DC that keeps them.
+    Stats(Option<i32>),
 }
 
 fn has_members(kind: ChatKind) -> bool {
@@ -399,6 +401,7 @@ impl App {
         match d {
             Do::Close => self.info = None,
             Do::ProfileMusic => self.music_play_profile(peer, 0),
+            Do::Stats(dc) => self.open_stats(peer, &chat.title, chat.kind == ChatKind::Group, dc),
             Do::Copy(text) => {
                 self.ctx.copy_text(text);
                 self.toast = Some((l!("Скопійовано", "Copied").into(), 0.0, false));
@@ -582,6 +585,11 @@ impl App {
             };
             if info_row(ui, Icon::Zap, text, caption).clicked() {
                 todo.push(Do::Boost(admin));
+            }
+        }
+        if let Some(dc) = d.stats {
+            if info_row(ui, Icon::Chart, l!("Статистика", "Statistics"), l!("Зростання, перегляди, взаємодії", "Growth, views, interactions")).clicked() {
+                todo.push(Do::Stats(dc));
             }
         }
         let icon = if d.notify.muted() { Icon::Muted } else { Icon::Bell };
