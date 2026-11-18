@@ -165,6 +165,8 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
             restricted: (id == 9).then(|| "This group is blocked for violating Telegram's Terms of Service.".to_owned()),
             // Olena wears an emoji status: a custom emoji after her name.
             emoji_status: (id == 1).then_some(custom_emoji::STATUS),
+            // Maria charges non-contacts for messages.
+            paid_stars: (id == 8).then_some(25),
         });
         let mut msgs = msgs;
         extras(id, peer, &mut msgs);
@@ -956,7 +958,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         // The app ticks and adds items on its own; there is no server to confirm.
         Cmd::ToggleTodo { .. } | Cmd::AppendTodo { .. } => {}
-        Cmd::LoadGlobalPrivacy => app.push_event(Ev::GlobalPrivacy(GlobalPrivacy { archive_new: true, keep_unmuted: false, keep_folders: true, hide_read: false, premium_only: false })),
+        Cmd::LoadGlobalPrivacy => app.push_event(Ev::GlobalPrivacy(GlobalPrivacy { archive_new: true, keep_unmuted: false, keep_folders: true, hide_read: false, premium_only: false, paid_stars: None })),
         Cmd::SetGlobalPrivacy(p) => app.push_event(Ev::GlobalPrivacy(p)),
         Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_) => {
             use crate::backend::CacheKind as K;
@@ -1204,6 +1206,7 @@ fn person(id: i64, name: &str, status: &str, presence: Presence) -> ChatInfo {
         can_pin: false,
         restricted: None,
         emoji_status: None,
+        paid_stars: None,
     }
 }
 
@@ -1312,6 +1315,7 @@ fn helper_bot() -> ChatInfo {
         can_pin: false,
         restricted: None,
         emoji_status: None,
+        paid_stars: None,
     }
 }
 /// Name colours of demo people: built-in ones and the server's two-tone 9.
@@ -1436,6 +1440,7 @@ fn forum_chat() -> (ChatInfo, Vec<Msg>) {
         can_pin: true,
         restricted: None,
         emoji_status: None,
+        paid_stars: None,
     };
     (chat, msgs)
 }
@@ -1963,6 +1968,7 @@ fn demo_members() -> Vec<Member> {
                 can_pin: false,
                 restricted: None,
                 emoji_status: None,
+                paid_stars: None,
             },
             role,
             rank: if id == 5 { "moderator".into() } else { String::new() },

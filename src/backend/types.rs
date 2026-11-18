@@ -233,6 +233,9 @@ pub struct ChatInfo {
     /// Custom emoji after the name (document id).
     #[serde(default)]
     pub emoji_status: Option<i64>,
+    /// Each message here costs this many Stars (`send_paid_messages_stars`).
+    #[serde(default)]
+    pub paid_stars: Option<i64>,
 }
 
 /// Forum topic. The General topic has id 1.

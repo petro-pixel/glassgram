@@ -67,6 +67,7 @@ pub(super) fn chat() -> (ChatInfo, Vec<Msg>) {
         can_pin: false,
         restricted: None,
         emoji_status: None,
+        paid_stars: None,
     };
     (chat, msgs)
 }

@@ -1749,6 +1749,7 @@ impl Worker {
                 can_pin: can_pin(peer),
                 restricted: chat_restriction(peer),
                 emoji_status: namecolor::emoji_status(peer).filter(|_| peer_kind(peer) != ChatKind::Saved),
+                paid_stars: paid_stars(peer),
             });
             peers.push(peer.clone());
         }

@@ -17,7 +17,14 @@ pub(super) struct PrivacyPage {
     pub(super) global: Option<backend::GlobalPrivacy>,
     /// Sensitive content unfiltered, and whether it may be changed (`None` — not loaded yet).
     pub(super) sensitive: Option<(bool, bool)>,
+    /// The price for paid messages while its slider is dragged.
+    pub(super) price: Option<i64>,
 }
+
+/// Paid messages: the price range and the first offer, as in Telegram Desktop.
+const PRICE_MIN: i64 = 1;
+const PRICE_MAX: i64 = 10_000;
+const PRICE_START: i64 = 10;
 
 impl App {
     pub(super) fn global_privacy_section(&mut self, ui: &mut Ui) {
@@ -32,16 +39,43 @@ impl App {
         };
 
         section_title(ui, l!("Хто може мені писати", "Who can message me"));
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 6.0;
-            for (premium_only, label) in [(false, l!("Усі", "Everybody")), (true, l!("Контакти й Premium", "Contacts and Premium"))] {
-                let (r, _) = ui.allocate_exact_size(vec2(180.0, 30.0), Sense::hover());
-                if glass::button(ui, r, ("who-can-message", premium_only), label, p.premium_only == premium_only, true).clicked() {
-                    p.premium_only = premium_only;
+        #[derive(PartialEq, Clone, Copy)]
+        enum Who {
+            All,
+            Premium,
+            Paid,
+        }
+        let who = if p.paid_stars.is_some() { Who::Paid } else if p.premium_only { Who::Premium } else { Who::All };
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+            for (w, label) in [(Who::All, l!("Усі", "Everybody")), (Who::Premium, l!("Контакти й Premium", "Contacts and Premium")), (Who::Paid, l!("Платні повідомлення", "Paid messages"))] {
+                let (r, _) = ui.allocate_exact_size(vec2(170.0, 30.0), Sense::hover());
+                if glass::button(ui, r, ("who-can-message", w as u8), label, who == w, true).clicked() && who != w {
+                    p.premium_only = w == Who::Premium;
+                    p.paid_stars = (w == Who::Paid).then_some(PRICE_START);
                 }
             }
         });
-        note(ui, l!("Обмежити нові чати контактами й користувачами Premium може лише Telegram Premium.", "Limiting new chats to contacts and Premium users needs Telegram Premium."));
+        if let Some(stars) = p.paid_stars {
+            let mut price = self.privacy.price.unwrap_or(stars);
+            ui.add_space(4.0);
+            ui.label(egui::RichText::new(l!("Ціна одного повідомлення", "Price per message")).color(ink()).size(13.5));
+            ui.spacing_mut().slider_width = 220.0;
+            let resp = ui.add(egui::Slider::new(&mut price, PRICE_MIN..=PRICE_MAX).logarithmic(true).text("⭐"));
+            // The server gets the price once the slider is let go, not on every step.
+            if resp.dragged() {
+                self.privacy.price = Some(price);
+            } else {
+                self.privacy.price = None;
+                p.paid_stars = Some(price);
+            }
+            note(ui, l!(
+                "Користувачі, яких немає у ваших контактах, платитимуть зірками за кожне повідомлення вам. Зняти плату для окремих людей можна в їхньому профілі в застосунку Telegram.",
+                "People who aren't in your contacts will pay Stars for each message they send you. You can waive the fee for some people from their profile in the Telegram app."
+            ));
+        } else {
+            note(ui, l!("Обмежити нові чати контактами й користувачами Premium може лише Telegram Premium.", "Limiting new chats to contacts and Premium users needs Telegram Premium."));
+        }
 
         section_title(ui, l!("Нові чати не з контактів", "New chats from non-contacts"));
         ui.checkbox(&mut p.archive_new, l!("Архівувати й вимикати звук", "Archive and mute"));

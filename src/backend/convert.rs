@@ -412,7 +412,25 @@ pub(super) fn found_chat(peer: &Peer, last_text: String) -> ChatInfo {
         can_pin: can_pin(peer),
         restricted: chat_restriction(peer),
         emoji_status: namecolor::emoji_status(peer).filter(|_| peer_kind(peer) != ChatKind::Saved),
+        paid_stars: paid_stars(peer),
     }
+}
+
+/// The Stars each message costs us here: a user's or a group's price for paid messages.
+pub(super) fn paid_stars(peer: &Peer) -> Option<i64> {
+    match peer {
+        Peer::User(u) => match &u.raw {
+            tl::enums::User::User(x) => x.send_paid_messages_stars,
+            _ => None,
+        },
+        Peer::Channel(c) => c.raw.send_paid_messages_stars,
+        Peer::Group(g) => match &g.raw {
+            tl::enums::Chat::Channel(x) => x.send_paid_messages_stars,
+            _ => None,
+        },
+        _ => None,
+    }
+    .filter(|n| *n > 0)
 }
 
 /// Why Telegram hides a whole chat, bot or channel on desktop apps.

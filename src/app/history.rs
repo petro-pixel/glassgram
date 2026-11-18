@@ -554,6 +554,11 @@ impl App {
         self.format_keys(ui, l!("Повідомлення", "Message"));
         let marks = self.spell_marks();
         let (resp, submitted, at) = glass::rich_area(ui, input, &mut self.draft, l!("Повідомлення", "Message"), send_mods, &marks);
+        // The price of each message, by the field's right edge (the hint names the field, so it stays).
+        if let Some(n) = chat.paid_stars {
+            let at = pos2(input.right() - 14.0, input.bottom() - COMPOSER_H / 2.0);
+            ui.painter().text(at, Align2::RIGHT_CENTER, format!("⭐ {n}"), FontId::proportional(12.5), ink_dim());
+        }
         self.spell_menu(&resp, at);
         if self.take_composer_focus() {
             resp.request_focus();

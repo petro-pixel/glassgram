@@ -908,6 +908,7 @@ impl App {
                 pick: None,
                 global: None,
                 sensitive: None,
+                price: None,
             },
             two_step: password::TwoStep::default(),
             confirm_terminate: false,
@@ -1412,6 +1413,7 @@ impl App {
                 can_pin: false,
                 restricted: None,
                 emoji_status: None,
+                paid_stars: None,
             });
         }
         self.open_chat(peer);

@@ -22,6 +22,8 @@ pub struct GlobalPrivacy {
     pub hide_read: bool,
     /// Only contacts and Premium users can start a chat with me (setting it needs Premium).
     pub premium_only: bool,
+    /// Non-contacts pay this many Stars per message (`noncontact_peers_paid_stars`).
+    pub paid_stars: Option<i64>,
 }
 
 impl GlobalPrivacy {
@@ -32,6 +34,7 @@ impl GlobalPrivacy {
             keep_folders: s.keep_archived_folders,
             hide_read: s.hide_read_marks,
             premium_only: s.new_noncontact_peers_require_premium,
+            paid_stars: s.noncontact_peers_paid_stars.filter(|n| *n > 0),
         }
     }
 }
@@ -57,13 +60,14 @@ impl Worker {
                 self.out.send(Ev::GlobalPrivacy(GlobalPrivacy::from_raw(&s)));
             }
             Cmd::SetGlobalPrivacy(p) => {
-                // Start from the server's settings so fields we don't show (gifts, paid messages) survive.
+                // Start from the server's settings so fields we don't show (gifts) survive.
                 let mut s = get(&client).await?;
                 s.archive_and_mute_new_noncontact_peers = p.archive_new;
                 s.keep_archived_unmuted = p.keep_unmuted;
                 s.keep_archived_folders = p.keep_folders;
                 s.hide_read_marks = p.hide_read;
                 s.new_noncontact_peers_require_premium = p.premium_only;
+                s.noncontact_peers_paid_stars = p.paid_stars;
                 let res = client.invoke(&tl::functions::account::SetGlobalPrivacySettings { settings: s.into() }).await;
                 // On refusal (e.g. Premium needed) the UI gets the real state back along with the error.
                 let state = match res {

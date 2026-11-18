@@ -18,6 +18,13 @@ impl App {
         if text.is_empty() && self.editing_media().is_none() {
             return;
         }
+        // Paying for messages waits for the payments review: say so instead of a failed send.
+        if !matches!(self.compose, Compose::Edit(_))
+            && let Some(n) = self.chats.iter().find(|c| c.id == peer).and_then(|c| c.paid_stars)
+        {
+            self.toast = Some((lf!("Повідомлення тут коштують ⭐ {n}. Платні повідомлення Glassgram ще не надсилає.", "Messages here cost ⭐ {n}. Glassgram can't send paid messages yet."), 0.0, true));
+            return;
+        }
         self.draft.clear();
         match self.compose {
             Compose::Edit(id) => {
