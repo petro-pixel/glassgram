@@ -142,7 +142,7 @@ Time estimate — [at the end of the file](#time-estimate).
 - ⬜ **P2** Payments in bots: invoices, payment form, Stars (`payments.getPaymentForm`, `sendStarsForm`)
 - ⬜ **P2** Guest AI bots that can be mentioned in any chat (2026); ephemeral bot replies in groups (`ephemeral.*`)
 - ⬜ **P2** HTML widgets in bot messages (Telegram Desktop 7.4, November 2026)
-- ⬜ **P3** Games (`setGameScore`), business bots, verification by bots, referral programs
+- 🟡 **P3** Games (`setGameScore`), business bots, verification by bots, referral programs — games as in Telegram Desktop: a `messageMediaGame` is drawn as a card ("Game", title, description, its picture loaded like a link preview's) instead of the unsupported placeholder; a click on the card or on the bot's game button (`inlineButtonTypeGame`) asks `messages.getBotCallbackAnswer` with `game` and opens the address in the browser through `platform::open_url` (web links only). Not yet: high scores (`getGameHighScores`), sharing a game, verification badges, referral programs
 
 ## 8. Stories
 - ✅ Story strip above the chat list (ring while unseen) and a viewer: progress segments, auto-advance, click/arrows to move between stories and people, Space pauses, seen marks (`stories.getAllStories`, `getPeerStories`, `readStories`); video stories play with sound (downloaded via `getStoriesByID`, the progress follows their length), a private reply to people (`inputReplyToStory`; typing holds the story), a reaction with ❤ or the quick row on right click (`stories.sendReaction`)

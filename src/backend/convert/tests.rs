@@ -854,7 +854,7 @@ fn inline_keyboard_buttons() {
     assert!(matches!(rows[0][0], ("Оновити", ButtonAction::Callback(d)) if d == b"refresh"));
     assert!(matches!(rows[0][1], ("Сайт", ButtonAction::Url(u)) if u == "https://example.org"));
     assert!(matches!(rows[1][0], ("Код", ButtonAction::Copy(c)) if c == "GG-2026"));
-    assert!(matches!(rows[1][1], ("Гра", ButtonAction::Other)));
+    assert!(matches!(rows[1][1], ("Гра", ButtonAction::Game)));
     // The login button keeps its id: `requestUrlAuth` names the button, not the address.
     assert!(matches!(rows[2][0], ("Увійти", ButtonAction::UrlAuth { url, button_id: 7 }) if url == "https://example.org/login"));
 }

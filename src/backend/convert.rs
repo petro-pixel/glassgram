@@ -159,6 +159,7 @@ pub(super) fn buttons(m: &Message) -> Vec<Vec<Button>> {
                             T::UrlAuth(u) => ButtonAction::UrlAuth { url: u.url, button_id: u.button_id },
                             T::WebView(u) => ButtonAction::WebApp { url: u.url, simple: false, bot },
                             T::Copy(c) => ButtonAction::Copy(c.copy_text),
+                            T::Game => ButtonAction::Game,
                             _ => ButtonAction::Other,
                         },
                     })
@@ -214,7 +215,7 @@ pub(super) fn forwarded(m: &Message, names: &Names) -> Option<String> {
 fn unsupported(m: &Message) -> bool {
     use tl::enums::MessageMedia as M;
     matches!(&m.raw, tl::enums::Message::Message(x) if matches!(x.media,
-        Some(M::Unsupported | M::Game(_) | M::Invoice(_) | M::Story(_) | M::Giveaway(_) | M::GiveawayResults(_) | M::PaidMedia(_) | M::VideoStream(_))))
+        Some(M::Unsupported | M::Invoice(_) | M::Story(_) | M::Giveaway(_) | M::GiveawayResults(_) | M::PaidMedia(_) | M::VideoStream(_))))
 }
 
 pub(super) fn convert(m: &Message, names: &Names) -> Msg {

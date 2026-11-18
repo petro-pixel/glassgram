@@ -27,6 +27,7 @@ pub(super) fn post(base: Msg) -> Msg {
         description: "Blur, refraction and contrast: what changed since the first translucent desktops.".into(),
         photo: true,
         iv: true,
+        game: false,
     };
     Msg { id: POST, text, spans, views: Some(5_100), webpage: Some(page), ..base }
 }

@@ -5,13 +5,19 @@ use super::*;
 impl Worker {
     pub(super) async fn inline_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
         match cmd {
-            Cmd::PressButton { peer, id, data } => {
+            cmd @ (Cmd::PressButton { .. } | Cmd::PlayGame { .. }) => {
+                let (peer, id, data) = match cmd {
+                    Cmd::PressButton { peer, id, data } => (peer, id, Some(data)),
+                    Cmd::PlayGame { peer, id } => (peer, id, None),
+                    _ => return Ok(()),
+                };
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
                 let out = self.out.clone();
                 // A bot may take several seconds to answer: don't block other commands.
                 tokio::spawn(async move {
-                    let req = tl::functions::messages::GetBotCallbackAnswer { game: false, peer: r.into(), msg_id: id, data: Some(data), password: None };
+                    // A game asks without data: the answer carries the game's address.
+                    let req = tl::functions::messages::GetBotCallbackAnswer { game: data.is_none(), peer: r.into(), msg_id: id, data, password: None };
                     match client.invoke(&req).await {
                         Ok(tl::enums::messages::BotCallbackAnswer::Answer(a)) => {
                             // A bot decides the link: only web links, never files or protocol handlers.

@@ -492,7 +492,9 @@ pub enum ButtonAction {
     WebApp { url: String, simple: bool, bot: i64 },
     /// "Log in" button (`keyboardButtonUrlAuth`): asks the server before opening `url`.
     UrlAuth { url: String, button_id: i32 },
-    /// A type that is not supported yet (payment, games…).
+    /// "Play" on a game message: the bot gives the game's address.
+    Game,
+    /// A type that is not supported yet (payment…).
     Other,
 }
 

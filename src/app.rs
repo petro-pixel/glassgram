@@ -252,6 +252,8 @@ enum Action {
     Effect(i32),
     /// Open the Instant View of the message's link preview.
     InstantView(i32),
+    /// Play the message's bot game.
+    Game(i32),
 }
 
 /// What is being scheduled: a draft from the input field or an already scheduled message (time change).
@@ -1617,6 +1619,7 @@ impl App {
                         let kind = if simple { backend::WebAppKind::Simple(url) } else { backend::WebAppKind::Inline(url) };
                         self.open_web_app(peer, bot, kind, b.text);
                     }
+                    ButtonAction::Game => self.send(Cmd::PlayGame { peer, id }),
                     ButtonAction::Other => self.toast = Some((l!("Цей тип кнопки ще не підтримується", "This button type is not supported yet").into(), 0.0, true)),
                 }
             }
@@ -1686,7 +1689,7 @@ impl App {
                 }
             },
             // Handled by `chat_view_action`.
-            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::AddToStickerSet(_) | Action::SaveGif(_) | Action::Effect(_) | Action::InstantView(_) => {}
+            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::AddToStickerSet(_) | Action::SaveGif(_) | Action::Effect(_) | Action::InstantView(_) | Action::Game(_) => {}
         }
     }
 

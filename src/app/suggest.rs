@@ -471,6 +471,8 @@ pub(super) struct WebCard {
     img_h: f32,
     /// Has an Instant View: a button under the card.
     iv: bool,
+    /// A bot game: a click plays it.
+    game: bool,
     pub(super) width: f32,
 }
 
@@ -495,7 +497,7 @@ impl WebCard {
             None if w.photo => 140.0,
             None => 0.0,
         };
-        Self { site, title, desc, img_h, iv: w.iv, width }
+        Self { site, title, desc, img_h, iv: w.iv, game: w.game, width }
     }
 
     pub(super) fn height(&self) -> f32 {
@@ -505,6 +507,7 @@ impl WebCard {
 
     /// Draws the card at `min`; a click opens the link, or the Instant View when there is one.
     pub(super) fn draw(self, ui: &mut Ui, m: &Msg, min: egui::Pos2, tex: Option<&TextureHandle>, accent: egui::Color32) -> Option<Action> {
+        let game = self.game;
         let rect = Rect::from_min_size(min, vec2(self.width, self.height()));
         let p = ui.painter().clone();
         p.rect_filled(rect, 8.0, glass::veil(16));
@@ -537,6 +540,10 @@ impl WebCard {
         let url = m.webpage.as_ref().map(|w| w.url.clone()).unwrap_or_default();
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        if game {
+            let resp = resp.on_hover_text(l!("Грати", "Play"));
+            return resp.clicked().then_some(Action::Game(m.id));
         }
         let resp = resp.on_hover_text(&url);
         resp.clicked().then_some(if iv { Action::InstantView(m.id) } else { Action::Open(url) })

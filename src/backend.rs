@@ -354,6 +354,8 @@ pub enum Cmd {
     Forward { from: PeerId, ids: Vec<i32>, to: PeerId },
     /// An inline button with callback data was pressed.
     PressButton { peer: PeerId, id: i32, data: Vec<u8> },
+    /// "Play" on a game message: its address opens in the browser.
+    PlayGame { peer: PeerId, id: i32 },
     /// A listed sticker or saved GIF.
     SendSticker { peer: PeerId, doc: i64, reply_to: Option<ReplyTo>, send_as: Option<PeerId> },
     /// Favourite and recent stickers and the installed sets, for the panel.
@@ -1382,7 +1384,7 @@ impl Worker {
             cmd @ (Cmd::RequestCode(..) | Cmd::SubmitCode(..) | Cmd::SetUpLoginEmail(..) | Cmd::ResetLoginEmail | Cmd::SubmitPassword(..) | Cmd::QrLogin | Cmd::QrPassword(..) | Cmd::QrSuccess(..) | Cmd::Logout) => self.login_cmd(cmd).await,
             cmd @ (Cmd::LoadSessions | Cmd::TerminateSession(..) | Cmd::TerminateOtherSessions) => self.sessions_cmd(cmd).await,
             cmd @ (Cmd::SaveFolder(..) | Cmd::DeleteFolder(..) | Cmd::ReorderFolders(..) | Cmd::SetFolderTags(_) | Cmd::LoadSuggestedFolders) => self.folders_cmd(cmd).await,
-            cmd @ (Cmd::InlineQuery { .. } | Cmd::SendInline { .. } | Cmd::PressButton { .. }) => self.inline_cmd(cmd).await,
+            cmd @ (Cmd::InlineQuery { .. } | Cmd::SendInline { .. } | Cmd::PressButton { .. } | Cmd::PlayGame { .. }) => self.inline_cmd(cmd).await,
             cmd @ Cmd::OpenComments { .. } => self.comments_cmd(cmd).await,
             cmd @ (Cmd::LoadTopics(..) | Cmd::OpenTopic { .. } | Cmd::CreateTopic { .. } | Cmd::EditTopic { .. } | Cmd::ReadTopic { .. }) => self.topics_cmd(cmd).await,
             Cmd::Connect { api_id, api_hash } => self.connect(api_id, api_hash).await,

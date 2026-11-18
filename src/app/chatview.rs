@@ -347,6 +347,7 @@ impl App {
             a @ (Action::View(id) | Action::Play(id)) if self.is_view_once(peer, id) => return self.open_view_once(peer, a),
             Action::Effect(id) => self.replay_effect(peer, id),
             Action::InstantView(id) => self.open_instant_view(peer, id),
+            Action::Game(id) => self.send(Cmd::PlayGame { peer, id }),
             a => return Some(a),
         }
         None

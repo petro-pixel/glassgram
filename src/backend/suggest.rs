@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{Ev, ImgKey, Loader, Worker, best_thumb, log_error, PHOTO_PT};
 use crate::format;
-use crate::i18n::lf;
+use crate::i18n::{l, lf};
 
 /// How many members the @mention popup shows.
 const MEMBERS_LIMIT: usize = 50;
@@ -27,6 +27,9 @@ pub struct WebPageInfo {
     /// The server has an Instant View of it (`cached_page`): the card gets an "Instant View" button.
     #[serde(default)]
     pub iv: bool,
+    /// A bot game (`messageMediaGame`) drawn as a card: a click plays it.
+    #[serde(default)]
+    pub game: bool,
 }
 
 /// Chat member for the @mention popup.
@@ -59,13 +62,37 @@ pub(super) fn web_page(w: &tl::enums::WebPage) -> Option<WebPageInfo> {
         description: p.description.clone().unwrap_or_default(),
         photo: matches!(p.photo, Some(tl::enums::Photo::Photo(_))),
         iv: p.cached_page.is_some(),
+        game: false,
     };
     (!info.title.is_empty() || !info.description.is_empty() || info.photo).then_some(info)
 }
 
 pub(super) fn message_web_page(m: &Message) -> Option<WebPageInfo> {
+    if let Some(g) = game(m) {
+        return Some(WebPageInfo {
+            id: g.id,
+            url: String::new(),
+            site: l!("Гра", "Game").to_owned(),
+            title: g.title.clone(),
+            description: g.description.clone(),
+            photo: matches!(g.photo, tl::enums::Photo::Photo(_)),
+            iv: false,
+            game: true,
+        });
+    }
     match m.media() {
         Some(Media::WebPage(w)) => web_page(&w.raw.webpage),
+        _ => None,
+    }
+}
+
+/// A bot game in the message; grammers has no media kind for it.
+fn game(m: &Message) -> Option<&tl::types::Game> {
+    match &m.raw {
+        tl::enums::Message::Message(tl::types::Message { media: Some(tl::enums::MessageMedia::Game(g)), .. }) => {
+            let tl::enums::Game::Game(g) = &g.game;
+            Some(g)
+        }
         _ => None,
     }
 }
@@ -80,6 +107,10 @@ fn page_photo(w: &tl::enums::WebPage) -> Option<Photo> {
 impl Loader {
     /// Link preview picture, under the same key as a message photo.
     pub(super) fn web_page_photo(&self, peer: PeerId, m: &Message) {
+        if let Some(g) = game(m) {
+            let file = format!("g{}_{}.jpg", peer.bot_api_dialog_id_unchecked(), m.id());
+            return self.page_photo(ImgKey::Photo(peer, m.id()), file, Photo::from_raw(g.photo.clone()));
+        }
         let Some(Media::WebPage(w)) = m.media() else { return };
         let Some(photo) = page_photo(&w.raw.webpage) else { return };
         let file = format!("w{}_{}.jpg", peer.bot_api_dialog_id_unchecked(), m.id());

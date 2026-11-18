@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 76%** `███████████████░░░░░` — 123 done, 30 partial, 29 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 76%** `███████████████░░░░░` — 123 done, 31 partial, 28 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -20,7 +20,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Chats**: forums with topics, channel comments, folders and archive, pinning, muting, drafts, "online" and "typing…" statuses
 - **Search**: global (the field above the chat list, with Chats, Channels, Apps, Posts and Media tabs) and in-chat (🔍 in the header)
 - **Formatting**: Telegram entities are shown, markup is converted when sending
-- **Messages**: forwarding, multi-select, silent and scheduled sending, bot buttons, pasting from the clipboard, file progress
+- **Messages**: forwarding, multi-select, silent and scheduled sending, bot buttons and games (the game card or its "Play" button opens the game in the browser), pasting from the clipboard, file progress
 - **Notifications**: system ones on Linux, Windows and macOS with "Reply" and "Mark as read" buttons (Linux, Windows), sounds with the account's ringtones and a chat's own sound, a counter in the window title, a tray icon
 - **Languages**: Ukrainian and English built into the code (always offline), every language Telegram Desktop offers (Settings → Language lists them with native names, "beta" and how much is translated; a click downloads the pack, caches it and switches at once, no restart), plus localisation files (`locales/*.json`, see below)
 - **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
@@ -108,7 +108,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/backend/loader.rs`, `src/backend/convert.rs` | Background image downloads with a disk cache; Telegram objects → our types (tests on recorded server replies in `convert/tests.rs`) |
 | `src/backend/updates.rs`, `src/backend/upload.rs` | Live updates and QR login loops; sending files, downloads, media cache |
 | `src/backend/login.rs`, `src/backend/sessions.rs` | Signing in (phone or email code, binding a login email, 2FA, QR) and out; active sessions |
-| `src/backend/sending.rs`, `src/backend/scheduled.rs`, `src/backend/inline.rs` | Sending, editing, deleting, reactions, votes; scheduled messages; inline bots and buttons |
+| `src/backend/sending.rs`, `src/backend/scheduled.rs`, `src/backend/inline.rs` | Sending, editing, deleting, reactions, votes; scheduled messages; inline bots and buttons, bot games |
 | `src/backend/dialogs.rs`, `src/backend/folders.rs`, `src/backend/topics.rs`, `src/backend/comments.rs` | Chat list actions, folders, forum topics, channel comments |
 | `src/backend/account.rs`, `src/backend/outbox.rs` | Own profile, username and photo; one send attempt from the queue (text, or files uploaded in the background) |
 | `src/cache.rs` | Local cache of dialogs, messages and the send queue (SQLite via `libsql`) |

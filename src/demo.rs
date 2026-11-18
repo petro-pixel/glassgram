@@ -278,6 +278,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 site,
                 photo: false,
                 iv: false,
+                game: false,
             };
             app.push_event(Ev::WebPreview { text, page: Some(page) });
         }
@@ -320,6 +321,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
                 app.push_event(Ev::NewMsg(copy));
             }
         }
+        Cmd::PlayGame { .. } => app.push_event(Ev::BotAnswer { text: l!("Демо: гра відкрилася б у браузері", "Demo: the game would open in the browser").into(), alert: false }),
         Cmd::PressButton { data, .. } => {
             let text = match data.as_slice() {
                 b"tomorrow" => "Tomorrow in Kyiv: +21°, partly cloudy",
@@ -1468,6 +1470,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
                     description: "(tele)gramme.rs — a set of Rust crates for the Telegram MTProto API".into(),
                     photo: true,
                     iv: false,
+                    game: false,
                 });
             }
             if let Some(m) = msgs.first_mut() {
@@ -1577,6 +1580,25 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
         // After the fact-checked post, so ids stay ascending.
         msgs.push(instant_view::post(base(32, "Tech News")));
     }
+    if id == 6 {
+        msgs.push(game_message(base(50, "Weather Bot")));
+    }
+}
+
+/// A bot game: a card with its picture and the bot's "Play" button.
+fn game_message(base: Msg) -> Msg {
+    let page = WebPageInfo {
+        id: 50,
+        url: String::new(),
+        site: l!("Гра", "Game").into(),
+        title: "Cloud Catcher".into(),
+        description: "Catch the raindrops before they reach the city. Beat your friends' scores!".into(),
+        photo: true,
+        iv: false,
+        game: true,
+    };
+    let play = Button { text: l!("Грати в Cloud Catcher", "Play Cloud Catcher").into(), action: ButtonAction::Game, style: crate::backend::ButtonStyle::Plain };
+    Msg { id: 50, text: String::new(), webpage: Some(page), buttons: vec![vec![play]], ..base }
 }
 
 fn weather_buttons() -> Vec<Vec<Button>> {
@@ -1746,6 +1768,7 @@ pub fn images() -> Vec<(ImgKey, ColorImage)> {
         (ImgKey::Photo(id, effects::VIEW_ONCE_PHOTO), sunset(380, 300)),
         (ImgKey::Avatar(PeerId::user_unchecked(5)), sunset(96, 96)),
         (ImgKey::Photo(PeerId::user_unchecked(2), 5), sunset(480, 250)),
+        (ImgKey::Photo(PeerId::user_unchecked(6), 50), sunset(480, 270)),
         (ImgKey::Sponsored(DEMO_AD_PHOTO), sunset(112, 112)),
         (ImgKey::Sponsored(DEMO_AD_MEDIA), sunset(640, 360)),
     ];

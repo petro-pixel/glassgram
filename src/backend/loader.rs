@@ -108,7 +108,7 @@ impl Loader {
             let file = format!("v{}_{}.jpg", peer.bot_api_dialog_id_unchecked(), m.id());
             return self.fetch(ImgKey::Photo(peer, m.id()), file, PHOTO_PT, DocLoc { doc, thumb: thumb.1 });
         }
-        if matches!(m.media(), Some(Media::WebPage(_))) {
+        if matches!(m.media(), Some(Media::WebPage(_))) || matches!(&m.raw, tl::enums::Message::Message(x) if matches!(x.media, Some(tl::enums::MessageMedia::Game(_)))) {
             return self.web_page_photo(peer, m);
         }
         let Some(Media::Photo(photo)) = m.media() else { return };
