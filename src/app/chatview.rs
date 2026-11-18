@@ -134,6 +134,30 @@ fn badge(p: &egui::Painter, ui: &Ui, center_top: egui::Pos2, n: usize) {
 }
 
 impl App {
+    /// Adds or takes back our reaction at once; the server hears about it after.
+    pub(super) fn react(&mut self, peer: PeerId, id: i32, emoji: String) {
+        let Some(m) = self.find_mut(peer, id) else { return };
+        let was_mine = m.reactions.iter().any(|r| r.mine && r.emoji == emoji);
+        // Without Premium, one reaction per message: remove the previous one.
+        for r in &mut m.reactions {
+            if r.mine {
+                r.mine = false;
+                r.count -= 1;
+            }
+        }
+        if !was_mine {
+            match m.reactions.iter_mut().find(|r| r.emoji == emoji) {
+                Some(r) => {
+                    r.mine = true;
+                    r.count += 1;
+                }
+                None => m.reactions.push(Reaction { emoji: emoji.clone(), count: 1, mine: true }),
+            }
+        }
+        m.reactions.retain(|r| r.count > 0);
+        self.send(Cmd::React { peer, id, emoji: (!was_mine).then_some(emoji) });
+    }
+
     /// Chat info for the demo backend (mention counters and such).
     pub fn demo_chat(&self, peer: PeerId) -> Option<&ChatInfo> {
         self.chats.iter().find(|c| c.id == peer)

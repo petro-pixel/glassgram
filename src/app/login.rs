@@ -19,6 +19,7 @@ pub(super) struct Lock {
 const NO_KEY_SCREEN: bool = cfg!(feature = "no-key-screen");
 
 /// Sign-in form fields.
+#[derive(Default)]
 pub(super) struct LoginForm {
     pub(super) api_id: String,
     pub(super) api_hash: String,

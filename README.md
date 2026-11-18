@@ -178,6 +178,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/login_security.rs`, `src/backend/login_security.rs` | Login email (the masked address, changing it by a code) and passkeys (list, delete) in Privacy and Security |
 | `src/app/calls.rs`, `src/backend/calls.rs` | The "Calls" box (call log) and call cards in history |
 | `src/app/communities.rs`, `src/backend/communities.rs` | The "Communities" box: joined communities and their linked chats (read only) |
+| `src/app/links.rs`, `src/app/botbuttons.rs` | Where a click on a link, mention, hashtag or command goes; bot buttons under messages |
 | `src/app/editmedia.rs`, `src/backend/editmedia.rs` | Editing media messages: caption, replacing the photo or file |
 | `src/app/richtext.rs` | Formatting bar over selected text in the composer, formatting shortcuts |
 | `src/app/spellcheck.rs`, `src/spell.rs` | Spell checking in the composer: red wavy underlines, the suggestions menu, "Spell checker" in Settings → Advanced; Hunspell dictionaries (`spellbook`) downloaded on demand, the personal dictionary |

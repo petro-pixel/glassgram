@@ -4,6 +4,7 @@
 use super::*;
 
 /// Privacy and Security page: rules, their exceptions, the open rule, the people picker, global switches.
+#[derive(Default)]
 pub(super) struct PrivacyPage {
     /// Who may see each item.
     pub(super) rules: HashMap<PrivacyKey, PrivacyState>,

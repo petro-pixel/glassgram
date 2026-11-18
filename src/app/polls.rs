@@ -268,9 +268,39 @@ impl App {
         });
     }
 
-    /// "View results" and "Add an answer" from a poll card.
+    /// Votes, "View results" and "Add an answer" from a poll card.
     pub(super) fn poll_action(&mut self, peer: PeerId, action: Action) {
         match action {
+            Action::TogglePoll(id, opt) => {
+                let v = self.multi_vote.entry((peer, id)).or_default();
+                match v.iter().position(|o| *o == opt) {
+                    Some(i) => {
+                        v.remove(i);
+                    }
+                    None => v.push(opt),
+                }
+            }
+            Action::Vote(id, options) => {
+                self.multi_vote.remove(&(peer, id));
+                if let Some(poll) = self.find_mut(peer, id).and_then(|m| m.poll.as_mut()) {
+                    // No options takes the vote back.
+                    if options.is_empty() && poll.voted() {
+                        poll.total = (poll.total - 1).max(0);
+                    } else if !options.is_empty() {
+                        poll.total += 1;
+                    }
+                    for a in &mut poll.answers {
+                        if options.contains(&a.option) {
+                            a.chosen = true;
+                            a.voters += 1;
+                        } else if options.is_empty() && a.chosen {
+                            a.chosen = false;
+                            a.voters = (a.voters - 1).max(0);
+                        }
+                    }
+                }
+                self.send(Cmd::Vote { peer, id, options });
+            }
             Action::PollResults(id) => {
                 self.polls.results = Some(Results { peer, id, voters: Vec::new(), next: None, loading: true });
                 self.send(Cmd::PollVotes { peer, id, offset: None });

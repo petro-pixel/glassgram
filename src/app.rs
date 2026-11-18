@@ -121,6 +121,8 @@ mod aicompose;
 mod giveaways;
 mod ephemeral;
 mod communities;
+mod links;
+mod botbuttons;
 mod factcheck;
 mod instant_view;
 mod videoplayer;
@@ -814,15 +816,7 @@ impl App {
             busy: false,
             chats_dirty: false,
             chats_saved_at: 0.0,
-            login: login::LoginForm {
-                api_id: String::new(),
-                api_hash: String::new(),
-                phone: String::new(),
-                email: String::new(),
-                code_at: 0,
-                code: String::new(),
-                password: String::new(),
-            },
+            login: login::LoginForm::default(),
             toast: None,
             me: String::new(),
             chats: Vec::new(),
@@ -909,15 +903,7 @@ impl App {
             settings_tab: SettingsTab::Main,
             cameras: None,
             sessions: Vec::new(),
-            privacy: privacy::PrivacyPage {
-                rules: HashMap::new(),
-                exceptions: HashMap::new(),
-                open: None,
-                pick: None,
-                global: None,
-                sensitive: None,
-                price: None,
-            },
+            privacy: privacy::PrivacyPage::default(),
             two_step: password::TwoStep::default(),
             confirm_terminate: false,
             pass_fields: Default::default(),
@@ -1532,16 +1518,7 @@ impl App {
                 self.ctx.copy_text(text);
                 self.toast = Some((note.into(), 0.0, false));
             }
-            Action::TogglePoll(id, opt) => {
-                let v = self.multi_vote.entry((peer, id)).or_default();
-                match v.iter().position(|o| *o == opt) {
-                    Some(i) => {
-                        v.remove(i);
-                    }
-                    None => v.push(opt),
-                }
-            }
-            a @ (Action::PollResults(_) | Action::AddPollAnswer(_) | Action::StopPoll(_)) => self.poll_action(peer, a),
+            a @ (Action::TogglePoll(..) | Action::Vote(..) | Action::PollResults(_) | Action::AddPollAnswer(_) | Action::StopPoll(_)) => self.poll_action(peer, a),
             a @ (Action::ToggleTodo(..) | Action::AppendTodo(_)) => self.todo_action(peer, a),
             Action::Delete(id) => self.send(Cmd::Delete { peer, ids: vec![id] }),
             Action::Download(id) => self.send(Cmd::Download { peer, id }),
@@ -1574,138 +1551,10 @@ impl App {
                 let url = format!("https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=16/{lat}/{lon}");
                 self.open_link(&url);
             }
-            Action::React(id, emoji) => {
-                let Some(m) = self.find_mut(peer, id) else { return };
-                let was_mine = m.reactions.iter().any(|r| r.mine && r.emoji == emoji);
-                // Without Premium, one reaction per message: remove the previous one.
-                for r in &mut m.reactions {
-                    if r.mine {
-                        r.mine = false;
-                        r.count -= 1;
-                    }
-                }
-                if !was_mine {
-                    match m.reactions.iter_mut().find(|r| r.emoji == emoji) {
-                        Some(r) => {
-                            r.mine = true;
-                            r.count += 1;
-                        }
-                        None => m.reactions.push(Reaction { emoji: emoji.clone(), count: 1, mine: true }),
-                    }
-                }
-                m.reactions.retain(|r| r.count > 0);
-                self.send(Cmd::React { peer, id, emoji: (!was_mine).then_some(emoji) });
-            }
-            Action::Vote(id, options) => {
-                self.multi_vote.remove(&(peer, id));
-                if let Some(poll) = self.find_mut(peer, id).and_then(|m| m.poll.as_mut()) {
-                    // No options takes the vote back.
-                    if options.is_empty() && poll.voted() {
-                        poll.total = (poll.total - 1).max(0);
-                    } else if !options.is_empty() {
-                        poll.total += 1;
-                    }
-                    for a in &mut poll.answers {
-                        if options.contains(&a.option) {
-                            a.chosen = true;
-                            a.voters += 1;
-                        } else if options.is_empty() && a.chosen {
-                            a.chosen = false;
-                            a.voters = (a.voters - 1).max(0);
-                        }
-                    }
-                }
-                self.send(Cmd::Vote { peer, id, options });
-            }
-            Action::Button(id, row, col) => {
-                let Some(b) = self.find(peer, id).and_then(|m| m.buttons.get(row)?.get(col)).cloned() else { return };
-                match b.action {
-                    ButtonAction::Callback(data) => self.send(Cmd::PressButton { peer, id, data }),
-                    ButtonAction::Url(url) => self.open_link(&url),
-                    ButtonAction::UrlAuth { url, button_id } => self.url_auth_button(peer, id, button_id, url),
-                    ButtonAction::Text => {
-                        let reply_to = self.forum.open.filter(|t| *t != GENERAL_TOPIC).map(ReplyTo::to);
-                        self.send(Cmd::Send { peer, text: b.text, reply_to, opts: SendOpts::default(), send_as: self.send_as_for(peer) });
-                    }
-                    ButtonAction::Copy(text) => {
-                        self.ctx.copy_text(text);
-                        self.toast = Some((l!("Скопійовано", "Copied").into(), 0.0, false));
-                    }
-                    ButtonAction::WebApp { url, simple, bot } => {
-                        // Inline buttons in groups belong to the bot that sent the message.
-                        let bot = PeerId::user(bot).filter(|_| bot != 0).unwrap_or(peer);
-                        let kind = if simple { backend::WebAppKind::Simple(url) } else { backend::WebAppKind::Inline(url) };
-                        self.open_web_app(peer, bot, kind, b.text);
-                    }
-                    ButtonAction::Game => self.send(Cmd::PlayGame { peer, id }),
-                    ButtonAction::Other => self.toast = Some((l!("Цей тип кнопки ще не підтримується", "This button type is not supported yet").into(), 0.0, true)),
-                }
-            }
+            Action::React(id, emoji) => self.react(peer, id, emoji),
+            Action::Button(id, row, col) => self.press_bot_button(peer, id, row, col),
             Action::OpenHidden(url) => self.opening = Some(confirm::Opening::Link(url)),
-            Action::Open(target) if target.starts_with("tg://user?id=") => {
-                // A mention by id opens the chat with that person if we have it.
-                let id = target["tg://user?id=".len()..].parse::<i64>().ok().map(PeerId::user_unchecked);
-                match id.filter(|p| self.chats.iter().any(|c| c.id == *p)) {
-                    Some(p) => self.open_chat(p),
-                    None => self.toast = Some((l!("Цього користувача немає у ваших чатах", "This user is not in your chats").into(), 0.0, false)),
-                }
-            }
-            Action::Open(target) => match target.chars().next() {
-                // A hashtag is searched in this chat, a bot command is sent.
-                Some('#' | '$') => {
-                    let s = self.chat_search.get_or_insert_with(Search::default);
-                    s.query = target;
-                    s.edited_at = 0.0;
-                }
-                Some('/') => self.send(Cmd::Send { peer, text: target, reply_to: self.reply_target(), opts: SendOpts::default(), send_as: self.send_as_for(peer) }),
-                // A mention opens the chat in the client (a public one without joining).
-                Some('@') if !self.demo => self.send(Cmd::ResolveUsername(target[1..].to_owned())),
-                Some('@') => self.open_link(&format!("https://t.me/{}", &target[1..])),
-                _ if crate::backend::proxy::is_proxy_link(&target) => match crate::backend::proxy::Proxy::parse(&target) {
-                    Ok(_) => self.opening = Some(confirm::Opening::Proxy(target)),
-                    Err(e) => self.toast = Some((e.to_owned(), 0.0, true)),
-                },
-                _ if boosts::tme_boost(&target).is_some() => {
-                    if let Some(name) = boosts::tme_boost(&target) {
-                        self.open_boost_link(name);
-                    }
-                }
-                _ if botstart::tme_bot_start(&target).is_some() => {
-                    if let Some((username, param)) = botstart::tme_bot_start(&target) {
-                        self.open_bot_start(username, param);
-                    }
-                }
-                _ if crate::backend::addstickers_name(&target).is_some() => {
-                    if let Some(name) = crate::backend::addstickers_name(&target) {
-                        self.open_sticker_set(crate::backend::StickerSetRef::Name(name));
-                    }
-                }
-                _ if chatlists::tme_addlist(&target).is_some() => {
-                    if let Some(slug) = chatlists::tme_addlist(&target) {
-                        self.send(Cmd::CheckChatlist(slug));
-                    }
-                }
-                _ if attachbots::tme_start_attach(&target).is_some() => {
-                    if let Some((username, start_param)) = attachbots::tme_start_attach(&target) {
-                        self.send(Cmd::OpenAttachLink { peer, username, start_param });
-                    }
-                }
-                _ if tme_web_app(&target).is_some() => {
-                    if let Some((username, app, start_param)) = tme_web_app(&target) {
-                        self.open_web_app_link(username, app, start_param);
-                    }
-                }
-                _ if !self.demo && tme_username(&target).is_some() => {
-                    let name = tme_username(&target).unwrap_or_default();
-                    self.send(Cmd::ResolveUsername(name));
-                }
-                _ => {
-                    let url = if target.contains("://") || target.starts_with("mailto:") { target } else { format!("https://{target}") };
-                    if !self.url_auth_link(&url) {
-                        self.open_link(&url);
-                    }
-                }
-            },
+            Action::Open(target) => self.open_target(peer, target),
             // Handled by `chat_view_action`.
             Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::AddToStickerSet(_) | Action::SaveGif(_) | Action::Effect(_) | Action::InstantView(_) | Action::Game(_) | Action::Giveaway(_) => {}
         }
