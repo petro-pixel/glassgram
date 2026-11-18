@@ -5,7 +5,7 @@
 Десктопний клієнт Telegram на Rust з інтерфейсом у стилі **Liquid Glass**.
 
 <!-- progress -->
-**Готовність за дорожньою картою: 77%** `███████████████░░░░░` — 123 готово, 33 частково, 26 попереду ([ROADMAP.md](ROADMAP.md))
+**Готовність за дорожньою картою: 77%** `███████████████░░░░░` — 123 готово, 34 частково, 25 попереду ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -187,6 +187,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/app/aitext.rs`, `src/backend/aitext.rs` | Розшифровка голосових і кружечків («→A», живі `updateTranscribedAudio`), ШІ-підсумки довгих дописів |
 | `src/app/aicompose.rs`, `src/backend/aicompose.rs` | Редактор ШІ для чернетки: виправлення, емодзі, переклад, тони (`composeMessageWithAI`, `aicompose.getTones`) |
 | `src/app/giveaways.rs`, `src/backend/giveaways.rs` | Картки розіграшів і результатів, «Про розіграш» (`payments.getGiveawayInfo`) |
+| `src/app/ephemeral.rs`, `src/backend/ephemeral.rs` | Відповіді ботів, які бачите лише ви (ефемерні повідомлення): картки над низом чату, їхні кнопки |
 | `src/app/factcheck.rs`, `src/backend/factcheck.rs` | Перевірки фактів під повідомленнями (`getFactCheck` для показаних із `need_check`, згортання), теги учасників біля імен авторів |
 | `src/app/calendar.rs` | Календар «Перейти до дати» над чатом (запит — `Cmd::JumpToDate` у `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Сповіщення для чатів: типові налаштування для особистих чатів, груп і каналів, винятки, стан чату за його категорією |

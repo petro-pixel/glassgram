@@ -19,17 +19,7 @@ impl Worker {
                     // A game asks without data: the answer carries the game's address.
                     let req = tl::functions::messages::GetBotCallbackAnswer { game: data.is_none(), peer: r.into(), msg_id: id, data, password: None };
                     match client.invoke(&req).await {
-                        Ok(tl::enums::messages::BotCallbackAnswer::Answer(a)) => {
-                            // A bot decides the link: only web links, never files or protocol handlers.
-                            if let Some(url) = a.url
-                                && !crate::platform::open_url(&url)
-                            {
-                                out.send(Ev::Error(lf!("Посилання не відкрито: {url}", "Link not opened: {url}")));
-                            }
-                            if let Some(text) = a.message.filter(|t| !t.is_empty()) {
-                                out.send(Ev::BotAnswer { text, alert: a.alert });
-                            }
-                        }
+                        Ok(a) => bot_answer(&out, a),
                         Err(e) => out.send(Ev::Error(lf!("Кнопка: {e}", "Button: {e}"))),
                     }
                 });
@@ -87,5 +77,19 @@ impl Worker {
             }
             _ => Ok(()),
         }
+    }
+}
+
+/// A bot's answer to a button: a link to open, a text to show.
+pub(super) fn bot_answer(out: &Emitter, a: tl::enums::messages::BotCallbackAnswer) {
+    let tl::enums::messages::BotCallbackAnswer::Answer(a) = a;
+    // A bot decides the link: only web links, never files or protocol handlers.
+    if let Some(url) = a.url
+        && !crate::platform::open_url(&url)
+    {
+        out.send(Ev::Error(lf!("Посилання не відкрито: {url}", "Link not opened: {url}")));
+    }
+    if let Some(text) = a.message.filter(|t| !t.is_empty()) {
+        out.send(Ev::BotAnswer { text, alert: a.alert });
     }
 }

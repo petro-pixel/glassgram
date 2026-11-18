@@ -119,6 +119,7 @@ mod namecolor;
 mod aitext;
 mod aicompose;
 mod giveaways;
+mod ephemeral;
 mod factcheck;
 mod instant_view;
 mod videoplayer;
@@ -633,6 +634,7 @@ pub struct App {
     ai_text: aitext::AiText,
     ai_compose: aicompose::AiCompose,
     giveaway: giveaways::GiveawayBox,
+    ephemeral: ephemeral::Ephemeral,
     fact_checks: factcheck::FactChecks,
     instant_view: instant_view::InstantView,
     edit_media: editmedia::EditMedia,
@@ -951,6 +953,7 @@ impl App {
             ai_text: aitext::AiText::default(),
             ai_compose: aicompose::AiCompose::default(),
             giveaway: giveaways::GiveawayBox::default(),
+            ephemeral: ephemeral::Ephemeral::default(),
             fact_checks: factcheck::FactChecks::default(),
             instant_view: instant_view::InstantView::default(),
             edit_media: editmedia::EditMedia::default(),
@@ -1227,6 +1230,8 @@ impl App {
             Ev::AiComposed { draft, mode, result } => self.on_ai_composed(draft, mode, result),
             Ev::AiTones(tones) => self.on_ai_tones(tones),
             Ev::GiveawayInfo { peer, id, result } => self.on_giveaway_info(peer, id, result),
+            Ev::Ephemeral(m) => self.on_ephemeral(m),
+            Ev::EphemeralGone { peer, ids } => self.on_ephemeral_gone(peer, ids),
             Ev::FactChecks { peer, checks } => self.on_fact_checks(peer, checks),
             Ev::InstantView { url, result } => self.on_instant_view(url, result),
             ev @ (Ev::TranslationOffer { .. } | Ev::TranslatedMany { .. }) => self.chat_translate_event(ev),

@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 77%** `███████████████░░░░░` — 123 done, 33 partial, 26 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 77%** `███████████████░░░░░` — 123 done, 34 partial, 25 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -187,6 +187,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/aitext.rs`, `src/backend/aitext.rs` | Voice and round video transcription ("→A", live `updateTranscribedAudio`), AI summaries of long posts |
 | `src/app/aicompose.rs`, `src/backend/aicompose.rs` | AI editor of the draft: proofread, emoji, translate, tones (`composeMessageWithAI`, `aicompose.getTones`) |
 | `src/app/giveaways.rs`, `src/backend/giveaways.rs` | Giveaway and results cards, "About the giveaway" (`payments.getGiveawayInfo`) |
+| `src/app/ephemeral.rs`, `src/backend/ephemeral.rs` | Bot replies only you see (ephemeral messages): cards over the chat bottom, their buttons |
 | `src/app/factcheck.rs`, `src/backend/factcheck.rs` | Fact checks under messages (`getFactCheck` for shown `need_check` messages, folding), member tags by author names |
 | `src/app/calendar.rs` | "Jump to date" calendar over the chat (the request is `Cmd::JumpToDate` in `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Notifications for chats: private / groups / channels defaults, exceptions, resolving a chat's mute state from its category |

@@ -131,10 +131,13 @@ fn queued(app: &mut App, cmd: Cmd) {
                 app.demo_history().find(|(p, _, _)| *p == q.peer).and_then(|(_, _, msgs)| msgs.iter().find(|m| m.id == r).map(Msg::topic_id)).unwrap_or(r)
             });
             let reply = q.reply();
-            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), effect: q.effect, ..sendas::posted_as(replied(app, outgoing(q.peer, q.text, None), &reply), q.send_as) }));
+            app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), effect: q.effect, ..sendas::posted_as(replied(app, outgoing(q.peer, q.text.clone(), None), &reply), q.send_as) }));
             app.push_event(Ev::QueueSent { key: q.key, peer: q.peer });
+            // A command gets the group bot's answer that only we see.
+            if q.peer == PeerId::user_unchecked(ephemeral::GROUP) && q.text.starts_with('/') {
+                ephemeral::answer(app, q.peer, &q.text);
             // The team answers with a mention: it counts on the "@" button unless the chat is in view.
-            if q.peer == PeerId::user_unchecked(2) {
+            } else if q.peer == PeerId::user_unchecked(2) {
                 let m = Msg { out: false, sender: "Taras".into(), mentioned: true, id: 20_000 + rand_ish(), ..outgoing(q.peer, "@demo got it, thanks!".into(), None) };
                 app.push_event(Ev::NewMsg(m));
             }

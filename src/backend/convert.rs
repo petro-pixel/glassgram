@@ -141,9 +141,14 @@ pub(super) fn preview_text(m: &Message) -> String {
 
 /// Buttons under a message (inline keyboard or a regular bot keyboard).
 pub(super) fn buttons(m: &Message) -> Vec<Vec<Button>> {
-    use tl::enums::{InlineButtonType as T, KeyboardButton as K, KeyboardInlineButton as I, ReplyMarkup as R};
     let bot = m.via_bot_id().or_else(|| m.sender_id().filter(|p| p.kind() == grammers_client::session::types::PeerKind::User).map(|p| p.bare_id_unchecked())).unwrap_or(0);
-    match m.reply_markup() {
+    markup_buttons(m.reply_markup(), bot)
+}
+
+/// Rows of buttons from a reply markup; `bot` owns the mini app buttons.
+pub(super) fn markup_buttons(markup: Option<tl::enums::ReplyMarkup>, bot: i64) -> Vec<Vec<Button>> {
+    use tl::enums::{InlineButtonType as T, KeyboardButton as K, KeyboardInlineButton as I, ReplyMarkup as R};
+    match markup {
         Some(R::ReplyInlineMarkup(k)) => k
             .rows
             .into_iter()

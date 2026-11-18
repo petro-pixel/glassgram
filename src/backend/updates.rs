@@ -72,6 +72,9 @@ pub(super) async fn update_loop(
 
 /// Raw updates that grammers has no wrappers for: typing, statuses, reads, drafts.
 pub(super) fn raw_event(u: &tl::enums::Update, names: &Names, notifs: &notify::Notifs) -> Option<Ev> {
+    if let Some(ev) = ephemeral::update_event(u, names) {
+        return Some(ev);
+    }
     use tl::enums::{SendMessageAction as A, Update as U};
     let typing = |peer: PeerId, from: PeerId, action: &A| {
         let who = names.lock().unwrap().get(&from).cloned().unwrap_or_default();

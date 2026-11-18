@@ -753,6 +753,7 @@ impl App {
 
     /// Panels over the chat (search, forwarding) and Esc handling.
     pub(super) fn chat_overlays(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect, header: Rect, above: f32) {
+        self.ephemeral_view(ui, peer, rect, above);
         self.chat_view_overlays(ui, peer, rect, header, above);
         if self.comments.as_ref().is_some_and(|c| c.peer != peer) {
             self.comments = None;
