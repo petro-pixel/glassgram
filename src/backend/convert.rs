@@ -215,7 +215,7 @@ pub(super) fn forwarded(m: &Message, names: &Names) -> Option<String> {
 fn unsupported(m: &Message) -> bool {
     use tl::enums::MessageMedia as M;
     matches!(&m.raw, tl::enums::Message::Message(x) if matches!(x.media,
-        Some(M::Unsupported | M::Invoice(_) | M::Story(_) | M::Giveaway(_) | M::GiveawayResults(_) | M::PaidMedia(_) | M::VideoStream(_))))
+        Some(M::Unsupported | M::Invoice(_) | M::Story(_) | M::PaidMedia(_) | M::VideoStream(_))))
 }
 
 pub(super) fn convert(m: &Message, names: &Names) -> Msg {

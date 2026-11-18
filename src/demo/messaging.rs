@@ -50,7 +50,7 @@ pub(super) fn handle(app: &mut App, cmd: Cmd) {
                 site,
                 photo: false,
                 iv: false,
-                game: false,
+                card: CardKind::Link,
             };
             app.push_event(Ev::WebPreview { text, page: Some(page) });
         }

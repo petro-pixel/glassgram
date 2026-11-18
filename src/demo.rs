@@ -7,7 +7,7 @@ use grammers_client::session::types::PeerId;
 use crate::app::App;
 use eframe::egui::{Color32, ColorImage};
 
-use crate::backend::{AdminRights, ColorOption, InviteDraft, InviteLink, JoinRequest, PartList, Participant, SavedTag, PostsFlood, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, StoryAlbum, StoryList, StoryViewer, STORY_PAGE, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, ChatDetails, Member, MemberRole, NotifyState, Ringtone, ReactFrom, ReactionNotify, Sound, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollVoter, TodoInfo, TodoTask, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit};
+use crate::backend::{AdminRights, ColorOption, InviteDraft, InviteLink, JoinRequest, PartList, Participant, SavedTag, PostsFlood, PasswordChange, PasswordState, ReportStep, Gift, Story, StoryPeer, StoryAlbum, StoryList, StoryViewer, STORY_PAGE, Birthday, ChatRights, GlobalPrivacy, WebAppKind, WebAppOpened, NotifyException, NotifyScope, Sponsored, SponsoredReport, MUTE_FOREVER, Profile, Queued, UsernameState, BotCmd, Mentionable, WebPageInfo, CardKind, ChatDetails, Member, MemberRole, NotifyState, Ringtone, ReactFrom, ReactionNotify, Sound, SharedKind, Topic, Button, ButtonAction, GeoInfo, InlineResult, MediaInfo, MediaKind, PollInfo, PollVoter, TodoInfo, TodoTask, QueuedMedia, ReplyTo, PollOption, Reaction, ChatInfo, ChatKind, Cmd, Ev, Folder, ImgKey, Msg, Presence, SearchHit};
 use crate::format;
 use crate::i18n::{l, lf};
 
@@ -43,6 +43,7 @@ mod stories;
 mod saved;
 mod contacts;
 mod manage;
+mod giveaways;
 mod media;
 mod info;
 mod search;
@@ -270,6 +271,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::Summarize { peer, id } => aitext::summarize(app, peer, id),
         Cmd::AiCompose { draft, mode } => aicompose::compose(app, draft, mode),
         Cmd::LoadAiTones => aicompose::tones(app),
+        Cmd::GiveawayInfo { peer, id } => giveaways::info(app, peer, id),
         Cmd::LoadFactChecks { peer, ids } => factcheck::answer(app, peer, ids),
         Cmd::InstantView { url } => instant_view::open(app, url),
         cmd @ (Cmd::LoadStories { .. } | Cmd::LoadStoryTargets { .. } | Cmd::CanPostStory { .. } | Cmd::PostStory { .. } | Cmd::LoadPeerStories { .. } | Cmd::LoadStoryVideo { .. } | Cmd::ReadStories { .. } | Cmd::ReactStory { .. } | Cmd::StoryStealth { .. } | Cmd::LoadProfileStories { .. } | Cmd::LoadStoryAlbums { .. } | Cmd::LoadStoryViewers { .. } | Cmd::ReplyStory { .. }) => stories::handle(app, cmd),
@@ -671,7 +673,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
                     description: "(tele)gramme.rs — a set of Rust crates for the Telegram MTProto API".into(),
                     photo: true,
                     iv: false,
-                    game: false,
+                    card: CardKind::Link,
                 });
             }
             if let Some(m) = msgs.first_mut() {
@@ -780,6 +782,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
     if id == 4 {
         // After the fact-checked post, so ids stay ascending.
         msgs.push(instant_view::post(base(32, "Tech News")));
+        msgs.extend(giveaways::posts(base));
     }
     if id == 6 {
         msgs.push(game_message(base(50, "Weather Bot")));
@@ -796,7 +799,7 @@ fn game_message(base: Msg) -> Msg {
         description: "Catch the raindrops before they reach the city. Beat your friends' scores!".into(),
         photo: true,
         iv: false,
-        game: true,
+        card: CardKind::Game,
     };
     let play = Button { text: l!("Грати в Cloud Catcher", "Play Cloud Catcher").into(), action: ButtonAction::Game, style: crate::backend::ButtonStyle::Plain };
     Msg { id: 50, text: String::new(), webpage: Some(page), buttons: vec![vec![play]], ..base }

@@ -61,7 +61,8 @@ mod chatview;
 mod suggest;
 mod instant_view;
 pub use instant_view::{IvArticle, IvBlock, IvPage, IvText};
-pub use suggest::{BotCmd, Mentionable, WebPageInfo};
+pub use suggest::{BotCmd, CardKind, Mentionable, WebPageInfo};
+mod giveaways;
 mod info;
 pub use info::{ChatDetails, MUTE_FOREVER, Member, MemberRole, NotifyState, SHARED_PAGE, SharedKind};
 mod sponsored;
@@ -356,6 +357,8 @@ pub enum Cmd {
     PressButton { peer: PeerId, id: i32, data: Vec<u8> },
     /// "Play" on a game message: its address opens in the browser.
     PlayGame { peer: PeerId, id: i32 },
+    /// Where a giveaway stands for us (`payments.getGiveawayInfo`); answered with `Ev::GiveawayInfo`.
+    GiveawayInfo { peer: PeerId, id: i32 },
     /// A listed sticker or saved GIF.
     SendSticker { peer: PeerId, doc: i64, reply_to: Option<ReplyTo>, send_as: Option<PeerId> },
     /// Favourite and recent stickers and the installed sets, for the panel.
@@ -988,6 +991,8 @@ pub enum Ev {
     /// The AI editor's answer for `draft` (markup), or the server's error.
     AiComposed { draft: String, mode: AiMode, result: Result<String, String> },
     AiTones(Vec<AiTone>),
+    /// A giveaway's state for us in words, or the server's error.
+    GiveawayInfo { peer: PeerId, id: i32, result: Result<String, String> },
     /// Fact checks by message id, from `messages.getFactCheck`.
     FactChecks { peer: PeerId, checks: Vec<(i32, FactCheck)> },
     /// `translations_disabled` from the chat's full info, inverted.
@@ -1411,6 +1416,7 @@ impl Worker {
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             cmd @ (Cmd::Transcribe { .. } | Cmd::Summarize { .. }) => self.aitext_cmd(cmd).await,
             cmd @ (Cmd::AiCompose { .. } | Cmd::LoadAiTones) => self.aicompose_cmd(cmd).await,
+            cmd @ Cmd::GiveawayInfo { .. } => self.giveaways_cmd(cmd).await,
             cmd @ Cmd::LoadFactChecks { .. } => self.factcheck_cmd(cmd).await,
             cmd @ (Cmd::LoadTranslationOffer(_) | Cmd::TranslateMany { .. } | Cmd::TogglePeerTranslations { .. }) => self.translate_cmd(cmd).await,
             cmd @ (Cmd::SendPoll { .. } | Cmd::PollVotes { .. } | Cmd::AddPollAnswer { .. } | Cmd::StopPoll { .. }) => self.polls_cmd(cmd).await,

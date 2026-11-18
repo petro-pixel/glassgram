@@ -1014,3 +1014,26 @@ fn call_messages_become_call_cards() {
     assert!(m.text.is_empty());
     assert_eq!(preview_text(&wire), ui("Пропущений відеодзвінок", "Missed video call"));
 }
+
+#[test]
+fn giveaway_is_a_card_not_a_placeholder() {
+    let media = tl::types::MessageMediaGiveaway {
+        only_new_subscribers: true,
+        winners_are_visible: false,
+        channels: vec![NEWS],
+        countries_iso2: Some(vec!["UA".into()]),
+        prize_description: None,
+        quantity: 3,
+        months: Some(6),
+        stars: None,
+        until_date: 1_800_000_000,
+    };
+    let raw = tl::types::Message { media: Some(media.into()), ..message(70, peer_channel(NEWS), None, "") };
+    let m = convert(&deliver(raw), &names());
+    assert!(!m.unsupported);
+    let card = m.webpage.expect("giveaway card");
+    assert_eq!(card.card, crate::backend::CardKind::Giveaway);
+    assert_eq!(card.site, ui("Розіграш", "Giveaway"));
+    assert!(card.title.contains("Telegram Premium"));
+    assert!(card.description.contains("UA"));
+}

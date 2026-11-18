@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 76%** `███████████████░░░░░` — 123 done, 32 partial, 27 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 77%** `███████████████░░░░░` — 123 done, 33 partial, 26 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -20,7 +20,7 @@ A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 - **Chats**: forums with topics, channel comments, folders and archive, pinning, muting, drafts, "online" and "typing…" statuses
 - **Search**: global (the field above the chat list, with Chats, Channels, Apps, Posts and Media tabs) and in-chat (🔍 in the header)
 - **Formatting**: Telegram entities are shown, markup is converted when sending
-- **Messages**: forwarding, multi-select, silent and scheduled sending, bot buttons and games (the game card or its "Play" button opens the game in the browser), pasting from the clipboard, file progress
+- **Messages**: forwarding, multi-select, silent and scheduled sending, bot buttons and games (the game card or its "Play" button opens the game in the browser), giveaway cards (a click says whether you take part or won), pasting from the clipboard, file progress
 - **Notifications**: system ones on Linux, Windows and macOS with "Reply" and "Mark as read" buttons (Linux, Windows), sounds with the account's ringtones and a chat's own sound, a counter in the window title, a tray icon
 - **Languages**: Ukrainian and English built into the code (always offline), every language Telegram Desktop offers (Settings → Language lists them with native names, "beta" and how much is translated; a click downloads the pack, caches it and switches at once, no restart), plus localisation files (`locales/*.json`, see below)
 - **Accounts**: several accounts, switched in the menu under the name in the header (`src/accounts.rs`)
@@ -186,6 +186,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/translate.rs`, `src/backend/translate.rs` | "Translate" window from the message menu; whole-chat translation: the translate bar under the header, batched `messages.translateText`, `messages.togglePeerTranslations` (`translate/detect.rs` guesses a chat's language) |
 | `src/app/aitext.rs`, `src/backend/aitext.rs` | Voice and round video transcription ("→A", live `updateTranscribedAudio`), AI summaries of long posts |
 | `src/app/aicompose.rs`, `src/backend/aicompose.rs` | AI editor of the draft: proofread, emoji, translate, tones (`composeMessageWithAI`, `aicompose.getTones`) |
+| `src/app/giveaways.rs`, `src/backend/giveaways.rs` | Giveaway and results cards, "About the giveaway" (`payments.getGiveawayInfo`) |
 | `src/app/factcheck.rs`, `src/backend/factcheck.rs` | Fact checks under messages (`getFactCheck` for shown `need_check` messages, folding), member tags by author names |
 | `src/app/calendar.rs` | "Jump to date" calendar over the chat (the request is `Cmd::JumpToDate` in `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Notifications for chats: private / groups / channels defaults, exceptions, resolving a chat's mute state from its category |

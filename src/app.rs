@@ -118,6 +118,7 @@ mod viewonce;
 mod namecolor;
 mod aitext;
 mod aicompose;
+mod giveaways;
 mod factcheck;
 mod instant_view;
 mod videoplayer;
@@ -254,6 +255,8 @@ enum Action {
     InstantView(i32),
     /// Play the message's bot game.
     Game(i32),
+    /// "Learn more" about the message's giveaway.
+    Giveaway(i32),
 }
 
 /// What is being scheduled: a draft from the input field or an already scheduled message (time change).
@@ -629,6 +632,7 @@ pub struct App {
     name_colors: namecolor::NameColors,
     ai_text: aitext::AiText,
     ai_compose: aicompose::AiCompose,
+    giveaway: giveaways::GiveawayBox,
     fact_checks: factcheck::FactChecks,
     instant_view: instant_view::InstantView,
     edit_media: editmedia::EditMedia,
@@ -946,6 +950,7 @@ impl App {
             name_colors: namecolor::NameColors::default(),
             ai_text: aitext::AiText::default(),
             ai_compose: aicompose::AiCompose::default(),
+            giveaway: giveaways::GiveawayBox::default(),
             fact_checks: factcheck::FactChecks::default(),
             instant_view: instant_view::InstantView::default(),
             edit_media: editmedia::EditMedia::default(),
@@ -1221,6 +1226,7 @@ impl App {
             Ev::Summarized { peer, id, result } => self.on_summarized(peer, id, result),
             Ev::AiComposed { draft, mode, result } => self.on_ai_composed(draft, mode, result),
             Ev::AiTones(tones) => self.on_ai_tones(tones),
+            Ev::GiveawayInfo { peer, id, result } => self.on_giveaway_info(peer, id, result),
             Ev::FactChecks { peer, checks } => self.on_fact_checks(peer, checks),
             Ev::InstantView { url, result } => self.on_instant_view(url, result),
             ev @ (Ev::TranslationOffer { .. } | Ev::TranslatedMany { .. }) => self.chat_translate_event(ev),
@@ -1691,7 +1697,7 @@ impl App {
                 }
             },
             // Handled by `chat_view_action`.
-            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::AddToStickerSet(_) | Action::SaveGif(_) | Action::Effect(_) | Action::InstantView(_) | Action::Game(_) => {}
+            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::AddToStickerSet(_) | Action::SaveGif(_) | Action::Effect(_) | Action::InstantView(_) | Action::Game(_) | Action::Giveaway(_) => {}
         }
     }
 

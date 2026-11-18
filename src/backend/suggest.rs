@@ -27,9 +27,20 @@ pub struct WebPageInfo {
     /// The server has an Instant View of it (`cached_page`): the card gets an "Instant View" button.
     #[serde(default)]
     pub iv: bool,
-    /// A bot game (`messageMediaGame`) drawn as a card: a click plays it.
+    /// What the card stands for: a link, or media drawn the same way.
     #[serde(default)]
-    pub game: bool,
+    pub card: CardKind,
+}
+
+/// Media drawn as a link card; a click on it does what the kind says.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CardKind {
+    #[default]
+    Link,
+    /// A bot game (`messageMediaGame`): a click plays it.
+    Game,
+    /// A giveaway or its results: a click shows where it stands for us.
+    Giveaway,
 }
 
 /// Chat member for the @mention popup.
@@ -62,7 +73,7 @@ pub(super) fn web_page(w: &tl::enums::WebPage) -> Option<WebPageInfo> {
         description: p.description.clone().unwrap_or_default(),
         photo: matches!(p.photo, Some(tl::enums::Photo::Photo(_))),
         iv: p.cached_page.is_some(),
-        game: false,
+        card: CardKind::Link,
     };
     (!info.title.is_empty() || !info.description.is_empty() || info.photo).then_some(info)
 }
@@ -77,8 +88,11 @@ pub(super) fn message_web_page(m: &Message) -> Option<WebPageInfo> {
             description: g.description.clone(),
             photo: matches!(g.photo, tl::enums::Photo::Photo(_)),
             iv: false,
-            game: true,
+            card: CardKind::Game,
         });
+    }
+    if let Some(card) = super::giveaways::card(m) {
+        return Some(card);
     }
     match m.media() {
         Some(Media::WebPage(w)) => web_page(&w.raw.webpage),

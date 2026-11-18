@@ -5,7 +5,7 @@ use eframe::egui::{Color32, ColorImage};
 use grammers_client::session::types::PeerId;
 
 use crate::app::App;
-use crate::backend::{Ev, ImgKey, IvArticle, IvBlock, IvPage, IvText, Msg, WebPageInfo};
+use crate::backend::{CardKind, Ev, ImgKey, IvArticle, IvBlock, IvPage, IvText, Msg, WebPageInfo};
 use crate::format::{self, Span, Style};
 
 /// The post with the article link.
@@ -27,7 +27,7 @@ pub(super) fn post(base: Msg) -> Msg {
         description: "Blur, refraction and contrast: what changed since the first translucent desktops.".into(),
         photo: true,
         iv: true,
-        game: false,
+        card: CardKind::Link,
     };
     Msg { id: POST, text, spans, views: Some(5_100), webpage: Some(page), ..base }
 }
