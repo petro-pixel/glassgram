@@ -64,6 +64,8 @@ pub use instant_view::{IvArticle, IvBlock, IvPage, IvText};
 pub use suggest::{BotCmd, CardKind, Mentionable, WebPageInfo};
 mod giveaways;
 mod ephemeral;
+mod communities;
+pub use communities::Community;
 pub use ephemeral::EphemeralMsg;
 mod info;
 pub use info::{ChatDetails, MUTE_FOREVER, Member, MemberRole, NotifyState, SHARED_PAGE, SharedKind};
@@ -359,6 +361,10 @@ pub enum Cmd {
     PressButton { peer: PeerId, id: i32, data: Vec<u8> },
     /// "Play" on a game message: its address opens in the browser.
     PlayGame { peer: PeerId, id: i32 },
+    /// The communities we are in; answered with `Ev::Communities`.
+    LoadCommunities,
+    /// A community's description and linked chats; answered with `Ev::CommunityChats`.
+    LoadCommunityChats { id: i64, access_hash: i64 },
     /// A callback button on an ephemeral message.
     PressEphemeral { peer: PeerId, id: i32, data: Vec<u8> },
     /// Where a giveaway stands for us (`payments.getGiveawayInfo`); answered with `Ev::GiveawayInfo`.
@@ -995,6 +1001,8 @@ pub enum Ev {
     /// The AI editor's answer for `draft` (markup), or the server's error.
     AiComposed { draft: String, mode: AiMode, result: Result<String, String> },
     AiTones(Vec<AiTone>),
+    Communities(Vec<Community>),
+    CommunityChats { id: i64, about: String, chats: Vec<ChatInfo> },
     /// A new or edited message only we see.
     Ephemeral(EphemeralMsg),
     EphemeralGone { peer: PeerId, ids: Vec<i32> },
@@ -1425,6 +1433,7 @@ impl Worker {
             cmd @ (Cmd::AiCompose { .. } | Cmd::LoadAiTones) => self.aicompose_cmd(cmd).await,
             cmd @ Cmd::GiveawayInfo { .. } => self.giveaways_cmd(cmd).await,
             cmd @ Cmd::PressEphemeral { .. } => self.ephemeral_cmd(cmd).await,
+            cmd @ (Cmd::LoadCommunities | Cmd::LoadCommunityChats { .. }) => self.communities_cmd(cmd).await,
             cmd @ Cmd::LoadFactChecks { .. } => self.factcheck_cmd(cmd).await,
             cmd @ (Cmd::LoadTranslationOffer(_) | Cmd::TranslateMany { .. } | Cmd::TogglePeerTranslations { .. }) => self.translate_cmd(cmd).await,
             cmd @ (Cmd::SendPoll { .. } | Cmd::PollVotes { .. } | Cmd::AddPollAnswer { .. } | Cmd::StopPoll { .. }) => self.polls_cmd(cmd).await,

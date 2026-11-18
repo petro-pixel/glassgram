@@ -45,6 +45,7 @@ mod contacts;
 mod manage;
 mod giveaways;
 mod ephemeral;
+mod communities;
 mod media;
 mod info;
 mod search;
@@ -274,6 +275,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::LoadAiTones => aicompose::tones(app),
         Cmd::GiveawayInfo { peer, id } => giveaways::info(app, peer, id),
         Cmd::PressEphemeral { peer, id, data } => ephemeral::press(app, peer, id, data),
+        cmd @ (Cmd::LoadCommunities | Cmd::LoadCommunityChats { .. }) => communities::handle(app, cmd),
         Cmd::LoadFactChecks { peer, ids } => factcheck::answer(app, peer, ids),
         Cmd::InstantView { url } => instant_view::open(app, url),
         cmd @ (Cmd::LoadStories { .. } | Cmd::LoadStoryTargets { .. } | Cmd::CanPostStory { .. } | Cmd::PostStory { .. } | Cmd::LoadPeerStories { .. } | Cmd::LoadStoryVideo { .. } | Cmd::ReadStories { .. } | Cmd::ReactStory { .. } | Cmd::StoryStealth { .. } | Cmd::LoadProfileStories { .. } | Cmd::LoadStoryAlbums { .. } | Cmd::LoadStoryViewers { .. } | Cmd::ReplyStory { .. }) => stories::handle(app, cmd),

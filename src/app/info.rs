@@ -122,6 +122,21 @@ fn has_members(kind: ChatKind) -> bool {
 
 
 impl App {
+    /// Opens a chat that may not be in the list yet (a member, a similar channel, a community's chat).
+    pub(super) fn open_found_chat(&mut self, c: ChatInfo) {
+        let id = c.id;
+        if !self.chats.iter().any(|x| x.id == id) {
+            self.chats.push(c);
+        }
+        // Demo answers synchronously and has no history for new people.
+        if self.backend.is_none() {
+            self.history.entry(id).or_default();
+        }
+        self.open_chat(id);
+    }
+}
+
+impl App {
     /// Details of the chat whose info panel is open, if it is `peer`.
     pub(super) fn info_details_mut(&mut self, peer: PeerId) -> Option<&mut ChatDetails> {
         self.info.as_mut().filter(|i| i.peer == peer).and_then(|i| i.details.as_mut())
@@ -407,17 +422,7 @@ impl App {
                 self.toast = Some((l!("Скопійовано", "Copied").into(), 0.0, false));
             }
             Do::OpenUrl(url) => self.open_link(&url),
-            Do::Member(c) => {
-                let id = c.id;
-                if !self.chats.iter().any(|x| x.id == id) {
-                    self.chats.push(c);
-                }
-                // Demo answers synchronously and has no history for new people.
-                if self.backend.is_none() {
-                    self.history.entry(id).or_default();
-                }
-                self.open_chat(id);
-            }
+            Do::Member(c) => self.open_found_chat(c),
             Do::Photo(id) => self.open_viewer(peer, id),
             Do::Jump(msg) => self.jump_to(&SearchHit { chat: chat.title.clone(), kind: chat.kind, msg }),
             Do::Tab(tab) => self.select_info_tab(tab),

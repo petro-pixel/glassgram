@@ -120,6 +120,7 @@ mod aitext;
 mod aicompose;
 mod giveaways;
 mod ephemeral;
+mod communities;
 mod factcheck;
 mod instant_view;
 mod videoplayer;
@@ -635,6 +636,7 @@ pub struct App {
     ai_compose: aicompose::AiCompose,
     giveaway: giveaways::GiveawayBox,
     ephemeral: ephemeral::Ephemeral,
+    communities: communities::Communities,
     fact_checks: factcheck::FactChecks,
     instant_view: instant_view::InstantView,
     edit_media: editmedia::EditMedia,
@@ -954,6 +956,7 @@ impl App {
             ai_compose: aicompose::AiCompose::default(),
             giveaway: giveaways::GiveawayBox::default(),
             ephemeral: ephemeral::Ephemeral::default(),
+            communities: communities::Communities::default(),
             fact_checks: factcheck::FactChecks::default(),
             instant_view: instant_view::InstantView::default(),
             edit_media: editmedia::EditMedia::default(),
@@ -1231,6 +1234,8 @@ impl App {
             Ev::AiTones(tones) => self.on_ai_tones(tones),
             Ev::GiveawayInfo { peer, id, result } => self.on_giveaway_info(peer, id, result),
             Ev::Ephemeral(m) => self.on_ephemeral(m),
+            Ev::Communities(list) => self.on_communities(list),
+            Ev::CommunityChats { id, about, chats } => self.on_community_chats(id, about, chats),
             Ev::EphemeralGone { peer, ids } => self.on_ephemeral_gone(peer, ids),
             Ev::FactChecks { peer, checks } => self.on_fact_checks(peer, checks),
             Ev::InstantView { url, result } => self.on_instant_view(url, result),
@@ -1943,6 +1948,7 @@ impl eframe::App for App {
         self.user_qr_view(ui);
         self.account_actions_view(ui);
         self.calls_view(ui);
+        self.communities_view(ui);
         self.toast_view(ui, now);
         self.update_title(ui);
         self.a11y_after(ui.ctx());

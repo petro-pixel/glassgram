@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 77%** `███████████████░░░░░` — 123 done, 34 partial, 25 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 77%** `███████████████░░░░░` — 123 done, 35 partial, 24 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -177,6 +177,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/websites.rs`, `src/backend/websites.rs` | "Logged in with Telegram": connected websites, disconnecting them |
 | `src/app/login_security.rs`, `src/backend/login_security.rs` | Login email (the masked address, changing it by a code) and passkeys (list, delete) in Privacy and Security |
 | `src/app/calls.rs`, `src/backend/calls.rs` | The "Calls" box (call log) and call cards in history |
+| `src/app/communities.rs`, `src/backend/communities.rs` | The "Communities" box: joined communities and their linked chats (read only) |
 | `src/app/editmedia.rs`, `src/backend/editmedia.rs` | Editing media messages: caption, replacing the photo or file |
 | `src/app/richtext.rs` | Formatting bar over selected text in the composer, formatting shortcuts |
 | `src/app/spellcheck.rs`, `src/spell.rs` | Spell checking in the composer: red wavy underlines, the suggestions menu, "Spell checker" in Settings → Advanced; Hunspell dictionaries (`spellbook`) downloaded on demand, the personal dictionary |
@@ -265,7 +266,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - In `--demo`, a message containing `#offline` pretends there is no network (clock → retries → red mark).
 - Folders: "+" to the right of the tabs (or at the bottom of the column) — new; right-click a folder — edit or delete; dragging changes the order. Tabs on top or a column on the left — in Settings.
 - Pinned chats can be dragged to change their order (in folders and in the archive too).
-- ✎ next to search — "New group", "New channel", "Contacts", "Calls" (the call log; right-click to delete).
+- ✎ next to search — "New group", "New channel", "Contacts", "Calls" (the call log; right-click to delete), "Communities" (the communities you are in; a click unfolds the description and linked chats, a chat opens on click).
 - Typing in the chat list search shows tabs under it: Chats, Channels, Apps, Posts, Media. Posts are searched with Enter or the "Search posts" button (free searches a day are limited); Esc clears the search and returns to Chats.
 - Ctrl+V with an image or copied files sends them.
 - ▶ on a voice or audio message plays it; clicking the waveform seeks, the "1×" chip changes the speed. Clicking a video opens the player: the seek bar, volume, speed (0.5–2×), full screen and picture-in-picture (a small window in a corner that keeps playing while you browse chats; drag it to another corner). Keys: Space — play/pause, ←/→ — 5 s back/forward, F — full screen, Esc — leave full screen, then close. "Open in player" (the system one) is in the menu.
