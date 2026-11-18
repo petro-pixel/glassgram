@@ -138,6 +138,8 @@ pub use viewonce::VIEW_ONCE;
 mod namecolor;
 mod aitext;
 pub use aitext::Transcript;
+mod aicompose;
+pub use aicompose::{AiMode, AiTone, AiToneKey};
 mod factcheck;
 pub use factcheck::{FACT_CHECK_BATCH, FactCheck};
 pub use namecolor::{ColorOption, default_color};
@@ -546,6 +548,10 @@ pub enum Cmd {
     Transcribe { peer: PeerId, id: i32 },
     /// The AI summary of a long post.
     Summarize { peer: PeerId, id: i32 },
+    /// Rewrite a draft (markup) with AI; answered with `Ev::AiComposed`.
+    AiCompose { draft: String, mode: AiMode },
+    /// The tones the AI editor offers; answered with `Ev::AiTones`.
+    LoadAiTones,
     /// Fresh fact checks of shown messages marked `need_check`, at most `FACT_CHECK_BATCH` ids.
     LoadFactChecks { peer: PeerId, ids: Vec<i32> },
     /// Whether the chat's full info lets us offer whole-chat translation; answered with `Ev::TranslationOffer`.
@@ -973,6 +979,9 @@ pub enum Ev {
     Transcribed { peer: PeerId, id: i32, result: Result<Transcript, String> },
     /// A post's AI summary (formatting as spans), or the server's error.
     Summarized { peer: PeerId, id: i32, result: Result<(String, Vec<Span>), String> },
+    /// The AI editor's answer for `draft` (markup), or the server's error.
+    AiComposed { draft: String, mode: AiMode, result: Result<String, String> },
+    AiTones(Vec<AiTone>),
     /// Fact checks by message id, from `messages.getFactCheck`.
     FactChecks { peer: PeerId, checks: Vec<(i32, FactCheck)> },
     /// `translations_disabled` from the chat's full info, inverted.
@@ -1395,6 +1404,7 @@ impl Worker {
             }
             Cmd::Translate { peer, id, to } => self.translate(peer, id, to),
             cmd @ (Cmd::Transcribe { .. } | Cmd::Summarize { .. }) => self.aitext_cmd(cmd).await,
+            cmd @ (Cmd::AiCompose { .. } | Cmd::LoadAiTones) => self.aicompose_cmd(cmd).await,
             cmd @ Cmd::LoadFactChecks { .. } => self.factcheck_cmd(cmd).await,
             cmd @ (Cmd::LoadTranslationOffer(_) | Cmd::TranslateMany { .. } | Cmd::TogglePeerTranslations { .. }) => self.translate_cmd(cmd).await,
             cmd @ (Cmd::SendPoll { .. } | Cmd::PollVotes { .. } | Cmd::AddPollAnswer { .. } | Cmd::StopPoll { .. }) => self.polls_cmd(cmd).await,

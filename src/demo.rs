@@ -22,6 +22,7 @@ mod wallpapers;
 mod langpack;
 mod sendas;
 mod aitext;
+mod aicompose;
 mod factcheck;
 mod instant_view;
 mod translate;
@@ -559,6 +560,8 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         }
         Cmd::Transcribe { peer, id } => aitext::transcribe(app, peer, id),
         Cmd::Summarize { peer, id } => aitext::summarize(app, peer, id),
+        Cmd::AiCompose { draft, mode } => aicompose::compose(app, draft, mode),
+        Cmd::LoadAiTones => aicompose::tones(app),
         Cmd::LoadFactChecks { peer, ids } => factcheck::answer(app, peer, ids),
         Cmd::InstantView { url } => instant_view::open(app, url),
         Cmd::JumpToDate { peer, date } => {

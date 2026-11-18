@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 75%** `███████████████░░░░░` — 123 done, 28 partial, 31 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 76%** `███████████████░░░░░` — 123 done, 29 partial, 30 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -185,6 +185,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/contacts.rs`, `src/backend/contacts.rs` | "New contact" box, add / delete contact and block from user info, blocked list in Privacy and Security |
 | `src/app/translate.rs`, `src/backend/translate.rs` | "Translate" window from the message menu; whole-chat translation: the translate bar under the header, batched `messages.translateText`, `messages.togglePeerTranslations` (`translate/detect.rs` guesses a chat's language) |
 | `src/app/aitext.rs`, `src/backend/aitext.rs` | Voice and round video transcription ("→A", live `updateTranscribedAudio`), AI summaries of long posts |
+| `src/app/aicompose.rs`, `src/backend/aicompose.rs` | AI editor of the draft: proofread, emoji, translate, tones (`composeMessageWithAI`, `aicompose.getTones`) |
 | `src/app/factcheck.rs`, `src/backend/factcheck.rs` | Fact checks under messages (`getFactCheck` for shown `need_check` messages, folding), member tags by author names |
 | `src/app/calendar.rs` | "Jump to date" calendar over the chat (the request is `Cmd::JumpToDate` in `src/backend/chatview.rs`) |
 | `src/app/notify.rs`, `src/backend/notify.rs` | Notifications for chats: private / groups / channels defaults, exceptions, resolving a chat's mute state from its category |
@@ -241,7 +242,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - `@` in a group and `/` at the start of the composer open suggestions (members, bot commands): ↑/↓ — select, Enter or click — insert (a command is sent), Tab — insert, Esc — close. The "/" button next to the composer in a bot chat opens the command menu. `:word` (two letters or more, e.g. `:heart`, `:серце`) suggests emoji the same way. In a private chat `/` also lists your Telegram Business quick replies: Enter or a click sends the shortcut's messages, Tab inserts `/name`.
 - A link preview appears above the composer; ✕ sends the message without it.
 - A link preview with an Instant View has an "INSTANT VIEW" button: a click opens the article in a reading window over the chat (links inside open in the browser, 🌐 opens the whole page there); Esc or ✕ closes it.
-- Right-click "Send": in a private chat, a row of message effects on top (★ — Premium) sends the message with that effect; then send silently, schedule, or (in a private chat whose last seen time is visible) send when online. A message with an effect plays it when it first appears; a click on the effect's emoji by the time plays it again.
+- Right-click "Send": in a private chat, a row of message effects on top (★ — Premium) sends the message with that effect; then send silently, schedule, or (in a private chat whose last seen time is visible) send when online; "AI editor…" opens a window with the draft rewritten by Telegram's AI (proofread, with emoji, translated or in one of the server's tones), and "Apply" puts it into the field. A message with an effect plays it when it first appears; a click on the effect's emoji by the time plays it again.
 - In a group or channel that lets you post as a channel you run, a round avatar left of 📎 shows who messages go as; a click lists your account and those channels (Premium-only ones are marked) and picks the default for that chat.
 - A chat in another language (where Telegram allows it) shows "Translate to …" under the header: a click shows its messages translated in place, marked "translated" by the time (Telegram Premium), "Show original" switches back. ⚙ on the bar picks the language, "Don't translate …" stops offering that language, "Hide the bar" hides it for the chat; "Translate chat" in the chat's menu in the list brings it back.
 - "Select" in the message menu turns on selection mode; Esc leaves it.

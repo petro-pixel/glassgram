@@ -100,6 +100,11 @@ impl App {
         }
     }
 
+    /// Give the composer the keyboard on the next frame.
+    pub(super) fn focus_composer(&mut self) {
+        self.alerts.focus = true;
+    }
+
     /// Whether the composer should take the keyboard now (after "Reply").
     pub(super) fn take_composer_focus(&mut self) -> bool {
         std::mem::take(&mut self.alerts.focus)

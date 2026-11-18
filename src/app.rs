@@ -117,6 +117,7 @@ mod effects;
 mod viewonce;
 mod namecolor;
 mod aitext;
+mod aicompose;
 mod factcheck;
 mod instant_view;
 mod videoplayer;
@@ -625,6 +626,7 @@ pub struct App {
     view_once: viewonce::ViewOnce,
     name_colors: namecolor::NameColors,
     ai_text: aitext::AiText,
+    ai_compose: aicompose::AiCompose,
     fact_checks: factcheck::FactChecks,
     instant_view: instant_view::InstantView,
     edit_media: editmedia::EditMedia,
@@ -940,6 +942,7 @@ impl App {
             view_once: viewonce::ViewOnce::default(),
             name_colors: namecolor::NameColors::default(),
             ai_text: aitext::AiText::default(),
+            ai_compose: aicompose::AiCompose::default(),
             fact_checks: factcheck::FactChecks::default(),
             instant_view: instant_view::InstantView::default(),
             edit_media: editmedia::EditMedia::default(),
@@ -1212,6 +1215,8 @@ impl App {
             Ev::Translated { peer, id, to, result } => self.translated(peer, id, to, result),
             Ev::Transcribed { peer, id, result } => self.on_transcribed(peer, id, result),
             Ev::Summarized { peer, id, result } => self.on_summarized(peer, id, result),
+            Ev::AiComposed { draft, mode, result } => self.on_ai_composed(draft, mode, result),
+            Ev::AiTones(tones) => self.on_ai_tones(tones),
             Ev::FactChecks { peer, checks } => self.on_fact_checks(peer, checks),
             Ev::InstantView { url, result } => self.on_instant_view(url, result),
             ev @ (Ev::TranslationOffer { .. } | Ev::TranslatedMany { .. }) => self.chat_translate_event(ev),

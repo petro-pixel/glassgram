@@ -610,6 +610,7 @@ impl App {
                 Silent,
                 Schedule,
                 WhenOnline,
+                Ai,
             }
             let effects = self.send_effects(peer);
             let premium = self.profile.premium;
@@ -633,12 +634,17 @@ impl App {
                 if when_online && glass::menu_button(ui, Icon::Clock, l!("Надіслати, коли буде в мережі", "Send when online")).clicked() {
                     choice = Some(Choice::WhenOnline);
                 }
+                ui.separator();
+                if glass::menu_button(ui, Icon::Sparkles, l!("Редактор ШІ…", "AI editor…")).clicked() {
+                    choice = Some(Choice::Ai);
+                }
             });
             match choice {
                 Some(Choice::Effect(id)) => self.send_with_effect(id),
                 Some(Choice::Silent) => self.send_draft_with(SendOpts { silent: true, schedule: None, ..Default::default() }),
                 Some(Choice::Schedule) => self.schedule = Some((ScheduleFor::Draft, String::new())),
                 Some(Choice::WhenOnline) => self.send_draft_with(SendOpts { schedule: Some(crate::backend::WHEN_ONLINE), ..Default::default() }),
+                Some(Choice::Ai) => self.open_ai_compose(peer),
                 None => {}
             }
         }

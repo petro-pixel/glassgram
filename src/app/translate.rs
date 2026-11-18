@@ -13,7 +13,7 @@ const BAR_H: f32 = 40.0;
 const SAMPLE: usize = 40;
 
 /// Target languages offered in the window: code and the name in that language.
-const LANGS: [(&str, &str); 8] = [
+pub(super) const LANGS: [(&str, &str); 8] = [
     ("uk", "Українська"),
     ("en", "English"),
     ("de", "Deutsch"),
