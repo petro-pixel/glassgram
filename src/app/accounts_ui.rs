@@ -5,6 +5,19 @@ use std::collections::HashSet;
 
 use super::*;
 
+/// The accounts menu under the name in the header.
+pub(super) struct AccountsMenu {
+    pub(super) open: bool,
+    /// The name it hangs from.
+    pub(super) anchor: Rect,
+}
+
+impl Default for AccountsMenu {
+    fn default() -> Self {
+        Self { open: false, anchor: Rect::NOTHING }
+    }
+}
+
 /// How often the background accounts refresh their dialogs, so the counters follow reads made elsewhere.
 const REFRESH: f64 = 300.0;
 
@@ -128,11 +141,11 @@ impl App {
         let screen = ui.max_rect();
         // A click outside the menu closes it.
         if ui.interact(screen, ui.scope_id().with("accounts-bg"), Sense::CLICK).clicked() {
-            self.accounts_open = false;
+            self.accounts_menu.open = false;
             return;
         }
         let rows = self.accounts.list.len() as f32 + 1.0;
-        let rect = Rect::from_min_size(self.accounts_anchor.left_bottom() + vec2(-6.0, 8.0), vec2(260.0, rows * 44.0 + 16.0));
+        let rect = Rect::from_min_size(self.accounts_menu.anchor.left_bottom() + vec2(-6.0, 8.0), vec2(260.0, rows * 44.0 + 16.0));
         glass::glass(ui.painter(), rect, Glass::panel(20.0).with_shadow());
         ui.interact(rect, ui.scope_id().with("accounts-panel"), Sense::click());
         let mut pick = None;
@@ -167,16 +180,16 @@ impl App {
             add = true;
         }
         if self.demo && (pick.is_some() || add) {
-            self.accounts_open = false;
+            self.accounts_menu.open = false;
             self.toast = Some((l!("У демо-режимі акаунти не перемикаються", "Accounts can't be switched in demo mode").into(), 0.0, true));
         } else if let Some(id) = pick {
-            self.accounts_open = false;
+            self.accounts_menu.open = false;
             self.switch_account(id);
         } else if add {
-            self.accounts_open = false;
+            self.accounts_menu.open = false;
             self.add_account();
         } else if ui.input(|i| i.key_pressed(Key::Escape)) {
-            self.accounts_open = false;
+            self.accounts_menu.open = false;
         }
     }
 

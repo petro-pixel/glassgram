@@ -6,6 +6,15 @@ use grammers_client::session::types::PeerId;
 
 use super::motion::{self, Spring};
 use super::{App, ARCHIVE, FolderMenu, FolderEdit, TABS_H, chat_row, elided, searchtabs, section_title};
+
+/// What is being dragged in the chat list.
+#[derive(Default)]
+pub(super) struct Dragging {
+    /// A pinned chat, with the folder it is dragged in.
+    pub(super) pins: Option<(Option<i32>, Reorder<PeerId>)>,
+    /// A folder tab.
+    pub(super) folders: Option<Reorder<i32>>,
+}
 use crate::backend::{ChatInfo, Cmd, Ev, Folder, ImgKey};
 use crate::glass::{self, ACCENT, Glass, ink, ink_dim, rgba};
 use crate::i18n::l;
@@ -160,7 +169,7 @@ impl App {
     /// Folder items: "All chats" first, the archive last; the live order while dragging.
     fn folder_items(&self) -> Vec<(Option<i32>, String, usize)> {
         let mut folders: Vec<&Folder> = self.folders.iter().collect();
-        if let Some(d) = &self.folder_drag {
+        if let Some(d) = &self.drag.folders {
             folders.sort_by_key(|f| d.order.iter().position(|id| *id == f.id));
         }
         let mut items = vec![(None, l!("Усі чати", "All chats").to_owned(), self.folder_unread(None))];
@@ -217,11 +226,11 @@ impl App {
     /// Starts dragging a folder if its grip was pulled.
     fn grab_folder(&mut self, ui: &Ui, grip: &egui::Response, id: Option<i32>, start: f32, vertical: bool) {
         let Some(fid) = id.filter(|x| *x != ARCHIVE) else { return };
-        if self.folder_drag.is_none()
+        if self.drag.folders.is_none()
             && let Some(p) = pulled(ui, grip)
         {
             let at = if vertical { p.y } else { p.x };
-            self.folder_drag = Some(Reorder { key: fid, grab: at - start, order: self.folders.iter().map(|f| f.id).collect() });
+            self.drag.folders = Some(Reorder { key: fid, grab: at - start, order: self.folders.iter().map(|f| f.id).collect() });
         }
     }
 
@@ -255,7 +264,7 @@ impl App {
                         let (slot, _) = ui.allocate_exact_size(vec2(w, TABS_H), Sense::hover());
                         let gid = ui.scope_id().with(("tab-x", *id));
                         let rel = slot.left() - origin;
-                        if self.folder_drag.as_ref().is_some_and(|d| Some(d.key) == *id) {
+                        if self.drag.folders.as_ref().is_some_and(|d| Some(d.key) == *id) {
                             lifted = Some((*id, text, slot));
                             continue;
                         }
@@ -288,7 +297,7 @@ impl App {
                         let span: f32 = widths.iter().map(|(_, w)| w + TAB_GAP).sum::<f32>() - TAB_GAP;
                         let gid = ui.scope_id().with(("tab-x", id));
                         let grip = ui.interact(slot, gid.with("drag"), Sense::DRAG);
-                        if let (Some(d), Some(p)) = (self.folder_drag.as_mut(), ui.input(|i| i.pointer.interact_pos())) {
+                        if let (Some(d), Some(p)) = (self.drag.folders.as_mut(), ui.input(|i| i.pointer.interact_pos())) {
                             let pos = (p.x - d.grab - origin).clamp(first, first + span - slot.width());
                             d.follow(pos - first, |k| widths.iter().find(|(i, _)| *i == k).map_or(0.0, |(_, w)| *w), TAB_GAP);
                             set_glide(ui, gid, pos);
@@ -296,7 +305,7 @@ impl App {
                             glass::button(ui, r, ("folder-lift", id), &text, true, true);
                         }
                         if !grip.dragged() {
-                            drop = self.folder_drag.take().map(|d| d.order);
+                            drop = self.drag.folders.take().map(|d| d.order);
                         }
                     }
                 });
@@ -339,7 +348,7 @@ impl App {
                 let mut lifted = None;
                 // The selection glides between cells under them; a lifted cell carries its own.
                 if let Some(k) = items.iter().position(|(id, ..)| *id == self.folder)
-                    && self.folder_drag.as_ref().is_none_or(|d| Some(d.key) != self.folder)
+                    && self.drag.folders.as_ref().is_none_or(|d| Some(d.key) != self.folder)
                 {
                     let y = motion::follow(ui.ctx(), ui.scope_id().with("cell-capsule"), k as f32 * (CELL_H + CELL_GAP), 0.1, Spring::SNAPPY);
                     let r = Rect::from_min_size(pos2(ui.cursor().left(), origin + y), vec2(ui.available_width(), CELL_H));
@@ -349,7 +358,7 @@ impl App {
                     let (slot, _) = ui.allocate_exact_size(vec2(ui.available_width(), CELL_H), Sense::hover());
                     let gid = ui.scope_id().with(("cell-y", *id));
                     let rel = slot.top() - origin;
-                    if self.folder_drag.as_ref().is_some_and(|d| Some(d.key) == *id) {
+                    if self.drag.folders.as_ref().is_some_and(|d| Some(d.key) == *id) {
                         lifted = Some((*id, title, *unread, slot));
                         continue;
                     }
@@ -366,7 +375,7 @@ impl App {
                     let gid = ui.scope_id().with(("cell-y", id));
                     let grip = ui.interact(slot, gid.with("drag"), Sense::DRAG);
                     let step = CELL_H + CELL_GAP;
-                    if let (Some(d), Some(p)) = (self.folder_drag.as_mut(), ui.input(|i| i.pointer.interact_pos())) {
+                    if let (Some(d), Some(p)) = (self.drag.folders.as_mut(), ui.input(|i| i.pointer.interact_pos())) {
                         // Only folders move: "All chats" stays first, the archive stays last.
                         let pos = (p.y - d.grab - origin).clamp(step, step * folders.max(1.0));
                         d.follow(pos - step, |_| CELL_H, CELL_GAP);
@@ -376,7 +385,7 @@ impl App {
                         self.folder_cell(ui, r, id, title, unread, true);
                     }
                     if !grip.dragged() {
-                        drop = self.folder_drag.take().map(|d| d.order);
+                        drop = self.drag.folders.take().map(|d| d.order);
                     }
                 }
             });
@@ -593,9 +602,9 @@ impl App {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
             if resp.on_hover_text(l!("Акаунти", "Accounts")).clicked() {
-                self.accounts_open = !self.accounts_open;
+                self.accounts_menu.open = !self.accounts_menu.open;
             }
-            self.accounts_anchor = r;
+            self.accounts_menu.anchor = r;
             // Something unread in another account: a dot by the name, as in Telegram Desktop.
             if self.background_unread() > 0 {
                 p.circle_filled(pos2(r.right() + 8.0, r.center().y), 4.0, ACCENT);
@@ -666,7 +675,7 @@ impl App {
         let mut menu = None;
         let mut found = None;
         let mut dropped = None;
-        let mut drag = self.pin_drag.take();
+        let mut drag = self.drag.pins.take();
         let mut birthday = None;
         let mut story = None;
         let (dx, fade) = self.folder_slide(ui);
@@ -715,7 +724,7 @@ impl App {
                 }
             });
         drop(rows);
-        self.pin_drag = drag;
+        self.drag.pins = drag;
         if let Some(order) = dropped {
             self.drop_pins(order);
         }

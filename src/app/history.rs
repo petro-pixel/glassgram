@@ -504,7 +504,7 @@ impl App {
         let sticker_btn = circle(send_btn.left() - 8.0 - COMPOSER_H);
         let send_as = self.send_as_width(chat);
         let attach_btn = circle(rect.left() + send_as);
-        let n_scheduled = self.scheduled.get(&peer).map_or(0, Vec::len);
+        let n_scheduled = self.sched.lists.get(&peer).map_or(0, Vec::len);
         let sched_btn = circle(sticker_btn.left() - 8.0 - COMPOSER_H);
         let input_right = if n_scheduled > 0 { sched_btn.left() } else { sticker_btn.left() } - 8.0;
         // The field grows with the text (Shift+Enter), buttons stay at the bottom.
@@ -647,13 +647,13 @@ impl App {
             match choice {
                 Some(Choice::Effect(id)) => self.send_with_effect(id),
                 Some(Choice::Silent) => self.send_draft_with(SendOpts { silent: true, schedule: None, ..Default::default() }),
-                Some(Choice::Schedule) => self.schedule = Some((ScheduleFor::Draft, String::new())),
+                Some(Choice::Schedule) => self.sched.ask = Some((ScheduleFor::Draft, String::new())),
                 Some(Choice::WhenOnline) => self.send_draft_with(SendOpts { schedule: Some(crate::backend::WHEN_ONLINE), ..Default::default() }),
                 Some(Choice::Ai) => self.open_ai_compose(peer),
                 None => {}
             }
         }
-        if self.schedule.is_some() {
+        if self.sched.ask.is_some() {
             let panel = Rect::from_min_max(pos2((send_btn.right() - 300.0).max(rect.left()), above - 236.0), pos2(send_btn.right(), above));
             self.schedule_view(ui, panel);
         }
@@ -694,15 +694,15 @@ impl App {
         }
         if n_scheduled > 0 {
             let hint = lf!("Заплановані: {n_scheduled}", "Scheduled: {n_scheduled}");
-            if glass::icon_button(ui, sched_btn, "scheduled", Icon::Clock, self.scheduled_open, true).on_hover_text(hint).clicked() {
-                self.scheduled_open = !self.scheduled_open;
+            if glass::icon_button(ui, sched_btn, "scheduled", Icon::Clock, self.sched.open, true).on_hover_text(hint).clicked() {
+                self.sched.open = !self.sched.open;
             }
         }
         if self.stickers.open {
             let panel = Rect::from_min_max(pos2((send_btn.right() - 380.0).max(rect.left()), (above - 380.0).max(header.bottom() + 8.0)), pos2(send_btn.right(), above));
             self.sticker_view(ui, peer, panel);
         }
-        if self.scheduled_open && n_scheduled > 0 {
+        if self.sched.open && n_scheduled > 0 {
             let panel = Rect::from_min_max(pos2(rect.left(), (above - 360.0).max(header.bottom() + 8.0)), pos2(rect.right(), above));
             self.scheduled_view(ui, peer, panel);
         }
@@ -787,10 +787,10 @@ impl App {
             self.forward = None;
         } else if self.inline.as_ref().is_some_and(|i| i.results_for.is_some()) {
             self.inline = None;
-        } else if self.scheduled_open {
-            self.scheduled_open = false;
-        } else if self.schedule.is_some() {
-            self.schedule = None;
+        } else if self.sched.open {
+            self.sched.open = false;
+        } else if self.sched.ask.is_some() {
+            self.sched.ask = None;
         } else if self.stickers.open {
             self.stickers.open = false;
         } else if self.chat_search.is_some() {

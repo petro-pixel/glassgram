@@ -132,7 +132,7 @@ mod urlauth;
 mod userqr;
 mod layout;
 mod motion;
-use chatlist::{Reorder, sort_chats};
+use chatlist::sort_chats;
 use newchat::NewChat;
 
 const GAP: f32 = 14.0;
@@ -537,10 +537,7 @@ pub struct App {
     /// Selected messages of the open chat.
     picked: Vec<i32>,
     forward: Option<ForwardPicker>,
-    /// Open scheduling window: what for, and the typed time "HH:MM".
-    schedule: Option<(ScheduleFor, String)>,
-    scheduled: HashMap<PeerId, Vec<Msg>>,
-    scheduled_open: bool,
+    sched: dialogs::Scheduling,
     viewer: Option<Viewer>,
     inline: Option<Inline>,
     inline_edited_at: f64,
@@ -564,9 +561,7 @@ pub struct App {
     tray_hint_shown: bool,
     folder_edit: Option<FolderEdit>,
     accounts: Accounts,
-    /// Open accounts menu under the name in the header.
-    accounts_open: bool,
-    accounts_anchor: Rect,
+    accounts_menu: accounts_ui::AccountsMenu,
     /// The other accounts, connected in the background for counters and notifications.
     background: Vec<accounts_ui::Background>,
     /// Demo mode: no network and no account switching.
@@ -727,9 +722,7 @@ pub struct App {
     next_local: i32,
     /// Ctrl+K: focus the chat list search field on the next frame.
     focus_search: bool,
-    /// Pinned chat being dragged, with the folder it is dragged in.
-    pin_drag: Option<(Option<i32>, Reorder<PeerId>)>,
-    folder_drag: Option<Reorder<i32>>,
+    drag: chatlist::Dragging,
     /// Open "New chat" menu, anchored to the pencil button.
     new_chat_menu: Option<Rect>,
     new_chat: Option<NewChat>,
@@ -852,9 +845,7 @@ impl App {
             uploads: Vec::new(),
             picked: Vec::new(),
             forward: None,
-            schedule: None,
-            scheduled: HashMap::new(),
-            scheduled_open: false,
+            sched: dialogs::Scheduling::default(),
             viewer: None,
             inline: None,
             inline_edited_at: 0.0,
@@ -888,8 +879,7 @@ impl App {
             quitting: false,
             tray_hint_shown: false,
             folder_edit: None,
-            accounts_open: false,
-            accounts_anchor: Rect::NOTHING,
+            accounts_menu: accounts_ui::AccountsMenu::default(),
             background: Vec::new(),
             demo: false,
             composer_h: COMPOSER_H,
@@ -1001,8 +991,7 @@ impl App {
             outbox: Vec::new(),
             next_local: 0,
             focus_search: false,
-            pin_drag: None,
-            folder_drag: None,
+            drag: chatlist::Dragging::default(),
             new_chat_menu: None,
             new_chat: None,
             contacts: Vec::new(),
@@ -1335,8 +1324,8 @@ impl App {
         self.compose = Compose::New;
         self.chat_search = None;
         self.picked.clear();
-        self.schedule = None;
-        self.scheduled_open = false;
+        self.sched.ask = None;
+        self.sched.open = false;
         self.inline = None;
         self.suggest_reset();
         // Only those who may post have scheduled messages in a channel; asking anyway is CHAT_ADMIN_REQUIRED.
@@ -1578,7 +1567,7 @@ impl App {
     }
 
     pub fn demo_scheduled(&self, peer: PeerId) -> Vec<Msg> {
-        self.scheduled.get(&peer).cloned().unwrap_or_default()
+        self.sched.lists.get(&peer).cloned().unwrap_or_default()
     }
 
     fn find_mut(&mut self, peer: PeerId, id: i32) -> Option<&mut Msg> {
@@ -1754,7 +1743,7 @@ impl eframe::App for App {
         }
         self.video_view(ui);
         self.new_chat_overlays(ui);
-        if self.accounts_open {
+        if self.accounts_menu.open {
             self.accounts_menu(ui);
         }
         if self.settings_open {

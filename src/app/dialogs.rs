@@ -2,6 +2,17 @@
 
 use super::*;
 
+/// Scheduled messages: the scheduling window and the per-chat lists.
+#[derive(Default)]
+pub(super) struct Scheduling {
+    /// Open scheduling window: what for, and the typed time "HH:MM".
+    pub(super) ask: Option<(ScheduleFor, String)>,
+    /// Scheduled messages of each chat, from the server.
+    pub(super) lists: HashMap<PeerId, Vec<Msg>>,
+    /// The list of the open chat is shown.
+    pub(super) open: bool,
+}
+
 impl App {
     /// Export confirmation: with media or text only.
     pub(super) fn export_view(&mut self, ui: &mut Ui) {
@@ -89,7 +100,7 @@ impl App {
         glass::glass(ui.painter(), rect, Glass::tinted(22.0, glass::chrome(), 150).frosted(1.0).with_shadow());
         ui.interact(rect, ui.scope_id().with("schedule-bg"), Sense::CLICK);
         let inner = rect.shrink(14.0);
-        let title = match self.schedule {
+        let title = match self.sched.ask {
             Some((ScheduleFor::Existing(_), _)) => l!("Новий час надсилання", "New send time"),
             _ => l!("Надіслати пізніше", "Send later"),
         };
@@ -113,7 +124,7 @@ impl App {
             y += 40.0;
         }
         let field = Rect::from_min_size(pos2(inner.left(), y + 4.0), vec2(inner.width() - 96.0, 36.0));
-        let Some((target, text)) = &mut self.schedule else { return };
+        let Some((target, text)) = &mut self.sched.ask else { return };
         let target = *target;
         glass::text_field(ui, field, text, l!("ГГ:ХХ", "HH:MM"), false);
         // Time without a date: today, or tomorrow if it has already passed.
@@ -127,7 +138,7 @@ impl App {
             chosen = custom;
         }
         if let Some(ts) = chosen {
-            self.schedule = None;
+            self.sched.ask = None;
             match (target, self.selected) {
                 (ScheduleFor::Draft, _) => self.send_draft_with(SendOpts { silent: false, schedule: Some(ts), ..Default::default() }),
                 (ScheduleFor::Existing(id), Some(peer)) => self.send(Cmd::Reschedule { peer, id, at: ts }),
@@ -138,7 +149,7 @@ impl App {
 
     /// Scheduled messages list: send now, change time, delete.
     pub(super) fn scheduled_view(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
-        let Some(list) = self.scheduled.get(&peer) else { return };
+        let Some(list) = self.sched.lists.get(&peer) else { return };
         let rows = list.len() as f32 * 62.0 + 46.0;
         let rect = Rect::from_min_max(pos2(rect.left(), (rect.bottom() - rows).max(rect.top())), rect.max);
         glass::glass(ui.painter(), rect, Glass::tinted(22.0, glass::chrome(), 160).frosted(1.0).with_shadow());
@@ -165,7 +176,7 @@ impl App {
                     cmd = Some(Cmd::SendScheduledNow { peer, ids: vec![m.id] });
                 }
                 if glass::icon_button(ui, b(1.0), ("sch-time", m.id), Icon::Clock, false, true).on_hover_text(l!("Змінити час", "Change time")).clicked() {
-                    self.schedule = Some((ScheduleFor::Existing(m.id), String::new()));
+                    self.sched.ask = Some((ScheduleFor::Existing(m.id), String::new()));
                 }
                 if glass::icon_button(ui, b(0.0), ("sch-del", m.id), Icon::Trash, false, true).on_hover_text(l!("Видалити", "Delete")).clicked() {
                     cmd = Some(Cmd::DeleteScheduled { peer, ids: vec![m.id] });
@@ -175,7 +186,7 @@ impl App {
         if let Some(cmd) = cmd {
             self.send(cmd);
         }
-        if matches!(self.schedule, Some((ScheduleFor::Existing(_), _))) {
+        if matches!(self.sched.ask, Some((ScheduleFor::Existing(_), _))) {
             let panel = Rect::from_min_max(pos2((rect.right() - 300.0).max(rect.left()), rect.top() - 244.0), pos2(rect.right(), rect.top() - 8.0));
             self.schedule_view(ui, panel);
         }
@@ -188,9 +199,9 @@ impl App {
         match ev {
             Ev::Scheduled { peer, msgs } => {
                 if msgs.is_empty() && self.selected == Some(peer) {
-                    self.scheduled_open = false;
+                    self.sched.open = false;
                 }
-                self.scheduled.insert(peer, msgs);
+                self.sched.lists.insert(peer, msgs);
             }
             Ev::ExportProgress { peer, done } => {
                 let t = self.chats.iter().find(|c| c.id == peer).map(|c| c.title.clone()).unwrap_or_default();
