@@ -260,7 +260,7 @@ Structure rules are in [AGENTS.md](AGENTS.md#architecture). Status of the refact
 - ✅ `App::handle_event` (302 → 123 lines) and `Worker::handle` (973 → 70 lines) only dispatch to feature modules
 - ⬜ **P2** Remaining loose `App` fields: drafts and editing, uploads, forward / schedule boxes, accounts menu, folder editing and dragging, tray
 - ⬜ **P2** `App::apply` (~170 lines) and `App::fresh` (the constructor) by feature, like the event handlers
-- ⬜ **P2** `demo.rs` (1.3k lines) split by feature next to the code it answers for
+- ✅ **P2** `demo.rs` (1.3k lines) split by feature next to the code it answers for — `demo::handle` dispatches groups of commands in one line each, like `Worker::handle`; the answers moved to `src/demo/` (messaging, folders, chat, settings, stories, saved, contacts, manage, search, password) with the helpers they use (media, info); `demo.rs` went from 2.2k to ~840 lines, no answer is over ~150 lines (only `data()`, the chat list itself, is at 152)
 
 ## Not planned
 - SMS jobs (`smsjobs`), managing ad accounts — not needed in a personal client

@@ -219,7 +219,7 @@ Glassgram у трей; вийти — через меню іконки в тре
 | `src/i18n.rs`, `src/i18n/plural.rs`, `locales/` | Мова інтерфейсу: `l!`/`lf!`/`lp!` (з числом, правила множини CLDR) для української й англійської, JSON-файли локалізації та пакети Telegram (через `tdesktop-keys.json`) для решти |
 | `src/format.rs` | Сутності Telegram ↔ розмітка, текст із форматуванням для egui, шрифти (Ubuntu, Noto Color Emoji) |
 | `src/emoji.rs`, `assets/emoji.txt`, `src/app/emojipanel.rs` | Emoji 17.0: список панелі за категоріями (згенерований з `emoji-test.txt` Unicode), кольори шкіри, вкладка емодзі та великі емодзі в повідомленнях |
-| `src/demo.rs`, `src/demo/` | Демо-дані |
+| `src/demo.rs`, `src/demo/` | Демо-дані; `demo::handle` лише розподіляє, кожна група команд отримує відповідь у `src/demo/<feature>.rs` |
 | `build.rs` | Ключі Telegram API із середовища збірки (замасковані), іконка exe на Windows |
 | `packaging/`, `.github/workflows/release.yml` | Інсталятор Windows (Inno Setup), маніфест Flatpak, `.desktop`, metainfo, іконки; релізні збірки |
 | `.github/workflows/ci.yml` | Збірка й тести на Linux, Windows і macOS для кожного push і pull request |

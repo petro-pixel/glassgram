@@ -219,7 +219,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/i18n.rs`, `src/i18n/plural.rs`, `locales/` | UI language: `l!`/`lf!`/`lp!` (counted, CLDR plural rules) for Ukrainian and English, JSON localisation files and Telegram packs (via `tdesktop-keys.json`) for the rest |
 | `src/format.rs` | Telegram entities ↔ markup, formatted text for egui, fonts (Ubuntu, Noto Color Emoji) |
 | `src/emoji.rs`, `assets/emoji.txt`, `src/app/emojipanel.rs` | Emoji 17.0: the panel list by category (generated from Unicode's `emoji-test.txt`), skin tones, the emoji tab and big-emoji messages |
-| `src/demo.rs`, `src/demo/` | Demo data |
+| `src/demo.rs`, `src/demo/` | Demo data; `demo::handle` only dispatches, each group of commands is answered in `src/demo/<feature>.rs` |
 | `build.rs` | Telegram API keys from the build environment (masked), the Windows exe icon |
 | `packaging/`, `.github/workflows/release.yml` | Windows installer (Inno Setup), Flatpak manifest, `.desktop`, metainfo, icons; release builds |
 | `.github/workflows/ci.yml` | Build and tests on Linux, Windows and macOS for every push and pull request |

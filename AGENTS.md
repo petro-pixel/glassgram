@@ -39,7 +39,8 @@ never waits for the network.
   of it. Methods that change that state live next to it.
 - **Size limits**: a file over ~1000 lines or a function over ~150 lines is a sign to split it.
   Remaining debt is listed in ROADMAP §18.
-- **`demo.rs`** — answers the same `Cmd`s synchronously, without the network. Code must cope with
+- **`demo.rs`** — answers the same `Cmd`s synchronously, without the network; `demo::handle` only
+  dispatches, the answers live in `src/demo/<feature>.rs`. Code must cope with
   the answer (`Ev`) arriving while still inside `send()`.
 - **`cache.rs`** — local cache of dialogs, messages and the send queue (SQLite, `chats.sqlite`).
 - Media: `player.rs` (audio via `ffplay`), `video.rs` (frames from `ffmpeg` into a texture),
@@ -57,7 +58,7 @@ never waits for the network.
    handlers (`on_<event>`), and the UI as `*_view` / `*_bar` methods. `App` gets one field and
    `push_event` one arm that calls into the module.
 4. Colours and glass only through `glass::*`; strings only through `l!` / `lf!`.
-5. **Mandatory** — an answer in `demo.rs` and demo data, so the feature is visible in `--demo`.
+5. **Mandatory** — an answer in `src/demo/<feature>.rs` (dispatched from `demo::handle`) and demo data, so the feature is visible in `--demo`.
 6. Update `ROADMAP.md` (mark ✅/🟡) and `README.md` (plus `README.uk.md`) if controls or structure changed.
    The readiness bar at the top of both READMEs is counted from the marks: refresh it with
    `UPDATE_PROGRESS=1 cargo test progress` (`src/progress.rs`).
