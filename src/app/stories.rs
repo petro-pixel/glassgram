@@ -1,6 +1,7 @@
 //! Stories, as in Telegram Desktop: a strip of round avatars above the chat list (a coloured ring
 //! while something is unseen) and a full-window viewer with progress segments that moves on by
-//! itself, video stories with sound, reactions and private replies.
+//! itself, video stories with sound, reactions and private replies. Stealth mode (Premium) hides our
+//! views from the owners for a while, from the eye button by the close button.
 
 use std::path::PathBuf;
 
@@ -24,6 +25,10 @@ pub(super) struct Stories {
     /// Video stories on disk, and those asked for.
     videos: HashMap<(PeerId, i32), PathBuf>,
     asked: HashSet<(PeerId, i32)>,
+    /// Stealth mode: active until, and can be turned on again after (unix time).
+    stealth: (i64, i64),
+    /// The stealth mode box is open over the story.
+    stealth_box: bool,
 }
 
 pub(super) struct StoryView {
@@ -99,6 +104,71 @@ impl App {
         // Our own avatar heads the strip.
         if self.profile.id.is_none() {
             self.send(Cmd::LoadProfile);
+        }
+    }
+
+    pub(super) fn on_story_stealth(&mut self, active_until: i64, cooldown_until: i64) {
+        let was = self.stories.stealth.0;
+        self.stories.stealth = (active_until, cooldown_until);
+        if self.stories.stealth_box && active_until > was {
+            self.stories.stealth_box = false;
+            self.toast = Some((l!("Режим інкогніто увімкнено: власники не бачитимуть ваших переглядів.", "Stealth mode is on: owners won't see that you viewed their stories.").into(), 0.0, false));
+        }
+    }
+
+    /// The eye by the close button: the stealth box, or how long the mode has left.
+    fn stealth_button(&mut self, ui: &mut Ui, rect: Rect) {
+        let now = jiff::Timestamp::now().as_second();
+        let (active, cooldown) = self.stories.stealth;
+        let on = active > now;
+        let tip = if on { lf!("Режим інкогніто: ще {}", "Stealth mode: {} left", mm_ss(active - now)) } else { l!("Режим інкогніто", "Stealth mode").to_owned() };
+        if glass::icon_button(ui, rect, "story-stealth", Icon::EyeOff, on, true).on_hover_text(tip).clicked() {
+            if on {
+                ui.ctx().request_repaint();
+            } else if !self.profile.premium {
+                self.toast = Some((l!("Режим інкогніто доступний з Telegram Premium.", "Stealth mode needs Telegram Premium.").into(), 0.0, false));
+            } else if cooldown > now {
+                self.toast = Some((lf!("Режим інкогніто знову буде доступний за {}.", "Stealth mode will be available again in {}.", mm_ss(cooldown - now)), 0.0, false));
+            } else {
+                self.stories.stealth_box = true;
+                self.story_pause(true, ui.input(|i| i.time), false);
+            }
+        }
+        if on {
+            // The countdown in the tooltip ticks.
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+        }
+    }
+
+    /// The stealth box over the card, as in Telegram Desktop.
+    fn stealth_box(&mut self, ui: &mut Ui, card: Rect) {
+        if !self.stories.stealth_box {
+            return;
+        }
+        let w = (card.width() - 24.0).min(340.0);
+        let text = l!(
+            "Перегляньте історії анонімно: власники не побачать ваших переглядів за останні 5 хвилин і наступні 25 хвилин.",
+            "View stories anonymously: owners won't see that you viewed their stories in the last 5 minutes and the next 25 minutes."
+        );
+        let g = ui.painter().layout(text.to_owned(), FontId::proportional(13.5), ink_dim(), w - 40.0);
+        let panel = Rect::from_center_size(card.center(), vec2(w, 56.0 + g.size().y + 24.0 + 54.0));
+        glass::glass(ui.painter(), panel, Glass::panel(24.0).with_shadow());
+        ui.interact(panel, ui.scope_id().with("stealth-bg"), Sense::CLICK);
+        let p = ui.painter();
+        p.text(pos2(panel.center().x, panel.top() + 30.0), Align2::CENTER_CENTER, l!("Режим інкогніто", "Stealth Mode"), FontId::proportional(17.0), ink());
+        p.galley(pos2(panel.left() + 20.0, panel.top() + 56.0), g, ink_dim());
+        let half = (panel.width() - 40.0 - 8.0) / 2.0;
+        let cancel = Rect::from_min_size(pos2(panel.left() + 20.0, panel.bottom() - 54.0), vec2(half, 36.0));
+        let on = Rect::from_min_size(pos2(cancel.right() + 8.0, cancel.top()), vec2(half, 36.0));
+        let esc = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
+        let now = ui.input(|i| i.time);
+        if glass::button(ui, cancel, "stealth-cancel", l!("Скасувати", "Cancel"), false, true).clicked() || esc {
+            self.stories.stealth_box = false;
+            self.story_pause(false, now, false);
+        }
+        if glass::button(ui, on, "stealth-on", l!("Увімкнути", "Turn on"), true, true).clicked() {
+            self.story_pause(false, now, false);
+            self.send(Cmd::StoryStealth);
         }
     }
 
@@ -329,11 +399,12 @@ impl App {
         if glass::icon_button(ui, close, "story-close", Icon::Close, false, true).on_hover_text(l!("Закрити (Esc)", "Close (Esc)")).clicked() {
             step = Some(Step::Close);
         }
+        let boxed = self.stories.stealth_box;
         // Keys go to the reply field while it has focus.
         let field = ui.memory(|m| m.focused().is_some());
         ui.input(|i| {
-            if field {
-                // Esc first leaves the field (egui does that itself).
+            if field || boxed {
+                // Esc first leaves the field (egui does that itself) or closes the box.
             } else if viewers_open {
                 // Keys belong to the viewers list while it is open.
             } else if i.key_pressed(Key::Escape) {
@@ -354,6 +425,10 @@ impl App {
         painter.rect_filled(card, 18.0, Color32::from_gray(18));
         let story = stories.get(v.index).cloned();
         let ready = self.story_media(ui, peer, story.as_ref(), card, now);
+        // Our own stories carry view counts: nothing to hide there.
+        if story.as_ref().is_some_and(|s| s.views.is_none()) {
+            self.stealth_button(ui, close.translate(vec2(-50.0, 0.0)));
+        }
 
         // Progress segments and who posted it, on a dark chip for any picture.
         let top = Rect::from_min_size(card.min + vec2(10.0, 10.0), vec2(card.width() - 20.0, 3.0));
@@ -394,8 +469,9 @@ impl App {
             Some(s) => self.story_bar(ui, peer, kind, s, bar),
             None => false,
         };
+        self.stealth_box(ui, card);
         // Left third goes back, the rest forward; outside the card closes.
-        if bg.clicked()
+        if !boxed && bg.clicked()
             && let Some(pos) = bg.interact_pointer_pos()
         {
             step = Some(if !card.contains(pos) { Step::Close } else if pos.x < card.left() + card.width() / 3.0 { Step::Prev } else { Step::Next });
@@ -470,6 +546,7 @@ impl App {
         }
         self.stop_story_video();
         self.profile_stories.close_viewers();
+        self.stories.stealth_box = false;
         let Some(v) = &mut self.stories.view else { return };
         // A profile list ends with itself; the strip goes on to the next person.
         let pi = if v.list.is_some() { None } else { pi };
@@ -500,4 +577,9 @@ impl App {
             },
         }
     }
+}
+
+/// A countdown as "4:05".
+fn mm_ss(secs: i64) -> String {
+    format!("{}:{:02}", secs / 60, secs % 60)
 }

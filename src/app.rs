@@ -1060,6 +1060,7 @@ impl App {
             Ev::Birthdays(list) => self.birthdays.today = list,
             Ev::SavedDialogs(list) => self.saved.sources = list,
             Ev::Stories(list) => self.on_stories(list),
+            Ev::StoryStealth { active_until, cooldown_until } => self.on_story_stealth(active_until, cooldown_until),
             Ev::PeerStories { peer, stories, max_read } => self.on_peer_stories(peer, stories, max_read),
             Ev::StoryVideo { peer, id, path } => self.on_story_video(peer, id, path),
             ev @ (Ev::ProfileStories { .. } | Ev::StoryAlbums { .. } | Ev::StoryViewers { .. }) => self.profile_stories_event(ev),

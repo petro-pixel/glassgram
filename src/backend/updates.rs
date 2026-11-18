@@ -97,6 +97,7 @@ pub(super) fn raw_event(u: &tl::enums::Update, names: &Names, notifs: &notify::N
         U::ChannelMessageViews(v) => Ev::Views { peer: PeerId::channel(v.channel_id)?, id: v.id, views: v.views },
         U::NotifySettings(n) => return notify::update_event(n, notifs),
         U::TranscribedAudio(t) => aitext::update_event(t),
+        U::StoriesStealthMode(s) => stories::stealth_event(&s.stealth_mode),
         U::SavedReactionTags => Ev::SavedTagsChanged,
         U::AttachMenuBots => Ev::AttachBotsChanged,
         U::SavedRingtones => Ev::RingtonesChanged,

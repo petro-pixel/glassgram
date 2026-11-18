@@ -154,6 +154,7 @@ impl Worker {
                     list.push(StoryPeer { chat: found_chat(peer, String::new()), ids: item_ids(&ps.stories), stories: Vec::new(), max_read: ps.max_read_id.unwrap_or(0) });
                 }
                 self.out.send(Ev::Stories(list));
+                self.out.send(stealth_event(&all.stealth_mode));
             }
             Cmd::LoadPeerStories(peer) => {
                 let r = self.peer_ref(peer)?;
@@ -201,6 +202,24 @@ impl Worker {
                     });
                 });
             }
+            Cmd::StoryStealth => {
+                let req = tl::functions::stories::ActivateStealthMode { past: true, future: true };
+                let updates = client.invoke(&req).await.map_err(|e| match super::account::rpc_name(&e) {
+                    Some("PREMIUM_ACCOUNT_REQUIRED") => l!("Режим інкогніто доступний з Telegram Premium", "Stealth mode needs Telegram Premium").to_owned(),
+                    _ => lf!("Режим інкогніто: {e}", "Stealth mode: {e}"),
+                })?;
+                let list = match updates {
+                    tl::enums::Updates::Updates(u) => u.updates,
+                    tl::enums::Updates::Combined(u) => u.updates,
+                    tl::enums::Updates::UpdateShort(u) => vec![u.update],
+                    _ => Vec::new(),
+                };
+                for u in list {
+                    if let tl::enums::Update::StoriesStealthMode(s) = u {
+                        self.out.send(stealth_event(&s.stealth_mode));
+                    }
+                }
+            }
             Cmd::ReactStory { peer, id, emoji } => {
                 let r = self.peer_ref(peer)?;
                 let reaction = match emoji {
@@ -246,4 +265,10 @@ impl Worker {
         }
         Ok(())
     }
+}
+
+/// Stealth mode's times, from the strip or `updateStoriesStealthMode`.
+pub(super) fn stealth_event(m: &tl::enums::StoriesStealthMode) -> Ev {
+    let tl::enums::StoriesStealthMode::Mode(m) = m;
+    Ev::StoryStealth { active_until: m.active_until_date.unwrap_or(0) as i64, cooldown_until: m.cooldown_until_date.unwrap_or(0) as i64 }
 }

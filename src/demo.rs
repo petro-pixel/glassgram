@@ -621,6 +621,11 @@ pub fn handle(app: &mut App, cmd: Cmd) {
             app.push_event(Ev::PeerStories { peer, stories, max_read });
         }
         Cmd::ReadStories { .. } | Cmd::ReactStory { .. } => {}
+        Cmd::StoryStealth => {
+            // 5 minutes back and 25 ahead, then an hour's wait, as the server's defaults.
+            let now = jiff::Timestamp::now().as_second();
+            app.push_event(Ev::StoryStealth { active_until: now + 25 * 60, cooldown_until: now + 60 * 60 });
+        }
         Cmd::LoadProfileStories { peer, list, offset } => {
             let all = profile_story_ids(peer, list);
             let rest: Vec<i32> = match list {

@@ -466,6 +466,8 @@ pub enum Cmd {
     ReactStory { peer: PeerId, id: i32, emoji: Option<String> },
     /// A private reply to a story: a message to its owner quoting it.
     ReplyStory { peer: PeerId, id: i32, text: String },
+    /// Stealth mode (Premium): hide our views of the last minutes and the next ones.
+    StoryStealth,
     /// A page of a profile's stories; `offset` is 0 for the first page, then `next` of the last answer.
     LoadProfileStories { peer: PeerId, list: StoryList, offset: i32 },
     /// The story albums of a profile.
@@ -923,6 +925,8 @@ pub enum Ev {
     Birthdays(Vec<(ChatInfo, Birthday)>),
     /// The story strip, in the server's order (unseen first).
     Stories(Vec<StoryPeer>),
+    /// Stealth mode: active until, and can be turned on again after (unix time, 0 — not set).
+    StoryStealth { active_until: i64, cooldown_until: i64 },
     /// A peer's stories in posting order and the last one we saw.
     PeerStories { peer: PeerId, stories: Vec<Story>, max_read: i32 },
     /// A video story is on disk.
@@ -1415,7 +1419,7 @@ impl Worker {
                 }
                 Ok(())
             }
-            cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. } | Cmd::LoadStoryVideo { .. } | Cmd::ReactStory { .. } | Cmd::ReplyStory { .. }) => self.stories_cmd(cmd).await,
+            cmd @ (Cmd::LoadStories | Cmd::LoadPeerStories(_) | Cmd::ReadStories { .. } | Cmd::LoadStoryVideo { .. } | Cmd::ReactStory { .. } | Cmd::ReplyStory { .. } | Cmd::StoryStealth) => self.stories_cmd(cmd).await,
             cmd @ (Cmd::LoadProfileStories { .. } | Cmd::LoadStoryAlbums(_) | Cmd::LoadStoryViewers { .. }) => self.profile_stories_cmd(cmd).await,
             cmd @ (Cmd::LoadStoryTargets | Cmd::CanPostStory(_) | Cmd::PostStory(_)) => self.story_post_cmd(cmd).await,
             cmd @ (Cmd::LoadSavedDialogs | Cmd::LoadSavedHistory { .. } | Cmd::LoadSavedTags | Cmd::LoadSavedTagged { .. } | Cmd::RenameSavedTag { .. }) => self.saved_cmd(cmd).await,
