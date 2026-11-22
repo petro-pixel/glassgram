@@ -38,6 +38,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.8.0" date="2026-11-23">
+      <description>
+        <p>Telegram Business; an AI editor for drafts; stealth mode in stories; bot games, giveaways, invoices and ephemeral bot replies; communities; paid message settings; fact checks and member tags; Emoji 17; rich messages in the reader; sending a location or a contact; forwarding and commenting as a channel; whole-chat translation with album captions and a real language detector.</p>
+      </description>
+    </release>
     <release version="0.7.0" date="2026-11-12">
       <description>
         <p>The interface in every language Telegram Desktop offers, with proper plural forms; MTProto and SOCKS5 proxies switched without a restart; spring animations and chat content blurred under the glass; animated custom emoji in messages; message effects and view-once photos and videos; sending as a channel; name colours, profile colour and emoji status; voice transcription and AI summaries of long posts; translating whole chats; a music player with a queue; profile stories, albums and the archive; attachment menu bots and logging in to websites with Telegram; send when online; retracting votes and stopping polls; folders sent as zip archives; an unread badge on the taskbar or dock icon.</p>
