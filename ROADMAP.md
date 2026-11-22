@@ -243,7 +243,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ⬜ Flathub: offline crates (`flatpak-cargo-generator`) and a decision about the API keys (a Flathub manifest is public)
 - ✅ ffmpeg (with x264, opus, vpx, ffplay) as a module of the manifest
 - ✅ Permissions: network, Wayland/X11, GPU and camera (`--device=all`), PulseAudio + PipeWire, D-Bus for the tray and notifications, `xdg-download`
-- ⬜ Portals: notifications, opening files, file chooser, camera
+- 🟡 Portals: notifications, opening files, file chooser, camera — the file chooser goes through the portal (`rfd` with `xdg-portal`). Left: notifications, opening files and the camera still use direct access (`--talk-name`, `--device=all`)
 - ✅ `.desktop`, `hicolor` icons, AppStream metainfo (validated) with screenshots of both themes
 - ⬜ Submitting a PR to `flathub/flathub`
 
