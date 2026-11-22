@@ -178,7 +178,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Hardening against untrusted content (audit 2026-10): links open only https/http/mailto/tg; sender file names can't leave Downloads; received programs and scripts are shown in their folder, not run; mini apps can't open local paths, read the clipboard or navigate to `file:`; recordings live in an owner-only temp folder
 - ✅ Confirmation for hidden links whose text differs from the target (`[text](url)`): the real address in a tooltip and in the "Open this link?" box, as in Telegram Desktop
 - ✅ Warning before opening a received program or script: "Run this file?" with "Show in folder" as the safe default
-- ⬜ **P2** Mini app permissions asked from the user: clipboard, location, contact, biometry, camera and microphone (Telegram Desktop 7.3.5) (`requestWriteAccess`, `requestContact`)
+- 🟡 **P2** Mini app permissions asked from the user: clipboard, location, contact, biometry, camera and microphone (Telegram Desktop 7.3.5) (`requestWriteAccess`, `requestContact`) — write access and sharing the phone number ask first; the clipboard answers "no access", location and biometry "unavailable". Left: asking for the clipboard, location, camera and microphone
 
 ## 12. Notifications
 - ✅ System notifications, counter in the title, tray with an unread dot
@@ -234,9 +234,9 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 - ✅ Closing the window hides it to the tray on Windows, the tray icon brings it back, "Quit" exits (not run on Windows yet)
 
 **Windows**
-- ⬜ Build and CI for `x86_64-pc-windows-msvc`, checking the wgpu blur on DX12/Vulkan
+- 🟡 Build and CI for `x86_64-pc-windows-msvc`, checking the wgpu blur on DX12/Vulkan: CI builds and tests on `windows-latest` (MSVC) with every push. Left: checking the blur on a real Windows machine
 - ✅ Installer (Inno Setup, English and Ukrainian) with ffmpeg, exe icon, built in GitHub Actions with the API keys from secrets
-- ⬜ Code signing (SmartScreen warns about unsigned installers)
+- 🟡 Code signing (SmartScreen warns about unsigned installers): the release workflow and SignPath configurations for the exe and installer are in place. Left: the `SIGNPATH_API_TOKEN` secret and `SIGNPATH_ORGANIZATION_ID` variable aren't set yet, so releases up to 0.7.0 are unsigned
 
 **Flathub**
 - ✅ Our own `.flatpak` bundle from GitHub Actions: `io.github.petro_pixel.Glassgram`, ffmpeg + x264 built in, `.desktop`, metainfo, icons
