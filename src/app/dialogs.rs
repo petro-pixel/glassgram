@@ -84,7 +84,7 @@ impl App {
             match (fw.reply, fw.ids.first()) {
                 (true, Some(id)) => self.reply_elsewhere(fw.from, *id, to),
                 _ => {
-                    self.send(Cmd::Forward { from: fw.from, ids: fw.ids, to });
+                    self.send(Cmd::Forward { from: fw.from, ids: fw.ids, to, send_as: self.send_as_for(to) });
                     self.open_chat(to);
                 }
             }

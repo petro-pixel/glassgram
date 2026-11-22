@@ -21,6 +21,7 @@ mod music;
 mod wallpapers;
 mod langpack;
 mod sendas;
+mod share;
 mod aitext;
 mod aicompose;
 mod factcheck;
@@ -279,6 +280,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         Cmd::LoadFactChecks { peer, ids } => factcheck::answer(app, peer, ids),
         Cmd::InstantView { url } => instant_view::open(app, url),
         Cmd::RichMessage { key, .. } => instant_view::open(app, key),
+        cmd @ (Cmd::SendLocation { .. } | Cmd::SendContact { .. }) => share::handle(app, cmd),
         cmd @ (Cmd::LoadStories { .. } | Cmd::LoadStoryTargets { .. } | Cmd::CanPostStory { .. } | Cmd::PostStory { .. } | Cmd::LoadPeerStories { .. } | Cmd::LoadStoryVideo { .. } | Cmd::ReadStories { .. } | Cmd::ReactStory { .. } | Cmd::StoryStealth { .. } | Cmd::LoadProfileStories { .. } | Cmd::LoadStoryAlbums { .. } | Cmd::LoadStoryViewers { .. } | Cmd::ReplyStory { .. }) => stories::handle(app, cmd),
         cmd @ (Cmd::LoadSavedDialogs { .. } | Cmd::LoadSavedTags { .. } | Cmd::RenameSavedTag { .. } | Cmd::LoadSavedTagged { .. } | Cmd::LoadSavedHistory { .. }) => saved::handle(app, cmd),
         Cmd::LoadCustomEmoji(ids) => custom_emoji::load(app, ids),

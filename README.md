@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 79%** `████████████████░░░░` — 124 done, 39 partial, 19 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 79%** `████████████████░░░░` — 125 done, 38 partial, 19 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -198,6 +198,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/sounds.rs`, `src/backend/sounds.rs` | Notification sounds: the built-in chime, saved ringtones (list, add, delete, cached files), a chat's own sound, reaction notification settings |
 | `src/app/sponsored.rs`, `src/backend/sponsored.rs` | Sponsored messages in channel history (after the newest post and between posts, media ads): "Ad" bubble, view and click reports, "About this ad", reporting, hiding for Premium |
 | `src/app/suggest.rs`, `src/backend/suggest.rs` | Link previews (in bubbles and above the composer), @mention and bot command suggestions, "Start" for bots |
+| `src/app/share.rs`, `src/backend/share.rs` | "Location" and "Contact" in the 📎 menu |
 | `src/app/instant_view.rs`, `src/backend/instant_view.rs` | Instant View: the "Instant View" button on link previews and the article reader (`messages.getWebPage`, `Page` blocks) |
 | `src/app/info.rs`, `src/backend/info.rs` | Chat info column: profile, members, shared media, per-chat notifications, leave / clear / delete |
 | `src/app/settings_pages.rs` | Settings pages (Telegram Desktop layout), My Account editor |
@@ -250,6 +251,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 - Right-click "Send": in a private chat, a row of message effects on top (★ — Premium) sends the message with that effect; then send silently, schedule, or (in a private chat whose last seen time is visible) send when online; "AI editor…" opens a window with the draft rewritten by Telegram's AI (proofread, with emoji, translated or in one of the server's tones), and "Apply" puts it into the field. A message with an effect plays it when it first appears; a click on the effect's emoji by the time plays it again.
 - A chat where every message costs Stars (`send_paid_messages_stars`) shows the price as "⭐ N" at the right of the message field; sending there says that Glassgram can't send paid messages yet instead of failing. Your own price is set in Settings → Privacy and Security → "Who can message me" → "Paid messages".
 - In a group or channel that lets you post as a channel you run, a round avatar left of 📎 shows who messages go as; a click lists your account and those channels (Premium-only ones are marked) and picks the default for that chat.
+- Right-click 📎: "Location" sends typed or pasted coordinates, "Contact" sends one of your contacts.
 - A rich message has "Open in full" under it: its whole layout opens in the Instant View reader.
 - A chat in another language (where Telegram allows it) shows "Translate to …" under the header: a click shows its messages translated in place, marked "translated" by the time (Telegram Premium), "Show original" switches back. ⚙ on the bar picks the language, "Don't translate …" stops offering that language, "Hide the bar" hides it for the chat; "Translate chat" in the chat's menu in the list brings it back.
 - "Select" in the message menu turns on selection mode; Esc leaves it.

@@ -5,6 +5,8 @@ use super::*;
 impl App {
     /// Comments panel: bubbles from the discussion group and a field for your own comment.
     pub(super) fn comments_view(&mut self, ui: &mut Ui, rect: Rect) {
+        let group = self.comments.as_ref().and_then(|c| c.discussion).map(|d| d.0);
+        let send_as = group.map_or(0.0, |g| self.comment_send_as_width(g));
         let Some(c) = &self.comments else { return };
         ui.interact(rect, ui.scope_id().with("comments-bg"), Sense::CLICK);
         glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());
@@ -17,7 +19,7 @@ impl App {
         ui.painter().text(inner.left_top() + vec2(4.0, 4.0), Align2::LEFT_TOP, title, FontId::proportional(17.0), ink());
         let close = Rect::from_min_size(pos2(inner.right() - 32.0, inner.top() - 2.0), vec2(32.0, 32.0));
         let closed = glass::icon_button(ui, close, "comments-close", Icon::Close, false, true).clicked();
-        let field = Rect::from_min_max(pos2(inner.left(), inner.bottom() - 40.0), pos2(inner.right() - 48.0, inner.bottom()));
+        let field = Rect::from_min_max(pos2(inner.left() + send_as, inner.bottom() - 40.0), pos2(inner.right() - 48.0, inner.bottom()));
         let send = Rect::from_min_size(pos2(inner.right() - 40.0, inner.bottom() - 40.0), vec2(40.0, 40.0));
         let list = Rect::from_min_max(pos2(inner.left() - 6.0, inner.top() + 40.0), pos2(inner.right() + 6.0, field.top() - 8.0));
         let mut child = ui.new_child(UiBuilder::new().max_rect(list));
@@ -60,6 +62,9 @@ impl App {
             let (peer, id) = (c.peer, c.post);
             self.send(Cmd::OpenComments { peer, id, before: Some(before) });
         }
+        if let Some(g) = group.filter(|_| send_as > 0.0) {
+            self.send_as_button(ui, g, Rect::from_min_size(pos2(inner.left(), inner.bottom() - 40.0), vec2(40.0, 40.0)));
+        }
         let send_mods = self.send_mods();
         let Some(c) = self.comments.as_mut() else { return };
         let ready = c.discussion.is_some();
@@ -70,7 +75,7 @@ impl App {
             && let Some((disc, root)) = c.discussion
         {
             let text = std::mem::take(&mut c.draft).trim().to_owned();
-            self.send(Cmd::Send { peer: disc, text, reply_to: Some(ReplyTo::to(root)), opts: SendOpts::default(), send_as: None });
+            self.send(Cmd::Send { peer: disc, text, reply_to: Some(ReplyTo::to(root)), opts: SendOpts::default(), send_as: self.send_as_for(disc) });
             resp.request_focus();
         }
         // Actions on a comment (copy, react, download) happen in the discussion group.

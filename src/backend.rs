@@ -94,6 +94,7 @@ pub use stats::{ChannelStats, Chart, ChartKind, GraphState, MessageStats, PostSt
 mod chatlists;
 mod storage;
 mod dice;
+mod share;
 mod selfdestruct;
 mod account_actions;
 pub use account_actions::{CountryCode, country_of, phone_digits};
@@ -356,7 +357,11 @@ pub enum Cmd {
     ConfirmPasswordEmail(String),
     ResendPasswordEmail,
     CancelPasswordEmail,
-    Forward { from: PeerId, ids: Vec<i32>, to: PeerId },
+    Forward { from: PeerId, ids: Vec<i32>, to: PeerId, send_as: Option<PeerId> },
+    /// A location from typed coordinates.
+    SendLocation { peer: PeerId, lat: f64, lon: f64, reply_to: Option<ReplyTo>, send_as: Option<PeerId> },
+    /// One of our contacts as a contact card.
+    SendContact { peer: PeerId, user: PeerId, reply_to: Option<ReplyTo>, send_as: Option<PeerId> },
     /// An inline button with callback data was pressed.
     PressButton { peer: PeerId, id: i32, data: Vec<u8> },
     /// "Play" on a game message: its address opens in the browser.
@@ -1388,6 +1393,7 @@ impl Worker {
             cmd @ (Cmd::LoadAccountTtl | Cmd::SetAccountTtl(_)) => self.self_destruct_cmd(cmd).await,
             cmd @ (Cmd::LoadCountries(_) | Cmd::SendChangePhoneCode(_) | Cmd::ChangePhone { .. } | Cmd::DeleteAccount { .. }) => self.account_actions_cmd(cmd).await,
             cmd @ Cmd::SendDice { .. } => self.dice_cmd(cmd).await,
+            cmd @ (Cmd::SendLocation { .. } | Cmd::SendContact { .. }) => self.share_cmd(cmd).await,
             cmd @ (Cmd::LoadCacheUsage | Cmd::ClearCache(_) | Cmd::TrimCache(_)) => self.storage_cmd(cmd).await,
             cmd @ Cmd::LoadStars { .. } => self.stars_cmd(cmd).await,
             Cmd::Business(cmd) => self.business_cmd(cmd).await,

@@ -58,6 +58,14 @@ impl App {
         if self.send_as.offers.contains_key(&chat.id) { COMPOSER_H + 8.0 } else { 0.0 }
     }
 
+    /// The same room in the comments panel, whose discussion group has no `ChatInfo` to hand.
+    pub(super) fn comment_send_as_width(&mut self, group: PeerId) -> f32 {
+        if self.send_as.asked.insert(group) {
+            self.send(Cmd::LoadSendAs(group));
+        }
+        if self.send_as.offers.contains_key(&group) { 48.0 } else { 0.0 }
+    }
+
     /// The current choice's avatar; a click opens the menu above it.
     pub(super) fn send_as_button(&mut self, ui: &mut Ui, peer: PeerId, rect: Rect) {
         let Some(offer) = self.send_as.offers.get(&peer) else { return };

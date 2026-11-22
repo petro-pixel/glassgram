@@ -24,12 +24,17 @@ impl Worker {
                 }
                 Ok(())
             }
-            Cmd::Forward { from, ids, to } => {
+            Cmd::Forward { from, ids, to, send_as } => {
                 let client = self.client()?;
                 let (src, dst) = (self.peer_ref(from)?, self.peer_ref(to)?);
-                let sent = client.forward_messages(dst, &ids, src).await.map_err(|e| lf!("Не переслано: {e}", "Not forwarded: {e}"))?;
+                let not_sent = |e: &dyn std::fmt::Display| lf!("Не переслано: {e}", "Not forwarded: {e}");
+                // grammers' forward has no `send_as`.
+                let sent: Vec<Message> = match self.send_as_ref(send_as)? {
+                    Some(channel) => reply::forward_as(&client, src, dst, &ids, channel).await.map_err(|e| not_sent(&e))?,
+                    None => client.forward_messages(dst, &ids, src).await.map_err(|e| not_sent(&e))?.into_iter().flatten().collect(),
+                };
                 let emitter = self.sent();
-                for m in sent.iter().flatten() {
+                for m in &sent {
                     emitter.emit(to, m, None, SendOpts::default());
                 }
                 let title = self.names.lock().unwrap().get(&to).cloned().unwrap_or_default();

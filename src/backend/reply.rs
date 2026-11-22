@@ -93,6 +93,37 @@ async fn created(client: &Client, r: PeerRef, updates: &tl::enums::Updates, rand
     Ok(msgs.into_iter().flatten().collect())
 }
 
+/// Forwards `ids` posting as `send_as`.
+pub(super) async fn forward_as(client: &Client, from: PeerRef, to: PeerRef, ids: &[i32], send_as: tl::enums::InputPeer) -> Result<Vec<Message>, SendError> {
+    let random_ids: Vec<i64> = ids.iter().map(|_| random_id()).collect();
+    let req = tl::functions::messages::ForwardMessages {
+        silent: false,
+        background: false,
+        with_my_score: false,
+        drop_author: false,
+        drop_media_captions: false,
+        noforwards: false,
+        allow_paid_floodskip: false,
+        from_ephemeral: false,
+        from_peer: from.into(),
+        id: ids.to_vec(),
+        random_id: random_ids.clone(),
+        to_peer: to.into(),
+        top_msg_id: None,
+        reply_to: None,
+        schedule_date: None,
+        schedule_repeat_period: None,
+        send_as: Some(send_as),
+        quick_reply_shortcut: None,
+        effect: None,
+        video_timestamp: None,
+        allow_paid_stars: None,
+        suggested_post: None,
+    };
+    let updates = client.invoke(&req).await?;
+    created(client, to, &updates, &random_ids, SendOpts::default()).await
+}
+
 /// One message grammers can't send (see `raw_reply`): text (markup) and maybe media.
 pub(super) async fn send_one(client: &Client, r: PeerRef, markup: &str, media: Option<tl::enums::InputMedia>, reply: Option<tl::enums::InputReplyTo>, opts: SendOpts, send_as: Option<tl::enums::InputPeer>) -> Result<Option<Message>, String> {
     send_raw(client, r, markup, media, reply, opts, send_as, random_id()).await.map_err(|e| e.to_string())

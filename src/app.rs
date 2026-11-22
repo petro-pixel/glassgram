@@ -98,6 +98,7 @@ mod alerts;
 mod autodelete;
 mod storage;
 mod dice;
+mod share;
 mod selfdestruct;
 mod account_actions;
 mod adminlog;
@@ -622,6 +623,7 @@ pub struct App {
     blocked: Option<Vec<ChatInfo>>,
     /// Poll boxes: "New poll", "View results", "Add an answer".
     polls: polls::Polls,
+    share: share::Share,
     /// Checklist boxes: "New checklist", "Add items".
     todo: todo::Todo,
     /// The "Send files" box with what is about to be sent.
@@ -923,6 +925,7 @@ impl App {
             contact_form: None,
             blocked: None,
             polls: polls::Polls::default(),
+            share: share::Share::default(),
             todo: todo::Todo::default(),
             send_box: None,
             spoilers: spoiler::Spoilers::default(),
@@ -1291,6 +1294,8 @@ impl App {
             Some(MediaKind::Audio) => Some(l!("🎵 Аудіо", "🎵 Audio")),
             None if m.sticker.is_some() => Some(l!("Стікер", "Sticker")),
             None if m.file.is_some() => Some(l!("📎 Файл", "📎 File")),
+            None if m.geo.is_some() => Some(l!("📍 Місце", "📍 Location")),
+            None if m.contact.is_some() => Some(l!("👤 Контакт", "👤 Contact")),
             None => None,
         };
         let text = m.text.replace('\n', " ");
@@ -1771,6 +1776,7 @@ impl eframe::App for App {
         self.url_auth_view(ui);
         self.contact_form_view(ui);
         self.polls_view(ui);
+        self.share_view(ui);
         self.todo_view(ui);
         self.send_box_view(ui);
         self.chat_edit_view(ui);

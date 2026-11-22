@@ -699,6 +699,7 @@ impl App {
             if glass::menu_button(ui, Icon::Todo, l!("Чеклист", "Checklist")).clicked() {
                 self.open_todo_form(peer);
             }
+            self.share_menu_items(ui, peer);
             self.attach_menu_items(ui, peer);
             self.demo_photo_item(ui, peer);
         });

@@ -84,13 +84,13 @@ pub(super) fn handle(app: &mut App, cmd: Cmd) {
             });
             app.push_event(Ev::NewMsg(Msg { topic: topic.filter(|t| *t != 1), ..sendas::posted_as(replied(app, outgoing(peer, text, None), &reply_to), send_as) }));
         }
-        Cmd::Forward { from, ids, to } => {
+        Cmd::Forward { from, ids, to, send_as } => {
             let src = app.demo_history().find(|(p, _, _)| *p == from).map(|(_, (title, _), msgs)| (title.to_owned(), msgs.clone()));
             for m in src.iter().flat_map(|(title, msgs)| msgs.iter().filter(|m| ids.contains(&m.id)).map(move |m| (title, m))) {
                 let from_name = if m.1.out { "Demo User".to_owned() } else if m.1.sender.is_empty() { m.0.clone() } else { m.1.sender.clone() };
                 let mut copy = outgoing(to, String::new(), None);
                 copy = Msg { text: m.1.text.clone(), spans: m.1.spans.clone(), photo: m.1.photo, file: m.1.file.clone(), forwarded: Some(from_name), id: copy.id + m.1.id, ..copy };
-                app.push_event(Ev::NewMsg(copy));
+                app.push_event(Ev::NewMsg(sendas::posted_as(copy, send_as)));
             }
         }
         Cmd::PlayGame { .. } => app.push_event(Ev::BotAnswer { text: l!("Демо: гра відкрилася б у браузері", "Demo: the game would open in the browser").into(), alert: false }),
