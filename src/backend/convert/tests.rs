@@ -1016,6 +1016,29 @@ fn call_messages_become_call_cards() {
 }
 
 #[test]
+fn invoice_is_a_card_not_a_placeholder() {
+    let media = tl::types::MessageMediaInvoice {
+        shipping_address_requested: false,
+        test: true,
+        title: "Weather Pro".into(),
+        description: "Hourly forecasts".into(),
+        photo: None,
+        receipt_msg_id: None,
+        currency: "USD".into(),
+        total_amount: 1250,
+        start_param: String::new(),
+        extended_media: None,
+    };
+    let raw = tl::types::Message { media: Some(media.into()), ..message(71, peer_channel(NEWS), None, "") };
+    let m = convert(&deliver(raw), &names());
+    assert!(!m.unsupported);
+    let card = m.webpage.expect("invoice card");
+    assert_eq!(card.card, crate::backend::CardKind::Invoice);
+    assert_eq!(card.title, "Weather Pro");
+    assert!(card.description.contains("12.50 USD"));
+}
+
+#[test]
 fn giveaway_is_a_card_not_a_placeholder() {
     let media = tl::types::MessageMediaGiveaway {
         only_new_subscribers: true,

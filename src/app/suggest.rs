@@ -545,6 +545,10 @@ impl WebCard {
         match card {
             CardKind::Game => return resp.on_hover_text(l!("Грати", "Play")).clicked().then_some(Action::Game(m.id)),
             CardKind::Giveaway => return resp.on_hover_text(l!("Докладніше", "Learn more")).clicked().then_some(Action::Giveaway(m.id)),
+            CardKind::Invoice => {
+                resp.on_hover_text(l!("Оплата в Glassgram поки недоступна", "Paying in Glassgram isn't available yet"));
+                return None;
+            }
             CardKind::Link => {}
         }
         let resp = resp.on_hover_text(&url);

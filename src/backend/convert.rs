@@ -220,13 +220,13 @@ pub(super) fn forwarded(m: &Message, names: &Names) -> Option<String> {
 fn unsupported(m: &Message) -> bool {
     use tl::enums::MessageMedia as M;
     matches!(&m.raw, tl::enums::Message::Message(x) if matches!(x.media,
-        Some(M::Unsupported | M::Invoice(_) | M::Story(_) | M::PaidMedia(_) | M::VideoStream(_))))
+        Some(M::Unsupported | M::Story(_) | M::PaidMedia(_) | M::VideoStream(_))))
 }
 
 pub(super) fn convert(m: &Message, names: &Names) -> Msg {
     let photo = matches!(m.media(), Some(Media::Photo(_)));
     // Polls, places and contacts are drawn as cards: no label needed in the text.
-    let card = unsupported(m) || matches!(m.media(), Some(Media::Poll(_) | Media::Geo(_) | Media::GeoLive(_) | Media::Venue(_) | Media::Contact(_)));
+    let card = unsupported(m) || invoices::is_invoice(m) || matches!(m.media(), Some(Media::Poll(_) | Media::Geo(_) | Media::GeoLive(_) | Media::Venue(_) | Media::Contact(_)));
     let call = calls::call_info(&m.raw);
     let text = match (media_label(m), m.text().is_empty()) {
         // The call card shows the label itself.

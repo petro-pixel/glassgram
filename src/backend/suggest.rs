@@ -41,6 +41,8 @@ pub enum CardKind {
     Game,
     /// A giveaway or its results: a click shows where it stands for us.
     Giveaway,
+    /// A bot's invoice: shown only, paying waits for the payments review.
+    Invoice,
 }
 
 /// Chat member for the @mention popup.
@@ -91,7 +93,7 @@ pub(super) fn message_web_page(m: &Message) -> Option<WebPageInfo> {
             card: CardKind::Game,
         });
     }
-    if let Some(card) = super::giveaways::card(m) {
+    if let Some(card) = super::giveaways::card(m).or_else(|| super::invoices::card(m)) {
         return Some(card);
     }
     match m.media() {

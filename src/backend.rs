@@ -63,6 +63,7 @@ mod instant_view;
 pub use instant_view::{IvArticle, IvBlock, IvPage, IvText};
 pub use suggest::{BotCmd, CardKind, Mentionable, WebPageInfo};
 mod giveaways;
+mod invoices;
 mod ephemeral;
 mod communities;
 pub use communities::Community;

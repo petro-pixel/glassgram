@@ -5,7 +5,7 @@
 A desktop Telegram client in Rust with a **Liquid Glass** style interface.
 
 <!-- progress -->
-**Roadmap progress: 79%** `████████████████░░░░` — 125 done, 38 partial, 19 to go ([ROADMAP.md](ROADMAP.md))
+**Roadmap progress: 79%** `████████████████░░░░` — 125 done, 39 partial, 18 to go ([ROADMAP.md](ROADMAP.md))
 <!-- /progress -->
 
 <p>
@@ -198,6 +198,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/sounds.rs`, `src/backend/sounds.rs` | Notification sounds: the built-in chime, saved ringtones (list, add, delete, cached files), a chat's own sound, reaction notification settings |
 | `src/app/sponsored.rs`, `src/backend/sponsored.rs` | Sponsored messages in channel history (after the newest post and between posts, media ads): "Ad" bubble, view and click reports, "About this ad", reporting, hiding for Premium |
 | `src/app/suggest.rs`, `src/backend/suggest.rs` | Link previews (in bubbles and above the composer), @mention and bot command suggestions, "Start" for bots |
+| `src/backend/invoices.rs` | Bot invoices as cards (no paying) |
 | `src/app/share.rs`, `src/backend/share.rs` | "Location" and "Contact" in the 📎 menu |
 | `src/app/instant_view.rs`, `src/backend/instant_view.rs` | Instant View: the "Instant View" button on link previews and the article reader (`messages.getWebPage`, `Page` blocks) |
 | `src/app/info.rs`, `src/backend/info.rs` | Chat info column: profile, members, shared media, per-chat notifications, leave / clear / delete |

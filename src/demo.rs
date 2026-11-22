@@ -794,6 +794,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
     }
     if id == 6 {
         msgs.push(game_message(base(50, "Weather Bot")));
+        msgs.push(invoice_message(base(51, "Weather Bot")));
     }
 }
 
@@ -811,6 +812,22 @@ fn game_message(base: Msg) -> Msg {
     };
     let play = Button { text: l!("Грати в Cloud Catcher", "Play Cloud Catcher").into(), action: ButtonAction::Game, style: crate::backend::ButtonStyle::Plain };
     Msg { id: 50, text: String::new(), webpage: Some(page), buttons: vec![vec![play]], ..base }
+}
+
+/// A bot's invoice: the card shows the price, and its button says paying isn't here yet.
+fn invoice_message(base: Msg) -> Msg {
+    let page = WebPageInfo {
+        id: 51,
+        url: String::new(),
+        site: l!("Рахунок", "Invoice").into(),
+        title: "Weather Pro, 1 month".into(),
+        description: format!("Hourly forecasts and storm alerts for your city.\n{}", l!("До сплати: ⭐ 50", "Total: ⭐ 50")),
+        photo: false,
+        iv: false,
+        card: CardKind::Invoice,
+    };
+    let pay = Button { text: l!("Сплатити ⭐ 50", "Pay ⭐ 50").into(), action: ButtonAction::Other, style: Default::default() };
+    Msg { id: 51, text: String::new(), webpage: Some(page), buttons: vec![vec![pay]], ..base }
 }
 
 fn weather_buttons() -> Vec<Vec<Button>> {
