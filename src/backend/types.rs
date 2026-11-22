@@ -740,6 +740,9 @@ pub struct Msg {
     /// The author's member tag in this group, shown by the name.
     #[serde(default)]
     pub rank: Option<String>,
+    /// A 2026 rich message: its full layout opens in the reader (`messages.getRichMessage`).
+    #[serde(default)]
+    pub rich: bool,
 }
 
 impl Msg {
@@ -795,6 +798,7 @@ impl Msg {
             call: None,
             factcheck: None,
             rank: None,
+            rich: false,
         }
     }
 

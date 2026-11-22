@@ -257,6 +257,8 @@ enum Action {
     Effect(i32),
     /// Open the Instant View of the message's link preview.
     InstantView(i32),
+    /// Open a rich message's full layout in the reader.
+    RichMessage(i32),
     /// Play the message's bot game.
     Game(i32),
     /// "Learn more" about the message's giveaway.
@@ -1545,7 +1547,7 @@ impl App {
             Action::OpenHidden(url) => self.opening = Some(confirm::Opening::Link(url)),
             Action::Open(target) => self.open_target(peer, target),
             // Handled by `chat_view_action`.
-            Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::AddToStickerSet(_) | Action::SaveGif(_) | Action::Effect(_) | Action::InstantView(_) | Action::Game(_) | Action::Giveaway(_) => {}
+            Action::RichMessage(_) | Action::Pin(..) | Action::Unpin(_) | Action::ReadBy(_) | Action::Translate(_) | Action::Transcribe(_) | Action::Summary(_) | Action::Report(_) | Action::StickerSet(_) | Action::FaveSticker(_) | Action::AddToStickerSet(_) | Action::SaveGif(_) | Action::Effect(_) | Action::InstantView(_) | Action::Game(_) | Action::Giveaway(_) => {}
         }
     }
 

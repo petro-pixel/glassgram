@@ -10,6 +10,8 @@ use crate::format::{self, Span, Style};
 
 /// The post with the article link.
 const POST: i32 = 42;
+/// A rich message, after the giveaway posts.
+const RICH: i32 = 45;
 const URL: &str = "https://telegra.ph/Glass-interfaces-11-15";
 /// Picture ids inside the article.
 const COVER: i64 = 9_001;
@@ -30,6 +32,10 @@ pub(super) fn post(base: Msg) -> Msg {
         card: CardKind::Link,
     };
     Msg { id: POST, text, spans, views: Some(5_100), webpage: Some(page), ..base }
+}
+
+pub(super) fn rich_post(base: Msg) -> Msg {
+    Msg { id: RICH, text: "Glass interfaces, ten years later: the long read as a rich message.".into(), rich: true, views: Some(2_300), ..base }
 }
 
 /// The link card's picture in the bubble.
@@ -106,7 +112,7 @@ fn page() -> IvPage {
 
 /// Answers `Cmd::InstantView`: the demo article with its pictures, or the usual refusal.
 pub(super) fn open(app: &mut App, url: String) {
-    if url != URL {
+    if url != URL && !url.starts_with("rich:") {
         let result = Err(crate::i18n::l!("Для цієї сторінки немає миттєвого перегляду", "This page has no Instant View").into());
         return app.push_event(Ev::InstantView { url, result });
     }

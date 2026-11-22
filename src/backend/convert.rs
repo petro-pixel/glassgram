@@ -337,6 +337,7 @@ pub(super) fn convert(m: &Message, names: &Names) -> Msg {
         call,
         factcheck: factcheck::of_message(&m.raw),
         rank: factcheck::rank(&m.raw),
+        rich: instant_view::has_rich(&m.raw),
     };
     let mut msg = msg;
     if let Some(t) = viewonce::ttl(&m.raw).filter(|t| t.expired) {

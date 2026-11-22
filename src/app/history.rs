@@ -352,6 +352,15 @@ impl App {
             action = Some(a);
         }
         self.want_translation(ui, peer, m, bubble_top);
+        if m.rich {
+            let w = (ui.available_width() * 0.72).min(340.0);
+            let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
+            let x = if m.out { row.right() - 10.0 - w } else { row.left() + 10.0 };
+            let b = Rect::from_min_size(pos2(x, row.top() + 2.0), vec2(w, 32.0));
+            if glass::button(ui, b, ("rich", m.id), l!("Відкрити повністю", "Open in full"), false, true).clicked() {
+                action = Some(Action::RichMessage(m.id));
+            }
+        }
         if let Some(n) = m.comments {
             let w = (ui.available_width() * 0.72).min(340.0);
             let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());

@@ -278,6 +278,7 @@ pub fn handle(app: &mut App, cmd: Cmd) {
         cmd @ (Cmd::LoadCommunities | Cmd::LoadCommunityChats { .. }) => communities::handle(app, cmd),
         Cmd::LoadFactChecks { peer, ids } => factcheck::answer(app, peer, ids),
         Cmd::InstantView { url } => instant_view::open(app, url),
+        Cmd::RichMessage { key, .. } => instant_view::open(app, key),
         cmd @ (Cmd::LoadStories { .. } | Cmd::LoadStoryTargets { .. } | Cmd::CanPostStory { .. } | Cmd::PostStory { .. } | Cmd::LoadPeerStories { .. } | Cmd::LoadStoryVideo { .. } | Cmd::ReadStories { .. } | Cmd::ReactStory { .. } | Cmd::StoryStealth { .. } | Cmd::LoadProfileStories { .. } | Cmd::LoadStoryAlbums { .. } | Cmd::LoadStoryViewers { .. } | Cmd::ReplyStory { .. }) => stories::handle(app, cmd),
         cmd @ (Cmd::LoadSavedDialogs { .. } | Cmd::LoadSavedTags { .. } | Cmd::RenameSavedTag { .. } | Cmd::LoadSavedTagged { .. } | Cmd::LoadSavedHistory { .. }) => saved::handle(app, cmd),
         Cmd::LoadCustomEmoji(ids) => custom_emoji::load(app, ids),
@@ -787,6 +788,7 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
         // After the fact-checked post, so ids stay ascending.
         msgs.push(instant_view::post(base(32, "Tech News")));
         msgs.extend(giveaways::posts(base));
+        msgs.push(instant_view::rich_post(base(38, "Tech News")));
     }
     if id == 6 {
         msgs.push(game_message(base(50, "Weather Bot")));

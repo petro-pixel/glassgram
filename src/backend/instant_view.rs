@@ -417,9 +417,59 @@ fn load_pictures(loader: &Loader, page: &tl::types::Page, iv: &IvPage) {
     }
 }
 
+/// Whether the message carries a rich layout.
+pub(super) fn has_rich(m: &tl::enums::Message) -> bool {
+    matches!(m, tl::enums::Message::Message(x) if x.rich_message.is_some())
+}
+
+/// The rich layout of message `id` in a `getRichMessage` answer, as a page the reader can draw.
+fn rich_page(answer: tl::enums::messages::Messages, id: i32, key: &str) -> Option<tl::types::Page> {
+    use tl::enums::messages::Messages as M;
+    let list = match answer {
+        M::Messages(m) => m.messages,
+        M::Slice(m) => m.messages,
+        M::ChannelMessages(m) => m.messages,
+        M::NotModified(_) => Vec::new(),
+    };
+    list.into_iter().find_map(|m| match m {
+        tl::enums::Message::Message(x) if x.id == id => {
+            let tl::enums::RichMessage::Message(r) = x.rich_message?;
+            Some(tl::types::Page { part: r.part, rtl: r.rtl, v2: true, url: key.to_owned(), blocks: r.blocks, photos: r.photos, documents: r.documents, views: None })
+        }
+        _ => None,
+    })
+}
+
 impl Worker {
+    fn rich_message(&self, peer: grammers_client::session::types::PeerId, id: i32, key: String) -> Result<(), String> {
+        let client = self.client()?;
+        let r = self.peer_ref(peer)?;
+        let (out, loader) = (self.out.clone(), self.loader.clone());
+        tokio::spawn(async move {
+            let result = match client.invoke(&tl::functions::messages::GetRichMessage { peer: r.into(), id }).await {
+                Ok(answer) => match rich_page(answer, id, &key) {
+                    Some(page) => {
+                        let iv = convert(&page);
+                        if let Some(loader) = &loader {
+                            load_pictures(loader, &page, &iv);
+                        }
+                        Ok(iv)
+                    }
+                    None => Err(l!("Сервер не повернув вміст повідомлення", "The server returned no message content").to_owned()),
+                },
+                Err(e) => Err(lf!("Не вдалося завантажити повідомлення: {e}", "Could not load the message: {e}")),
+            };
+            out.send(Ev::InstantView { url: key, result });
+        });
+        Ok(())
+    }
+
     pub(super) async fn instant_view_cmd(&mut self, cmd: Cmd) -> Result<(), String> {
-        let Cmd::InstantView { url } = cmd else { return Ok(()) };
+        let url = match cmd {
+            Cmd::InstantView { url } => url,
+            Cmd::RichMessage { peer, id, key } => return self.rich_message(peer, id, key),
+            _ => return Ok(()),
+        };
         let client = self.client()?;
         let (out, loader) = (self.out.clone(), self.loader.clone());
         tokio::spawn(async move {

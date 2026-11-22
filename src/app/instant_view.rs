@@ -21,6 +21,8 @@ struct Opened {
     url: String,
     /// Site name for the window header, from the link preview.
     site: String,
+    /// A rich message, not a web page: it has no address to open in the browser.
+    rich: bool,
     /// `None` — waiting for the server.
     page: Option<Result<IvPage, String>>,
 }
@@ -35,8 +37,15 @@ enum Click {
 impl App {
     pub(super) fn open_instant_view(&mut self, peer: PeerId, id: i32) {
         let Some(w) = self.find(peer, id).and_then(|m| m.webpage.clone()) else { return };
-        self.instant_view.open = Some(Opened { peer, url: w.url.clone(), site: w.site, page: None });
+        self.instant_view.open = Some(Opened { peer, url: w.url.clone(), site: w.site, rich: false, page: None });
         self.send(Cmd::InstantView { url: w.url });
+    }
+
+    pub(super) fn open_rich_message(&mut self, peer: PeerId, id: i32) {
+        let key = format!("rich:{peer:?}:{id}");
+        let site = l!("Повідомлення", "Message").to_owned();
+        self.instant_view.open = Some(Opened { peer, url: key.clone(), site, rich: true, page: None });
+        self.send(Cmd::RichMessage { peer, id, key });
     }
 
     pub(super) fn on_instant_view(&mut self, url: String, result: Result<IvPage, String>) {
@@ -69,7 +78,7 @@ impl App {
         let browser = close.translate(vec2(-40.0, 0.0));
         let mut click = None;
         let closed = glass::icon_button(ui, close, "iv-close", Icon::Close, false, true).clicked();
-        if glass::icon_button(ui, browser, "iv-browser", Icon::Globe, false, true).on_hover_text(l!("Відкрити в браузері", "Open in browser")).clicked() {
+        if !o.rich && glass::icon_button(ui, browser, "iv-browser", Icon::Globe, false, true).on_hover_text(l!("Відкрити в браузері", "Open in browser")).clicked() {
             click = Some(Click::Browser);
         }
         p.hline(panel.x_range().shrink(18.0), panel.top() + 54.0, egui::Stroke::new(1.0, glass::veil(22)));

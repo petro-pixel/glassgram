@@ -614,6 +614,9 @@ pub enum Cmd {
     WebPreview(String),
     /// The Instant View of a page by its URL (`messages.getWebPage`); answered with `Ev::InstantView`.
     InstantView { url: String },
+    /// A rich message's full layout (`messages.getRichMessage`); answered with `Ev::InstantView`
+    /// under `key`, since the reader draws the same blocks.
+    RichMessage { peer: PeerId, id: i32, key: String },
     /// Chat members for the @mention popup.
     LoadMentions { peer: PeerId, query: String },
     /// Chat bot commands for the `/` menu.
@@ -1471,7 +1474,7 @@ impl Worker {
             cmd @ (Cmd::LoadRingtones | Cmd::UploadRingtone(_) | Cmd::DeleteRingtone(_) | Cmd::LoadReactionNotify | Cmd::SetReactionNotify(_)) => self.sounds_cmd(cmd).await,
             cmd @ (Cmd::LoadSponsored(_) | Cmd::ViewSponsored(_) | Cmd::ClickSponsored(_) | Cmd::ReportSponsored { .. } | Cmd::SetAdsEnabled(_)) => self.sponsored_cmd(cmd).await,
             Cmd::WebPreview(text) => self.web_preview(text),
-            cmd @ Cmd::InstantView { .. } => self.instant_view_cmd(cmd).await,
+            cmd @ (Cmd::InstantView { .. } | Cmd::RichMessage { .. }) => self.instant_view_cmd(cmd).await,
             Cmd::LoadMentions { peer, query } => self.load_members(peer, query),
             Cmd::LoadBotCommands(peer) => self.load_bot_commands(peer),
             Cmd::LoadChatInfo(_)
