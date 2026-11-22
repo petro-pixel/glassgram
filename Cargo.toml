@@ -72,6 +72,7 @@ notify-rust = { version = "4.11", default-features = false, features = ["z"] }
 # libwebkit2gtk-4.1-dev; the Flatpak gets it from the GNOME runtime.
 wry = "0.57"
 tao = "0.37"
+whatlang = "0.18"
 
 # Tray: StatusNotifierItem over D-Bus on Linux, without GTK or other system libraries.
 [target.'cfg(target_os = "linux")'.dependencies]

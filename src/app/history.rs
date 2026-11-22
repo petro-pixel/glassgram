@@ -220,6 +220,10 @@ impl App {
                             };
                             if album.len() > 1 {
                                 let ids: Vec<i32> = album.iter().map(|m| m.id).collect();
+                                // A whole-chat translation replaces the caption, as in a single message.
+                                let caption = album.iter().find(|x| !x.text.is_empty()).copied();
+                                let shown = caption.and_then(|c| self.translated_msg(peer, c));
+                                let items: Vec<&Msg> = album.iter().map(|&x| shown.as_ref().filter(|s| s.id == x.id).unwrap_or(x)).collect();
                                 let look = Look {
                                     chosen: &[],
                                     group,
@@ -231,12 +235,15 @@ impl App {
                                     chat: Some(chat),
                                     pending: None,
                                     manual: album.iter().any(|m| self.media_manual(peer, chat, m)),
-                                    translated: false,
+                                    translated: shown.is_some(),
                                 };
                                 let texs: Vec<_> = album.iter().map(|m| self.media_tex(peer, m)).collect();
                                 let hidden: Vec<bool> = album.iter().map(|m| self.media_hidden(peer, m)).collect();
-                                if let Some(a) = album_bubble(ui, album, &texs, &hidden, look) {
+                                if let Some(a) = album_bubble(ui, &items, &texs, &hidden, look) {
                                     action = Some(a);
+                                }
+                                if let Some(c) = caption {
+                                    self.want_translation(ui, peer, c, top);
                                 }
                                 entry_end(ui);
                                 ad_here(ui);

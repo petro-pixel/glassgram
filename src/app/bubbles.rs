@@ -447,7 +447,8 @@ pub(super) fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHa
     let p = ui.painter().clone();
     let body = cap.map(|c| custom_emoji::galley(&p, format::layout(&c.text, &c.spans, glass::msg_font(), ink(), glass::link(false), w - 20.0, false), &c.spans, false));
     let last = msgs[msgs.len() - 1];
-    let meta = p.layout_no_wrap(last.time.clone(), FontId::proportional(11.0), rgba(ink(), 170));
+    let time = format!("{}{}", if look.translated { l!("переклад · ", "translated · ") } else { "" }, last.time);
+    let meta = p.layout_no_wrap(time.clone(), FontId::proportional(11.0), rgba(ink(), 170));
     let text_h = body.as_ref().map_or(0.0, |b| b.size().y + meta.size().y + 22.0);
     let size = vec2(w + 8.0, grid_h + 8.0 + text_h);
     let (row, resp) = ui.allocate_exact_size(vec2(avail, size.y + 6.0), Sense::click());
@@ -491,7 +492,7 @@ pub(super) fn album_bubble(ui: &mut Ui, msgs: &[&Msg], texs: &[Option<&TextureHa
         let chip = Rect::from_min_size(rect.max - meta.size() - vec2(22.0, 16.0), meta.size() + vec2(12.0, 6.0));
         p.rect_filled(chip, chip.height() / 2.0, Color32::from_black_alpha(120));
         // The chip over the photo is dark in both themes, so its text is always light.
-        let meta = p.layout_no_wrap(last.time.clone(), FontId::proportional(11.0), glass::ON_DARK);
+        let meta = p.layout_no_wrap(time, FontId::proportional(11.0), glass::ON_DARK);
         p.galley(chip.min + vec2(6.0, 3.0), meta, glass::ON_DARK);
     }
     let main = cap.unwrap_or(first);

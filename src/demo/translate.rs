@@ -11,12 +11,17 @@ use crate::i18n::l;
 /// The German group.
 const GROUP: i64 = 50;
 
+/// The two photos of the album in `SCRIPT`, its caption on the first.
+const ALBUM: std::ops::Range<usize> = 4..6;
+
 /// (sender, German text, Ukrainian, English); an empty sender is us.
-const SCRIPT: [(&str, &str, &str, &str); 6] = [
+const SCRIPT: [(&str, &str, &str, &str); 8] = [
     ("Lukas", "Hallo zusammen! Wer kommt heute Abend zum Treffen?", "Привіт усім! Хто прийде сьогодні ввечері на зустріч?", "Hi everyone! Who's coming to the meetup tonight?"),
     ("Anna", "Ich bin dabei, ich bringe die Folien über async Rust mit.", "Я буду, принесу слайди про async Rust.", "I'm in, I'll bring the slides about async Rust."),
     ("", "I'll join online 🙂", "", ""),
     ("Jonas", "Das ist super! Der Raum ist im dritten Stock, die Tür ist offen.", "Чудово! Зала на третьому поверсі, двері відчинені.", "Great! The room is on the third floor, the door is open."),
+    ("Jonas", "So sieht der Raum aus, die Bühne ist schon fertig.", "Ось так виглядає зала, сцена вже готова.", "This is what the room looks like, the stage is ready."),
+    ("Jonas", "", "", ""),
     ("Anna", "Und wir haben noch Pizza für alle 🍕", "А ще в нас є піца для всіх 🍕", "And we've got pizza for everyone 🍕"),
     ("Lukas", "Bis später, und vergesst nicht die Laptops!", "До зустрічі, і не забудьте ноутбуки!", "See you later, and don't forget your laptops!"),
 ];
@@ -30,6 +35,8 @@ pub(super) fn chat() -> (ChatInfo, Vec<Msg>) {
             let (text, ents) = format::parse(text);
             Msg {
                 id: i as i32 + 1,
+                photo: ALBUM.contains(&i),
+                group: ALBUM.contains(&i).then_some(9),
                 out: sender.is_empty(),
                 sender: sender.into(),
                 sender_color: super::demo_color(sender),
@@ -46,7 +53,7 @@ pub(super) fn chat() -> (ChatInfo, Vec<Msg>) {
         title: "Rust Meetup Berlin".into(),
         kind: ChatKind::Group,
         last_text: "Lukas: Bis später, und vergesst nicht die Laptops!".into(),
-        last_time: "18:25".into(),
+        last_time: "18:33".into(),
         last_ts: 96,
         unread: 2,
         pinned: false,

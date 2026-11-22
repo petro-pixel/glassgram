@@ -1,6 +1,19 @@
-//! A rough guess of a text's language from its most common words, enough to tell whether a chat
-//! is in another language than ours. Telegram Desktop uses a full detector; the server translates
-//! from any language, so a guess only decides whether to offer the bar.
+//! A text's language: `whatlang` when it is sure, and for short messages, which it can't judge, a
+//! guess from the most common words. The server translates from any language, so this only decides
+//! whether to offer the bar and which messages to ask for.
+
+/// Shorter texts go to the word guess unless `whatlang` calls them reliable.
+const MIN_CHARS: usize = 32;
+const MIN_CONFIDENCE: f64 = 0.25;
+
+/// `whatlang`'s ISO 639-3 codes → the ISO 639-1 codes Telegram takes.
+const CODES: [(&str, &str); 44] = [
+    ("afr", "af"), ("ara", "ar"), ("aze", "az"), ("bel", "be"), ("ben", "bn"), ("bul", "bg"), ("cat", "ca"), ("ces", "cs"), ("cmn", "zh"),
+    ("dan", "da"), ("deu", "de"), ("ell", "el"), ("eng", "en"), ("est", "et"), ("fin", "fi"), ("fra", "fr"), ("heb", "he"), ("hin", "hi"),
+    ("hrv", "hr"), ("hun", "hu"), ("hye", "hy"), ("ind", "id"), ("ita", "it"), ("jpn", "ja"), ("kat", "ka"), ("kor", "ko"), ("lit", "lt"),
+    ("lav", "lv"), ("mkd", "mk"), ("nld", "nl"), ("nob", "no"), ("pes", "fa"), ("pol", "pl"), ("por", "pt"), ("ron", "ro"), ("rus", "ru"),
+    ("slk", "sk"), ("slv", "sl"), ("spa", "es"), ("srp", "sr"), ("swe", "sv"), ("tur", "tr"), ("ukr", "uk"), ("vie", "vi"),
+];
 
 /// Frequent short words of each language the guess knows.
 const WORDS: [(&str, &[&str]); 9] = [
@@ -17,6 +30,18 @@ const WORDS: [(&str, &[&str]); 9] = [
 
 /// The likeliest language code of `text`, or `None` when nothing stands out.
 pub(super) fn detect(text: &str) -> Option<&'static str> {
+    // `is_reliable` turns down most chat-length messages whose top guess is right; the chat's
+    // language is a majority of many messages, so a clear lead on a full sentence is enough.
+    let sure = |i: &whatlang::Info| i.is_reliable() || (text.chars().count() >= MIN_CHARS && i.confidence() >= MIN_CONFIDENCE);
+    if let Some(info) = whatlang::detect(text).filter(sure)
+        && let Some((_, code)) = CODES.iter().find(|(iso3, _)| *iso3 == info.lang().code())
+    {
+        return Some(code);
+    }
+    by_words(text)
+}
+
+fn by_words(text: &str) -> Option<&'static str> {
     let lower = text.to_lowercase();
     // Letters only one of the two Cyrillic languages has settle it at once.
     if lower.chars().any(|c| matches!(c, 'і' | 'ї' | 'є' | 'ґ')) {
@@ -73,6 +98,12 @@ mod tests {
         assert_eq!(detect("Привіт, як справи?"), Some("uk"));
         assert_eq!(detect("Это уже готово"), Some("ru"));
         assert_eq!(detect("👍"), None);
+    }
+
+    #[test]
+    fn knows_languages_without_a_word_list() {
+        assert_eq!(detect("De vergadering begint morgenochtend om negen uur in het gemeentehuis van Amsterdam."), Some("nl"));
+        assert_eq!(detect("Toplantı yarın sabah dokuzda belediye binasında başlayacak, lütfen geç kalmayın."), Some("tr"));
     }
 
     #[test]
