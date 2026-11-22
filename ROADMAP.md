@@ -240,7 +240,7 @@ Needs WebRTC and Telegram's protocol: FFI to `tgcalls` (C++) or pure Rust (`webr
 
 **Flathub**
 - ✅ Our own `.flatpak` bundle from GitHub Actions: `io.github.petro_pixel.Glassgram`, ffmpeg + x264 built in, `.desktop`, metainfo, icons
-- ⬜ Flathub: offline crates (`flatpak-cargo-generator`) and a decision about the API keys (a Flathub manifest is public)
+- 🟡 Flathub: offline crates and a decision about the API keys (a Flathub manifest is public) — `packaging/flathub` has a manifest whose crates come from `cargo-sources.json` (generated from `Cargo.lock` by `cargo-sources.py`), and it builds without network for the app module. Left: the decision about the API keys (this build shows the key screen)
 - ✅ ffmpeg (with x264, opus, vpx, ffplay) as a module of the manifest
 - ✅ Permissions: network, Wayland/X11, GPU and camera (`--device=all`), PulseAudio + PipeWire, D-Bus for the tray and notifications, `xdg-download`
 - 🟡 Portals: notifications, opening files, file chooser, camera — the file chooser goes through the portal (`rfd` with `xdg-portal`). Left: notifications, opening files and the camera still use direct access (`--talk-name`, `--device=all`)
