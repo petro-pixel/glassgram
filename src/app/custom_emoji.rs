@@ -269,6 +269,15 @@ pub(super) fn paint_id(p: &Painter, id: i64, rect: Rect) {
     }
 }
 
+/// A custom emoji in a chip (reactions, Saved Messages tags): a faint dot holds its place until
+/// the picture arrives, since there is no fallback emoji to show.
+pub(super) fn paint_chip(p: &Painter, id: i64, rect: Rect) {
+    if CustomEmoji::of(p.ctx()).is_some_and(|s| s.texture(id).is_none()) {
+        p.circle_filled(rect.center(), rect.width() * 0.4, glass::veil(40));
+    }
+    paint_id(p, id, rect);
+}
+
 /// Draws the pictures of custom emoji over a galley painted at `origin`.
 pub(super) fn paint(p: &Painter, galley: &Galley, origin: egui::Pos2, text: &str, spans: &[Span], revealed: bool) {
     let Some(shelf) = CustomEmoji::of(p.ctx()) else { return };

@@ -572,11 +572,24 @@ pub(super) fn reactions(r: &tl::enums::MessageReactions) -> Vec<Reaction> {
     let tl::enums::MessageReactions::Reactions(r) = r;
     r.results
         .iter()
-        .filter_map(|tl::enums::ReactionCount::Count(c)| match &c.reaction {
-            tl::enums::Reaction::Emoji(e) => Some(Reaction { emoji: e.emoticon.clone(), count: c.count, mine: c.chosen_order.is_some() }),
-            _ => None,
-        })
+        .filter_map(|tl::enums::ReactionCount::Count(c)| Some(Reaction { emoji: reaction_key(&c.reaction)?, count: c.count, mine: c.chosen_order.is_some() }))
         .collect()
+}
+
+/// Our string for a reaction; paid ones are not shown as chips.
+pub(super) fn reaction_key(r: &tl::enums::Reaction) -> Option<String> {
+    match r {
+        tl::enums::Reaction::Emoji(e) => Some(e.emoticon.clone()),
+        tl::enums::Reaction::CustomEmoji(e) => Some(Reaction::custom_key(e.document_id)),
+        _ => None,
+    }
+}
+
+pub(super) fn reaction_from_key(key: &str) -> tl::enums::Reaction {
+    match Reaction::custom_id(key) {
+        Some(document_id) => tl::types::ReactionCustomEmoji { document_id }.into(),
+        None => tl::types::ReactionEmoji { emoticon: key.to_owned() }.into(),
+    }
 }
 
 pub(super) fn poll_info(p: &grammers_client::media::Poll) -> PollInfo {

@@ -132,7 +132,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/similar.rs`, `src/backend/similar.rs` | "Similar channels" tab in a channel's info |
 | `src/app/music.rs`, `src/backend/music.rs` | Music player bar and playlist: the chat's music as the queue (`messages.search`), repeat, shuffle; a user's profile music (`users.getSavedMusic`) |
 | `src/app/sendas.rs`, `src/backend/sendas.rs` | Sending as a channel: the avatar button left of the field and its menu (`channels.getSendAs`, `messages.saveDefaultSendAs`) |
-| `src/app/saved.rs`, `src/backend/saved.rs` | Saved Messages split by source: "All" and one tab per chat; reaction tags as filters, renaming them |
+| `src/app/saved.rs`, `src/backend/saved.rs` | Saved Messages split by source: "All" and one tab per chat; reaction tags (custom emoji too) as filters, renaming them |
 | `src/app/chatsearch.rs` | In-chat search panel: type and sender filters, results |
 | `src/app/searchtabs.rs`, `src/backend/searchtabs.rs` | Global search tabs: channels, apps (popular mini app bots), public posts, media |
 | `src/app/stories.rs`, `src/backend/stories.rs` | Stories: strip above the chat list and the viewer (video with sound, replies, reactions, stealth mode) |
@@ -144,7 +144,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/business.rs` (+ `business/`), `src/backend/business.rs` | Settings → Telegram Business: location, opening hours, quick replies, greeting and away messages, chatbots, chat links; a business's hours and address in its profile |
 | `src/app/textures.rs` | Pictures on the GPU with a memory budget; dropped ones come back from the disk cache |
 | `src/app/emojikw.rs`, `src/backend/emojikw.rs` | Emoji suggestions while typing `:word` |
-| `src/app/custom_emoji.rs`, `src/backend/custom_emoji.rs` | Custom emoji in message text and chat list previews: pictures drawn over the fallback emoji |
+| `src/app/custom_emoji.rs`, `src/backend/custom_emoji.rs` | Custom emoji in message text, chat list previews, reactions and tags: pictures drawn over the fallback emoji or on the chip |
 | `src/app/effects.rs`, `src/backend/effects.rs` | Message effects: the emoji badge by the time, the animation played over the chat, the effects row in the send menu |
 | `src/app/viewonce.rs`, `src/backend/viewonce.rs` | View-once and timed photos and videos: the cover, opening once, "expired" afterwards; sending view once |
 | `src/app/namecolor.rs`, `src/backend/namecolor.rs` | Name colours of authors and reply stripes, emoji status after names; name colour, profile colour and emoji status pickers in My Account |

@@ -8,7 +8,7 @@ use grammers_client::peer::{Peer, User};
 use grammers_client::session::types::PeerId;
 use grammers_client::tl;
 
-use super::{Cmd, Ev, Msg, PAGE, Worker, found_chat};
+use super::{Cmd, Ev, Msg, PAGE, Worker, found_chat, reaction_from_key, reaction_key};
 use crate::i18n::{l, lf};
 
 /// A reaction used as a tag in Saved Messages, with its optional name (Premium) and use count.
@@ -112,10 +112,8 @@ impl Worker {
                 let tags = t
                     .tags
                     .into_iter()
-                    .filter_map(|tl::enums::SavedReactionTag::Tag(t)| match t.reaction {
-                        // Custom emoji tags have no picture yet: left out rather than shown blank.
-                        tl::enums::Reaction::Emoji(e) => Some(SavedTag { emoji: e.emoticon, title: t.title.unwrap_or_default(), count: t.count }),
-                        _ => None,
+                    .filter_map(|tl::enums::SavedReactionTag::Tag(t)| {
+                        Some(SavedTag { emoji: reaction_key(&t.reaction)?, title: t.title.unwrap_or_default(), count: t.count })
                     })
                     .collect();
                 self.out.send(Ev::SavedTags(tags));
@@ -127,7 +125,7 @@ impl Worker {
                     q: String::new(),
                     from_id: None,
                     saved_peer_id: None,
-                    saved_reaction: Some(vec![tl::types::ReactionEmoji { emoticon: emoji.clone() }.into()]),
+                    saved_reaction: Some(vec![reaction_from_key(&emoji)]),
                     top_msg_id: None,
                     filter: tl::enums::MessagesFilter::InputMessagesFilterEmpty,
                     min_date: 0,
@@ -159,7 +157,7 @@ impl Worker {
             }
             Cmd::RenameSavedTag { emoji, title } => {
                 let req = tl::functions::messages::UpdateSavedReactionTag {
-                    reaction: tl::types::ReactionEmoji { emoticon: emoji }.into(),
+                    reaction: reaction_from_key(&emoji),
                     title: Some(title).filter(|t| !t.is_empty()),
                 };
                 if let Err(e) = client.invoke(&req).await {

@@ -878,9 +878,13 @@ fn reactions_counts_and_unread() {
     let raw = tl::types::Message { out: true, reactions: Some(reactions.into()), ..message(41, peer_chat(FRIENDS), Some(peer_user(ME)), "Зустрічаємось о 7") };
     let m = convert(&deliver(raw), &names());
     let got: Vec<_> = m.reactions.iter().map(|r| (r.emoji.as_str(), r.count, r.mine)).collect();
-    // Custom emoji reactions are not drawn yet.
-    assert_eq!(got, [("👍", 3, true), ("❤", 1, false)]);
+    assert_eq!(got, [("👍", 3, true), ("❤", 1, false), ("custom:1", 2, false)]);
     assert!(m.reaction_unread);
+    // The key goes back to the same reaction when sending or filtering by tag.
+    assert_eq!(Reaction::custom_id("custom:1"), Some(1));
+    assert_eq!(Reaction::custom_id("❤"), None);
+    assert!(matches!(reaction_from_key("custom:1"), tl::enums::Reaction::CustomEmoji(e) if e.document_id == 1));
+    assert!(matches!(reaction_from_key("❤"), tl::enums::Reaction::Emoji(e) if e.emoticon == "❤"));
 }
 
 #[test]

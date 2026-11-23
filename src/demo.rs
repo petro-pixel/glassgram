@@ -374,6 +374,7 @@ thread_local! {
     static SAVED_TAGS: std::cell::RefCell<Vec<SavedTag>> = std::cell::RefCell::new(vec![
         SavedTag { emoji: "👍".into(), title: "Ideas".into(), count: 2 },
         SavedTag { emoji: "❤".into(), title: String::new(), count: 1 },
+        SavedTag { emoji: Reaction::custom_key(9003), title: "Favourites".into(), count: 1 },
     ]);
     /// Demo cloud password: "demo", with a hint and no recovery email at first.
     static PASSWORD: std::cell::RefCell<(String, PasswordState)> = std::cell::RefCell::new((
@@ -692,7 +693,11 @@ fn extras(id: i64, peer: PeerId, msgs: &mut Vec<Msg>) {
                 });
             }
             if let Some(m) = msgs.first_mut() {
-                m.reactions = vec![Reaction { emoji: "👍".into(), count: 3, mine: false }, Reaction { emoji: "🔥".into(), count: 1, mine: true }];
+                m.reactions = vec![
+                    Reaction { emoji: "👍".into(), count: 3, mine: false },
+                    Reaction { emoji: "🔥".into(), count: 1, mine: true },
+                    Reaction { emoji: Reaction::custom_key(9001), count: 2, mine: false },
+                ];
             }
             // Unread reaction to our message.
             if let Some(m) = msgs.iter_mut().find(|m| m.id == DEMO_REACTED) {

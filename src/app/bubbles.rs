@@ -180,20 +180,30 @@ pub(super) fn sticker_bubble(ui: &mut Ui, m: &Msg, emoji: &str, tex: Option<&Tex
 /// Reactions row under a message.
 pub(super) fn reaction_chips(ui: &mut Ui, id: i32, reactions: &[Reaction], left: f32, out: bool, right: f32) -> Option<Action> {
     let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
+    // A custom emoji is a picture, so its chip makes room for it beside the count.
+    const PICTURE: f32 = 18.0;
+    let extra = |r: &Reaction| if Reaction::custom_id(&r.emoji).is_some() { PICTURE + 4.0 } else { 0.0 };
     let chips: Vec<_> = reactions
         .iter()
-        .map(|r| (r, ui.painter().layout_no_wrap(format!("{} {}", r.emoji, r.count), FontId::proportional(14.0), ink())))
+        .map(|r| {
+            let label = if Reaction::custom_id(&r.emoji).is_some() { r.count.to_string() } else { format!("{} {}", r.emoji, r.count) };
+            (r, ui.painter().layout_no_wrap(label, FontId::proportional(14.0), ink()))
+        })
         .collect();
-    let total: f32 = chips.iter().map(|(_, g)| g.size().x + 22.0).sum();
+    let total: f32 = chips.iter().map(|(r, g)| g.size().x + extra(r) + 22.0).sum();
     let mut x = if out { right - total } else { left };
     let mut action = None;
     for (r, g) in chips {
-        let w = g.size().x + 18.0;
+        let w = g.size().x + extra(r) + 18.0;
         let rect = Rect::from_min_size(pos2(x, row.top() + 2.0), vec2(w, 28.0));
         let resp = ui.interact(rect, ui.scope_id().with(("react", id, &r.emoji)), Sense::click());
         let alpha = if r.mine { 190 } else if resp.hovered() { 60 } else { 34 };
         glass::glass(ui.painter(), rect, Glass::tinted(14.0, if r.mine { ACCENT } else { Color32::WHITE }, alpha));
-        ui.painter().galley(rect.center() - g.size() / 2.0, g, ink());
+        if let Some(doc) = Reaction::custom_id(&r.emoji) {
+            let at = pos2(rect.left() + 9.0 + PICTURE / 2.0, rect.center().y);
+            custom_emoji::paint_chip(ui.painter(), doc, Rect::from_center_size(at, egui::Vec2::splat(PICTURE)));
+        }
+        ui.painter().galley(pos2(rect.left() + 9.0 + extra(r), rect.center().y - g.size().y / 2.0), g, ink());
         if resp.clicked() {
             action = Some(Action::React(id, r.emoji.clone()));
         }

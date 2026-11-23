@@ -87,10 +87,26 @@ impl Worker {
                 let client = self.client()?;
                 let r = self.peer_ref(peer)?;
                 let reaction = match emoji {
-                    Some(e) => InputReactions::emoticon(e),
+                    Some(e) => match Reaction::custom_id(&e) {
+                        Some(doc) => InputReactions::custom_emoji(doc),
+                        None => InputReactions::emoticon(e),
+                    },
                     None => InputReactions::remove(),
                 };
-                client.send_reactions(r, id, reaction).await.map_err(|e| lf!("Реакція: {e}", "Reaction: {e}"))
+                let Err(e) = client.send_reactions(r, id, reaction).await else { return Ok(()) };
+                // The chip already changed: a refused reaction snaps back to the server's state.
+                if let Ok(msgs) = client.get_messages_by_id(r, &[id]).await
+                    && let Some(Some(m)) = msgs.into_iter().next()
+                {
+                    let mut msg = convert(&m, &self.names);
+                    msg.peer = peer;
+                    self.out.send(Ev::Edited(msg));
+                }
+                Err(if e.is("PREMIUM_ACCOUNT_REQUIRED") {
+                    l!("Реакції власними емодзі — функція Telegram Premium", "Custom emoji reactions need Telegram Premium").to_owned()
+                } else {
+                    lf!("Реакція: {e}", "Reaction: {e}")
+                })
             }
             Cmd::Vote { peer, id, options } => {
                 let client = self.client()?;

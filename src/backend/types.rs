@@ -401,9 +401,22 @@ pub struct MediaInfo {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Reaction {
+    /// The emoji itself, or `custom:<document id>` for a custom emoji (see `custom_key`).
     pub emoji: String,
     pub count: i32,
     pub mine: bool,
+}
+
+impl Reaction {
+    /// One string for both kinds, so toggling, tags and filters don't need to tell them apart.
+    pub fn custom_key(id: i64) -> String {
+        format!("custom:{id}")
+    }
+
+    /// The document id when `key` names a custom emoji.
+    pub fn custom_id(key: &str) -> Option<i64> {
+        key.strip_prefix("custom:")?.parse().ok()
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

@@ -181,7 +181,8 @@ impl App {
         let rect = Rect::from_center_size(screen.center(), vec2(340.0, 160.0));
         glass::glass(ui.painter(), rect, Glass::panel(24.0).with_shadow());
         let inner = rect.shrink(18.0);
-        ui.painter().text(inner.left_top(), Align2::LEFT_TOP, lf!("Назва тегу {emoji}", "Name of the {emoji} tag"), FontId::proportional(17.0), ink());
+        let head = if backend::Reaction::custom_id(emoji).is_some() { l!("Назва тегу", "Tag name").to_owned() } else { lf!("Назва тегу {emoji}", "Name of the {emoji} tag") };
+        ui.painter().text(inner.left_top(), Align2::LEFT_TOP, head, FontId::proportional(17.0), ink());
         let field = Rect::from_min_size(pos2(inner.left(), inner.top() + 36.0), vec2(inner.width(), 38.0));
         let resp = glass::text_field(ui, field, title, l!("Без назви", "No name"), false);
         if !ui.memory(|m| m.focused().is_some()) {
@@ -229,16 +230,25 @@ impl App {
 /// A tag capsule: the emoji, its name if it has one, and how many messages carry it.
 fn tag_chip(ui: &mut Ui, t: &backend::SavedTag, on: bool) -> egui::Response {
     let h = SAVED_BAR_H - 8.0;
-    let label = if t.title.is_empty() { format!("{}  {}", t.emoji, t.count) } else { format!("{} {}  {}", t.emoji, t.title, t.count) };
-    let text = elided(ui, &label, 13.0, ink(), 160.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(text.size().x + 24.0, h), Sense::click());
+    // A custom emoji is a picture before the label instead of a character in it.
+    const PICTURE: f32 = 16.0;
+    let custom = backend::Reaction::custom_id(&t.emoji);
+    let extra = if custom.is_some() { PICTURE + 4.0 } else { 0.0 };
+    let emoji = if custom.is_some() { "" } else { t.emoji.as_str() };
+    let label = if t.title.is_empty() { format!("{emoji}  {}", t.count) } else { format!("{emoji} {}  {}", t.title, t.count) };
+    let text = elided(ui, label.trim_start(), 13.0, ink(), 160.0);
+    let (r, resp) = ui.allocate_exact_size(vec2(text.size().x + extra + 24.0, h), Sense::click());
     let p = ui.painter();
     if on {
         glass::glass(p, r, Glass::tinted(h / 2.0, ACCENT, 70));
     } else {
         p.rect_filled(r, h / 2.0, glass::veil(if resp.hovered() { 22 } else { 10 }));
     }
-    p.galley(pos2(r.left() + 12.0, r.center().y - text.size().y / 2.0), text, ink());
+    if let Some(id) = custom {
+        let at = pos2(r.left() + 12.0 + PICTURE / 2.0, r.center().y);
+        custom_emoji::paint_chip(p, id, Rect::from_center_size(at, egui::Vec2::splat(PICTURE)));
+    }
+    p.galley(pos2(r.left() + 12.0 + extra, r.center().y - text.size().y / 2.0), text, ink());
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
