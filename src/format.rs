@@ -108,13 +108,16 @@ pub fn from_entities(text: &str, entities: &[tl::enums::MessageEntity], shift: u
 }
 
 /// Markup markers: (opener, closer, style). Order matters: ``` before `.
-const MARKERS: [(&str, Style); 6] = [
-    ("```", Style::Pre),
-    ("`", Style::Code),
-    ("**", Style::Bold),
-    ("__", Style::Italic),
-    ("~~", Style::Strike),
-    ("||", Style::Spoiler),
+/// Underline and quote are tags: a symmetric `++` would fire on plain "C++ and C++".
+const MARKERS: [(&str, &str, Style); 8] = [
+    ("```", "```", Style::Pre),
+    ("`", "`", Style::Code),
+    ("**", "**", Style::Bold),
+    ("__", "__", Style::Italic),
+    ("~~", "~~", Style::Strike),
+    ("||", "||", Style::Spoiler),
+    ("<u>", "</u>", Style::Underline),
+    ("<q>", "</q>", Style::Quote),
 ];
 
 /// Parses markup from the input field. Returns plain text and entities for Telegram.
@@ -165,9 +168,9 @@ fn parse_into(input: &str, out: &mut String, ents: &mut Vec<tl::enums::MessageEn
                 continue;
             }
         }
-        for (marker, style) in MARKERS {
-            let Some(after) = rest.strip_prefix(marker) else { continue };
-            let Some(close) = after.find(marker).filter(|&c| c > 0) else { continue };
+        for (opener, closer, style) in MARKERS {
+            let Some(after) = rest.strip_prefix(opener) else { continue };
+            let Some(close) = after.find(closer).filter(|&c| c > 0) else { continue };
             let inner = &after[..close];
             // Code and code blocks are not parsed further, the rest recursively.
             let code = matches!(style, Style::Code | Style::Pre);
@@ -183,7 +186,7 @@ fn parse_into(input: &str, out: &mut String, ents: &mut Vec<tl::enums::MessageEn
                 parse_into(inner, out, ents);
             }
             ents.push(entity(style, offset, utf16_len(out) - offset, None));
-            rest = &after[close + marker.len()..];
+            rest = &after[close + closer.len()..];
             continue 'outer;
         }
         let c = rest.chars().next().unwrap();
@@ -207,7 +210,9 @@ pub fn to_markup(text: &str, spans: &[Span]) -> String {
             }
             _ => None,
         },
-        Style::Underline | Style::Quote | Style::CustomEmoji => None,
+        Style::Underline => Some(("<u>", "</u>".to_owned())),
+        Style::Quote => Some(("<q>", "</q>".to_owned())),
+        Style::CustomEmoji => None,
     };
     let mut inserts: Vec<(usize, bool, String)> = Vec::new();
     for s in spans {
@@ -315,21 +320,21 @@ fn scan_markup(input: &str, base: usize, spans: &mut Vec<Span>, marks: &mut Vec<
                 continue;
             }
         }
-        for (marker, style) in MARKERS {
-            let Some(after) = rest.strip_prefix(marker) else { continue };
-            let Some(close) = after.find(marker).filter(|&c| c > 0) else { continue };
+        for (opener, closer, style) in MARKERS {
+            let Some(after) = rest.strip_prefix(opener) else { continue };
+            let Some(close) = after.find(closer).filter(|&c| c > 0) else { continue };
             let inner = &after[..close];
             if inner.trim().is_empty() {
                 continue;
             }
-            let (at, m) = (base + i, marker.len());
+            let (at, m, n) = (base + i, opener.len(), closer.len());
             marks.push((at, at + m));
             spans.push(Span { start: at + m, end: at + m + close, style, target: None });
             if !matches!(style, Style::Code | Style::Pre) {
                 scan_markup(inner, at + m, spans, marks);
             }
-            marks.push((at + m + close, at + 2 * m + close));
-            i += 2 * m + close;
+            marks.push((at + m + close, at + m + close + n));
+            i += m + close + n;
             continue 'outer;
         }
         i += rest.chars().next().map_or(1, char::len_utf8);
@@ -460,6 +465,8 @@ mod tests {
                 E::Bold(x) => (x.offset, x.length, "b"),
                 E::Italic(x) => (x.offset, x.length, "i"),
                 E::Strike(x) => (x.offset, x.length, "s"),
+                E::Underline(x) => (x.offset, x.length, "u"),
+                E::Blockquote(x) => (x.offset, x.length, "q"),
                 E::Spoiler(x) => (x.offset, x.length, "sp"),
                 E::Code(x) => (x.offset, x.length, "c"),
                 E::Pre(x) => (x.offset, x.length, "pre"),
@@ -491,6 +498,19 @@ mod tests {
         assert_eq!(styles("```\nfn x()\n```"), ("fn x()".into(), vec![(0, 6, "pre")]));
         assert_eq!(styles("||таємниця|| ~~ні~~"), ("таємниця ні".into(), vec![(0, 8, "sp"), (9, 2, "s")]));
         assert_eq!(styles("**жир __курс__**"), ("жир курс".into(), vec![(4, 4, "i"), (0, 8, "b")]));
+    }
+
+    #[test]
+    fn underline_and_quote_tags() {
+        assert_eq!(styles("так <u>лінія</u>"), ("так лінія".into(), vec![(4, 5, "u")]));
+        assert_eq!(styles("<q>цитата **жир**</q>"), ("цитата жир".into(), vec![(7, 3, "b"), (0, 10, "q")]));
+        // Unclosed tags and plain "C++" stay text.
+        assert_eq!(styles("<u>ні і C++ та C++"), ("<u>ні і C++ та C++".into(), vec![]));
+        let (spans, marks) = markup_ranges("a <u>b</u>");
+        assert_eq!(spans.iter().map(|s| (s.start, s.end, s.style)).collect::<Vec<_>>(), vec![(5, 6, Style::Underline)]);
+        assert_eq!(marks, vec![(2, 5), (6, 10)]);
+        let (text, ents) = parse("<q>цитата</q> і <u>лінія</u>");
+        assert_eq!(to_markup(&text, &from_entities(&text, &ents, 0)), "<q>цитата</q> і <u>лінія</u>");
     }
 
     #[test]

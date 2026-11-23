@@ -1,6 +1,6 @@
 //! Formatting in the message field, as in Telegram Desktop: selected text gets a glass bar above it
-//! (bold, italic, strikethrough, monospace, spoiler, link, clear formatting), and the same actions
-//! are on Ctrl+B / Ctrl+I / Ctrl+Shift+X / Ctrl+Shift+M / Ctrl+Shift+P / Ctrl+K / Ctrl+Shift+N.
+//! (bold, italic, underline, strikethrough, monospace, spoiler, quote, link, clear formatting), and the
+//! same actions are on Ctrl+B / I / U / Ctrl+Shift+X / M / P / . / Ctrl+K / Ctrl+Shift+N.
 //! They write the usual markup, which the field itself shows styled (`glass::rich_area`).
 
 use std::ops::Range;
@@ -25,19 +25,23 @@ pub(super) struct RichText {
 enum Fmt {
     Bold,
     Italic,
+    Underline,
     Strike,
     Mono,
     Spoiler,
+    Quote,
     Link,
     Clear,
 }
 
-const BAR: [(Fmt, Icon); 7] = [
+const BAR: [(Fmt, Icon); 9] = [
     (Fmt::Bold, Icon::Bold),
     (Fmt::Italic, Icon::Italic),
+    (Fmt::Underline, Icon::Underline),
     (Fmt::Strike, Icon::Strike),
     (Fmt::Mono, Icon::Code),
     (Fmt::Spoiler, Icon::EyeOff),
+    (Fmt::Quote, Icon::Quote),
     (Fmt::Link, Icon::Link),
     (Fmt::Clear, Icon::ClearFormat),
 ];
@@ -49,9 +53,11 @@ impl Fmt {
         match self {
             Fmt::Bold => l!("Жирний (Ctrl+B)", "Bold (Ctrl+B)"),
             Fmt::Italic => l!("Курсив (Ctrl+I)", "Italic (Ctrl+I)"),
+            Fmt::Underline => l!("Підкреслений (Ctrl+U)", "Underline (Ctrl+U)"),
             Fmt::Strike => l!("Закреслений (Ctrl+Shift+X)", "Strikethrough (Ctrl+Shift+X)"),
             Fmt::Mono => l!("Моноширинний (Ctrl+Shift+M)", "Monospace (Ctrl+Shift+M)"),
             Fmt::Spoiler => l!("Спойлер (Ctrl+Shift+P)", "Spoiler (Ctrl+Shift+P)"),
+            Fmt::Quote => l!("Цитата (Ctrl+Shift+.)", "Quote (Ctrl+Shift+.)"),
             Fmt::Link => l!("Посилання (Ctrl+K)", "Link (Ctrl+K)"),
             Fmt::Clear => l!("Без форматування (Ctrl+Shift+N)", "Clear formatting (Ctrl+Shift+N)"),
         }
@@ -74,9 +80,14 @@ impl App {
         let fmt = ui.input_mut(|i| {
             let shift = Modifiers::COMMAND | Modifiers::SHIFT;
             // Shift variants first: `consume_key` ignores an extra Shift.
-            [(shift, Key::X, Fmt::Strike), (shift, Key::M, Fmt::Mono), (shift, Key::P, Fmt::Spoiler), (shift, Key::N, Fmt::Clear)]
+            [(shift, Key::X, Fmt::Strike), (shift, Key::M, Fmt::Mono), (shift, Key::P, Fmt::Spoiler), (shift, Key::Period, Fmt::Quote), (shift, Key::N, Fmt::Clear)]
                 .into_iter()
-                .chain([(Modifiers::COMMAND, Key::B, Fmt::Bold), (Modifiers::COMMAND, Key::I, Fmt::Italic), (Modifiers::COMMAND, Key::K, Fmt::Link)])
+                .chain([
+                    (Modifiers::COMMAND, Key::B, Fmt::Bold),
+                    (Modifiers::COMMAND, Key::I, Fmt::Italic),
+                    (Modifiers::COMMAND, Key::U, Fmt::Underline),
+                    (Modifiers::COMMAND, Key::K, Fmt::Link),
+                ])
                 .find(|(m, k, _)| i.consume_key(*m, *k))
                 .map(|(.., f)| f)
         });
@@ -136,13 +147,15 @@ fn apply(text: &str, sel: Range<usize>, fmt: Fmt) -> (String, Range<usize>) {
     let (a, b) = (format::char_to_byte(text, sel.start), format::char_to_byte(text, sel.end));
     let inner = &text[a..b];
     let count = |s: &str| s.chars().count();
-    let marker = match fmt {
-        Fmt::Bold => "**",
-        Fmt::Italic => "__",
-        Fmt::Strike => "~~",
-        Fmt::Spoiler => "||",
-        Fmt::Mono if inner.contains('\n') => "```",
-        Fmt::Mono => "`",
+    let (open, close) = match fmt {
+        Fmt::Bold => ("**", "**"),
+        Fmt::Italic => ("__", "__"),
+        Fmt::Underline => ("<u>", "</u>"),
+        Fmt::Strike => ("~~", "~~"),
+        Fmt::Spoiler => ("||", "||"),
+        Fmt::Quote => ("<q>", "</q>"),
+        Fmt::Mono if inner.contains('\n') => ("```", "```"),
+        Fmt::Mono => ("`", "`"),
         Fmt::Link => {
             let out = format!("{}[{inner}](){}", &text[..a], &text[b..]);
             let at = sel.end + 3;
@@ -150,16 +163,16 @@ fn apply(text: &str, sel: Range<usize>, fmt: Fmt) -> (String, Range<usize>) {
         }
         Fmt::Clear => return clear(text, a, b),
     };
-    let m = count(marker);
-    if text[..a].ends_with(marker) && text[b..].starts_with(marker) {
-        let out = format!("{}{inner}{}", &text[..a - marker.len()], &text[b + marker.len()..]);
+    let m = count(open);
+    if text[..a].ends_with(open) && text[b..].starts_with(close) {
+        let out = format!("{}{inner}{}", &text[..a - open.len()], &text[b + close.len()..]);
         return (out, sel.start - m..sel.end - m);
     }
-    if let Some(bare) = inner.strip_prefix(marker).and_then(|s| s.strip_suffix(marker)) {
+    if let Some(bare) = inner.strip_prefix(open).and_then(|s| s.strip_suffix(close)) {
         let out = format!("{}{bare}{}", &text[..a], &text[b..]);
         return (out, sel.start..sel.start + count(bare));
     }
-    (format!("{}{marker}{inner}{marker}{}", &text[..a], &text[b..]), sel.start + m..sel.end + m)
+    (format!("{}{open}{inner}{close}{}", &text[..a], &text[b..]), sel.start + m..sel.end + m)
 }
 
 /// Removes the markers inside the selection, and around it when it is exactly a styled stretch.
@@ -199,6 +212,10 @@ mod tests {
         assert_eq!(apply("a\nb", 0..3, Fmt::Mono).0, "```a\nb```");
         assert_eq!(apply("привіт світ", 7..11, Fmt::Italic).0, "привіт __світ__");
         assert_eq!(apply("see docs", 4..8, Fmt::Link), ("see [docs]()".to_owned(), 11..11));
+        // Tags have a different opener and closer.
+        assert_eq!(apply("say hi now", 4..6, Fmt::Underline), ("say <u>hi</u> now".to_owned(), 7..9));
+        assert_eq!(apply("say <u>hi</u> now", 7..9, Fmt::Underline), ("say hi now".to_owned(), 4..6));
+        assert_eq!(apply("say <q>hi</q> now", 4..13, Fmt::Quote), ("say hi now".to_owned(), 4..6));
     }
 
     #[test]

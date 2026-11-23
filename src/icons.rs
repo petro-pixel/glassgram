@@ -59,9 +59,11 @@ pub enum Icon {
     Link,
     Bold,
     Italic,
+    Underline,
     Strike,
     Code,
     EyeOff,
+    Quote,
     ClearFormat,
     /// Bot command menu: a slash in a square.
     Commands,
@@ -187,6 +189,8 @@ fn svg(icon: Icon) -> Option<&'static str> {
         Icon::Link => include_str!("../assets/icons/link.svg"),
         Icon::Bold => include_str!("../assets/icons/bold.svg"),
         Icon::Italic => include_str!("../assets/icons/italic.svg"),
+        Icon::Underline => include_str!("../assets/icons/underline.svg"),
+        Icon::Quote => include_str!("../assets/icons/quote.svg"),
         Icon::Strike => include_str!("../assets/icons/strikethrough.svg"),
         Icon::Code => include_str!("../assets/icons/code.svg"),
         Icon::EyeOff => include_str!("../assets/icons/eye-off.svg"),
@@ -372,6 +376,8 @@ pub fn name(icon: Icon) -> &'static str {
         Icon::Link => l!("Посилання", "Link"),
         Icon::Bold => l!("Жирний", "Bold"),
         Icon::Italic => l!("Курсив", "Italic"),
+        Icon::Underline => l!("Підкреслений", "Underline"),
+        Icon::Quote => l!("Цитата", "Quote"),
         Icon::Strike => l!("Закреслений", "Strikethrough"),
         Icon::Code => l!("Моноширинний", "Monospace"),
         Icon::EyeOff => l!("Сховати", "Hide"),
@@ -510,7 +516,7 @@ mod tests {
             Icon::Info, Icon::Phone, Icon::User, Icon::Chat, Icon::Folder, Icon::Globe, Icon::Laptop, Icon::Chats, Icon::Users,
             Icon::Archive, Icon::PinOff, Icon::BellOff, Icon::CheckCheck, Icon::MarkUnread, Icon::Unarchive, Icon::Export, Icon::Video, Icon::LockOpen, Icon::Plus, Icon::FolderPlus, Icon::Select, Icon::PlayCircle, Icon::Flag, Icon::Calendar, Icon::Translate, Icon::Poll, Icon::Todo, Icon::Cake, Icon::Megaphone, Icon::Star, Icon::Volume, Icon::Maximize, Icon::Minimize, Icon::Pip,
             Icon::SkipBack, Icon::SkipForward, Icon::Repeat, Icon::RepeatOne, Icon::Shuffle, Icon::Music, Icon::ArrowUpRight, Icon::ArrowDownLeft,
-            Icon::Bold, Icon::Italic, Icon::Strike, Icon::Code, Icon::EyeOff, Icon::ClearFormat, Icon::Mail, Icon::KeyRound,
+            Icon::Bold, Icon::Italic, Icon::Underline, Icon::Strike, Icon::Code, Icon::EyeOff, Icon::Quote, Icon::ClearFormat, Icon::Mail, Icon::KeyRound,
         ];
         for icon in all {
             let text = svg(icon).unwrap_or_else(|| panic!("{icon:?} has no SVG"));
