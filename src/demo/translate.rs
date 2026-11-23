@@ -53,6 +53,7 @@ pub(super) fn chat() -> (ChatInfo, Vec<Msg>) {
         title: "Rust Meetup Berlin".into(),
         kind: ChatKind::Group,
         last_text: "Lukas: Bis später, und vergesst nicht die Laptops!".into(),
+        last_spans: Vec::new(),
         last_time: "18:33".into(),
         last_ts: 96,
         unread: 2,

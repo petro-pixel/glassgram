@@ -247,6 +247,18 @@ pub(super) fn galley(p: &Painter, mut job: LayoutJob, spans: &[Span], revealed: 
     p.layout_job(job)
 }
 
+/// A one-line chat list preview with its custom emoji, cut with "…" at `width`.
+pub(super) fn preview(p: &Painter, at: egui::Pos2, text: &str, spans: &[Span], size: f32, color: Color32, width: f32) {
+    let mut job = LayoutJob::single_section(text.to_owned(), egui::TextFormat::simple(egui::FontId::proportional(size), color));
+    job.wrap = egui::text::TextWrapping::truncate_at_width(width.max(10.0));
+    let g = galley(p, job, spans, false);
+    p.galley(at, g.clone(), color);
+    // Past the cut there is no glyph to stand on; the "…" takes the last place of the row.
+    let shown = g.rows.iter().map(|r| r.char_count_excluding_newline().0).sum::<usize>() - g.elided as usize;
+    let fits: Vec<Span> = spans.iter().filter(|s| text.get(..s.end).is_some_and(|t| t.chars().count() <= shown)).cloned().collect();
+    paint(p, &g, at, text, &fits, false);
+}
+
 /// Draws one custom emoji in a square (emoji statuses); a missing picture is asked for.
 pub(super) fn paint_id(p: &Painter, id: i64, rect: Rect) {
     let Some(shelf) = CustomEmoji::of(p.ctx()) else { return };

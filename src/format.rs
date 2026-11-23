@@ -107,6 +107,22 @@ pub fn from_entities(text: &str, entities: &[tl::enums::MessageEntity], shift: u
         .collect()
 }
 
+/// The custom emoji of a message, moved onto its one-line preview in the chat list (`preview` ends
+/// with the message text, after a sender or a media label). Those under a spoiler stay hidden.
+pub fn preview_spans(preview: &str, text: &str, spans: &[Span]) -> Vec<Span> {
+    let flat = text.replace('\n', " ");
+    if flat.is_empty() || !preview.ends_with(&flat) {
+        return Vec::new();
+    }
+    let shift = preview.len() - flat.len();
+    let hidden = |e: &Span| spans.iter().any(|o| o.style == Style::Spoiler && o.start < e.end && e.start < o.end);
+    spans
+        .iter()
+        .filter(|s| s.style == Style::CustomEmoji && !hidden(s))
+        .map(|s| Span { start: s.start + shift, end: s.end + shift, ..s.clone() })
+        .collect()
+}
+
 /// Markup markers: (opener, closer, style). Order matters: ``` before `.
 /// Underline and quote are tags: a symmetric `++` would fire on plain "C++ and C++".
 const MARKERS: [(&str, &str, Style); 8] = [
@@ -541,6 +557,20 @@ mod tests {
         assert_eq!(spans.iter().map(|s| s.emoji_id()).collect::<Vec<_>>(), vec![Some(77), Some(78)]);
         // Editing keeps the fallback emoji as plain text.
         assert_eq!(to_markup(text, &spans), text);
+    }
+
+    #[test]
+    fn preview_keeps_custom_emoji() {
+        let emoji = |start, end, id: i64| Span { start, end, style: Style::CustomEmoji, target: Some(id.to_string()) };
+        let text = "a\n🦀 b 🔥";
+        let spans = vec![emoji(2, 6, 7), emoji(9, 13, 8), Span { start: 9, end: 13, style: Style::Spoiler, target: None }];
+        let preview = "Ви: a 🦀 b 🔥";
+        let got = preview_spans(preview, text, &spans);
+        // The one under the spoiler is left out, the other moves past "Ви: ".
+        assert_eq!(got.len(), 1);
+        assert_eq!(&preview[got[0].start..got[0].end], "🦀");
+        assert_eq!(got[0].emoji_id(), Some(7));
+        assert!(preview_spans("Фото", text, &spans).is_empty());
     }
 
     #[test]

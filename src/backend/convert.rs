@@ -393,6 +393,7 @@ pub(super) fn found_chat(peer: &Peer, last_text: String) -> ChatInfo {
         title: peer_title(peer),
         kind: peer_kind(peer),
         last_text,
+        last_spans: Vec::new(),
         last_time: String::new(),
         last_ts: 0,
         unread: 0,

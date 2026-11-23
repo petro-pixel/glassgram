@@ -143,11 +143,16 @@ pub fn data() -> (String, Vec<ChatInfo>, HashMap<PeerId, Vec<Msg>>) {
         });
         let msgs: Vec<Msg> = msgs.into_iter().map(|m| if id == 1 && m.reply_to == Some(3) { Msg { reply_quote: quoted.clone(), ..m } } else { m }).collect();
         let last = msgs.last().unwrap();
+        let (last_text, last_spans) = match id {
+            2 => custom_emoji::preview(),
+            _ => (if last.out { lf!("Ви: {}", "You: {}", last.text) } else { last.text.replace('\n', " ") }, Vec::new()),
+        };
         infos.push(ChatInfo {
             id: peer,
             title: title.into(),
             kind,
-            last_text: if last.out { lf!("Ви: {}", "You: {}", last.text) } else { last.text.replace('\n', " ") },
+            last_text,
+            last_spans,
             last_time: last.time.clone(),
             last_ts: 100 - id,
             unread,
@@ -390,6 +395,7 @@ fn person(id: i64, name: &str, status: &str, presence: Presence) -> ChatInfo {
         title: name.into(),
         kind: ChatKind::User,
         last_text: status.into(),
+        last_spans: Vec::new(),
         last_time: String::new(),
         last_ts: 0,
         unread: 0,
@@ -499,6 +505,7 @@ fn helper_bot() -> ChatInfo {
         title: "GlassHelperBot".into(),
         kind: ChatKind::Bot,
         last_text: String::new(),
+        last_spans: Vec::new(),
         last_time: String::new(),
         last_ts: 0,
         unread: 0,
@@ -624,6 +631,7 @@ fn forum_chat() -> (ChatInfo, Vec<Msg>) {
         title: "Rust Ukraine".into(),
         kind: ChatKind::Group,
         last_text: "Iryna: The changelog is ready, release notes are left.".into(),
+        last_spans: Vec::new(),
         last_time: "12:02".into(),
         last_ts: 97,
         unread: 4,

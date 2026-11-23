@@ -1307,6 +1307,7 @@ impl App {
         match self.chats.iter_mut().find(|c| c.id == m.peer) {
             Some(chat) => {
                 chat.last_text = if m.out { lf!("Ви: {preview}", "You: {preview}") } else { preview };
+                chat.last_spans = format::preview_spans(&chat.last_text, &m.text, &m.spans);
                 chat.last_time = m.time.clone();
                 chat.last_ts = m.ts;
                 if !open && !m.out {
@@ -1390,6 +1391,7 @@ impl App {
                 title: hit.chat.clone(),
                 kind: hit.kind,
                 last_text: String::new(),
+                last_spans: Vec::new(),
                 last_time: String::new(),
                 last_ts: 0,
                 unread: 0,
@@ -1931,7 +1933,7 @@ fn chat_row(
             p.galley(preview_pos + vec2(lw, 0.0), elided(ui, &text, 13.5, ink_dim(), preview_w - lw), ink_dim());
         }
         (None, None) => {
-            p.galley(preview_pos, elided(ui, &chat.last_text, 13.5, ink_dim(), preview_w), ink_dim());
+            custom_emoji::preview(&p, preview_pos, &chat.last_text, &chat.last_spans, 13.5, ink_dim(), preview_w);
         }
     }
     if resp.hovered() {

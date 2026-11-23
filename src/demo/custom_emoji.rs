@@ -14,14 +14,25 @@ const EMOJI: [(i64, &str); 4] = [(9001, "💎"), (9002, "❤"), (9003, "⭐"), (
 /// A message with every demo custom emoji in its text.
 pub(super) fn message(base: Msg) -> Msg {
     let text = "New emoji for the theme 💎 ❤ ⭐ and a crystal ball 🔮".to_owned();
-    let spans = EMOJI
+    let spans = spans_in(&text);
+    Msg { id: 77, text, spans, ..base }
+}
+
+/// A chat list preview with custom emoji.
+pub(super) fn preview() -> (String, Vec<Span>) {
+    let text = "Taras: new emoji 💎 ❤ ⭐".to_owned();
+    let spans = spans_in(&text);
+    (text, spans)
+}
+
+fn spans_in(text: &str) -> Vec<Span> {
+    EMOJI
         .iter()
         .filter_map(|(id, e)| {
             let start = text.find(e)?;
             Some(Span { start, end: start + e.len(), style: Style::CustomEmoji, target: Some(id.to_string()) })
         })
-        .collect();
-    Msg { id: 77, text, spans, ..base }
+        .collect()
 }
 
 /// Olena's emoji status: the heart, so it beats after her name.

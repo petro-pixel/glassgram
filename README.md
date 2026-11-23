@@ -144,7 +144,7 @@ Languages from Telegram's list come from translations.telegram.org: their packs 
 | `src/app/business.rs` (+ `business/`), `src/backend/business.rs` | Settings → Telegram Business: location, opening hours, quick replies, greeting and away messages, chatbots, chat links; a business's hours and address in its profile |
 | `src/app/textures.rs` | Pictures on the GPU with a memory budget; dropped ones come back from the disk cache |
 | `src/app/emojikw.rs`, `src/backend/emojikw.rs` | Emoji suggestions while typing `:word` |
-| `src/app/custom_emoji.rs`, `src/backend/custom_emoji.rs` | Custom emoji in message text: pictures drawn over the fallback emoji |
+| `src/app/custom_emoji.rs`, `src/backend/custom_emoji.rs` | Custom emoji in message text and chat list previews: pictures drawn over the fallback emoji |
 | `src/app/effects.rs`, `src/backend/effects.rs` | Message effects: the emoji badge by the time, the animation played over the chat, the effects row in the send menu |
 | `src/app/viewonce.rs`, `src/backend/viewonce.rs` | View-once and timed photos and videos: the cover, opening once, "expired" afterwards; sending view once |
 | `src/app/namecolor.rs`, `src/backend/namecolor.rs` | Name colours of authors and reply stripes, emoji status after names; name colour, profile colour and emoji status pickers in My Account |

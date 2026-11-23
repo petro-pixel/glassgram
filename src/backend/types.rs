@@ -192,6 +192,9 @@ pub struct ChatInfo {
     pub title: String,
     pub kind: ChatKind,
     pub last_text: String,
+    /// Custom emoji in `last_text`; older caches have none.
+    #[serde(default)]
+    pub last_spans: Vec<crate::format::Span>,
     pub last_time: String,
     pub last_ts: i64,
     pub unread: i32,

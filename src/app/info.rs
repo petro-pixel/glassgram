@@ -306,6 +306,7 @@ impl App {
                 self.exhausted.insert(peer, true);
                 if let Some(c) = self.chat_mut(peer) {
                     c.last_text.clear();
+                    c.last_spans.clear();
                     c.last_time.clear();
                 }
                 if let Some(info) = self.info.as_mut().filter(|i| i.peer == peer) {

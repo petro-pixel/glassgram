@@ -1739,7 +1739,7 @@ impl Worker {
                 _ => (0, 0),
             };
             self.names.lock().unwrap().insert(peer.id(), peer_title(peer));
-            let (last_text, last_time, last_ts) = match &d.last_message {
+            let (last_text, last_spans, last_time, last_ts) = match &d.last_message {
                 Some(m) => {
                     let mut text = preview_text(m);
                     if m.outgoing() {
@@ -1749,15 +1749,18 @@ impl Worker {
                     {
                         text = format!("{}: {text}", short_name(s));
                     }
-                    (text, short_time(m.date()), m.date().as_second())
+                    let spans = m.fmt_entities().map(|e| crate::format::from_entities(m.text(), e, 0)).unwrap_or_default();
+                    let spans = crate::format::preview_spans(&text, m.text(), &spans);
+                    (text, spans, short_time(m.date()), m.date().as_second())
                 }
-                None => (String::new(), String::new(), 0),
+                None => (String::new(), Vec::new(), String::new(), 0),
             };
             chats.push(ChatInfo {
                 id: peer.id(),
                 title: peer_title(peer),
                 kind: peer_kind(peer),
                 last_text,
+                last_spans,
                 last_time,
                 last_ts,
                 unread,

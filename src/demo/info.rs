@@ -133,6 +133,7 @@ pub(super) fn demo_members() -> Vec<Member> {
                 title: name.into(),
                 kind: ChatKind::User,
                 last_text: String::new(),
+                last_spans: Vec::new(),
                 last_time: String::new(),
                 last_ts: 0,
                 unread: 0,
