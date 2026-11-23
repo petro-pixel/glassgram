@@ -1713,6 +1713,7 @@ impl eframe::App for App {
 
         let now = ui.input(|i| i.time);
         self.pump_outbox(now);
+        self.lang_pack_tick(now);
         if self.chats_dirty && now - self.chats_saved_at > CHATS_SAVE_EVERY {
             self.chats_saved_at = now;
             self.save_chats();

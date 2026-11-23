@@ -17,9 +17,33 @@ pub(super) struct LangPacks {
     pending: Option<String>,
     /// Filter over the server list.
     filter: String,
+    /// When an open client last looked for new translations.
+    checked_at: f64,
+    /// The pack on screen and its version: a refresh that changed nothing is not installed again,
+    /// since each install leaks a table (see `i18n::install`).
+    shown: Option<(String, i32)>,
+}
+
+/// `updateLangPack` never comes: grammers connects with an empty `lang_pack`, so the server has no
+/// pack to push for. A client left open asks for the difference itself.
+const REFRESH_EVERY: f64 = 6.0 * 3600.0;
+
+impl LangPacks {
+    fn is_shown(&self, code: &str, version: i32) -> bool {
+        self.shown.as_ref().is_some_and(|(c, v)| c == code && *v == version)
+    }
 }
 
 impl App {
+    /// Every few hours the language on screen picks up what translators changed.
+    pub(super) fn lang_pack_tick(&mut self, now: f64) {
+        if now - self.langpacks.checked_at < REFRESH_EVERY || !matches!(self.screen, Screen::Main) {
+            return;
+        }
+        self.langpacks.checked_at = now;
+        self.refresh_lang_pack();
+    }
+
     /// Opening the page: the server list, and the active Telegram language brought up to date.
     pub(super) fn open_language_page(&mut self) {
         if self.langpacks.list.is_empty() {
@@ -56,6 +80,10 @@ impl App {
         }
         match pack {
             Ok(pack) => {
+                if !chosen && self.langpacks.is_shown(&pack.code, pack.version) {
+                    return;
+                }
+                self.langpacks.shown = Some((pack.code.clone(), pack.version));
                 crate::i18n::install(&pack);
                 if chosen {
                     self.settings.lang = Lang::File(code);
@@ -164,4 +192,19 @@ fn language_row(ui: &mut Ui, l: &LangInfo, selected: bool, busy: bool) -> egui::
         p.text(right, Align2::RIGHT_CENTER, tags.join(" · "), FontId::proportional(12.5), ink_dim());
     }
     resp
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unchanged_pack_is_not_installed_again() {
+        let mut packs = LangPacks::default();
+        assert!(!packs.is_shown("pl", 5));
+        packs.shown = Some(("pl".into(), 5));
+        assert!(packs.is_shown("pl", 5));
+        assert!(!packs.is_shown("pl", 6));
+        assert!(!packs.is_shown("es", 5));
+    }
 }
